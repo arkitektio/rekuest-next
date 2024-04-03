@@ -1,0 +1,17 @@
+mutation createTemplate(
+  $interface: String!
+  $definition: DefinitionInput!
+  $instance_id: InstanceId!
+  $params: AnyDefault
+) {
+  createTemplate(
+    input: {
+      definition: $definition
+      interface: $interface
+      params: $params
+      instanceId: $instance_id
+    }
+  ) {
+    ...Template
+  }
+}

@@ -1,0 +1,31 @@
+query get_testcase($id: ID!) {
+  testCase(id: $id) {
+    ...TestCase
+  }
+}
+
+query get_testresult($id: ID!) {
+  testResult(id: $id) {
+    ...TestResult
+  }
+}
+
+query search_testcases($search: String, $values: [ID!]) {
+  options: testCases(
+    filters: { name: { iContains: $search }, ids: $values }
+    pagination: { limit: 10 }
+  ) {
+    label: name
+    value: id
+  }
+}
+
+query search_testresults($search: String, $values: [ID!]) {
+  options: testResults(
+    filters: { name: { iContains: $search }, ids: $values }
+    pagination: { limit: 10 }
+  ) {
+    label: createdAt
+    value: id
+  }
+}

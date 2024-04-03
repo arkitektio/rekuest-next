@@ -1,0 +1,21 @@
+query find($id: ID, $template: ID, $hash: NodeHash) {
+  node(id: $id, template: $template, hash: $hash) {
+    ...Node
+  }
+}
+
+query retrieveall {
+  nodes {
+    ...Node
+  }
+}
+
+query search_nodes($search: String, $values: [ID!]) {
+  options: nodes(
+    filters: { name: { iContains: $search }, ids: $values }
+    pagination: { limit: 10 }
+  ) {
+    label: name
+    value: id
+  }
+}

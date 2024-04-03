@@ -1,0 +1,27 @@
+fragment Assignation on Assignation {
+  args
+  id
+  parent {
+    id
+  }
+  id
+  status
+  events {
+    id
+    returns
+    level
+  }
+  reference
+  updatedAt
+}
+
+fragment AssignationEvent on AssignationEvent {
+  id
+  kind
+  level
+  returns
+  assignation {
+    id
+  }
+  createdAt
+}

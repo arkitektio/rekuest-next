@@ -1,0 +1,23 @@
+mutation assign(
+  $reservation: ID!
+  $args: [Arg!]!
+  $reference: String
+  $parent: ID
+) {
+  assign(
+    input: {
+      reservation: $reservation
+      args: $args
+      reference: $reference
+      parent: $parent
+    }
+  ) {
+    ...Assignation
+  }
+}
+
+mutation unassign($id: ID!) {
+  unassign(input: { assignation: $id }) {
+    ...Assignation
+  }
+}

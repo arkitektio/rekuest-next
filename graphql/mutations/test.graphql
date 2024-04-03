@@ -1,0 +1,37 @@
+mutation create_testcase(
+  $node: ID!
+  $key: String!
+  $is_benchmark: Boolean
+  $description: String!
+  $name: String!
+) {
+  createTestCase(
+    input: {
+      node: $node
+      key: $key
+      isBenchmark: $is_benchmark
+      description: $description
+      name: $name
+    }
+  ) {
+    ...TestCase
+  }
+}
+
+mutation create_testresult(
+  $case: ID!
+  $template: ID!
+  $passed: Boolean!
+  $result: String
+) {
+  createTestResult(
+    input: {
+      case: $case
+      template: $template
+      passed: $passed
+      result: $result
+    }
+  ) {
+    ...TestResult
+  }
+}

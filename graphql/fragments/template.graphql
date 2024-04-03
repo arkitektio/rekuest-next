@@ -1,0 +1,12 @@
+fragment Template on Template {
+  id
+  agent {
+    registry {
+      id
+    }
+  }
+  node {
+    ...Node
+  }
+  params
+}

@@ -1,0 +1,10 @@
+fragment Agent on Agent {
+  registry {
+    app {
+      id
+    }
+    user {
+      id
+    }
+  }
+}

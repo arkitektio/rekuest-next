@@ -1,0 +1,21 @@
+fragment Provision on Provision {
+  id
+  status
+  template {
+    id
+    node {
+      ...Node
+    }
+    params
+  }
+}
+
+fragment ProvisionEvent on ProvisionEvent {
+  id
+  kind
+  level
+  provision {
+    id
+  }
+  createdAt
+}

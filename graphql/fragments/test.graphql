@@ -1,0 +1,19 @@
+fragment TestCase on TestCase {
+  id
+  node {
+    id
+  }
+  key
+  isBenchmark
+  description
+  name
+}
+
+fragment TestResult on TestResult {
+  id
+  case {
+    id
+    key
+  }
+  passed
+}

@@ -1,0 +1,5 @@
+subscription WatchReservations($instanceId: InstanceId!) {
+  reservations(instanceId: $instanceId) {
+    ...ReservationEvent
+  }
+}

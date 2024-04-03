@@ -1,0 +1,17 @@
+fragment Definition on Node {
+  args {
+    ...Port
+  }
+  returns {
+    ...Port
+  }
+  kind
+  name
+  description
+}
+
+fragment Node on Node {
+  hash
+  id
+  ...Definition
+}

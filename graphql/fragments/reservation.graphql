@@ -1,0 +1,23 @@
+fragment Reservation on Reservation {
+  id
+  status
+  node {
+    id
+    hash
+  }
+  waiter {
+    id
+  }
+  reference
+  updatedAt
+}
+
+fragment ReservationEvent on ReservationEvent {
+  id
+  kind
+  level
+  reservation {
+    id
+  }
+  createdAt
+}

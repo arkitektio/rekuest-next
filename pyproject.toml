@@ -1,0 +1,84 @@
+[tool.poetry]
+name = "rekuest"
+version = "0.2.1"
+description = "rpc and node backbone"
+authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
+license = "CC BY-NC 3.0"
+packages = [{ include = "rekuest" }]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+docstring-parser = ">=0.11"
+inflection = "^0.5.1"
+websockets = "^10.0"
+pydantic = ">=1.9.0"
+annotated-types = "^0.4.0"
+rath = ">=0.4.0"
+
+[tool.ruff]
+extend-select = ["ANN", "D1"]
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 100
+
+[tool.poetry.group.dev.dependencies]
+testcontainers = "3.7.0"
+autoflake = "^1.7.7"
+pytest = "^7.2.0"
+pytest-asyncio = "^0.20.2"
+turms = { version = ">=0.3.1", python = "^3.9" }
+aiohttp = "^3.8.3"
+websockets = "^10.4"
+black = "^23.1.0"
+pytest-cov = "^4.0.0"
+pytest-aiohttp = "^1.0.4"
+ruff = "^0.0.254"
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+qt_api = "pyqt5"
+markers = [
+    "integration: marks tests that require a running server",
+    "qt: marks tests that require a running qt application",
+    "define: marks tests that concern to definining a funcionality",
+    "shrink: marks tests that concern to serializing inputs to requests to an actor",
+    "expand: marks tests that concern to serializing outputs from answers of an actor",
+    "actor: marks tests that concern actors",
+]
+
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+search_path = ["arkitekt"]
+
+[tool.pydoc-markdown.renderer]
+type = "docusaurus"
+docs_base_path = "website/docs"

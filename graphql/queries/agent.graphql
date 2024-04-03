@@ -1,0 +1,5 @@
+query GetAgent($id: ID!) {
+  agent(id: $id) {
+    ...Agent
+  }
+}

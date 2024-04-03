@@ -1,0 +1,29 @@
+mutation reserve(
+  $node: ID
+  $hash: NodeHash
+  $title: String
+  $reference: String
+  $provision: ID
+  $binds: BindsInput
+  $instanceId: InstanceId!
+) {
+  reserve(
+    input: {
+      node: $node
+      hash: $hash
+      title: $title
+      provision: $provision
+      binds: $binds
+      reference: $reference
+      instanceId: $instanceId
+    }
+  ) {
+    ...Reservation
+  }
+}
+
+mutation unreserve($id: ID!) {
+  unreserve(input: { reservation: $id }) {
+    id
+  }
+}

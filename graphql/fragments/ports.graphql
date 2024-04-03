@@ -1,0 +1,36 @@
+fragment ChildPortNested on ChildPort {
+  kind
+  child {
+    identifier
+    nullable
+    kind
+  }
+  identifier
+  nullable
+}
+
+fragment ChildPort on ChildPort {
+  kind
+  identifier
+  child {
+    ...ChildPortNested
+  }
+  nullable
+}
+
+fragment Port on Port {
+  __typename
+  key
+  label
+  nullable
+  description
+  default
+  kind
+  identifier
+  child {
+    ...ChildPort
+  }
+  variants {
+    ...ChildPort
+  }
+}
