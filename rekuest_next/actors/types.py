@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable, Callable, Awaitable, Any
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import PortGroupInput, AssignationStatus
+from rekuest_next.api.schema import PortGroupInput, AssignationEventKind
 from rekuest_next.definition.define import DefinitionInput
 from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel, Field
@@ -25,7 +25,7 @@ class Assignment(BaseModel):
 
 class AssignmentUpdate(BaseModel):
     assignment: str
-    status: AssignationStatus
+    status: AssignationEventKind
     message: Optional[str]
     parent: Optional[str]
     progress: Optional[int]
@@ -45,8 +45,7 @@ class ActorBuilder(Protocol):
         transport: Any,
         collector: Any,
         definition_registry: Any,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
 
 @runtime_checkable
@@ -63,9 +62,8 @@ class Actifier(Protocol):
         port_groups: Optional[List[PortGroupInput]] = None,
         groups: Optional[Dict[str, List[str]]] = None,
         is_test_for: Optional[List[str]] = None,
-        **kwargs
-    ) -> Tuple[DefinitionInput, ActorBuilder]:
-        ...
+        **kwargs,
+    ) -> Tuple[DefinitionInput, ActorBuilder]: ...
 
 
 @runtime_checkable
@@ -78,8 +76,7 @@ class OnProvide(Protocol):
     def __call__(
         self,
         passport: Passport,
-    ) -> Awaitable[Any]:
-        ...
+    ) -> Awaitable[Any]: ...
 
 
 @runtime_checkable
@@ -89,5 +86,4 @@ class OnUnprovide(Protocol):
 
     """
 
-    def __call__(self) -> Awaitable[Any]:
-        ...
+    def __call__(self) -> Awaitable[Any]: ...

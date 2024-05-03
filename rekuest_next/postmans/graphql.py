@@ -7,11 +7,10 @@ from rekuest_next.api.schema import (
     areserve,
     awatch_assignations,
     awatch_reservations,
-    aunassign,
+    acancel,
     aunreserve,
     BindsInput,
 )
-import traceback
 from rekuest_next.postmans.base import BasePostman
 import asyncio
 from pydantic import Field
@@ -129,7 +128,7 @@ class GraphQLPostman(BasePostman):
                 await self.start_watching()
 
         try:
-            unassignation = await aunassign(assignation)
+            unassignation = await acancel(assignation)
         except Exception as e:
             raise PostmanException("Cannot Unassign") from e
         self.assignations[unassignation.id] = unassignation

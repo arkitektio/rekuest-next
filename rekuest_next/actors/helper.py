@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from rekuest_next.api.schema import AssignationEventKind, LogLevel
-from rekuest_next.messages import Assignation, Provision
 from koil import unkoil
 from rekuest_next.actors.types import Assignment
 from rekuest_next.actors.transport.types import (
@@ -10,17 +9,19 @@ from rekuest_next.actors.transport.types import (
 )
 
 
-class AssignationHelper(BaseModel):
+class AssignmentHelper(BaseModel):
     passport: Passport
     assignment: Assignment
     transport: AssignTransport
 
     async def alog(self, level: LogLevel, message: str) -> None:
-        await self.transport.log(kind=AssignationEventKind.LOG_INFO, message=message)
+        await self.transport.log_event(
+            kind=AssignationEventKind.LOG_INFO, message=message
+        )
 
     async def aprogress(self, progress: int) -> None:
-        await self.transport.change(
-            status=AssignationEventKind.PROGRESS,
+        await self.transport.log_event(
+            kind=AssignationEventKind.PROGRESS,
             progress=progress,
         )
 
@@ -38,21 +39,6 @@ class AssignationHelper(BaseModel):
     def assignation(self) -> str:
         """Returns the governing assignation that cause the chained that lead to this execution"""
         return self.assignment.assignation
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class ProvisionHelper(BaseModel):
-    provision: Provision
-    transport: ActorTransport
-
-    async def alog(self, level: LogLevel, message: str) -> None:
-        await self.transport.log(level=level, message=message)
-
-    @property
-    def guardian(self) -> str:
-        return self.provision.guardian
 
     class Config:
         arbitrary_types_allowed = True

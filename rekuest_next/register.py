@@ -1,4 +1,5 @@
 from rekuest_next.actors.types import Actifier
+from rekuest_next.definition.validate import hash_definition
 from rekuest_next.structures.registry import (
     StructureRegistry,
     get_current_structure_registry,
@@ -13,6 +14,7 @@ from rekuest_next.definition.registry import (
 )
 from rekuest_next.api.schema import (
     AssignWidgetInput,
+    DependencyInput,
     PortGroupInput,
     PortScope,
     ReturnWidgetInput,
@@ -32,6 +34,7 @@ def register_func(
     definition_registry: DefinitionRegistry,
     interface: str = None,
     actifier: Actifier = reactify,
+    dependencies: List[DependencyInput] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     groups: Optional[Dict[str, List[str]]] = None,
     collections: List[str] = None,
@@ -91,8 +94,14 @@ def register_func(
     )
 
     definition_registry.register_at_interface(
-        interface, definition, structure_registry, actor_builder
+        interface,
+        definition,
+        structure_registry,
+        actor_builder,
+        dependencies=dependencies,
     )
+
+    return definition, actor_builder
 
 
 def register(
@@ -100,6 +109,7 @@ def register(
     actifier: Actifier = reactify,
     interface: str = None,
     widgets: Dict[str, AssignWidgetInput] = None,
+    dependencies: List[DependencyInput] = None,
     interfaces: List[str] = [],
     collections: List[str] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
@@ -149,10 +159,11 @@ def register(
         def wrapped_function(*args, **kwargs):
             return function_or_actor(*args, **kwargs)
 
-        register_func(
+        definition, actor_builder = register_func(
             function_or_actor,
             structure_registry=structure_registry,
             definition_registry=definition_registry,
+            dependencies=dependencies,
             actifier=actifier,
             interface=interface,
             is_test_for=is_test_for,
@@ -168,6 +179,10 @@ def register(
             **actifier_params,
         )
 
+        wrapped_function.__definition__ = definition
+        wrapped_function.__definition_hash__ = hash_definition(definition)
+        wrapped_function.__actor_builder__ = actor_builder
+
         return wrapped_function
 
     else:
@@ -178,12 +193,13 @@ def register(
             def wrapped_function(*args, **kwargs):
                 return function_or_actor(*args, **kwargs)
 
-            register_func(
+            definition, actor_builder = register_func(
                 function_or_actor,
                 structure_registry=structure_registry,
                 definition_registry=definition_registry,
                 actifier=actifier,
                 interface=interface,
+                dependencies=dependencies,
                 is_test_for=is_test_for,
                 widgets=widgets,
                 effects=effects,
@@ -196,6 +212,10 @@ def register(
                 in_process=in_process,
                 **actifier_params,
             )
+
+            wrapped_function.__definition__ = definition
+            wrapped_function.__definition_hash__ = hash_definition(definition)
+            wrapped_function.__actor_builder__ = actor_builder
 
             return wrapped_function
 

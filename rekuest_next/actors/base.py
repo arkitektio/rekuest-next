@@ -21,9 +21,9 @@ from rekuest_next.actors.transport.local_transport import ProxyActorTransport
 from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
 from rekuest_next.actors.types import Assignment, Passport, Unassignment
 from rekuest_next.api.schema import (
-    AssignationStatus,
+    AssignationEventKind,
     LogLevel,
-    ProvisionStatus,
+    ProvisionEventKind,
     TemplateFragment,
 )
 from rekuest_next.collection.collector import (
@@ -35,7 +35,7 @@ from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.definition.registry import (
     DefinitionRegistry,
 )
-from rekuest_next.messages import Assignation, Provision, Unassignation
+from rekuest_next.messages import OutMessage
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
@@ -47,8 +47,7 @@ logger = logging.getLogger(__name__)
 class Agent(Protocol):
     async def abuild_actor_for_template(
         self, template: TemplateFragment, passport: Passport, transport: ActorTransport
-    ) -> "Actor":
-        ...
+    ) -> "Actor": ...
 
 
 class Actor(BaseModel):
@@ -64,7 +63,7 @@ class Actor(BaseModel):
     _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
     _running_transports: Dict[str, AssignTransport] = PrivateAttr(default_factory=dict)
     _provision_task: asyncio.Task = PrivateAttr(default=None)
-    _status: ProvisionStatus = PrivateAttr(default=ProvisionStatus.PENDING)
+    _status: ProvisionEventKind = PrivateAttr(default=ProvisionEventKind.UNHAPPY)
 
     async def on_provide(self, passport: Passport):
         return None
@@ -82,6 +81,9 @@ class Actor(BaseModel):
             "Needs to be owerwritten in Actor Subclass. Never use this class directly"
         )
 
+    async def aget_status(self):
+        return self._status
+
     async def apass(self, message: Union[Unassignment, Assignment]):
         assert self._in_queue, "Actor is currently not listening"
         await self._in_queue.put(message)
@@ -90,17 +92,6 @@ class Actor(BaseModel):
         self._in_queue = asyncio.Queue()
         self._provision_task = asyncio.create_task(self.alisten())
         return self._provision_task
-
-    async def aset_status(self, status: ProvisionStatus, message: str = None):
-        self._status = status
-        await self.transport.change(
-            status=status,
-            message=message or "No message provided",
-        )
-        logger.info(f"Setting self to {status}: {message}")
-
-    async def aget_status(self):
-        return self._status
 
     async def acancel(self):
         # Cancel Mnaged actors
@@ -128,29 +119,31 @@ class Actor(BaseModel):
         try:
             logging.info(f"Providing {self.passport}")
             await self.on_provide(self.passport)
-            await self.aset_status(
-                status=ProvisionStatus.ACTIVE,
+            await self.transport.log_event(
+                kind=ProvisionEventKind.ACTIVE,
+                message=f"Wonderfully provided {self.passport}",
             )
 
         except Exception as e:
             logging.critical(f"Providing Error {self.passport} {e}", exc_info=True)
-            await self.aset_status(
-                status=ProvisionStatus.CRITICAL,
-                message=str(e),
+            await self.transport.log_event(
+                kind=ProvisionEventKind.DENIED,
+                message=f"Providing {self.passport}",
             )
 
     async def unprovide(self):
         try:
             await self.on_unprovide()
-            await self.aset_status(
-                status=ProvisionStatus.INACTIVE,
+            await self.transport.log_event(
+                kind=ProvisionEventKind.UNHAPPY,
+                message=f"Providing {self.passport}",
             )
 
         except Exception as e:
             logging.critical(f"Unproviding Error {self.passport} {e}", exc_info=True)
-            await self.aset_status(
-                status=ProvisionStatus.CRITICAL,
-                message=str(e),
+            await self.transport.log_event(
+                kind=ProvisionEventKind.CRITICAL,
+                message=f"Unproviding Error {self.passport} {e}",
             )
 
     def assign_task_done(self, task):
@@ -165,6 +158,11 @@ class Actor(BaseModel):
                     f"Assign task {task} failed with exception {e}", exc_info=True
                 )
             pass
+
+    async def is_assignment_still_running(self, message: Union[Assignment]):
+        if message.id in self._running_asyncio_tasks:
+            return True
+        return False
 
     async def aprocess(self, message: Union[Assignment, Unassignment]):
         logger.info(f"Actor for {self.passport}: Received {message}")
@@ -198,9 +196,9 @@ class Actor(BaseModel):
                         logger.info(
                             f"Task {assign_transport.assignment} was cancelled through arkitekt. Setting Cancelled"
                         )
-                        await assign_transport.change(
-                            status=AssignationStatus.CANCELLED,
-                            message="Cancelled through arkitekt",
+                        await assign_transport.log_event(
+                            kind=AssignationEventKind.CANCELLED,
+                            message="Cancelled remotely",
                         )
                         del self._running_asyncio_tasks[message.id]
                         del self._running_transports[message.id]
@@ -209,9 +207,13 @@ class Actor(BaseModel):
                     logger.warning(
                         f"Race Condition: Task was already done before cancellation"
                     )
+                    await assign_transport.log_event(
+                        kind=AssignationEventKind.ERROR,
+                        message=f"Race Condition: Task was already done before cancellation",
+                    )
 
             else:
-                logger.warning(
+                logger.error(
                     f"Actor for {self.passport}: Received unassignment for unknown assignation {message.id}"
                 )
         else:
@@ -245,9 +247,9 @@ class Actor(BaseModel):
                     logger.info(
                         f"Task {assign_transport.assignment} was cancelled through applicaction. Setting Critical"
                     )
-                    await assign_transport.change(
-                        status=AssignationStatus.CRITICAL,
-                        message="Cancelled by Application",
+                    await assign_transport.log_event(
+                        kind=AssignationEventKind.CRITICAL,
+                        message="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
                     )
 
             await self.unprovide()
@@ -273,12 +275,7 @@ class Actor(BaseModel):
     async def aspawn_actor(
         self,
         template: TemplateFragment,
-        on_actor_log: Callable[[Passport, LogLevel, str], Awaitable[None]],
-        on_actor_change: Callable[[Passport, ProvisionStatus, str], Awaitable[None]],
-        on_assign_change: Callable[
-            [Assignment, AssignationStatus, str, List[Any], int], None
-        ],
-        on_assign_log: Callable[[Assignment, LogLevel, str], None],
+        on_log_event: Callable[[OutMessage], Awaitable[None]],
     ) -> "SerializingActor":
         """Spawns an Actor managed by thisfrom the definition of the given interface"""
 
@@ -288,13 +285,7 @@ class Actor(BaseModel):
             instance_id=self.passport.instance_id,
         )
 
-        transport = ProxyActorTransport(
-            passport=passport,
-            on_actor_change=on_actor_change,
-            on_actor_log=on_actor_log,
-            on_assign_change=on_assign_change,
-            on_assign_log=on_assign_log,
-        )
+        transport = ProxyActorTransport(passport=passport, on_log_event=on_log_event)
 
         actor = await self.agent.abuild_actor_for_template(
             template,

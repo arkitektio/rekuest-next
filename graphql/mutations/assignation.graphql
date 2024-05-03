@@ -16,8 +16,14 @@ mutation assign(
   }
 }
 
-mutation unassign($id: ID!) {
-  unassign(input: { assignation: $id }) {
+mutation cancel($id: ID!) {
+  cancel(input: { assignation: $id }) {
+    ...Assignation
+  }
+}
+
+mutation interrupt($id: ID!) {
+  interrupt(input: { assignation: $id }) {
     ...Assignation
   }
 }

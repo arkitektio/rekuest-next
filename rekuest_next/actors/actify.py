@@ -20,11 +20,10 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
 )
 from rekuest_next.definition.define import prepare_definition
-from rekuest_next.messages import Provision
 from rekuest_next.structures.registry import StructureRegistry
 
 
-async def async_none_provide(prov: Provision):
+async def async_none_provide(prov: Passport):
     """Do nothing on provide"""
     return None
 

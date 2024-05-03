@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable, Dict, Any
+from typing import Awaitable, Callable, Dict, Any, List, Optional
 import websockets
 from rekuest_next.agents.transport.base import AgentTransport
 import asyncio
@@ -8,14 +8,25 @@ from rekuest_next.agents.transport.errors import (
     AssignationListDeniedError,
     ProvisionListDeniedError,
 )
-from rekuest_next.agents.transport.protocols.agent_json import *
+from rekuest_next.messages import (
+    Assign,
+    OutMessage,
+    Provide,
+    Unprovide,
+    Cancel,
+    Init,
+    Interrupt,
+    MessageType,
+    Message,
+)
 import logging
 from websockets.exceptions import (
     ConnectionClosedError,
     InvalidStatusCode,
     InvalidHandshake,
 )
-from rekuest_next.api.schema import LogLevel
+from pydantic import Field
+from rekuest_next.api.schema import AssignationEventKind, LogLevel, ProvisionEventKind
 import ssl
 import certifi
 from koil.types import ContextBool, Contextual
@@ -111,7 +122,7 @@ class WebsocketAgentTransport(AgentTransport):
                 token = await self.token_loader(force_refresh=reload_token)
 
                 async with websockets.connect(
-                    f"{self.endpoint_url}?token={token}&instance_id={instance_id}",
+                    f"{self.endpoint_url}",
                     ssl=(
                         self.ssl_context
                         if self.endpoint_url.startswith("wss")
@@ -120,6 +131,16 @@ class WebsocketAgentTransport(AgentTransport):
                 ) as client:
                     retry = 0
                     logger.info("Agent on Websockets connected")
+
+                    await client.send(
+                        json.dumps(
+                            {
+                                "type": "INITIAL",
+                                "token": token,
+                                "instance_id": instance_id,
+                            }
+                        )
+                    )
 
                     send_task = asyncio.create_task(self.sending(client))
                     receive_task = asyncio.create_task(self.receiving(client))
@@ -204,7 +225,7 @@ class WebsocketAgentTransport(AgentTransport):
         try:
             while True:
                 message = await self._send_queue.get()
-                logger.debug(f">>>> {message}")
+                logger.info(f">>>> {message}")
                 await client.send(message)
                 self._send_queue.task_done()
         except asyncio.CancelledError:
@@ -227,34 +248,37 @@ class WebsocketAgentTransport(AgentTransport):
             id = json_dict["id"]
 
             # State Layer
-            if type == AgentSubMessageTypes.HELLO:
+            if type == MessageType.INIT:
+                initial_message = Init(**json_dict)
+
                 if not self._connected_future.done():
                     self._connected_future.set_result(True)
 
-            if type == AgentSubMessageTypes.INQUIRY:
-                await self.abroadcast(InquirySubMessage(**json_dict))
+                for i in initial_message.provisions:
+                    await self.abroadcast(i)
 
-            if type == AgentSubMessageTypes.ASSIGN:
-                await self.abroadcast(AssignSubMessage(**json_dict))
+                for i in initial_message.inquiries:
+                    await self.abroadcast(i)
 
-            if type == AgentSubMessageTypes.UNASSIGN:
-                await self.abroadcast(UnassignSubMessage(**json_dict))
+            if type == MessageType.ASSIGN:
+                await self.abroadcast(Assign(**json_dict))
 
-            if type == AgentSubMessageTypes.UNPROVIDE:
-                await self.abroadcast(UnprovideSubMessage(**json_dict))
+            if type == MessageType.CANCEL:
+                await self.abroadcast(Cancel(**json_dict))
 
-            if type == AgentSubMessageTypes.PROVIDE:
-                await self.abroadcast(ProvideSubMessage(**json_dict))
+            if type == MessageType.UNPROVIDE:
+                await self.abroadcast(Unprovide(**json_dict))
 
-            if type == AgentMessageTypes.LIST_PROVISIONS_REPLY:
-                answer = ProvisionListReply(**json_dict)
-                for prov in answer.provisions:
-                    await self.abroadcast(ProvideSubMessage(**prov.dict()))
+            if type == MessageType.PROVIDE:
+                await self.abroadcast(Provide(**json_dict))
+
+            if type == MessageType.INTERRUPT:
+                await self.abroadcast(Interrupt(**json_dict))
 
         else:
             logger.error(f"Unexpected messsage: {json_dict}")
 
-    async def awaitaction(self, action: JSONMessage):
+    async def awaitaction(self, action: Message):
         assert self._connected, "Should be connected"
         if action.id in self._futures:
             raise ValueError("Action already has a future")
@@ -264,64 +288,12 @@ class WebsocketAgentTransport(AgentTransport):
         await self._send_queue.put(action.json())
         return await future
 
-    async def delayaction(self, action: JSONMessage):
+    async def delayaction(self, action: Message):
         assert self._connected, "Should be connected"
         await self._send_queue.put(action.json())
 
-    async def list_provisions(
-        self, exclude: Optional[ProvisionStatus] = None
-    ) -> List[Provision]:
-        action = ProvisionList(exclude=exclude)
-        prov_list_reply: ProvisionListReply = await self.awaitaction(action)
-        return prov_list_reply.provisions
-
-    async def change_provision(
-        self,
-        id: str,
-        status: ProvisionStatus = None,
-        message: str = None,
-        mode: ProvisionMode = None,
-    ):
-        action = ProvisionChangedMessage(
-            provision=id, status=status, message=message, mode=mode
-        )
-        await self.delayaction(action)
-
-    async def change_assignation(
-        self,
-        id: str,
-        status: AssignationStatus = None,
-        message: str = None,
-        returns: List[Any] = None,
-        progress: int = None,
-    ):
-        action = AssignationChangedMessage(
-            assignation=id,
-            status=status,
-            message=message,
-            returns=returns,
-            progress=progress,
-        )
-        await self.delayaction(action)
-
-    async def list_assignations(
-        self, exclude: Optional[AssignationStatus] = None
-    ) -> List[Assignation]:
-        action = AssignationsList(exclude=exclude)
-        ass_list_reply: AssignationsListReply = await self.awaitaction(action)
-        return ass_list_reply.assignations
-
-    async def log_to_assignation(
-        self, id: str, level: LogLevel = None, message: str = None
-    ):
-        action = AssignationLogMessage(assignation=id, level=level, message=message)
-        await self.delayaction(action)
-
-    async def log_to_provision(
-        self, id: str, level: LogLevel = None, message: str = None
-    ):
-        action = ProvisionLogMessage(provision=id, level=level, message=message)
-        await self.delayaction(action)
+    async def log_event(self, event: OutMessage):
+        await self.delayaction(event)
 
     async def adisconnect(self):
         self._connection_task.cancel()

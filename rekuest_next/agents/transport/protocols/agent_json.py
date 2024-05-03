@@ -2,11 +2,11 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from typing_extensions import Literal
-from rekuest.api.schema import AssignationStatus, ProvisionMode, ProvisionStatus
-from rekuest.messages import (
+from rekuest_next.api.schema import AssignationEventKind, ProvisionStatus
+from rekuest_next.messages import (
     Assignation,
     AssignationLog,
     Provision,
@@ -37,10 +37,11 @@ class AgentMessageTypes(str, Enum):
 class AgentSubMessageTypes(str, Enum):
     HELLO = "HELLO"
     ASSIGN = "ASSIGN"
-    UNASSIGN = "UNASSIGN"
     PROVIDE = "PROVIDE"
     INQUIRY = "INQUIRY"
     UNPROVIDE = "UNPROVIDE"
+    CANCEL = "CANCEL"
+    INTERRUPT = "INTERRUPT"
 
 
 class JSONMeta(BaseModel):
@@ -54,42 +55,42 @@ class JSONMessage(BaseModel):
 
 
 class AssignationsList(JSONMessage):
-    type: Literal[
+    type: Literal[AgentMessageTypes.LIST_ASSIGNATIONS] = (
         AgentMessageTypes.LIST_ASSIGNATIONS
-    ] = AgentMessageTypes.LIST_ASSIGNATIONS
-    exclude: Optional[List[AssignationStatus]]
+    )
+    exclude: Optional[List[AssignationEventKind]]
 
 
 class AssignationsListReply(JSONMessage):
-    type: Literal[
+    type: Literal[AgentMessageTypes.LIST_ASSIGNATIONS_REPLY] = (
         AgentMessageTypes.LIST_ASSIGNATIONS_REPLY
-    ] = AgentMessageTypes.LIST_ASSIGNATIONS_REPLY
+    )
     assignations: List[Assignation]
 
 
 class AssignationsListDenied(JSONMessage):
-    type: Literal[
+    type: Literal[AgentMessageTypes.LIST_ASSIGNATIONS_DENIED] = (
         AgentMessageTypes.LIST_ASSIGNATIONS_DENIED
-    ] = AgentMessageTypes.LIST_ASSIGNATIONS_DENIED
+    )
     error: str
 
 
 class ProvisionList(JSONMessage):
     type: Literal[AgentMessageTypes.LIST_PROVISIONS] = AgentMessageTypes.LIST_PROVISIONS
-    exclude: Optional[List[AssignationStatus]]
+    exclude: Optional[List[AssignationEventKind]]
 
 
 class ProvisionListReply(JSONMessage):
-    type: Literal[
+    type: Literal[AgentMessageTypes.LIST_PROVISIONS_REPLY] = (
         AgentMessageTypes.LIST_PROVISIONS_REPLY
-    ] = AgentMessageTypes.LIST_PROVISIONS_REPLY
+    )
     provisions: List[Provision]
 
 
 class ProvisionListDenied(JSONMessage):
-    type: Literal[
+    type: Literal[AgentMessageTypes.LIST_PROVISIONS_DENIED] = (
         AgentMessageTypes.LIST_PROVISIONS_DENIED
-    ] = AgentMessageTypes.LIST_PROVISIONS_DENIED
+    )
     error: str
 
 
@@ -97,13 +98,7 @@ class ProvisionChangedMessage(JSONMessage):
     type: Literal[AgentMessageTypes.PROVIDE_CHANGED] = AgentMessageTypes.PROVIDE_CHANGED
     status: Optional[ProvisionStatus]
     message: Optional[str]
-    mode: Optional[ProvisionMode]
     provision: str
-
-
-class AssignSubMessage(JSONMessage, Assignation):
-    type: Literal[AgentSubMessageTypes.ASSIGN] = AgentSubMessageTypes.ASSIGN
-    guardian: str
 
 
 class InquirySubMessage(JSONMessage, Inquiry):
@@ -112,11 +107,43 @@ class InquirySubMessage(JSONMessage, Inquiry):
 
 class ProvideSubMessage(JSONMessage, Provision):
     type: Literal[AgentSubMessageTypes.PROVIDE] = AgentSubMessageTypes.PROVIDE
-    guardian: str
 
 
-class UnassignSubMessage(JSONMessage, Unassignation):
-    type: Literal[AgentSubMessageTypes.UNASSIGN] = AgentSubMessageTypes.UNASSIGN
+class HelloSubMessage(JSONMessage):
+    type: Literal[AgentSubMessageTypes.HELLO] = AgentSubMessageTypes.HELLO
+    agent: str
+    registry: str
+    provisions: List[Provision]
+
+
+class CancelMessage(JSONMessage):
+    type: Literal[AgentSubMessageTypes.CANCEL] = AgentSubMessageTypes.CANCEL
+    assignation: str
+
+
+class InterruptMessage(JSONMessage):
+    type: Literal[AgentSubMessageTypes.INTERRUPT] = AgentSubMessageTypes.INTERRUPT
+    assignation: str
+
+
+class AssignMessage(JSONMessage):
+    type: Literal[AgentSubMessageTypes.ASSIGN] = AgentSubMessageTypes.ASSIGN
+    assignation: str
+    reference: Optional[str]
+    provision: Optional[str]
+    reservation: Optional[str]
+    args: Optional[List[Any]]
+    returns: Optional[List[Any]]
+    persist: Optional[bool]
+    progress: Optional[int]
+    log: Optional[bool]
+    status: Optional[AssignationEventKind]
+    message: Optional[str]
+    user: Optional[str]
+
+
+class ProvisionMessage(JSONMessage):
+    type: Literal[AgentSubMessageTypes.PROVIDE] = AgentSubMessageTypes.PROVIDE
 
 
 class UnprovideSubMessage(JSONMessage, Unprovision):

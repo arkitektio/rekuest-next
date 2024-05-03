@@ -3,6 +3,8 @@ mutation createTemplate(
   $definition: DefinitionInput!
   $instance_id: InstanceId!
   $params: AnyDefault
+  $dependencies: [DependencyInput!]
+  $extension: String!
 ) {
   createTemplate(
     input: {
@@ -10,6 +12,8 @@ mutation createTemplate(
       interface: $interface
       params: $params
       instanceId: $instance_id
+      dependencies: $dependencies
+      extension: $extension
     }
   ) {
     ...Template

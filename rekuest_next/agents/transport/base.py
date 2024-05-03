@@ -1,12 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Awaitable, Callable, List, Optional, Union
 
-from rekuest_next.messages import Assignation, Unassignation, Provision, Unprovision
-from rekuest_next.api.schema import (
-    LogLevel,
-    ProvisionStatus,
-    AssignationStatus,
-)
+from rekuest_next.messages import OutMessage
+
 from koil.composition import KoiledModel
 from koil.types import Contextual
 from .types import TransportCallbacks
@@ -40,53 +36,7 @@ class AgentTransport(KoiledModel):
         return NotImplementedError("Implement this method")
 
     @abstractmethod
-    async def list_provisions(
-        self, exclude: Optional[ProvisionStatus] = None
-    ) -> List[Provision]:
-        raise NotImplementedError("This is an abstract Base Class")
-
-    @abstractmethod
-    async def change_provision(
-        self,
-        id: str,
-        status: ProvisionStatus = None,
-        message: str = None,
-    ):
-        raise NotImplementedError("This is an abstract Base Class")
-
-    @abstractmethod
-    async def change_assignation(
-        self,
-        id: str,
-        status: AssignationStatus = None,
-        message: str = None,
-        returns: List[Any] = None,
-        progress: int = None,
-    ):
-        raise NotImplementedError("This is an abstract Base Class")
-
-    @abstractmethod
-    async def log_to_provision(
-        self,
-        id: str,
-        level: LogLevel = None,
-        message: str = None,
-    ):
-        raise NotImplementedError("This is an abstract Base Class")
-
-    @abstractmethod
-    async def log_to_assignation(
-        self,
-        id: str,
-        level: LogLevel = None,
-        message: str = None,
-    ):
-        raise NotImplementedError("This is an abstract Base Class")
-
-    @abstractmethod
-    async def list_assignations(
-        self, exclude: Optional[AssignationStatus] = None
-    ) -> List[Assignation]:
+    async def log_event(self, event: OutMessage):
         raise NotImplementedError("This is an abstract Base Class")
 
     def set_callback(self, callback: TransportCallbacks):

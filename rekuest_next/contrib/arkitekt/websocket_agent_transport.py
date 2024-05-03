@@ -1,16 +1,15 @@
 from typing import Optional
-from fakts.fakt.base import Fakt
 from fakts import Fakts
 from herre import Herre
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
-from pydantic import Field
+from pydantic import Field, BaseModel
 
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from pydantic import Field
 
 
-class WebsocketAgentTransportConfig(Fakt):
+class WebsocketAgentTransportConfig(BaseModel):
     endpoint_url: str
     instance_id: str = "default"
 
@@ -31,6 +30,7 @@ class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
     async def aconnect(self, *args, **kwargs):
         if self.fakts.has_changed(self._old_fakt, self.fakts_group):
             self._old_fakt = await self.fakts.aget(self.fakts_group)
+            print(self._old_fakt)
             self.configure(WebsocketAgentTransportConfig(**self._old_fakt))
 
         return await super().aconnect(*args, **kwargs)

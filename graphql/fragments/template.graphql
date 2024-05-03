@@ -9,4 +9,6 @@ fragment Template on Template {
     ...Node
   }
   params
+  extension
+  interface
 }
