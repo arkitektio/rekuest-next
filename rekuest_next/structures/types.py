@@ -25,8 +25,7 @@ class PortBuilder(Protocol):
         cls: type,
         assign_widget: Optional[AssignWidgetInput],
         return_widget: Optional[ReturnWidgetInput],
-    ) -> PortInput:
-        ...
+    ) -> PortInput: ...
 
 
 class FullFilledStructure(BaseModel):
@@ -61,3 +60,9 @@ class FullFilledStructure(BaseModel):
         arbitrary_types_allowed = True
         copy_on_model_validation = False
         extra = "forbid"
+
+
+class FullFilledArg(BaseModel):
+    key: str
+    default: Optional[Any]
+    cls: Any

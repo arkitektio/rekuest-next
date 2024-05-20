@@ -18,6 +18,7 @@ class MessageType(str, Enum):
     ASSIGNATION_EVENT = "ASSIGNATION_EVENT"
     PROVISION_EVENT = "PROVISION_EVENT"
     INIT = "INIT"
+    HEARTBEAT = "HEARTBEAT"
 
 
 class Message(BaseModel):

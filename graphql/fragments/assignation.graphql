@@ -14,14 +14,3 @@ fragment Assignation on Assignation {
   reference
   updatedAt
 }
-
-fragment AssignationEvent on AssignationEvent {
-  id
-  kind
-  level
-  returns
-  assignation {
-    id
-  }
-  createdAt
-}

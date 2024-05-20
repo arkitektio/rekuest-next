@@ -1,20 +1,20 @@
-from datetime import datetime
-from rekuest_next.funcs import asubscribe, subscribe, execute, aexecute
 from typing_extensions import Literal
-from typing import AsyncIterator, Tuple, Iterator, Any, Optional, List
-from rath.scalars import ID
-from rekuest_next.scalars import (
-    NodeHash,
-    SearchQuery,
-    ValidatorFunction,
-    InstanceId,
-    Identifier,
-)
-from rekuest_next.traits.node import Reserve
+from typing import Tuple, AsyncIterator, Iterator, List, Any, Optional
 from pydantic import BaseModel, Field
+from rekuest_next.scalars import (
+    InstanceId,
+    NodeHash,
+    Identifier,
+    ValidatorFunction,
+    SearchQuery,
+)
+from rekuest_next.funcs import aexecute, execute, subscribe, asubscribe
+from rekuest_next.traits.ports import ReturnWidgetInputTrait, PortTrait
+from rath.scalars import ID
+from rekuest_next.traits.node import Reserve
 from rekuest_next.rath import RekuestNextRath
 from enum import Enum
-from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
+from datetime import datetime
 
 
 class AssignWidgetKind(str, Enum):
@@ -56,15 +56,22 @@ class PortKind(str, Enum):
     FLOAT = "FLOAT"
     DATE = "DATE"
     UNION = "UNION"
+    MODEL = "MODEL"
 
 
-class ReservationStatus(str, Enum):
+class ReservationEventKind(str, Enum):
+    PENDING = "PENDING"
+    CREATE = "CREATE"
+    RESCHEDULE = "RESCHEDULE"
+    DELETED = "DELETED"
+    CHANGE = "CHANGE"
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
-    UNHAPPY = "UNHAPPY"
-    HAPPY = "HAPPY"
     UNCONNECTED = "UNCONNECTED"
     ENDED = "ENDED"
+    UNHAPPY = "UNHAPPY"
+    HAPPY = "HAPPY"
+    LOG = "LOG"
 
 
 class ProvisionEventKind(str, Enum):
@@ -87,11 +94,6 @@ class ProvisionEventKind(str, Enum):
     LOG = "LOG"
 
 
-class ReservationEventKind(str, Enum):
-    CHANGE = "CHANGE"
-    LOG = "LOG"
-
-
 class LogLevel(str, Enum):
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -109,6 +111,7 @@ class AssignationEventKind(str, Enum):
     BOUND = "BOUND"
     ASSIGN = "ASSIGN"
     PROGRESS = "PROGRESS"
+    DISCONNECTED = "DISCONNECTED"
     YIELD = "YIELD"
     DONE = "DONE"
     LOG = "LOG"
@@ -162,8 +165,7 @@ class PortInput(PortTrait, BaseModel):
     nullable: bool
     effects: Optional[Tuple["EffectInput", ...]]
     default: Optional[Any]
-    child: Optional["ChildPortInput"]
-    variants: Optional[Tuple["ChildPortInput", ...]]
+    children: Optional[Tuple["ChildPortInput", ...]]
     assign_widget: Optional["AssignWidgetInput"] = Field(alias="assignWidget")
     return_widget: Optional["ReturnWidgetInput"] = Field(alias="returnWidget")
     groups: Optional[Tuple[str, ...]]
@@ -218,14 +220,14 @@ class EffectDependencyInput(BaseModel):
 
 class ChildPortInput(PortTrait, BaseModel):
     default: Optional[Any]
+    key: str
     label: Optional[str]
     kind: PortKind
     scope: PortScope
     description: Optional[str]
-    child: Optional["ChildPortInput"]
     identifier: Optional[Identifier]
     nullable: bool
-    variants: Optional[Tuple["ChildPortInput", ...]]
+    children: Optional[Tuple["ChildPortInput", ...]]
     effects: Optional[Tuple[EffectInput, ...]]
     assign_widget: Optional["AssignWidgetInput"] = Field(alias="assignWidget")
     return_widget: Optional["ReturnWidgetInput"] = Field(alias="returnWidget")
@@ -378,33 +380,7 @@ class ProvisionFragment(BaseModel):
         frozen = True
 
 
-class ProvisionEventFragmentProvision(BaseModel):
-    typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ProvisionEventFragment(BaseModel):
-    typename: Optional[Literal["ProvisionEvent"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    kind: ProvisionEventKind
-    level: LogLevel
-    provision: ProvisionEventFragmentProvision
-    created_at: datetime = Field(alias="createdAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ChildPortNestedFragmentChild(PortTrait, BaseModel):
+class ChildPortNestedFragmentChildren(PortTrait, BaseModel):
     typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
     identifier: Optional[Identifier]
     nullable: bool
@@ -418,8 +394,9 @@ class ChildPortNestedFragmentChild(PortTrait, BaseModel):
 
 class ChildPortNestedFragment(PortTrait, BaseModel):
     typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
+    key: str
     kind: PortKind
-    child: Optional[ChildPortNestedFragmentChild]
+    children: Optional[Tuple[ChildPortNestedFragmentChildren, ...]]
     identifier: Optional[Identifier]
     nullable: bool
 
@@ -431,9 +408,10 @@ class ChildPortNestedFragment(PortTrait, BaseModel):
 
 class ChildPortFragment(PortTrait, BaseModel):
     typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
+    key: str
     kind: PortKind
     identifier: Optional[Identifier]
-    child: Optional[ChildPortNestedFragment]
+    children: Optional[Tuple[ChildPortNestedFragment, ...]]
     nullable: bool
 
     class Config:
@@ -451,8 +429,7 @@ class PortFragment(PortTrait, BaseModel):
     default: Optional[Any]
     kind: PortKind
     identifier: Optional[Identifier]
-    child: Optional[ChildPortFragment]
-    variants: Optional[Tuple[ChildPortFragment, ...]]
+    children: Optional[Tuple[ChildPortFragment, ...]]
 
     class Config:
         """A config class"""
@@ -525,37 +502,11 @@ class ReservationFragmentWaiter(BaseModel):
 class ReservationFragment(BaseModel):
     typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
     id: ID
-    status: ReservationStatus
+    status: ReservationEventKind
     node: ReservationFragmentNode
     waiter: ReservationFragmentWaiter
     reference: str
     updated_at: datetime = Field(alias="updatedAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ReservationEventFragmentReservation(BaseModel):
-    typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ReservationEventFragment(BaseModel):
-    typename: Optional[Literal["ReservationEvent"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    kind: ReservationEventKind
-    level: LogLevel
-    reservation: ReservationEventFragmentReservation
-    created_at: datetime = Field(alias="createdAt")
 
     class Config:
         """A config class"""
@@ -579,7 +530,7 @@ class AssignationFragmentEvents(BaseModel):
     )
     id: ID
     returns: Optional[Any]
-    level: LogLevel
+    level: Optional[LogLevel]
 
     class Config:
         """A config class"""
@@ -597,33 +548,6 @@ class AssignationFragment(BaseModel):
     events: Tuple[AssignationFragmentEvents, ...]
     reference: Optional[str]
     updated_at: datetime = Field(alias="updatedAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AssignationEventFragmentAssignation(BaseModel):
-    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AssignationEventFragment(BaseModel):
-    typename: Optional[Literal["AssignationEvent"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    kind: AssignationEventKind
-    level: LogLevel
-    returns: Optional[Any]
-    assignation: AssignationEventFragmentAssignation
-    created_at: datetime = Field(alias="createdAt")
 
     class Config:
         """A config class"""
@@ -786,6 +710,44 @@ class InterruptMutation(BaseModel):
         document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation interrupt($id: ID!) {\n  interrupt(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
 
 
+class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
+    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
+    typename: Optional[Literal["HardwareRecord"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    cpu_count: int = Field(alias="cpuCount")
+    agent: CreateHardwareRecordMutationCreatehardwarerecordAgent
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateHardwareRecordMutation(BaseModel):
+    create_hardware_record: CreateHardwareRecordMutationCreatehardwarerecord = Field(
+        alias="createHardwareRecord"
+    )
+
+    class Arguments(BaseModel):
+        cpu_count: Optional[int] = Field(alias="cpuCount", default=None)
+        cpu_frequency: Optional[float] = Field(alias="cpuFrequency", default=None)
+        cpu_vendor_name: Optional[str] = Field(alias="cpuVendorName", default=None)
+
+    class Meta:
+        document = "mutation CreateHardwareRecord($cpuCount: Int, $cpuFrequency: Float, $cpuVendorName: String) {\n  createHardwareRecord(\n    input: {cpuCount: $cpuCount, cpuFrequency: $cpuFrequency, cpuVendorName: $cpuVendorName}\n  ) {\n    id\n    cpuCount\n    agent {\n      id\n    }\n  }\n}"
+
+
 class CreateTemplateMutation(BaseModel):
     create_template: TemplateFragment = Field(alias="createTemplate")
 
@@ -798,37 +760,27 @@ class CreateTemplateMutation(BaseModel):
         extension: str
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  kind\n  child {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  kind\n  identifier\n  child {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  child {\n    ...ChildPort\n  }\n  variants {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($interface: String!, $definition: DefinitionInput!, $instance_id: InstanceId!, $params: AnyDefault, $dependencies: [DependencyInput!], $extension: String!) {\n  createTemplate(\n    input: {definition: $definition, interface: $interface, params: $params, instanceId: $instance_id, dependencies: $dependencies, extension: $extension}\n  ) {\n    ...Template\n  }\n}"
-
-
-class WatchProvisionsSubscription(BaseModel):
-    provisions: ProvisionEventFragment
-
-    class Arguments(BaseModel):
-        instance_id: InstanceId = Field(alias="instanceId")
-
-    class Meta:
-        document = "fragment ProvisionEvent on ProvisionEvent {\n  id\n  kind\n  level\n  provision {\n    id\n  }\n  createdAt\n}\n\nsubscription WatchProvisions($instanceId: InstanceId!) {\n  provisions(instanceId: $instanceId) {\n    ...ProvisionEvent\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($interface: String!, $definition: DefinitionInput!, $instance_id: InstanceId!, $params: AnyDefault, $dependencies: [DependencyInput!], $extension: String!) {\n  createTemplate(\n    input: {definition: $definition, interface: $interface, params: $params, instanceId: $instance_id, dependencies: $dependencies, extension: $extension}\n  ) {\n    ...Template\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
-    reservations: ReservationEventFragment
+    reservations: ReservationFragment
 
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment ReservationEvent on ReservationEvent {\n  id\n  kind\n  level\n  reservation {\n    id\n  }\n  createdAt\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...ReservationEvent\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n  }\n}"
 
 
 class WatchAssignationsSubscription(BaseModel):
-    assignations: AssignationEventFragment
+    assignations: AssignationFragment
 
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  level\n  returns\n  assignation {\n    id\n  }\n  createdAt\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationEvent\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...Assignation\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -902,7 +854,28 @@ class Get_provisionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  kind\n  child {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  kind\n  identifier\n  child {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  child {\n    ...ChildPort\n  }\n  variants {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
+
+
+class GetMeNodesQueryNodes(Reserve, BaseModel):
+    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class GetMeNodesQuery(BaseModel):
+    nodes: Tuple[GetMeNodesQueryNodes, ...]
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "query GetMeNodes {\n  nodes {\n    id\n    name\n  }\n}"
 
 
 class GetAgentQuery(BaseModel):
@@ -943,7 +916,7 @@ class Get_reservationQueryReservation(BaseModel):
     id: ID
     provisions: Tuple[Get_reservationQueryReservationProvisions, ...]
     title: Optional[str]
-    status: ReservationStatus
+    status: ReservationEventKind
     id: ID
     reference: str
     node: Get_reservationQueryReservationNode
@@ -971,7 +944,7 @@ class ReservationsQuery(BaseModel):
         instance_id: InstanceId
 
     class Meta:
-        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(filters: {waiter: {instanceId: $instance_id}}) {\n    ...Reservation\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n  }\n}"
 
 
 class RequestsQuery(BaseModel):
@@ -981,7 +954,7 @@ class RequestsQuery(BaseModel):
         instance_id: InstanceId
 
     class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nquery requests($instance_id: InstanceId!) {\n  assignations(filters: {reservation: {waiter: {instanceId: $instance_id}}}) {\n    ...Assignation\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nquery requests($instance_id: InstanceId!) {\n  assignations(instanceId: $instance_id) {\n    ...Assignation\n  }\n}"
 
 
 class Get_templateQuery(BaseModel):
@@ -991,7 +964,7 @@ class Get_templateQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  kind\n  child {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  kind\n  identifier\n  child {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  child {\n    ...ChildPort\n  }\n  variants {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
 
 
 class Search_templatesQueryOptions(BaseModel):
@@ -1025,7 +998,7 @@ class FindQuery(BaseModel):
         hash: Optional[NodeHash] = Field(default=None)
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  kind\n  child {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  kind\n  identifier\n  child {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  child {\n    ...ChildPort\n  }\n  variants {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
@@ -1035,7 +1008,7 @@ class RetrieveallQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  kind\n  child {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  kind\n  identifier\n  child {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  child {\n    ...ChildPort\n  }\n  variants {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
 
 
 class Search_nodesQueryOptions(Reserve, BaseModel):
@@ -1424,6 +1397,66 @@ def interrupt(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFrag
     return execute(InterruptMutation, {"id": id}, rath=rath).interrupt
 
 
+async def acreate_hardware_record(
+    cpu_count: Optional[int] = None,
+    cpu_frequency: Optional[float] = None,
+    cpu_vendor_name: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> CreateHardwareRecordMutationCreatehardwarerecord:
+    """CreateHardwareRecord
+
+
+
+    Arguments:
+        cpu_count (Optional[int], optional): cpuCount.
+        cpu_frequency (Optional[float], optional): cpuFrequency.
+        cpu_vendor_name (Optional[str], optional): cpuVendorName.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        CreateHardwareRecordMutationCreatehardwarerecord"""
+    return (
+        await aexecute(
+            CreateHardwareRecordMutation,
+            {
+                "cpuCount": cpu_count,
+                "cpuFrequency": cpu_frequency,
+                "cpuVendorName": cpu_vendor_name,
+            },
+            rath=rath,
+        )
+    ).create_hardware_record
+
+
+def create_hardware_record(
+    cpu_count: Optional[int] = None,
+    cpu_frequency: Optional[float] = None,
+    cpu_vendor_name: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> CreateHardwareRecordMutationCreatehardwarerecord:
+    """CreateHardwareRecord
+
+
+
+    Arguments:
+        cpu_count (Optional[int], optional): cpuCount.
+        cpu_frequency (Optional[float], optional): cpuFrequency.
+        cpu_vendor_name (Optional[str], optional): cpuVendorName.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        CreateHardwareRecordMutationCreatehardwarerecord"""
+    return execute(
+        CreateHardwareRecordMutation,
+        {
+            "cpuCount": cpu_count,
+            "cpuFrequency": cpu_frequency,
+            "cpuVendorName": cpu_vendor_name,
+        },
+        rath=rath,
+    ).create_hardware_record
+
+
 async def acreate_template(
     interface: str,
     definition: DefinitionInput,
@@ -1502,47 +1535,9 @@ def create_template(
     ).create_template
 
 
-async def awatch_provisions(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[ProvisionEventFragment]:
-    """WatchProvisions
-
-
-
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        ProvisionEventFragment"""
-    async for event in asubscribe(
-        WatchProvisionsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.provisions
-
-
-def watch_provisions(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[ProvisionEventFragment]:
-    """WatchProvisions
-
-
-
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        ProvisionEventFragment"""
-    for event in subscribe(
-        WatchProvisionsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.provisions
-
-
 async def awatch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[ReservationEventFragment]:
+) -> AsyncIterator[ReservationFragment]:
     """WatchReservations
 
 
@@ -1552,7 +1547,7 @@ async def awatch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationEventFragment"""
+        ReservationFragment"""
     async for event in asubscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -1561,7 +1556,7 @@ async def awatch_reservations(
 
 def watch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[ReservationEventFragment]:
+) -> Iterator[ReservationFragment]:
     """WatchReservations
 
 
@@ -1571,7 +1566,7 @@ def watch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationEventFragment"""
+        ReservationFragment"""
     for event in subscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -1580,7 +1575,7 @@ def watch_reservations(
 
 async def awatch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[AssignationEventFragment]:
+) -> AsyncIterator[AssignationFragment]:
     """WatchAssignations
 
 
@@ -1590,7 +1585,7 @@ async def awatch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationEventFragment"""
+        AssignationFragment"""
     async for event in asubscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -1599,7 +1594,7 @@ async def awatch_assignations(
 
 def watch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[AssignationEventFragment]:
+) -> Iterator[AssignationFragment]:
     """WatchAssignations
 
 
@@ -1609,7 +1604,7 @@ def watch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationEventFragment"""
+        AssignationFragment"""
     for event in subscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -1794,6 +1789,34 @@ def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> ProvisionFr
     Returns:
         ProvisionFragment"""
     return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
+
+
+async def aget_me_nodes(
+    rath: Optional[RekuestNextRath] = None,
+) -> List[GetMeNodesQueryNodes]:
+    """GetMeNodes
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[GetMeNodesQueryNodes]"""
+    return (await aexecute(GetMeNodesQuery, {}, rath=rath)).nodes
+
+
+def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQueryNodes]:
+    """GetMeNodes
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[GetMeNodesQueryNodes]"""
+    return execute(GetMeNodesQuery, {}, rath=rath).nodes
 
 
 async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:

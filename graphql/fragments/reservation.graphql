@@ -11,13 +11,3 @@ fragment Reservation on Reservation {
   reference
   updatedAt
 }
-
-fragment ReservationEvent on ReservationEvent {
-  id
-  kind
-  level
-  reservation {
-    id
-  }
-  createdAt
-}

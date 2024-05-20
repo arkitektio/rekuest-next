@@ -80,7 +80,7 @@ class ValidatorFunction(str):
         return v
 
     def __repr__(self):
-        return f"Identifier({repr(self)})"
+        return f"ValidatorFunction({repr(self)})"
 
 
 def parse_or_raise(v: str):

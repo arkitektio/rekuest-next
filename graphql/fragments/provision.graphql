@@ -5,13 +5,3 @@ fragment Provision on Provision {
     ...Template
   }
 }
-
-fragment ProvisionEvent on ProvisionEvent {
-  id
-  kind
-  level
-  provision {
-    id
-  }
-  createdAt
-}

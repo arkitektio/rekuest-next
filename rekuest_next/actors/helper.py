@@ -15,9 +15,7 @@ class AssignmentHelper(BaseModel):
     transport: AssignTransport
 
     async def alog(self, level: LogLevel, message: str) -> None:
-        await self.transport.log_event(
-            kind=AssignationEventKind.LOG_INFO, message=message
-        )
+        await self.transport.log_event(kind=AssignationEventKind.LOG, message=message)
 
     async def aprogress(self, progress: int) -> None:
         await self.transport.log_event(

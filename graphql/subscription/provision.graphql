@@ -1,5 +1,0 @@
-subscription WatchProvisions($instanceId: InstanceId!) {
-  provisions(instanceId: $instanceId) {
-    ...ProvisionEvent
-  }
-}

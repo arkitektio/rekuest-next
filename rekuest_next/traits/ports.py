@@ -41,9 +41,9 @@ class PortTrait(BaseModel):
                 )
 
         if kind == PortKind.LIST:
-            if values.get("child") is None:
+            if values.get("children") is None:
                 raise ValueError(
-                    "When specifying a list you need to provide a wrapped 'child' port"
+                    "When specifying a list you need to provide a wrapped 'chidlren' port"
                 )
 
         return values

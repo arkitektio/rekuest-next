@@ -1,0 +1,6 @@
+query GetMeNodes {
+  nodes {
+    id
+    name
+  }
+}

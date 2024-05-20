@@ -258,38 +258,38 @@ class StructureRegistry(BaseModel):
                 f" {self.identifier_structure_map[fullfilled_structure.identifier]}"
             )
 
-        self._identifier_expander_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.aexpand
-        self._identifier_collecter_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.acollect
-        self._identifier_shrinker_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.ashrink
-        self._identifier_predicate_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.predicate
+        self._identifier_expander_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.aexpand
+        )
+        self._identifier_collecter_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.acollect
+        )
+        self._identifier_shrinker_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.ashrink
+        )
+        self._identifier_predicate_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.predicate
+        )
 
-        self.identifier_structure_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.cls
-        self.identifier_port_scope_map[
-            fullfilled_structure.identifier
-        ] = fullfilled_structure.scope
+        self.identifier_structure_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.cls
+        )
+        self.identifier_port_scope_map[fullfilled_structure.identifier] = (
+            fullfilled_structure.scope
+        )
 
-        self._structure_identifier_map[
-            fullfilled_structure.cls
-        ] = fullfilled_structure.identifier
-        self._structure_default_widget_map[
-            fullfilled_structure.cls
-        ] = fullfilled_structure.default_widget
-        self._structure_default_returnwidget_map[
-            fullfilled_structure.cls
-        ] = fullfilled_structure.default_returnwidget
-        self._structure_convert_default_map[
-            fullfilled_structure.cls
-        ] = fullfilled_structure.convert_default
+        self._structure_identifier_map[fullfilled_structure.cls] = (
+            fullfilled_structure.identifier
+        )
+        self._structure_default_widget_map[fullfilled_structure.cls] = (
+            fullfilled_structure.default_widget
+        )
+        self._structure_default_returnwidget_map[fullfilled_structure.cls] = (
+            fullfilled_structure.default_returnwidget
+        )
+        self._structure_convert_default_map[fullfilled_structure.cls] = (
+            fullfilled_structure.convert_default
+        )
 
         self._fullfilled_structures_map[fullfilled_structure.cls] = fullfilled_structure
 
@@ -344,6 +344,7 @@ class StructureRegistry(BaseModel):
     def get_child_port_and_default_converter_for_cls(
         self,
         cls: Type,
+        key: str,
         nullable: bool = False,
         assign_widget: Optional[AssignWidgetInput] = None,
         return_widget: Optional[ReturnWidgetInput] = None,
@@ -357,6 +358,7 @@ class StructureRegistry(BaseModel):
 
         return (
             ChildPortInput(
+                key=key,
                 kind=PortKind.STRUCTURE,
                 identifier=identifier,
                 scope=scope,

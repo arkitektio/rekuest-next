@@ -1,6 +1,7 @@
 fragment ChildPortNested on ChildPort {
+  key
   kind
-  child {
+  children {
     identifier
     nullable
     kind
@@ -10,9 +11,10 @@ fragment ChildPortNested on ChildPort {
 }
 
 fragment ChildPort on ChildPort {
+  key
   kind
   identifier
-  child {
+  children {
     ...ChildPortNested
   }
   nullable
@@ -27,10 +29,7 @@ fragment Port on Port {
   default
   kind
   identifier
-  child {
-    ...ChildPort
-  }
-  variants {
+  children {
     ...ChildPort
   }
 }

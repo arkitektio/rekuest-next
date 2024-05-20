@@ -1,7 +1,5 @@
 query requests($instance_id: InstanceId!) {
-  assignations(
-    filters: { reservation: { waiter: { instanceId: $instance_id } } }
-  ) {
+  assignations(instanceId: $instance_id) {
     ...Assignation
   }
 }

@@ -247,6 +247,9 @@ class WebsocketAgentTransport(AgentTransport):
             type = json_dict["type"]
             id = json_dict["id"]
 
+            if type == MessageType.HEARTBEAT:
+                await self._send_queue.put(json.dumps({"type": "HEARTBEAT"}))
+
             # State Layer
             if type == MessageType.INIT:
                 initial_message = Init(**json_dict)

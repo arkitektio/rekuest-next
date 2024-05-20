@@ -1,7 +1,7 @@
 from rekuest_next.api.schema import DependencyInput
 
 
-def declare(function_or_hash, optional=False):
+def declare(function_or_hash, optional=False, **kwargs):
     """Declare a function that needs to be
     called outside of your application.
 

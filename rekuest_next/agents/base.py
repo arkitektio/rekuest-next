@@ -22,6 +22,7 @@ from rekuest_next.api.schema import (
     TemplateFragment,
     acreate_template,
     aget_provision,
+    acreate_hardware_record,
 )
 from rekuest_next.collection.collector import Collector
 from rekuest_next.definition.registry import (
@@ -229,7 +230,7 @@ class BaseAgent(KoiledModel):
                 await self.transport.log_event(
                     ProvisionEvent(
                         provision=message.provision,
-                        kind=ProvisionEventKind.PENDING,
+                        kind=ProvisionEventKind.ACTIVE,
                         message=f"Actor was already running {message}",
                     )
                 )
@@ -342,8 +343,9 @@ class BaseAgent(KoiledModel):
                 "No extension specified. This should not happen with the current implementation"
             )
 
-        extension = self.extensions[template.extension]
         try:
+            extension = self.extensions[template.extension]
+
             actor = await extension.aspawn_actor_from_template(
                 template=template,
                 passport=passport,
@@ -352,6 +354,7 @@ class BaseAgent(KoiledModel):
                 collector=self.collector,
             )
         except Exception as e:
+            print(self.extensions)
             raise ProvisionException("Error spawning actor from extension") from e
 
         if not actor:

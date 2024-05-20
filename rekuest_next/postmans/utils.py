@@ -11,31 +11,17 @@ from typing import (
     Any,
     Dict,
     List,
-    Tuple,
     AsyncIterator,
 )
 import uuid
-from rekuest_next.scalars import Interface
 from pydantic import Field
-from rekuest_next.messages import Assignation, Reservation, Unassignation
+from fluss_next.api.schema import BindsInput
+from rekuest_next.messages import AssignationEvent, ProvisionEvent
 from rekuest_next.structures.default import get_default_structure_registry
 from koil.composition import KoiledModel
-from koil.helpers import unkoil_gen
 from koil.types import ContextBool
-from rekuest_next.api.schema import (
-    AssignationFragment,
-    AssignationLogLevel,
-    AssignationStatus,
-    ProvisionStatus,
-    TemplateFragment,
-    ReservationFragment,
-    ReservationStatus,
-    ReserveParamsInput,
-    NodeFragment,
-)
 import uuid
 import asyncio
-from koil import unkoil
 import logging
 from rekuest_next.structures.serialization.postman import (
     shrink_inputs,
@@ -46,8 +32,8 @@ from rekuest_next.structures.serialization.postman import (
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     DefinitionFragment,
-    DefinitionInput,
-    ReserveBindsInput,
+    ReservationFragment,
+    TemplateFragment,
     afind,
 )
 from .errors import (
@@ -56,34 +42,14 @@ from .errors import (
     PostmanException,
     RecoverableAssignException,
 )
-from rekuest_next.agents.base import BaseAgent
 from rekuest_next.actors.base import Actor, SerializingActor
 from rekuest_next.agents.transport.base import AgentTransport
-from rekuest_next.actors.transport.local_transport import (
-    LocalTransport,
-    ProxyActorTransport,
-    ProxyAssignTransport,
-)
-from rekuest_next.definition.validate import auto_validate
 from .base import BasePostman
-from rekuest_next.messages import Provision
-import asyncio
-from rekuest_next.agents.transport.protocols.agent_json import (
-    AssignationChangedMessage,
-    ProvisionChangedMessage,
-    ProvisionMode,
-)
-from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
-from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.actors.types import (
     Passport,
     Assignment,
     Unassignment,
     AssignmentUpdate,
-)
-from rekuest_next.structures.serialization.postman import (
-    serialize_inputs,
-    deserialize_outputs,
 )
 from enum import Enum
 
@@ -101,20 +67,16 @@ class ContractStatus(str, Enum):
 class ContractStateHook(Protocol):
     async def __call__(
         self, state: ContractStatus = None, reference: str = None
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @runtime_checkable
 class RPCContract(Protocol):
-    async def __aenter__(self: Any) -> Any:
-        ...
+    async def __aenter__(self: Any) -> Any: ...
 
-    async def __aexit__(self, exc_type, exc, tb):
-        ...
+    async def __aexit__(self, exc_type, exc, tb): ...
 
-    async def change_state(self, state: ContractStatus):
-        ...
+    async def change_state(self, state: ContractStatus): ...
 
     async def aassign(
         self,
@@ -122,8 +84,7 @@ class RPCContract(Protocol):
         parent: Optional[Assignment] = None,
         reference: Optional[str] = None,
         assign_timeout: Optional[float] = None,
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
     async def aassign_retry(
         self,
@@ -132,8 +93,7 @@ class RPCContract(Protocol):
         reference: Optional[str] = None,
         assign_timeout: Optional[float] = None,
         retry: Optional[int] = 0,
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
     async def astream(
         self,
@@ -141,8 +101,7 @@ class RPCContract(Protocol):
         parent: Optional[Assignment] = None,
         reference: Optional[str] = None,
         yield_timeout: Optional[float] = None,
-    ) -> AsyncIterator[List[Any]]:
-        ...
+    ) -> AsyncIterator[List[Any]]: ...
 
     async def astream_retry(
         self,
@@ -151,8 +110,7 @@ class RPCContract(Protocol):
         reference: Optional[str] = None,
         yield_timeout: Optional[float] = None,
         retry: Optional[int] = 0,
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
 
 class RPCContractBase(KoiledModel):
@@ -278,9 +236,7 @@ class actoruse(RPCContractBase):
     _actor: SerializingActor
     _enter_future: asyncio.Future = None
     _exit_future: asyncio.Future = None
-    _updates_queue: asyncio.Queue[
-        Union[AssignationChangedMessage, ProvisionChangedMessage]
-    ] = None
+    _updates_queue: asyncio.Queue[Union[AssignationEvent, ProvisionEvent]] = None
     _updates_watcher: asyncio.Task = None
     _assign_queues = {}
 
@@ -359,9 +315,7 @@ class actoruse(RPCContractBase):
     async def on_assign_log(self, *args, **kwargs):
         logger.info(f"AssingLog: {args} {kwargs}")
 
-    async def on_actor_change(
-        self, passport: Passport, status: ProvisionStatus, **kwargs
-    ):
+    async def on_actor_change(self, passport: Passport, status, **kwargs):
         # passport is irellevant because we only every manage one actor
         if status == ProvisionStatus.ACTIVE:
             await self.change_state(ContractStatus.ACTIVE)
@@ -486,8 +440,7 @@ class arkiuse(RPCContractBase):
     hash: Optional[str] = None
     provision: Optional[str] = None
     reference: str = "default"
-    binds: Optional[ReserveBindsInput] = None
-    params: Optional[ReserveParamsInput] = None
+    binds: Optional[BindsInput] = None
     postman: BasePostman = Field(repr=False)
     reserve_timeout: Optional[int] = 100000
     assign_timeout: Optional[int] = 100000
@@ -760,7 +713,7 @@ class mockuse(RPCContract):
         self,
         *args,
         structure_registry=None,
-        alog: Callable[[Assignation, AssignationLogLevel, str], Awaitable[None]] = None,
+        alog,
         **kwargs,
     ):
         assert self.active, "We never entered the contract"
@@ -777,7 +730,7 @@ class mockuse(RPCContract):
         self,
         *args,
         structure_registry=None,
-        alog: Callable[[Assignation, AssignationLogLevel, str], Awaitable[None]] = None,
+        alog,
         **kwargs,
     ):
         assert self.active, "We never entered the contract"

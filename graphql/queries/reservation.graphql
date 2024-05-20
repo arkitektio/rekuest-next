@@ -18,7 +18,7 @@ query get_reservation($id: ID!) {
 }
 
 query reservations($instance_id: InstanceId!) {
-  reservations(filters: { waiter: { instanceId: $instance_id } }) {
+  reservations(instanceId: $instance_id) {
     ...Reservation
   }
 }

@@ -2,6 +2,12 @@ from enum import Enum
 from typing import Callable, List, Tuple, Type, Union
 
 from rekuest_next.definition.guards import cls_is_union
+from rekuest_next.structures.model import (
+    get_model_name,
+    is_model,
+    retrieve_args_for_model,
+)
+from rekuest_next.structures.serialization.predication import predicate_port
 from .utils import get_type_hints, is_annotated
 import inflection
 from rekuest_next.api.schema import (
@@ -37,10 +43,116 @@ import types
 import typing
 
 
+def is_nullable(cls):
+    is_union = get_origin(cls) is types.UnionType or get_origin(cls) is Union
+
+    if is_union:
+        for arg in get_args(cls):
+            if arg == type(None):
+                return True
+
+    return False
+
+
+def get_non_nullable_variant(cls):
+    non_nullable_args = [arg for arg in get_args(cls) if arg != type(None)]
+    if len(non_nullable_args) == 1:
+        return non_nullable_args[0]
+    # We are dealing with a Union so we still use the same class
+    # the logic will be handled in the union path
+    # TODO: We might want to handle this better
+    return cls
+
+
+def is_union(cls):
+    print("Is Union", cls, get_origin(cls), get_args(cls))
+    return (
+        get_origin(cls) is types.UnionType
+        or get_origin(cls) is Union
+        and get_args(cls)[1] != type(None)
+    )
+
+
+def is_list(cls):
+    """Check if a class is a list
+
+
+
+    if cls.__module__ == "typing":
+        if hasattr(cls, "_name"):
+            # We are dealing with a Typing Var?
+            if cls._name == "List":
+
+    Returns:
+        _type_: _description_
+    """
+    return get_origin(cls) == list
+
+
+def is_dict(cls):
+    """Check if a class is a dict
+
+    if cls.__module__ == "typing":
+        if hasattr(cls, "_name"):
+            if cls._name == "Dict":
+
+    Returns:
+        _type_: _description_
+    """
+    return get_origin(cls) == dict
+
+
+def get_dict_value_cls(cls):
+    return get_args(cls)[1]
+
+
+def get_list_value_cls(cls):
+    return get_args(cls)[0]
+
+
+def get_non_null_variants(cls):
+    return [arg for arg in get_args(cls) if arg != type(None)]
+
+
+def is_bool(cls, default=None):
+    if inspect.isclass(cls):
+        return not issubclass(cls, Enum) and issubclass(cls, bool)
+    return False
+
+
+def is_float(cls):
+    if inspect.isclass(cls):
+        return not issubclass(cls, Enum) and issubclass(cls, float)
+    return False
+
+
+def is_int(cls):
+    if inspect.isclass(cls):
+        return not issubclass(cls, Enum) and issubclass(cls, int)
+    return False
+
+
+def is_str(cls):
+    if inspect.isclass(cls):
+        return not issubclass(cls, Enum) and issubclass(cls, str)
+    return False
+
+
+def is_datetime(cls):
+    if inspect.isclass(cls):
+        return not issubclass(cls, Enum) and (issubclass(cls, dt.datetime))
+    return False
+
+
+def is_structure(cls):
+    return True
+
+
 def convert_child_to_childport(
     cls: Type,
     registry: StructureRegistry,
     nullable: bool = False,
+    key: str | None = None,
 ) -> Tuple[ChildPortInput, Callable]:
     """Converts a element of a annotation to a child port
 
@@ -57,117 +169,167 @@ def convert_child_to_childport(
         Tuple[ChildPortInput, WidgetInput, Callable]: The child port, the widget and the
          converter for the default
     """
+    if is_model(cls):
+        children = []
+        convertermap = {}
+        for arg in retrieve_args_for_model(cls):
+            child, converter = convert_child_to_childport(
+                arg.cls, registry, nullable=False, key=arg.key
+            )
+            children.append(child)
+            convertermap[arg.key] = converter
+
+        print(children)
+
+        return (
+            ChildPortInput(
+                kind=PortKind.MODEL,
+                children=children,
+                scope=PortScope.GLOBAL,
+                identifier=get_model_name(cls),
+                nullable=nullable,
+                key=key,
+            ),
+            lambda default: default.dict(),
+        )
 
     if is_annotated(cls):
+        print("Is Annotated", cls)
         real_type = cls.__args__[0]
 
         return convert_child_to_childport(
-            real_type,
-            registry,
+            real_type, registry, nullable=nullable, key=key
+        )
+
+    if is_nullable(cls):
+        print("Is nullable", cls)
+        non_nullable = get_non_nullable_variant(cls)
+        return convert_child_to_childport(
+            non_nullable, registry, nullable=True, key=key
+        )
+
+    if is_union(cls):
+        variants = get_non_null_variants(cls)
+        children = []
+        converters = []
+        for index, arg in enumerate(variants):
+            child, converter = convert_child_to_childport(
+                arg, registry, nullable=False, key="variant_" + str(index)
+            )
+            converters.append(converter)
+            children.append(child)
+
+        return ChildPortInput(
+            kind=PortKind.UNION,
+            scope=PortScope.GLOBAL,
+            key=key,
+            children=children,
             nullable=nullable,
         )
 
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            # We are dealing with a Typing Var?
-            if cls._name == "List":
-                child, nested_converter = convert_child_to_childport(
-                    cls.__args__[0], registry, nullable=False
-                )
+    if is_list(cls):
+        print("IS LIST", cls)
+        value_cls = get_list_value_cls(cls)
+        child, nested_converter = convert_child_to_childport(
+            value_cls, registry, nullable=False, key="..."
+        )
 
-                return (
-                    ChildPortInput(
-                        kind=PortKind.LIST,
-                        child=child,
-                        scope=PortScope.GLOBAL,
-                        nullable=nullable,
-                    ),
-                    lambda default: (
-                        [nested_converter(ndefault) for ndefault in default]
-                        if default
-                        else None
-                    ),
-                )
+        return (
+            ChildPortInput(
+                kind=PortKind.LIST,
+                children=[child],
+                scope=PortScope.GLOBAL,
+                nullable=nullable,
+                key=key,
+            ),
+            lambda default: (
+                [nested_converter(ndefault) for ndefault in default]
+                if default
+                else None
+            ),
+        )
 
-            if cls._name == "Dict":
-                child, nested_converter = convert_child_to_childport(
-                    cls.__args__[1], "omit", registry, nullable=False
-                )
-                return (
-                    ChildPortInput(
-                        kind=PortKind.DICT,
-                        child=child,
-                        scope=PortScope.GLOBAL,
-                        nullable=nullable,
-                    ),
-                    lambda default: (
-                        {
-                            key: item in nested_converter(item)
-                            for key, item in default.items()
-                        }
-                        if default
-                        else None
-                    ),
-                )
+    if is_dict(cls):
+        value_cls = get_dict_value_cls(cls)
+        child, nested_converter = convert_child_to_childport(
+            value_cls, registry, nullable=False, key="..."
+        )
+        return (
+            ChildPortInput(
+                kind=PortKind.DICT,
+                children=[child],
+                scope=PortScope.GLOBAL,
+                nullable=nullable,
+                key=key,
+            ),
+            lambda default: (
+                {key: item in nested_converter(item) for key, item in default.items()}
+                if default
+                else None
+            ),
+        )
 
-        if hasattr(cls, "__args__"):
-            if cls.__args__[1] == type(None):
-                return convert_child_to_childport(
-                    cls.__args__[0], registry, nullable=True
-                )
-
-    if inspect.isclass(cls):
-        # Generic Cases
-
-        if not issubclass(cls, Enum) and issubclass(cls, bool):
-            t = ChildPortInput(
+    if is_bool(cls):
+        return (
+            ChildPortInput(
                 kind=PortKind.BOOL,
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
-            )  # catch bool is subclass of int
-            return t, str
+                key=key,
+            ),
+            bool,
+        )
 
-        if not issubclass(cls, Enum) and issubclass(cls, float):
-            return (
-                ChildPortInput(
-                    kind=PortKind.FLOAT,
-                    nullable=nullable,
-                    scope=PortScope.GLOBAL,
-                ),
-                float,
-            )
+    if is_float(cls):
+        return (
+            ChildPortInput(
+                kind=PortKind.FLOAT,
+                nullable=nullable,
+                scope=PortScope.GLOBAL,
+                key=key,
+            ),
+            float,
+        )
 
-        if not issubclass(cls, Enum) and issubclass(cls, int):
-            return (
-                ChildPortInput(
-                    kind=PortKind.INT,
-                    nullable=nullable,
-                    scope=PortScope.GLOBAL,
-                ),
-                int,
-            )
+    if is_int(cls):
+        return (
+            ChildPortInput(
+                kind=PortKind.INT,
+                nullable=nullable,
+                scope=PortScope.GLOBAL,
+                key=key,
+            ),
+            int,
+        )
 
-        if not issubclass(cls, Enum) and (issubclass(cls, dt.datetime)):
-            return (
-                ChildPortInput(
-                    kind=PortKind.DATE,
-                    nullable=nullable,
-                    scope=PortScope.GLOBAL,
-                ),
-                lambda x: x.isoformat(),
-            )
+    if is_datetime(cls):
+        return (
+            ChildPortInput(
+                kind=PortKind.DATE,
+                nullable=nullable,
+                scope=PortScope.GLOBAL,
+                key=key,
+            ),
+            lambda x: x.isoformat(),
+        )
 
-        if not issubclass(cls, Enum) and issubclass(cls, str):
-            return (
-                ChildPortInput(
-                    kind=PortKind.STRING,
-                    nullable=nullable,
-                    scope=PortScope.GLOBAL,
-                ),
-                str,
-            )
+    if is_str(cls):
+        return (
+            ChildPortInput(
+                kind=PortKind.STRING,
+                nullable=nullable,
+                scope=PortScope.GLOBAL,
+                key=key,
+            ),
+            str,
+        )
 
-    return registry.get_child_port_and_default_converter_for_cls(cls, nullable=nullable)
+    if is_structure(cls):
+        return registry.get_child_port_and_default_converter_for_cls(
+            cls, nullable=nullable, key=key
+        )
+
+    raise NotImplementedError(f"Could not convert {cls} to a child port")
 
 
 def convert_object_to_port(
@@ -186,7 +348,38 @@ def convert_object_to_port(
     """
     Convert a class to an Port
     """
+
+    if is_model(cls):
+        print("Is Model", cls)
+        children = []
+        converters = []
+        set_default = default or {}
+        for arg in retrieve_args_for_model(cls):
+            child, converter = convert_child_to_childport(
+                arg.cls, registry, nullable=False, key=arg.key
+            )
+            children.append(child)
+            if arg.default:
+                set_default[arg.key] = converter(arg.default)
+
+        return PortInput(
+            kind=PortKind.MODEL,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            children=children,
+            label=label,
+            default=set_default,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+            identifier=get_model_name(cls),
+        )
+
     if is_annotated(cls):
+        print("Is Annotated", cls)
         real_type = cls.__args__[0]
 
         return convert_object_to_port(
@@ -201,222 +394,194 @@ def convert_object_to_port(
             groups=groups,
         )
 
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            # We are dealing with a Typing Var?
-            if cls._name == "List":
-                child, converter = convert_child_to_childport(
-                    cls.__args__[0], registry, nullable=False
-                )
-                return PortInput(
-                    kind=PortKind.LIST,
-                    assignWidget=assign_widget,
-                    returnWidget=return_widget,
-                    scope=PortScope.GLOBAL,
-                    key=key,
-                    child=child,
-                    label=label,
-                    default=[converter(item) for item in default] if default else None,
-                    nullable=nullable,
-                    effects=effects,
-                    description=description,
-                    groups=groups,
-                )
+    if is_list(cls):
+        print("IS LIST", cls)
+        value_cls = get_list_value_cls(cls)
+        child, converter = convert_child_to_childport(
+            value_cls, registry, nullable=False, key="..."
+        )
+        return PortInput(
+            kind=PortKind.LIST,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            children=[child],
+            label=label,
+            default=[converter(item) for item in default] if default else None,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
 
-            if cls_is_union(cls):
-                args = get_args(cls)
-                if len(args) == 2 and args[0] == type(None) or args[1] == type(None):
-                    if args[0] == type(None):
-                        cls = args[1]
-                    if args[1] == type(None):
-                        cls = args[0]
+    if is_nullable(cls):
+        print("Is nullable", cls)
+        return convert_object_to_port(
+            cls.__args__[0],
+            key,
+            registry,
+            default=default,
+            nullable=True,
+            assign_widget=assign_widget,
+            label=label,
+            effects=effects,
+            return_widget=return_widget,
+            description=description,
+            groups=groups,
+        )
 
-                    return convert_object_to_port(
-                        cls,
-                        key,
-                        registry,
-                        default=default,
-                        nullable=True,
-                        assign_widget=assign_widget,
-                        label=label,
-                        effects=effects,
-                        return_widget=return_widget,
-                        description=description,
-                        groups=groups,
-                    )
-                else:
-                    # We are dealing with a "Real union"
-                    args = get_args(cls)
-                    nullable = False
-                    variants = []
-                    for arg in args:
-                        if arg == type(None):
-                            nullable = True
-                        child, converter = convert_child_to_childport(
-                            arg, registry, nullable=False
-                        )
-                        variants.append(child)
-
-                    return PortInput(
-                        kind=PortKind.UNION,
-                        assignWidget=assign_widget,
-                        returnWidget=return_widget,
-                        scope=PortScope.GLOBAL,
-                        key=key,
-                        variants=variants,
-                        label=label,
-                        default=None,  # TODO: SHould fix based on predicate of default
-                        nullable=nullable,
-                        effects=effects,
-                        description=description,
-                        groups=groups,
-                    )
-
-            if cls._name == "Dict":
-                child, converter = convert_child_to_childport(
-                    cls.__args__[1], registry, nullable=False
-                )
-                return PortInput(
-                    kind=PortKind.DICT,
-                    assignWidget=assign_widget,
-                    scope=PortScope.GLOBAL,
-                    returnWidget=return_widget,
-                    key=key,
-                    child=child,
-                    label=label,
-                    default=(
-                        {key: converter(item) for key, item in default.items()}
-                        if default
-                        else None
-                    ),
-                    nullable=nullable,
-                    effects=effects,
-                    description=description,
-                    groups=groups,
-                )
-
-            if cls._name == "Union":
-                raise NotImplementedError("Union is not supported yet")
-
-        if hasattr(cls, "__args__"):
-            if cls.__args__[1] == type(None):
-                return convert_object_to_port(
-                    cls.__args__[0],
-                    key,
-                    registry,
-                    default=default,
-                    nullable=True,
-                    assign_widget=assign_widget,
-                    label=label,
-                    effects=effects,
-                    return_widget=return_widget,
-                    description=description,
-                    groups=groups,
-                )
-
-    if inspect.isclass(cls):
-        # Generic Cases
-
-        if not issubclass(cls, Enum) and (
-            issubclass(cls, bool) or (default is not None and isinstance(default, bool))
-        ):
-            t = PortInput(
-                kind=PortKind.BOOL,
-                scope=PortScope.GLOBAL,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
-                key=key,
-                default=default,
-                label=label,
-                nullable=nullable,
-                effects=effects,
-                description=description,
-                groups=groups,
-            )  # catch bool is subclass of int
-            return t
-
-        if not issubclass(cls, Enum) and (
-            issubclass(cls, int) or (default is not None and isinstance(default, int))
-        ):
-            return PortInput(
-                kind=PortKind.INT,
-                assignWidget=assign_widget,
-                scope=PortScope.GLOBAL,
-                returnWidget=return_widget,
-                key=key,
-                default=default,
-                label=label,
-                nullable=nullable,
-                effects=effects,
-                description=description,
-                groups=groups,
+    if is_union(cls):
+        variants = get_non_null_variants(cls)
+        children = []
+        converters = []
+        for index, arg in enumerate(variants):
+            child, converter = convert_child_to_childport(
+                arg, registry, nullable=False, key="variant_" + str(index)
             )
+            converters.append(converter)
+            children.append(child)
 
-        if not issubclass(cls, Enum) and (
-            issubclass(cls, float)
-            or (default is not None and isinstance(default, float))
-        ):
-            return PortInput(
-                kind=PortKind.FLOAT,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
-                scope=PortScope.GLOBAL,
-                key=key,
-                default=default,
-                label=label,
-                nullable=nullable,
-                effects=effects,
-                description=description,
-                groups=groups,
-            )
+        set_default = None
+        if default:
+            # We need to find the correct converter according
+            # to the default value (checking the predicate)
+            for index, child in enumerate(children):
+                if predicate_port(child, default, registry):
+                    set_default = converters[index](default)
+                    break
 
-        if not issubclass(cls, Enum) and (
-            issubclass(cls, dt.datetime)
-            or (default is not None and isinstance(default, dt.datetime))
-        ):
-            return PortInput(
-                kind=PortKind.DATE,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
-                scope=PortScope.GLOBAL,
-                key=key,
-                default=default,
-                label=label,
-                nullable=nullable,
-                effects=effects,
-                description=description,
-                groups=groups,
-            )
+        print("UNION", cls, children, converters, set_default)
 
-        if not issubclass(cls, Enum) and (
-            issubclass(cls, str) or (default is not None and isinstance(default, str))
-        ):
-            return PortInput(
-                kind=PortKind.STRING,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
-                scope=PortScope.GLOBAL,
-                key=key,
-                default=default,
-                label=label,
-                nullable=nullable,
-                effects=effects,
-                description=description,
-                groups=groups,
-            )
+        return PortInput(
+            kind=PortKind.UNION,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            children=children,
+            label=label,
+            default=set_default,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
 
-    return registry.get_port_for_cls(
-        cls,
-        key,
-        nullable=nullable,
-        description=description,
-        groups=groups,
-        effects=effects,
-        label=label,
-        default=default,
-        assign_widget=assign_widget,
-        return_widget=return_widget,
-    )
+    if is_dict(cls):
+        value_cls = get_dict_value_cls(cls)
+        child, converter = convert_child_to_childport(
+            value_cls, registry, nullable=False, key="..."
+        )
+        return PortInput(
+            kind=PortKind.DICT,
+            assignWidget=assign_widget,
+            scope=PortScope.GLOBAL,
+            returnWidget=return_widget,
+            key=key,
+            children=[child],
+            label=label,
+            default=(
+                {key: converter(item) for key, item in default.items()}
+                if default
+                else None
+            ),
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
+
+    if is_bool(cls) or (default is not None and isinstance(default, bool)):
+        return PortInput(
+            kind=PortKind.BOOL,
+            scope=PortScope.GLOBAL,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )  # catch bool is subclass of int
+
+    if is_int(cls) or (default is not None and isinstance(default, int)):
+        return PortInput(
+            kind=PortKind.INT,
+            assignWidget=assign_widget,
+            scope=PortScope.GLOBAL,
+            returnWidget=return_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
+
+    if is_float(cls) or (default is not None and isinstance(default, float)):
+        return PortInput(
+            kind=PortKind.FLOAT,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
+
+    if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
+        return PortInput(
+            kind=PortKind.DATE,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
+
+    if is_str(cls) or (default is not None and isinstance(default, str)):
+        return PortInput(
+            kind=PortKind.STRING,
+            assignWidget=assign_widget,
+            returnWidget=return_widget,
+            scope=PortScope.GLOBAL,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=effects,
+            description=description,
+            groups=groups,
+        )
+
+    if is_structure(cls):
+        return registry.get_port_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            groups=groups,
+            effects=effects,
+            label=label,
+            default=default,
+            assign_widget=assign_widget,
+            return_widget=return_widget,
+        )
+
+    raise NotImplementedError(f"Could not convert {cls} to a port")
 
 
 GroupMap = Dict[str, List[str]]

@@ -45,12 +45,15 @@ class AsyncFuncActor(SerializingActor):
         transport: AssignTransport,
     ):
         try:
+            print(assignment.args)
             params = await expand_inputs(
                 self.definition,
                 assignment.args,
                 structure_registry=self.structure_registry,
                 skip_expanding=not self.expand_inputs,
             )
+
+            print(params)
 
             await transport.log_event(
                 kind=AssignationEventKind.ASSIGN,
@@ -81,19 +84,21 @@ class AsyncFuncActor(SerializingActor):
             )
 
         except SerializationError as ex:
+            logger.critical("Assignation error", exc_info=True)
             await transport.log_event(
                 kind=AssignationEventKind.ERROR,
                 message=str(ex),
             )
 
         except AssertionError as ex:
+            logger.critical("Assignation error", exc_info=True)
             await transport.log_event(
                 kind=AssignationEventKind.CRITICAL,
                 message=str(ex),
             )
 
         except Exception as e:
-            logger.error("Assignation error", exc_info=True)
+            logger.critical("Assignation error", exc_info=True)
             await transport.log_event(
                 kind=AssignationEventKind.CRITICAL,
                 message=repr(e),
@@ -154,7 +159,7 @@ class AsyncGenActor(SerializingActor):
             )
 
         except Exception as ex:
-            logger.error("Error in actor", exc_info=True)
+            logger.critical("Error in actor", exc_info=True)
             await transport.log_event(
                 kind=AssignationEventKind.CRITICAL,
                 message=str(ex),
