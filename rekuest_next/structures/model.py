@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from fieldz import fields, Field
 from typing import List, Dict
-from .types import FullFilledArg
+from .types import FullFilledArg, FullFilledModel
 import inflection
 
 
@@ -27,10 +27,6 @@ def is_model(cls):
     return getattr(cls, "__rekuest_model__", False)
 
 
-def get_model_name(cls):
-    return getattr(cls, "__rekuest_model__")
-
-
 def retrieve_args_for_model(cls) -> List[FullFilledArg]:
     children_clses = fields(cls)
 
@@ -43,7 +39,16 @@ def retrieve_args_for_model(cls) -> List[FullFilledArg]:
                 cls=field.type,
                 default=field.default if field.default != Field.MISSING else None,
                 key=field.name,
+                description=field.description,
             )
         )
-
+    print(args)
     return args
+
+
+def retrieve_fullfiled_model(cls) -> FullFilledModel:
+    return FullFilledModel(
+        identifier=cls.__rekuest_model__,
+        description=cls.__doc__,
+        args=retrieve_args_for_model(cls),
+    )

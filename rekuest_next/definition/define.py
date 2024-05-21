@@ -3,9 +3,8 @@ from typing import Callable, List, Tuple, Type, Union
 
 from rekuest_next.definition.guards import cls_is_union
 from rekuest_next.structures.model import (
-    get_model_name,
     is_model,
-    retrieve_args_for_model,
+    retrieve_fullfiled_model,
 )
 from rekuest_next.structures.serialization.predication import predicate_port
 from .utils import get_type_hints, is_annotated
@@ -153,6 +152,7 @@ def convert_child_to_childport(
     registry: StructureRegistry,
     nullable: bool = False,
     key: str | None = None,
+    description: str | None = None,
 ) -> Tuple[ChildPortInput, Callable]:
     """Converts a element of a annotation to a child port
 
@@ -172,9 +172,16 @@ def convert_child_to_childport(
     if is_model(cls):
         children = []
         convertermap = {}
-        for arg in retrieve_args_for_model(cls):
+
+        full_filled_model = retrieve_fullfiled_model(cls)
+
+        for arg in full_filled_model.args:
             child, converter = convert_child_to_childport(
-                arg.cls, registry, nullable=False, key=arg.key
+                arg.cls,
+                registry,
+                nullable=False,
+                key=arg.key,
+                description=arg.description,
             )
             children.append(child)
             convertermap[arg.key] = converter
@@ -186,9 +193,10 @@ def convert_child_to_childport(
                 kind=PortKind.MODEL,
                 children=children,
                 scope=PortScope.GLOBAL,
-                identifier=get_model_name(cls),
+                identifier=full_filled_model.identifier,
                 nullable=nullable,
                 key=key,
+                description=full_filled_model.description,
             ),
             lambda default: default.dict(),
         )
@@ -225,6 +233,7 @@ def convert_child_to_childport(
             key=key,
             children=children,
             nullable=nullable,
+            description=description,
         )
 
     if is_list(cls):
@@ -241,6 +250,7 @@ def convert_child_to_childport(
                 scope=PortScope.GLOBAL,
                 nullable=nullable,
                 key=key,
+                description=description,
             ),
             lambda default: (
                 [nested_converter(ndefault) for ndefault in default]
@@ -261,6 +271,7 @@ def convert_child_to_childport(
                 scope=PortScope.GLOBAL,
                 nullable=nullable,
                 key=key,
+                description=description,
             ),
             lambda default: (
                 {key: item in nested_converter(item) for key, item in default.items()}
@@ -276,6 +287,7 @@ def convert_child_to_childport(
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
                 key=key,
+                description=description,
             ),
             bool,
         )
@@ -287,6 +299,7 @@ def convert_child_to_childport(
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
                 key=key,
+                description=description,
             ),
             float,
         )
@@ -298,6 +311,7 @@ def convert_child_to_childport(
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
                 key=key,
+                description=description,
             ),
             int,
         )
@@ -309,6 +323,7 @@ def convert_child_to_childport(
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
                 key=key,
+                description=description,
             ),
             lambda x: x.isoformat(),
         )
@@ -320,13 +335,17 @@ def convert_child_to_childport(
                 nullable=nullable,
                 scope=PortScope.GLOBAL,
                 key=key,
+                description=description,
             ),
             str,
         )
 
     if is_structure(cls):
         return registry.get_child_port_and_default_converter_for_cls(
-            cls, nullable=nullable, key=key
+            cls,
+            nullable=nullable,
+            key=key,
+            description=description,
         )
 
     raise NotImplementedError(f"Could not convert {cls} to a child port")
@@ -354,9 +373,16 @@ def convert_object_to_port(
         children = []
         converters = []
         set_default = default or {}
-        for arg in retrieve_args_for_model(cls):
+
+        full_filled_model = retrieve_fullfiled_model(cls)
+
+        for arg in full_filled_model.args:
             child, converter = convert_child_to_childport(
-                arg.cls, registry, nullable=False, key=arg.key
+                arg.cls,
+                registry,
+                nullable=False,
+                key=arg.key,
+                description=arg.description,
             )
             children.append(child)
             if arg.default:
@@ -373,9 +399,9 @@ def convert_object_to_port(
             default=set_default,
             nullable=nullable,
             effects=effects,
-            description=description,
+            description=description or full_filled_model.description,
             groups=groups,
-            identifier=get_model_name(cls),
+            identifier=full_filled_model.identifier,
         )
 
     if is_annotated(cls):

@@ -1,4 +1,4 @@
-from typing import Protocol, Optional
+from typing import Protocol, Optional, List
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
@@ -66,3 +66,10 @@ class FullFilledArg(BaseModel):
     key: str
     default: Optional[Any]
     cls: Any
+    description: Optional[str]
+
+
+class FullFilledModel(BaseModel):
+    identifier: str
+    description: Optional[str]
+    args: List[FullFilledArg]

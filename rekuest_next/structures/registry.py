@@ -346,6 +346,7 @@ class StructureRegistry(BaseModel):
         cls: Type,
         key: str,
         nullable: bool = False,
+        description: Optional[str] = None,
         assign_widget: Optional[AssignWidgetInput] = None,
         return_widget: Optional[ReturnWidgetInput] = None,
     ) -> PortInput:
@@ -365,6 +366,7 @@ class StructureRegistry(BaseModel):
                 nullable=nullable,
                 assignWidget=assign_widget,
                 returnWidget=return_widget,
+                description=description,
             ),
             default_converter,
         )

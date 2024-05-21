@@ -53,6 +53,8 @@ async def aexpand_arg(
         ) from None
 
     if port.kind == PortKind.DICT:
+        expanding_port = port.children[0]
+
         if not isinstance(value, dict):
             raise ExpandingError(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. We only"
@@ -60,7 +62,7 @@ async def aexpand_arg(
             ) from None
 
         return {
-            key: await aexpand_arg(port.child, value, structure_registry)
+            key: await aexpand_arg(expanding_port, value, structure_registry)
             for key, value in value.items()
         }
 
@@ -74,10 +76,12 @@ async def aexpand_arg(
         index = value["use"]
         true_value = value["value"]
         return await aexpand_arg(
-            port.variants[index], true_value, structure_registry=structure_registry
+            port.children[index], true_value, structure_registry=structure_registry
         )
 
     if port.kind == PortKind.LIST:
+        expanding_port = port.children[0]
+
         if not isinstance(value, list):
             raise ExpandingError(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. Only"
@@ -85,7 +89,7 @@ async def aexpand_arg(
             ) from None
 
         return await asyncio.gather(
-            *[aexpand_arg(port.child, item, structure_registry) for item in value]
+            *[aexpand_arg(expanding_port, item, structure_registry) for item in value]
         )
 
     if port.kind == PortKind.INT:
@@ -276,8 +280,8 @@ async def shrink_outputs(
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert len(node.returns) == len(
-        returns
+    assert (
+        len(node.returns) == len(returns)
     ), (  # We are dealing with a single output, convert it to a proper port like structure
         f"Mismatch in Return Length: expected {len(node.returns)} got {len(returns)}"
     )
