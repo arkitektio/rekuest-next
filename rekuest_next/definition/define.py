@@ -1,7 +1,9 @@
 from enum import Enum
 from typing import Callable, List, Tuple, Type, Union
 
+from fluss_next.api.schema import ValidatorInput
 from rekuest_next.definition.guards import cls_is_union
+from rekuest_next.scalars import ValidatorFunction
 from rekuest_next.structures.model import (
     is_model,
     retrieve_fullfiled_model,
@@ -170,10 +172,13 @@ def convert_child_to_childport(
          converter for the default
     """
     if is_model(cls):
+
         children = []
         convertermap = {}
 
         full_filled_model = retrieve_fullfiled_model(cls)
+
+        registry.register_as_model(cls, full_filled_model.identifier)
 
         for arg in full_filled_model.args:
             child, converter = convert_child_to_childport(
@@ -361,6 +366,7 @@ def convert_object_to_port(
     label=None,
     description=None,
     nullable=False,
+    validators: Optional[List[ValidatorInput]] = None,
     effects: Optional[List[EffectInput]] = None,
     groups: Optional[List[str]] = None,
 ) -> PortInput:
@@ -375,6 +381,8 @@ def convert_object_to_port(
         set_default = default or {}
 
         full_filled_model = retrieve_fullfiled_model(cls)
+
+        registry.register_as_model(cls, full_filled_model.identifier)
 
         for arg in full_filled_model.args:
             child, converter = convert_child_to_childport(
@@ -401,6 +409,7 @@ def convert_object_to_port(
             effects=effects,
             description=description or full_filled_model.description,
             groups=groups,
+            validators=validators,
             identifier=full_filled_model.identifier,
         )
 
@@ -438,6 +447,7 @@ def convert_object_to_port(
             nullable=nullable,
             effects=effects,
             description=description,
+            validators=validators,
             groups=groups,
         )
 
@@ -455,6 +465,7 @@ def convert_object_to_port(
             return_widget=return_widget,
             description=description,
             groups=groups,
+            validators=validators,
         )
 
     if is_union(cls):
@@ -490,6 +501,7 @@ def convert_object_to_port(
             default=set_default,
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )
@@ -514,6 +526,7 @@ def convert_object_to_port(
             ),
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )
@@ -529,6 +542,7 @@ def convert_object_to_port(
             label=label,
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )  # catch bool is subclass of int
@@ -544,6 +558,7 @@ def convert_object_to_port(
             label=label,
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )
@@ -558,6 +573,7 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
+            validators=validators,
             effects=effects,
             description=description,
             groups=groups,
@@ -574,6 +590,7 @@ def convert_object_to_port(
             label=label,
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )
@@ -589,6 +606,7 @@ def convert_object_to_port(
             label=label,
             nullable=nullable,
             effects=effects,
+            validators=validators,
             description=description,
             groups=groups,
         )
@@ -603,6 +621,7 @@ def convert_object_to_port(
             effects=effects,
             label=label,
             default=default,
+            validators=validators,
             assign_widget=assign_widget,
             return_widget=return_widget,
         )
@@ -631,6 +650,7 @@ def prepare_definition(
     is_test_for: Optional[List[str]] = None,
     port_label_map: Optional[Dict[str, str]] = None,
     port_description_map: Optional[Dict[str, str]] = None,
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     name: str = None,
     omitfirst=None,
     omitlast=None,
@@ -663,6 +683,7 @@ def prepare_definition(
     sig = inspect.signature(function)
     widgets = widgets or {}
     effects = effects or {}
+    validators = validators or {}
 
     port_groups = port_groups or []
     port_groups_name = [i.key for i in port_groups]
@@ -735,6 +756,7 @@ def prepare_definition(
         assign_widget = widgets.pop(key, None)
         port_effects = effects.pop(key, None)
         return_widget = return_widgets.pop(key, None)
+        item_validators = validators.pop(key, None)
         default = value.default if value.default != inspect.Parameter.empty else None
         cls = type_hints.get(key, type(default) if default is not None else None)
         this_port_groups = groups.get(key, None)
@@ -758,6 +780,7 @@ def prepare_definition(
                     description=doc_param_description_map.pop(key, None),
                     label=doc_param_label_map.pop(key, None),
                     groups=this_port_groups,
+                    validators=item_validators,
                 )
             )
         except Exception as e:

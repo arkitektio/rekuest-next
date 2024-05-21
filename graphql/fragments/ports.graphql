@@ -32,4 +32,10 @@ fragment Port on Port {
   children {
     ...ChildPort
   }
+  validators {
+    function
+    errorMessage
+    dependencies
+    label
+  }
 }

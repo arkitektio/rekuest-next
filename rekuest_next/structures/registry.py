@@ -24,6 +24,7 @@ from rekuest_next.api.schema import (
     EffectInput,
     ChildPortInput,
     PortKind,
+    ValidatorInput,
 )
 from pydantic import BaseModel, Field
 import inspect
@@ -54,6 +55,13 @@ def cls_to_identifier(cls: Type) -> Identifier:
     return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
 
 
+def build_async_model_expander(cls: Type):
+    async def expander(values):
+        return cls(**values)
+
+    return expander
+
+
 class StructureRegistry(BaseModel):
     copy_from_default: bool = False
     allow_overwrites: bool = True
@@ -71,6 +79,9 @@ class StructureRegistry(BaseModel):
     _identifier_collecter_map: Dict[str, Callable[[Any], Awaitable[None]]] = {}
     _identifier_predicate_map: Dict[str, Callable[[Any], bool]] = {}
     _identifier_builder_map: Dict[str, PortBuilder] = {}
+
+    _identifier_model_map: Dict[str, Type] = {}
+    _model_identifier_map: Dict[Type, str] = {}
 
     _structure_convert_default_map: Dict[str, Callable[[Any], str]] = {}
     _structure_identifier_map: Dict[Type, str] = {}
@@ -162,6 +173,16 @@ class StructureRegistry(BaseModel):
                     " beforehand or set allow_auto_register to True. Otherwise you"
                     " cant use this type with a default"
                 ) from e
+
+    def retrieve_model_expander(self, identifier: str):
+        print(self._identifier_model_map)
+        return build_async_model_expander(self._identifier_model_map[identifier])
+
+    def register_as_model(self, cls: Type, identifier: str) -> None:
+
+        self._identifier_model_map[identifier] = cls
+        self._model_identifier_map[cls] = identifier
+        print(f"Registered {cls} as {identifier}")
 
     def register_as_structure(
         self,
@@ -308,6 +329,7 @@ class StructureRegistry(BaseModel):
         groups: List[str] = None,
         effects: Optional[EffectsMap] = None,
         label: Optional[str] = None,
+        validators: Optional[List[ValidatorInput]] = None,
         default: Any = None,
         assign_widget: Optional[AssignWidgetInput] = None,
         return_widget: Optional[ReturnWidgetInput] = None,
@@ -335,6 +357,7 @@ class StructureRegistry(BaseModel):
                 effects=effects,
                 description=description,
                 groups=groups,
+                validators=validators,
             )
         except Exception as e:
             raise StructureRegistryError(

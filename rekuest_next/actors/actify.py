@@ -1,6 +1,7 @@
 import inspect
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Type, Union
 
+from rekuest_next.api.schema import ValidatorInput
 from rekuest_next.actors.base import Passport
 from rekuest_next.actors.functional import (
     FunctionalFuncActor,
@@ -20,6 +21,7 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
 )
 from rekuest_next.definition.define import prepare_definition
+from rekuest_next.scalars import ValidatorFunction
 from rekuest_next.structures.registry import StructureRegistry
 
 
@@ -57,6 +59,7 @@ def reactify(
     bypass_expand=False,
     on_provide=None,
     on_unprovide=None,
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] = None,
     effects: Dict[str, EffectInput] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
@@ -82,6 +85,7 @@ def reactify(
         port_groups=port_groups,
         collections=collections,
         groups=groups,
+        validators=validators,
         effects=effects,
         is_test_for=is_test_for,
         **params,

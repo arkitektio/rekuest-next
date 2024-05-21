@@ -19,6 +19,8 @@ from rekuest_next.api.schema import (
     PortScope,
     ReturnWidgetInput,
     EffectInput,
+    ValidatorFunction,
+    ValidatorInput,
 )
 from rekuest_next.collection.shelve import get_current_shelve
 from typing import Dict, List, Callable, Optional, Tuple, Awaitable, Any
@@ -37,6 +39,7 @@ def register_func(
     dependencies: List[DependencyInput] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     groups: Optional[Dict[str, List[str]]] = None,
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] = None,
     is_test_for: Optional[List[str]] = None,
     widgets: Dict[str, AssignWidgetInput] = None,
@@ -88,6 +91,7 @@ def register_func(
         groups=groups,
         port_groups=port_groups,
         effects=effects,
+        validators=validators,
         interfaces=interfaces,
         in_process=in_process,
         **actifier_params,
@@ -118,6 +122,7 @@ def register(
     is_test_for: Optional[List[str]] = None,
     on_provide=None,
     on_unprovide=None,
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: StructureRegistry = None,
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
@@ -164,6 +169,7 @@ def register(
             structure_registry=structure_registry,
             definition_registry=definition_registry,
             dependencies=dependencies,
+            validators=validators,
             actifier=actifier,
             interface=interface,
             is_test_for=is_test_for,
@@ -199,6 +205,7 @@ def register(
                 definition_registry=definition_registry,
                 actifier=actifier,
                 interface=interface,
+                validators=validators,
                 dependencies=dependencies,
                 is_test_for=is_test_for,
                 widgets=widgets,

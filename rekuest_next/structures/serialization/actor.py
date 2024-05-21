@@ -92,6 +92,26 @@ async def aexpand_arg(
             *[aexpand_arg(expanding_port, item, structure_registry) for item in value]
         )
 
+    if port.kind == PortKind.MODEL:
+        try:
+            expanded_args = await asyncio.gather(
+                *[
+                    aexpand_arg(port, value[port.key], structure_registry)
+                    for port in port.children
+                ]
+            )
+
+            expandend_params = {
+                port.key: val for port, val in zip(port.children, expanded_args)
+            }
+
+            expander = structure_registry.retrieve_model_expander(port.identifier)
+            expanded_values = await expander(expandend_params)
+            return expanded_values
+
+        except Exception as e:
+            raise ExpandingError(f"Couldn't expand Children {port.children}") from e
+
     if port.kind == PortKind.INT:
         return int(value)
 
@@ -280,8 +300,8 @@ async def shrink_outputs(
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert (
-        len(node.returns) == len(returns)
+    assert len(node.returns) == len(
+        returns
     ), (  # We are dealing with a single output, convert it to a proper port like structure
         f"Mismatch in Return Length: expected {len(node.returns)} got {len(returns)}"
     )
