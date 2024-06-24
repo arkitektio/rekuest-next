@@ -1,10 +1,17 @@
-from typing import List, Union, Any
+from typing import List, Union, Any, AsyncGenerator
 
 from pydantic import Field
 
 from rekuest_next.api.schema import (
     AssignationFragment,
     BindsInput,
+    AssignInput,
+    CancelInput,
+    InterruptInput,
+    ReserveInput,
+    UnreserveInput,
+    ReservationFragment,
+    AssignationEventFragment,
 )
 from koil.composition import KoiledModel
 import asyncio
@@ -23,33 +30,14 @@ class BasePostman(KoiledModel):
     """
 
     connected = Field(default=False)
+    instance_id: str
 
     async def aassign(
-        self,
-        reservation: str,
-        args: List[Any],
-        persist=True,
-        log=False,
-        reference: str = None,
-        parent: Union[AssignationFragment, str] = None,
-    ) -> asyncio.Queue:
-        ...
+        self, input: AssignInput
+    ) -> AsyncGenerator[AssignationEventFragment, None]:
+        """Idea"""
+        yield
 
-    async def aunassign(
-        self,
-        assignation: str,
-    ) -> AssignationFragment:
-        ...
+    async def areserve(self, input: ReserveInput) -> ReservationFragment: ...
 
-    async def areserve(
-        self,
-        node: str = None,
-        hash: str = None,
-        provision: str = None,
-        reference: str = "default",
-        binds: BindsInput = None,
-    ) -> asyncio.Queue:
-        ...
-
-    async def aunreserve(self, reservation_id: str):
-        ...
+    async def aunreserve(self, input: UnreserveInput) -> ReservationFragment: ...

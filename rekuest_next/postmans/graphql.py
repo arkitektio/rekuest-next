@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Union
+from typing import Any, AsyncGenerator, Dict, List, Union
 import uuid
 from rekuest_next.api.schema import (
+    AssignationEventFragment,
     AssignationFragment,
     ReservationFragment,
     aassign,
@@ -9,6 +10,10 @@ from rekuest_next.api.schema import (
     awatch_reservations,
     acancel,
     aunreserve,
+    AssignInput,
+    CancelInput,
+    AssignationChangeEventFragment,
+    InterruptInput,
     BindsInput,
 )
 from rekuest_next.postmans.base import BasePostman
@@ -26,17 +31,12 @@ class GraphQLPostman(BasePostman):
     rath: RekuestNextRath
     instance_id: str
     assignations: Dict[str, AssignationFragment] = Field(default_factory=dict)
-    reservations: Dict[str, ReservationFragment] = Field(default_factory=dict)
 
-    _res_update_queues: Dict[str, asyncio.Queue] = {}
     _ass_update_queues: Dict[str, asyncio.Queue] = {}
 
-    _res_update_queue: asyncio.Queue = None
     _ass_update_queue: asyncio.Queue = None
 
-    _watch_resraces_task: asyncio.Task = None
     _watch_assraces_task: asyncio.Task = None
-    _watch_reservations_task: asyncio.Task = None
     _watch_assignations_task: asyncio.Task = None
 
     _watching: bool = None
@@ -44,42 +44,8 @@ class GraphQLPostman(BasePostman):
 
     async def aconnect(self):
         await super().aconnect()
-
-        data = {}  # await self.transport.alist_reservations()
-        self.reservations = {res.reservation: res for res in data}
-
         data = {}  # await self.transport.alist_assignations()
         self.assignations = {ass.assignation: ass for ass in data}
-
-    async def areserve(
-        self,
-        hash: str = None,
-        provision: str = None,
-        reference: str = "default",
-        binds: BindsInput = None,
-    ) -> asyncio.Queue:
-        async with self._lock:
-            if not self._watching:
-                await self.start_watching()
-
-        unique_identifier = hash + reference
-
-        self.reservations[unique_identifier] = None
-        self._res_update_queues[unique_identifier] = asyncio.Queue()
-        try:
-            reservation = await areserve(
-                instance_id=self.instance_id,
-                hash=hash,
-                provision=provision,
-                reference=reference,
-                binds=binds,
-                rath=self.rath,
-            )
-        except Exception as e:
-            raise PostmanException("Cannot Reserve") from e
-
-        await self._res_update_queue.put(reservation)
-        return self._res_update_queues[unique_identifier]
 
     async def aunreserve(self, reservation_id: str):
         async with self._lock:
@@ -93,184 +59,83 @@ class GraphQLPostman(BasePostman):
             raise PostmanException("Cannot Unreserve") from e
 
     async def aassign(
-        self,
-        reservation: str,
-        args: List[Any],
-        persist=True,
-        log=False,
-        reference: str = None,
-        parent: Union[AssignationFragment, str] = None,
-    ) -> asyncio.Queue:
+        self, assign: AssignInput
+    ) -> AsyncGenerator[AssignationEventFragment, None]:
         async with self._lock:
             if not self._watching:
                 await self.start_watching()
 
-        if not reference:
-            reference = str(uuid.uuid4())
-
-        self.assignations[reference] = None
-        self._ass_update_queues[reference] = asyncio.Queue()
         try:
-            assignation = await aassign(
-                reservation=reservation, args=args, reference=reference, parent=parent
-            )
+            assignation = await aassign(assign)
         except Exception as e:
             raise PostmanException("Cannot Assign") from e
-        await self._ass_update_queue.put(assignation)
-        return self._ass_update_queues[reference]
 
-    async def aunassign(
-        self,
-        assignation: str,
-    ) -> AssignationFragment:
-        async with self._lock:
-            if not self._watching:
-                await self.start_watching()
+        self._ass_update_queues[assign.reference] = asyncio.Queue()
+        queue = self._ass_update_queues[assign.reference]
 
         try:
-            unassignation = await acancel(assignation)
-        except Exception as e:
-            raise PostmanException("Cannot Unassign") from e
-        self.assignations[unassignation.id] = unassignation
-        return unassignation
+            while True:
+                signal = await queue.get()
+                yield signal
+                queue.task_done()
 
-    def register_reservation_queue(
-        self, node: str, reference: str, queue: asyncio.Queue
-    ):
-        self._res_update_queues[node + reference] = queue
+        except asyncio.CancelledError as e:
+            unassignation = await acancel(CancelInput(assignation=assignation.id))
+            del self._ass_update_queues[assign.reference]
+            raise e
 
     def register_assignation_queue(self, ass_id: str, queue: asyncio.Queue):
         self._ass_update_queues[ass_id] = queue
 
-    def unregister_reservation_queue(self, node: str, reference: str):
-        del self._res_update_queues[node + reference]
-
     def unregister_assignation_queue(self, ass_id: str):
         del self._ass_update_queues[ass_id]
 
-    async def watch_reservations(self):
-        async for e in awatch_reservations(self.instance_id, rath=self.rath):
-            res = e.update or e.create
-            await self._res_update_queue.put(res)
-
     async def watch_assignations(self):
-        async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
-            ass = assignation.update or assignation.create
-            await self._ass_update_queue.put(ass)
-
-    async def watch_resraces(self):
+        print("Start to watch")
         try:
-            while True:
-                res: ReservationFragment = await self._res_update_queue.get()
+            async for assignation in awatch_assignations(
+                self.instance_id, rath=self.rath
+            ):
+                if assignation.event:
+                    reference = assignation.event.reference
+                    await self._ass_update_queues[reference].put(assignation.event)
 
-                unique_identifier = res.node.hash + res.reference
-
-                if unique_identifier not in self._res_update_queues:
-                    logger.info(
-                        "Reservation update for unknown reservation received. Probably"
-                        " old stuf"
-                    )
-                else:
-                    if self.reservations[unique_identifier] is None:
-                        self.reservations[unique_identifier] = res
-                        await self._res_update_queues[unique_identifier].put(res)
-                        continue
-
-                    else:
-                        if (
-                            self.reservations[unique_identifier].updated_at
-                            < res.updated_at
-                        ):
-                            self.reservations[unique_identifier] = res
-                            await self._res_update_queues[unique_identifier].put(res)
-                        else:
-                            logger.info(
-                                "Reservation update for reservation {} is older than"
-                                " current state. Ignoring".format(unique_identifier)
-                            )
-
-                self._res_update_queue.task_done()
-
-        except Exception:
-            logger.error("Error in watch_resraces", exc_info=True)
+        except Exception as e:
+            print(e)
 
     async def watch_assraces(self):
         try:
             while True:
-                ass: AssignationFragment = await self._ass_update_queue.get()
+                ass: AssignationEventFragment = await self._ass_update_queue.get()
                 self._ass_update_queue.task_done()
                 logger.info(f"Postman received Assignation {ass}")
 
                 unique_identifier = ass.reference
 
-                if unique_identifier not in self._ass_update_queues:
-                    logger.info(
-                        "Assignation update for unknown assignation received. Probably"
-                        f" old stuf {ass}"
-                    )
-                    continue
-
-                if self.assignations[unique_identifier] is None:
-                    self.assignations[unique_identifier] = ass
-                    await self._ass_update_queues[unique_identifier].put(ass)
-                    continue
-
-                else:
-                    if self.assignations[unique_identifier].updated_at < ass.updated_at:
-                        self.assignations[unique_identifier] = ass
-                        await self._ass_update_queues[unique_identifier].put(ass)
-                    else:
-                        logger.info(
-                            f"Assignation update for assignation {ass} is older than"
-                            " current state. Ignoring"
-                        )
-                        continue
+                await self._ass_update_queues[unique_identifier].put(ass)
 
         except Exception:
             logger.error("Error in watch_resraces", exc_info=True)
 
     async def start_watching(self):
         logger.info("Starting watching")
-        self._res_update_queue = asyncio.Queue()
         self._ass_update_queue = asyncio.Queue()
-        self._watch_reservations_task = asyncio.create_task(self.watch_reservations())
-        self._watch_reservations_task.add_done_callback(self.log_reservation_fail)
         self._watch_assignations_task = asyncio.create_task(self.watch_assignations())
-
         self._watch_assignations_task.add_done_callback(self.log_assignation_fail)
-        self._watch_resraces_task = asyncio.create_task(self.watch_resraces())
         self._watch_assraces_task = asyncio.create_task(self.watch_assraces())
         self._watching = True
 
-    def log_reservation_fail(self, future):
-        """if future.exception():
-        exception = future.exception()
-        if not isinstance(exception, asyncio.exceptions.CancelledError):
-            print(
-                str(exception)
-                + "\n"
-                + "".join(
-                    traceback.format_exception(
-                        type(exception), exception, exception.__traceback__
-                    )
-                )
-            )"""
-        return
-
     def log_assignation_fail(self, future):
+        print(future)
         return
 
     async def stop_watching(self):
-        self._watch_reservations_task.cancel()
         self._watch_assignations_task.cancel()
-        self._watch_resraces_task.cancel()
         self._watch_assraces_task.cancel()
 
         try:
             await asyncio.gather(
-                self._watch_reservations_task,
                 self._watch_assignations_task,
-                self._watch_resraces_task,
                 self._watch_assraces_task,
                 return_exceptions=True,
             )

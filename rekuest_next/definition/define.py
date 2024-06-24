@@ -127,6 +127,16 @@ def is_float(cls):
     return False
 
 
+def is_generator_type(cls):
+    if cls.__module__ == "typing":
+        if hasattr(cls, "_name"):
+            if cls._name == "Generator":
+                return True
+            if cls._name == "AsyncGenerator":
+                return True
+    return False
+
+
 def is_int(cls):
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and issubclass(cls, int)
@@ -172,7 +182,6 @@ def convert_child_to_childport(
          converter for the default
     """
     if is_model(cls):
-
         children = []
         convertermap = {}
 
@@ -373,6 +382,22 @@ def convert_object_to_port(
     """
     Convert a class to an Port
     """
+
+    if is_generator_type(cls):
+        print("Is Generator", cls)
+        real_type = cls.__args__[0]
+
+        return convert_object_to_port(
+            real_type,
+            key,
+            registry,
+            assign_widget=assign_widget,
+            default=default,
+            label=label,
+            effects=effects,
+            nullable=nullable,
+            groups=groups,
+        )
 
     if is_model(cls):
         print("Is Model", cls)
@@ -902,7 +927,6 @@ def prepare_definition(
             "interfaces": interfaces,
             "portGroups": port_groups,
             "isTestFor": is_test_for or [],
-            
         }
     )
 

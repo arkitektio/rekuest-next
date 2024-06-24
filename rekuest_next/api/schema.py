@@ -1,21 +1,21 @@
-from typing_extensions import Literal
-from typing import Tuple, Optional, Iterator, List, Any, AsyncIterator
-from rekuest_next.rath import RekuestNextRath
+from rekuest_next.traits.node import Reserve
 from rekuest_next.scalars import (
+    Identifier,
+    InstanceId,
+    ValidatorFunction,
     Args,
     NodeHash,
-    ValidatorFunction,
     SearchQuery,
-    InstanceId,
-    Identifier,
 )
 from pydantic import BaseModel, Field
+from typing_extensions import Literal
+from typing import AsyncIterator, Tuple, Any, Optional, List, Iterator
+from datetime import datetime
+from rekuest_next.funcs import subscribe, asubscribe, execute, aexecute
 from rath.scalars import ID
-from rekuest_next.funcs import execute, aexecute, asubscribe, subscribe
+from rekuest_next.rath import RekuestNextRath
 from enum import Enum
 from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
-from datetime import datetime
-from rekuest_next.traits.node import Reserve
 
 
 class AssignWidgetKind(str, Enum):
@@ -403,6 +403,57 @@ class HookInput(BaseModel):
         use_enum_values = True
 
 
+class CancelInput(BaseModel):
+    assignation: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class InterruptInput(BaseModel):
+    assignation: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class ReserveInput(BaseModel):
+    assignation_id: Optional[str] = Field(alias="assignationId")
+    instance_id: InstanceId = Field(alias="instanceId")
+    node: Optional[ID]
+    template: Optional[ID]
+    title: Optional[str]
+    hash: Optional[NodeHash]
+    reference: Optional[str]
+    binds: Optional[BindsInput]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class UnreserveInput(BaseModel):
+    reservation: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
 class TestCaseFragmentNode(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -652,6 +703,34 @@ class AssignationFragment(BaseModel):
         frozen = True
 
 
+class AssignationEventFragment(BaseModel):
+    typename: Optional[Literal["AssignationEvent"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    kind: AssignationEventKind
+    returns: Optional[Any]
+    reference: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class AssignationChangeEventFragment(BaseModel):
+    typename: Optional[Literal["AssignationChangeEvent"]] = Field(
+        alias="__typename", exclude=True
+    )
+    create: Optional[AssignationFragment]
+    event: Optional[AssignationEventFragment]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class TemplateFragmentAgentRegistry(BaseModel):
     typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -743,15 +822,10 @@ class ReserveMutation(BaseModel):
     reserve: ReservationFragment
 
     class Arguments(BaseModel):
-        node: Optional[ID] = Field(default=None)
-        hash: Optional[NodeHash] = Field(default=None)
-        title: Optional[str] = Field(default=None)
-        reference: Optional[str] = Field(default=None)
-        binds: Optional[BindsInput] = Field(default=None)
-        instance_id: InstanceId = Field(alias="instanceId")
+        input: ReserveInput
 
     class Meta:
-        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nmutation reserve($node: ID, $hash: NodeHash, $title: String, $reference: String, $binds: BindsInput, $instanceId: InstanceId!) {\n  reserve(\n    input: {node: $node, hash: $hash, title: $title, binds: $binds, reference: $reference, instanceId: $instanceId}\n  ) {\n    ...Reservation\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nmutation reserve($input: ReserveInput!) {\n  reserve(input: $input) {\n    ...Reservation\n  }\n}"
 
 
 class UnreserveMutationUnreserve(BaseModel):
@@ -768,10 +842,10 @@ class UnreserveMutation(BaseModel):
     unreserve: UnreserveMutationUnreserve
 
     class Arguments(BaseModel):
-        id: ID
+        input: UnreserveInput
 
     class Meta:
-        document = "mutation unreserve($id: ID!) {\n  unreserve(input: {reservation: $id}) {\n    id\n  }\n}"
+        document = "mutation unreserve($input: UnreserveInput!) {\n  unreserve(input: $input) {\n    id\n  }\n}"
 
 
 class AssignMutation(BaseModel):
@@ -788,20 +862,20 @@ class CancelMutation(BaseModel):
     cancel: AssignationFragment
 
     class Arguments(BaseModel):
-        id: ID
+        input: CancelInput
 
     class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation cancel($id: ID!) {\n  cancel(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation cancel($input: CancelInput!) {\n  cancel(input: $input) {\n    ...Assignation\n  }\n}"
 
 
 class InterruptMutation(BaseModel):
     interrupt: AssignationFragment
 
     class Arguments(BaseModel):
-        id: ID
+        input: InterruptInput
 
     class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation interrupt($id: ID!) {\n  interrupt(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation interrupt($input: InterruptInput!) {\n  interrupt(input: $input) {\n    ...Assignation\n  }\n}"
 
 
 class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
@@ -875,13 +949,13 @@ class WatchReservationsSubscription(BaseModel):
 
 
 class WatchAssignationsSubscription(BaseModel):
-    assignations: AssignationFragment
+    assignations: AssignationChangeEventFragment
 
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...Assignation\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n  }\n  event {\n    ...AssignationEvent\n  }\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -1263,113 +1337,67 @@ def create_testresult(
 
 
 async def areserve(
-    instance_id: InstanceId,
-    node: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
-    title: Optional[str] = None,
-    reference: Optional[str] = None,
-    binds: Optional[BindsInput] = None,
-    rath: Optional[RekuestNextRath] = None,
+    input: ReserveInput, rath: Optional[RekuestNextRath] = None
 ) -> ReservationFragment:
     """reserve
 
 
 
     Arguments:
-        instance_id (InstanceId): instanceId
-        node (Optional[ID], optional): node.
-        hash (Optional[NodeHash], optional): hash.
-        title (Optional[str], optional): title.
-        reference (Optional[str], optional): reference.
-        binds (Optional[BindsInput], optional): binds.
+        input (ReserveInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         ReservationFragment"""
-    return (
-        await aexecute(
-            ReserveMutation,
-            {
-                "node": node,
-                "hash": hash,
-                "title": title,
-                "reference": reference,
-                "binds": binds,
-                "instanceId": instance_id,
-            },
-            rath=rath,
-        )
-    ).reserve
+    return (await aexecute(ReserveMutation, {"input": input}, rath=rath)).reserve
 
 
 def reserve(
-    instance_id: InstanceId,
-    node: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
-    title: Optional[str] = None,
-    reference: Optional[str] = None,
-    binds: Optional[BindsInput] = None,
-    rath: Optional[RekuestNextRath] = None,
+    input: ReserveInput, rath: Optional[RekuestNextRath] = None
 ) -> ReservationFragment:
     """reserve
 
 
 
     Arguments:
-        instance_id (InstanceId): instanceId
-        node (Optional[ID], optional): node.
-        hash (Optional[NodeHash], optional): hash.
-        title (Optional[str], optional): title.
-        reference (Optional[str], optional): reference.
-        binds (Optional[BindsInput], optional): binds.
+        input (ReserveInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         ReservationFragment"""
-    return execute(
-        ReserveMutation,
-        {
-            "node": node,
-            "hash": hash,
-            "title": title,
-            "reference": reference,
-            "binds": binds,
-            "instanceId": instance_id,
-        },
-        rath=rath,
-    ).reserve
+    return execute(ReserveMutation, {"input": input}, rath=rath).reserve
 
 
 async def aunreserve(
-    id: ID, rath: Optional[RekuestNextRath] = None
+    input: UnreserveInput, rath: Optional[RekuestNextRath] = None
 ) -> UnreserveMutationUnreserve:
     """unreserve
 
 
 
     Arguments:
-        id (ID): id
+        input (UnreserveInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         UnreserveMutationUnreserve"""
-    return (await aexecute(UnreserveMutation, {"id": id}, rath=rath)).unreserve
+    return (await aexecute(UnreserveMutation, {"input": input}, rath=rath)).unreserve
 
 
 def unreserve(
-    id: ID, rath: Optional[RekuestNextRath] = None
+    input: UnreserveInput, rath: Optional[RekuestNextRath] = None
 ) -> UnreserveMutationUnreserve:
     """unreserve
 
 
 
     Arguments:
-        id (ID): id
+        input (UnreserveInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         UnreserveMutationUnreserve"""
-    return execute(UnreserveMutation, {"id": id}, rath=rath).unreserve
+    return execute(UnreserveMutation, {"input": input}, rath=rath).unreserve
 
 
 async def aassign(
@@ -1405,63 +1433,67 @@ def assign(
 
 
 async def acancel(
-    id: ID, rath: Optional[RekuestNextRath] = None
+    input: CancelInput, rath: Optional[RekuestNextRath] = None
 ) -> AssignationFragment:
     """cancel
 
 
 
     Arguments:
-        id (ID): id
+        input (CancelInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         AssignationFragment"""
-    return (await aexecute(CancelMutation, {"id": id}, rath=rath)).cancel
+    return (await aexecute(CancelMutation, {"input": input}, rath=rath)).cancel
 
 
-def cancel(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
+def cancel(
+    input: CancelInput, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
     """cancel
 
 
 
     Arguments:
-        id (ID): id
+        input (CancelInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         AssignationFragment"""
-    return execute(CancelMutation, {"id": id}, rath=rath).cancel
+    return execute(CancelMutation, {"input": input}, rath=rath).cancel
 
 
 async def ainterrupt(
-    id: ID, rath: Optional[RekuestNextRath] = None
+    input: InterruptInput, rath: Optional[RekuestNextRath] = None
 ) -> AssignationFragment:
     """interrupt
 
 
 
     Arguments:
-        id (ID): id
+        input (InterruptInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         AssignationFragment"""
-    return (await aexecute(InterruptMutation, {"id": id}, rath=rath)).interrupt
+    return (await aexecute(InterruptMutation, {"input": input}, rath=rath)).interrupt
 
 
-def interrupt(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
+def interrupt(
+    input: InterruptInput, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
     """interrupt
 
 
 
     Arguments:
-        id (ID): id
+        input (InterruptInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         AssignationFragment"""
-    return execute(InterruptMutation, {"id": id}, rath=rath).interrupt
+    return execute(InterruptMutation, {"input": input}, rath=rath).interrupt
 
 
 async def acreate_hardware_record(
@@ -1634,7 +1666,7 @@ def watch_reservations(
 
 async def awatch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[AssignationFragment]:
+) -> AsyncIterator[AssignationChangeEventFragment]:
     """WatchAssignations
 
 
@@ -1644,7 +1676,7 @@ async def awatch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        AssignationChangeEventFragment"""
     async for event in asubscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -1653,7 +1685,7 @@ async def awatch_assignations(
 
 def watch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[AssignationFragment]:
+) -> Iterator[AssignationChangeEventFragment]:
     """WatchAssignations
 
 
@@ -1663,7 +1695,7 @@ def watch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        AssignationChangeEventFragment"""
     for event in subscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):

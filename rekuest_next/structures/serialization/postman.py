@@ -105,12 +105,12 @@ async def ashrink_arg(
         ) from e
 
 
-async def shrink_inputs(
+async def ashrink_args(
     node: NodeFragment,
     args: List[Any],
     kwargs: Dict[str, Any],
     structure_registry: StructureRegistry,
-) -> Tuple[Any]:
+) -> Dict[str, Any]:
     """Shrinks args and kwargs
 
     Shrinks the inputs according to the Node Definition
@@ -241,12 +241,11 @@ async def aexpand_return(
     raise NotImplementedError("Should be implemented by subclass")
 
 
-async def expand_outputs(
+async def aexpand_returns(
     node: NodeFragment,
     returns: Dict[str, Any],
     structure_registry: StructureRegistry,
-    skip_expanding: bool = False,
-) -> Dict[str, Any]:
+) -> Tuple[Any]:
     """Expands Returns
 
     Expands the Returns according to the Node definition
@@ -264,7 +263,7 @@ async def expand_outputs(
     """
     assert returns is not None, "Returns can't be empty"
 
-    expanded_returns = {}
+    expanded_returns = []
 
     for port in node.returns:
         expanded_return = None
@@ -284,7 +283,7 @@ async def expand_outputs(
                     f"Couldn't expand return {returns[port.key]} with port {port}"
                 ) from e
 
-        expanded_returns[port.key] = expanded_return
+        expanded_returns.append(expanded_return)
 
     return expanded_return
 

@@ -14,3 +14,19 @@ fragment Assignation on Assignation {
   reference
   updatedAt
 }
+
+fragment AssignationEvent on AssignationEvent {
+  id
+  kind
+  returns
+  reference
+}
+
+fragment AssignationChangeEvent on AssignationChangeEvent {
+  create {
+    ...Assignation
+  }
+  event {
+    ...AssignationEvent
+  }
+}
