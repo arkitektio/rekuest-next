@@ -1,8 +1,9 @@
 mutation assign(
   $reservation: ID!
-  $args: [Arg!]!
+  $args: Args!
   $reference: String
   $parent: ID
+  $hooks: [HookInput!]
 ) {
   assign(
     input: {
@@ -10,6 +11,7 @@ mutation assign(
       args: $args
       reference: $reference
       parent: $parent
+      hooks: $hooks
     }
   ) {
     ...Assignation

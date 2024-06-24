@@ -42,6 +42,7 @@ def register_func(
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] = None,
     is_test_for: Optional[List[str]] = None,
+    logo: Optional[str] = None,
     widgets: Dict[str, AssignWidgetInput] = None,
     effects: Dict[str, List[EffectInput]] = None,
     interfaces: List[str] = [],
@@ -89,6 +90,7 @@ def register_func(
         is_test_for=is_test_for,
         collections=collections,
         groups=groups,
+        logo=logo,
         port_groups=port_groups,
         effects=effects,
         validators=validators,
@@ -103,6 +105,7 @@ def register_func(
         structure_registry,
         actor_builder,
         dependencies=dependencies,
+        logo=logo,
     )
 
     return definition, actor_builder
@@ -120,6 +123,7 @@ def register(
     groups: Optional[Dict[str, List[str]]] = None,
     effects: Dict[str, List[EffectInput]] = None,
     is_test_for: Optional[List[str]] = None,
+    logo: Optional[str] = None,
     on_provide=None,
     on_unprovide=None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
@@ -174,6 +178,7 @@ def register(
             interface=interface,
             is_test_for=is_test_for,
             widgets=widgets,
+            logo=logo,
             effects=effects,
             collections=collections,
             interfaces=interfaces,
@@ -213,6 +218,7 @@ def register(
                 collections=collections,
                 interfaces=interfaces,
                 on_provide=on_provide,
+                logo=logo,
                 on_unprovide=on_unprovide,
                 port_groups=port_groups,
                 groups=groups,

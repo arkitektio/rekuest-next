@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, TypeVar, Literal, Union
+from typing import Any, List, Optional, TypeVar, Literal, Union, Dict
 from pydantic import BaseModel
 from rekuest_next.api.schema import (
     AssignationEventKind,
@@ -32,7 +32,7 @@ class Assign(Message):
     reference: Optional[str]
     provision: Optional[str]
     reservation: Optional[str]
-    args: Optional[List[Any]]
+    args: Optional[Dict[str, Any]]
     message: Optional[str]
     user: Optional[str]
 
@@ -65,7 +65,7 @@ class AssignationEvent(Message):
     assignation: str
     kind: AssignationEventKind
     message: Optional[str]
-    returns: Optional[List[Any]]
+    returns: Optional[Dict[str, Any]] = Field(default_factory=None)
     persist: Optional[bool]
     progress: Optional[int]
     log: Optional[bool]

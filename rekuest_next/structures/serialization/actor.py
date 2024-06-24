@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.registry import StructureRegistry
@@ -148,7 +148,7 @@ async def aexpand_arg(
 
 async def expand_inputs(
     definition: Union[DefinitionInput, DefinitionFragment],
-    args: List[Union[str, int, float, dict, list]],
+    args: Dict[str, Union[str, int, float, dict, list]],
     structure_registry: StructureRegistry,
     skip_expanding: bool = False,
 ):
@@ -172,8 +172,8 @@ async def expand_inputs(
         try:
             expanded_args = await asyncio.gather(
                 *[
-                    aexpand_arg(port, arg, structure_registry)
-                    for port, arg in zip(node.args, args)
+                    aexpand_arg(port, args.get(port.key, None), structure_registry)
+                    for port in node.args
                 ]
             )
 
@@ -185,7 +185,7 @@ async def expand_inputs(
             raise ExpandingError(f"Couldn't expand Arguments {args}") from e
     else:
         expandend_params = {
-            port.key: arg for port, arg in zip(node.args, args) if arg is not None
+            port.key: args.get(port.key, None) for port in node.args
         }
 
     return expandend_params
@@ -288,7 +288,7 @@ async def shrink_outputs(
     returns: List[Any],
     structure_registry: StructureRegistry,
     skip_shrinking: bool = False,
-) -> Tuple[Union[str, int, float, dict, list, None]]:
+) -> Dict[str, Union[str, int, float, dict, list, None]]:
     node = (
         auto_validate(definition)
         if isinstance(definition, DefinitionInput)
@@ -312,8 +312,9 @@ async def shrink_outputs(
             for port, val in zip(node.returns, returns)
         ]
         try:
-            return tuple(await asyncio.gather(*shrinked_returns_future))
+            shrinked_returns = await asyncio.gather(*shrinked_returns_future)
+            return {port.key: val for port, val in zip(node.returns, shrinked_returns)}
         except Exception as e:
             raise ShrinkingError(f"Couldn't shrink Returns {returns}") from e
     else:
-        return tuple(val for port, val in zip(node.returns, returns))
+        return {port.key: val for port, val in zip(node.returns, returns)}

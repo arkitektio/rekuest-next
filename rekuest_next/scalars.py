@@ -28,6 +28,10 @@ class NodeHash(str):
 ValueMap = Dict[str, Any]
 
 
+
+Args = Dict[str, Any]
+
+
 class Interface(str):
     @classmethod
     def validate(cls, v):

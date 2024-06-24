@@ -1,7 +1,7 @@
 import contextvars
 from rekuest_next.api.schema import DefinitionInput, DefinitionFragment, DependencyInput
 from rekuest_next.definition.validate import auto_validate, hash_definition
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic import Field
 from koil.composition import KoiledModel
 import json
@@ -29,6 +29,7 @@ def get_current_definition_registry(allow_global=True):
 class DefinitionRegistry(KoiledModel):
     definitions: Dict[str, DefinitionInput] = Field(default_factory=dict, exclude=True)
     dependencies: Dict[str, DependencyInput] = Field(default_factory=dict, exclude=True)
+    logos: Dict[str, str] = Field(default_factory=dict, exclude=True)
     actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
     structure_registries: Dict[str, StructureRegistry] = Field(
         default_factory=dict, exclude=True
@@ -43,12 +44,14 @@ class DefinitionRegistry(KoiledModel):
         definition: DefinitionInput,
         structure_registry: StructureRegistry,
         actorBuilder: ActorBuilder,
-        dependencies: Dict[str, str] = None,
+        logo: Optional[str] = None,
+        dependencies: Optional[Dict[str, str]] = None,
     ):  # New Node
         self.definitions[interface] = definition
         self.actor_builders[interface] = actorBuilder
         self.structure_registries[interface] = structure_registry
         self.dependencies[interface] = dependencies
+        self.logos[interface] = logo
 
     def get_builder_for_interface(self, interface) -> ActorBuilder:
         return self.actor_builders[interface]

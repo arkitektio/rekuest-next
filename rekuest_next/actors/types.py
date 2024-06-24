@@ -18,7 +18,7 @@ class Assignment(BaseModel):
     assignation: Optional[str]
     parent: Optional[str]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    args: List[Any] = Field(default_factory=list)
+    args: Dict[str, Any] = Field(default_factory=dict)
     user: Optional[str]
     reference: Optional[str]
 

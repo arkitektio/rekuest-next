@@ -5,6 +5,7 @@ mutation createTemplate(
   $params: AnyDefault
   $dependencies: [DependencyInput!]
   $extension: String!
+  $dynamic: Boolean = false
 ) {
   createTemplate(
     input: {
@@ -14,6 +15,7 @@ mutation createTemplate(
       instanceId: $instance_id
       dependencies: $dependencies
       extension: $extension
+      dynamic: $dynamic
     }
   ) {
     ...Template
