@@ -1,13 +1,21 @@
 import contextvars
-from rekuest_next.api.schema import DefinitionInput, DefinitionFragment, DependencyInput
+from rekuest_next.api.schema import (
+    DefinitionInput,
+    DefinitionFragment,
+    DependencyInput,
+    TemplateInput,
+    CreateTemplateInput,
+)
 from rekuest_next.definition.validate import auto_validate, hash_definition
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from pydantic import Field
 from koil.composition import KoiledModel
 import json
 from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
+import hashlib
+
 
 current_definition_registry = contextvars.ContextVar(
     "current_definition_registry", default=None
@@ -27,31 +35,25 @@ def get_current_definition_registry(allow_global=True):
 
 
 class DefinitionRegistry(KoiledModel):
-    definitions: Dict[str, DefinitionInput] = Field(default_factory=dict, exclude=True)
-    dependencies: Dict[str, DependencyInput] = Field(default_factory=dict, exclude=True)
-    logos: Dict[str, str] = Field(default_factory=dict, exclude=True)
+    templates: Dict[str, TemplateInput] = Field(default_factory=dict, exclude=True)
     actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
     structure_registries: Dict[str, StructureRegistry] = Field(
         default_factory=dict, exclude=True
     )
     copy_from_default: bool = False
 
-    _token: contextvars.Token = None
+    _token: Union[contextvars.Token, None] = None
 
     def register_at_interface(
         self,
         interface: str,
-        definition: DefinitionInput,
+        template: TemplateInput,
         structure_registry: StructureRegistry,
         actorBuilder: ActorBuilder,
-        logo: Optional[str] = None,
-        dependencies: Optional[Dict[str, str]] = None,
     ):  # New Node
-        self.definitions[interface] = definition
+        self.templates[interface] = template
         self.actor_builders[interface] = actorBuilder
         self.structure_registries[interface] = structure_registry
-        self.dependencies[interface] = dependencies
-        self.logos[interface] = logo
 
     def get_builder_for_interface(self, interface) -> ActorBuilder:
         return self.actor_builders[interface]
@@ -61,12 +63,12 @@ class DefinitionRegistry(KoiledModel):
         return self.structure_registries[interface]
 
     def get_definition_for_interface(self, interface) -> DefinitionInput:
-        assert interface in self.definitions, "No definition for interface"
-        return self.definitions[interface]
+        assert interface in self.templates, "No definition for interface"
+        return self.templates[interface].definition
 
-    def get_dependencies_for_interface(self, interface) -> List[DependencyInput]:
-        assert interface in self.dependencies, "No dependencies for interface"
-        return self.dependencies[interface]
+    def get_template_input_for_interface(self, interface) -> CreateTemplateInput:
+        assert interface in self.templates, "No definition for interface"
+        return self.templates[interface]
 
     async def __aenter__(self):
         self._token = current_definition_registry.set(self)
@@ -74,38 +76,41 @@ class DefinitionRegistry(KoiledModel):
 
     def dump(self):
         return {
-            "definitions": [
+            "templates": [
                 json.loads(x[0].json(exclude_none=True, exclude_unset=True))
-                for x in self.defined_nodes
+                for x in self.templates
             ]
         }
+
+    def hash(self):
+        return hashlib.sha256(
+            json.dumps(self.dump(), sort_keys=True).encode()
+        ).hexdigest()
 
     async def __aexit__(self, *args, **kwargs):
         current_definition_registry.set(None)
 
-    def create_merged(self, other, strict=True):
+    def create_merged(self, other: "DefinitionRegistry", strict=True):
         new = DefinitionRegistry()
 
-        for key in self.definitions:
+        for key in self.templates:
             if strict:
                 assert (
-                    key in other.definitions
+                    key in other.templates
                 ), f"Cannot merge definition registrs with the same interface in strict mode: {key}"
-            new.definitions[key] = self.definitions[key]
-            new.dependencies[key] = self.dependencies[key]
+            new.templates[key] = self.templates[key]
             new.actor_builders[key] = self.actor_builders[key]
             new.structure_registries[key] = self.structure_registries[key]
 
         return new
 
-    def merge_with(self, other, strict=True):
-        for key in other.definitions:
+    def merge_with(self, other: "DefinitionRegistry", strict=True):
+        for key in other.templates:
             if strict:
                 assert (
-                    key not in self.definitions
+                    key not in self.templates
                 ), f"Cannot merge definition registrs with the same interface in strict mode: {key}"
-            self.definitions[key] = other.definitions[key]
-            self.dependencies[key] = other.dependencies[key]
+            self.templates[key] = other.templates[key]
             self.actor_builders[key] = other.actor_builders[key]
             self.structure_registries[key] = other.structure_registries[key]
 

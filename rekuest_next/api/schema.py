@@ -1,21 +1,21 @@
 from typing_extensions import Literal
-from typing import Any, List, Tuple, AsyncIterator, Optional, Iterator
-from rekuest_next.scalars import (
-    NodeHash,
-    Identifier,
-    SearchQuery,
-    Args,
-    InstanceId,
-    ValidatorFunction,
-)
-from enum import Enum
-from rekuest_next.traits.node import Reserve
-from rekuest_next.funcs import aexecute, execute, subscribe, asubscribe
-from datetime import datetime
+from typing import Tuple, Optional, Iterator, List, Any, AsyncIterator
 from rekuest_next.rath import RekuestNextRath
+from rekuest_next.scalars import (
+    Args,
+    NodeHash,
+    ValidatorFunction,
+    SearchQuery,
+    InstanceId,
+    Identifier,
+)
 from pydantic import BaseModel, Field
-from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
 from rath.scalars import ID
+from rekuest_next.funcs import execute, aexecute, asubscribe, subscribe
+from enum import Enum
+from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
+from datetime import datetime
+from rekuest_next.traits.node import Reserve
 
 
 class AssignWidgetKind(str, Enum):
@@ -129,18 +129,45 @@ class HookKind(str, Enum):
     INIT = "INIT"
 
 
+class CreateTemplateInput(BaseModel):
+    template: "TemplateInput"
+    instance_id: InstanceId = Field(alias="instanceId")
+    extension: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class TemplateInput(BaseModel):
+    definition: "DefinitionInput"
+    dependencies: Tuple["DependencyInput", ...]
+    interface: str
+    params: Optional[Any]
+    dynamic: bool
+    logo: Optional[str]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
 class DefinitionInput(BaseModel):
-    description: Optional[str] = None
-    collections: Optional[Tuple[str, ...]] = None
+    description: Optional[str]
+    collections: Tuple[str, ...]
     name: str
-    port_groups: Optional[Tuple["PortGroupInput", ...]] = Field(
-        alias="portGroups", default=None
-    )
-    args: Optional[Tuple["PortInput", ...]] = None
-    returns: Optional[Tuple["PortInput", ...]] = None
+    port_groups: Tuple["PortGroupInput", ...] = Field(alias="portGroups")
+    args: Tuple["PortInput", ...]
+    returns: Tuple["PortInput", ...]
     kind: NodeKind
-    is_test_for: Optional[Tuple[str, ...]] = Field(alias="isTestFor", default=None)
-    interfaces: Optional[Tuple[str, ...]] = None
+    is_test_for: Tuple[str, ...] = Field(alias="isTestFor")
+    interfaces: Tuple[str, ...]
 
     class Config:
         """A config class"""
@@ -163,24 +190,20 @@ class PortGroupInput(BaseModel):
 
 
 class PortInput(PortTrait, BaseModel):
-    validators: Optional[Tuple["ValidatorInput", ...]] = None
+    validators: Optional[Tuple["ValidatorInput", ...]]
     key: str
     scope: PortScope
-    label: Optional[str] = None
+    label: Optional[str]
     kind: PortKind
-    description: Optional[str] = None
-    identifier: Optional[str] = None
+    description: Optional[str]
+    identifier: Optional[str]
     nullable: bool
-    effects: Optional[Tuple["EffectInput", ...]] = None
-    default: Optional[Any] = None
-    children: Optional[Tuple["ChildPortInput", ...]] = None
-    assign_widget: Optional["AssignWidgetInput"] = Field(
-        alias="assignWidget", default=None
-    )
-    return_widget: Optional["ReturnWidgetInput"] = Field(
-        alias="returnWidget", default=None
-    )
-    groups: Optional[Tuple[str, ...]] = None
+    effects: Optional[Tuple["EffectInput", ...]]
+    default: Optional[Any]
+    children: Optional[Tuple["ChildPortInput", ...]]
+    assign_widget: Optional["AssignWidgetInput"] = Field(alias="assignWidget")
+    return_widget: Optional["ReturnWidgetInput"] = Field(alias="returnWidget")
+    groups: Optional[Tuple[str, ...]]
 
     class Config:
         """A config class"""
@@ -192,9 +215,9 @@ class PortInput(PortTrait, BaseModel):
 
 class ValidatorInput(BaseModel):
     function: ValidatorFunction
-    dependencies: Optional[Tuple[str, ...]] = None
-    label: Optional[str] = None
-    error_message: Optional[str] = Field(alias="errorMessage", default=None)
+    dependencies: Optional[Tuple[str, ...]]
+    label: Optional[str]
+    error_message: Optional[str] = Field(alias="errorMessage")
 
     class Config:
         """A config class"""
@@ -206,7 +229,7 @@ class ValidatorInput(BaseModel):
 
 class EffectInput(BaseModel):
     label: str
-    description: Optional[str] = None
+    description: Optional[str]
     dependencies: Tuple["EffectDependencyInput", ...]
     kind: EffectKind
 
@@ -232,22 +255,18 @@ class EffectDependencyInput(BaseModel):
 
 
 class ChildPortInput(PortTrait, BaseModel):
-    default: Optional[Any] = None
+    default: Optional[Any]
     key: str
-    label: Optional[str] = None
+    label: Optional[str]
     kind: PortKind
     scope: PortScope
-    description: Optional[str] = None
-    identifier: Optional[Identifier] = None
+    description: Optional[str]
+    identifier: Optional[Identifier]
     nullable: bool
-    children: Optional[Tuple["ChildPortInput", ...]] = None
-    effects: Optional[Tuple[EffectInput, ...]] = None
-    assign_widget: Optional["AssignWidgetInput"] = Field(
-        alias="assignWidget", default=None
-    )
-    return_widget: Optional["ReturnWidgetInput"] = Field(
-        alias="returnWidget", default=None
-    )
+    children: Optional[Tuple["ChildPortInput", ...]]
+    effects: Optional[Tuple[EffectInput, ...]]
+    assign_widget: Optional["AssignWidgetInput"] = Field(alias="assignWidget")
+    return_widget: Optional["ReturnWidgetInput"] = Field(alias="returnWidget")
 
     class Config:
         """A config class"""
@@ -258,16 +277,16 @@ class ChildPortInput(PortTrait, BaseModel):
 
 
 class AssignWidgetInput(BaseModel):
-    as_paragraph: Optional[bool] = Field(alias="asParagraph", default=None)
+    as_paragraph: Optional[bool] = Field(alias="asParagraph")
     kind: AssignWidgetKind
-    query: Optional[SearchQuery] = None
-    choices: Optional[Tuple["ChoiceInput", ...]] = None
-    min: Optional[int] = None
-    max: Optional[int] = None
-    step: Optional[int] = None
-    placeholder: Optional[str] = None
-    hook: Optional[str] = None
-    ward: Optional[str] = None
+    query: Optional[SearchQuery]
+    choices: Optional[Tuple["ChoiceInput", ...]]
+    min: Optional[int]
+    max: Optional[int]
+    step: Optional[int]
+    placeholder: Optional[str]
+    hook: Optional[str]
+    ward: Optional[str]
 
     class Config:
         """A config class"""
@@ -280,7 +299,7 @@ class AssignWidgetInput(BaseModel):
 class ChoiceInput(BaseModel):
     value: Any
     label: str
-    description: Optional[str] = None
+    description: Optional[str]
 
     class Config:
         """A config class"""
@@ -292,14 +311,14 @@ class ChoiceInput(BaseModel):
 
 class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
     kind: ReturnWidgetKind
-    query: Optional[SearchQuery] = None
-    choices: Optional[Tuple[ChoiceInput, ...]] = None
-    min: Optional[int] = None
-    max: Optional[int] = None
-    step: Optional[int] = None
-    placeholder: Optional[str] = None
-    hook: Optional[str] = None
-    ward: Optional[str] = None
+    query: Optional[SearchQuery]
+    choices: Optional[Tuple[ChoiceInput, ...]]
+    min: Optional[int]
+    max: Optional[int]
+    step: Optional[int]
+    placeholder: Optional[str]
+    hook: Optional[str]
+    ward: Optional[str]
 
     class Config:
         """A config class"""
@@ -310,11 +329,11 @@ class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
 
 
 class DependencyInput(BaseModel):
-    hash: Optional[NodeHash] = None
-    reference: Optional[str] = None
-    binds: Optional["BindsInput"] = None
+    hash: Optional[NodeHash]
+    reference: Optional[str]
+    binds: Optional["BindsInput"]
     optional: bool
-    viable_instances: Optional[int] = Field(alias="viableInstances", default=None)
+    viable_instances: Optional[int] = Field(alias="viableInstances")
 
     class Config:
         """A config class"""
@@ -325,9 +344,44 @@ class DependencyInput(BaseModel):
 
 
 class BindsInput(BaseModel):
-    templates: Optional[Tuple[str, ...]] = None
-    clients: Optional[Tuple[str, ...]] = None
+    templates: Optional[Tuple[str, ...]]
+    clients: Optional[Tuple[str, ...]]
     desired_instances: int = Field(alias="desiredInstances")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class SetExtensionTemplatesInput(BaseModel):
+    templates: Tuple[TemplateInput, ...]
+    instance_id: InstanceId = Field(alias="instanceId")
+    extension: str
+    run_cleanup: bool = Field(alias="runCleanup")
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+        extra = "forbid"
+        use_enum_values = True
+
+
+class AssignInput(BaseModel):
+    instance_id: InstanceId = Field(alias="instanceId")
+    node: Optional[ID]
+    template: Optional[ID]
+    reservation: Optional[ID]
+    hooks: Optional[Tuple["HookInput", ...]]
+    args: Args
+    reference: Optional[str]
+    parent: Optional[ID]
+    cached: bool
+    log: bool
+    is_hook: bool = Field(alias="isHook")
 
     class Config:
         """A config class"""
@@ -349,54 +403,24 @@ class HookInput(BaseModel):
         use_enum_values = True
 
 
-class AgentFragmentRegistryApp(BaseModel):
-    typename: Optional[Literal["App"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AgentFragmentRegistryUser(BaseModel):
-    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AgentFragmentRegistry(BaseModel):
-    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
-    app: AgentFragmentRegistryApp
-    user: AgentFragmentRegistryUser
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AgentFragment(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
-    registry: AgentFragmentRegistry
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class DefinitionFragment(Reserve, BaseModel):
+class TestCaseFragmentNode(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
-    args: Tuple["PortFragment", ...]
-    returns: Tuple["PortFragment", ...]
-    kind: NodeKind
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class TestCaseFragment(BaseModel):
+    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    node: TestCaseFragmentNode
+    key: str
+    is_benchmark: bool = Field(alias="isBenchmark")
+    description: str
     name: str
-    description: Optional[str]
 
     class Config:
         """A config class"""
@@ -404,10 +428,10 @@ class DefinitionFragment(Reserve, BaseModel):
         frozen = True
 
 
-class NodeFragment(DefinitionFragment, Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
-    hash: NodeHash
+class TestResultFragmentCase(BaseModel):
+    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
     id: ID
+    key: str
 
     class Config:
         """A config class"""
@@ -415,9 +439,11 @@ class NodeFragment(DefinitionFragment, Reserve, BaseModel):
         frozen = True
 
 
-class TemplateFragmentAgentRegistry(BaseModel):
-    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
+class TestResultFragment(BaseModel):
+    typename: Optional[Literal["TestResult"]] = Field(alias="__typename", exclude=True)
     id: ID
+    case: TestResultFragmentCase
+    passed: bool
 
     class Config:
         """A config class"""
@@ -425,24 +451,11 @@ class TemplateFragmentAgentRegistry(BaseModel):
         frozen = True
 
 
-class TemplateFragmentAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
-    registry: TemplateFragmentAgentRegistry
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class TemplateFragment(BaseModel):
-    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
+class ProvisionFragment(BaseModel):
+    typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
     id: ID
-    agent: TemplateFragmentAgent
-    node: NodeFragment
-    params: Any
-    extension: str
-    interface: str
+    status: ProvisionEventKind
+    template: "TemplateFragment"
 
     class Config:
         """A config class"""
@@ -521,8 +534,8 @@ class PortFragment(PortTrait, BaseModel):
         frozen = True
 
 
-class AssignationFragmentParent(BaseModel):
-    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
+class AgentFragmentRegistryApp(BaseModel):
+    typename: Optional[Literal["App"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -531,51 +544,8 @@ class AssignationFragmentParent(BaseModel):
         frozen = True
 
 
-class AssignationFragmentEvents(BaseModel):
-    typename: Optional[Literal["AssignationEvent"]] = Field(
-        alias="__typename", exclude=True
-    )
-    id: ID
-    returns: Optional[Any]
-    level: Optional[LogLevel]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class AssignationFragment(BaseModel):
-    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
-    args: Any
-    id: ID
-    parent: AssignationFragmentParent
-    id: ID
-    status: AssignationEventKind
-    events: Tuple[AssignationFragmentEvents, ...]
-    reference: Optional[str]
-    updated_at: datetime = Field(alias="updatedAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class ProvisionFragment(BaseModel):
-    typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    status: ProvisionEventKind
-    template: TemplateFragment
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class TestCaseFragmentNode(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+class AgentFragmentRegistryUser(BaseModel):
+    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -584,14 +554,10 @@ class TestCaseFragmentNode(Reserve, BaseModel):
         frozen = True
 
 
-class TestCaseFragment(BaseModel):
-    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    node: TestCaseFragmentNode
-    key: str
-    is_benchmark: bool = Field(alias="isBenchmark")
-    description: str
-    name: str
+class AgentFragmentRegistry(BaseModel):
+    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
+    app: AgentFragmentRegistryApp
+    user: AgentFragmentRegistryUser
 
     class Config:
         """A config class"""
@@ -599,22 +565,9 @@ class TestCaseFragment(BaseModel):
         frozen = True
 
 
-class TestResultFragmentCase(BaseModel):
-    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    key: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class TestResultFragment(BaseModel):
-    typename: Optional[Literal["TestResult"]] = Field(alias="__typename", exclude=True)
-    id: ID
-    case: TestResultFragmentCase
-    passed: bool
+class AgentFragment(BaseModel):
+    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    registry: AgentFragmentRegistry
 
     class Config:
         """A config class"""
@@ -658,28 +611,8 @@ class ReservationFragment(BaseModel):
         frozen = True
 
 
-class WatchAssignationsSubscription(BaseModel):
-    assignations: AssignationFragment
-
-    class Arguments(BaseModel):
-        instance_id: InstanceId = Field(alias="instanceId")
-
-    class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...Assignation\n  }\n}"
-
-
-class WatchReservationsSubscription(BaseModel):
-    reservations: ReservationFragment
-
-    class Arguments(BaseModel):
-        instance_id: InstanceId = Field(alias="instanceId")
-
-    class Meta:
-        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n  }\n}"
-
-
-class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+class AssignationFragmentParent(BaseModel):
+    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
     id: ID
 
     class Config:
@@ -688,13 +621,13 @@ class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
         frozen = True
 
 
-class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
-    typename: Optional[Literal["HardwareRecord"]] = Field(
+class AssignationFragmentEvents(BaseModel):
+    typename: Optional[Literal["AssignationEvent"]] = Field(
         alias="__typename", exclude=True
     )
     id: ID
-    cpu_count: int = Field(alias="cpuCount")
-    agent: CreateHardwareRecordMutationCreatehardwarerecordAgent
+    returns: Optional[Any]
+    level: Optional[LogLevel]
 
     class Config:
         """A config class"""
@@ -702,68 +635,81 @@ class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
         frozen = True
 
 
-class CreateHardwareRecordMutation(BaseModel):
-    create_hardware_record: CreateHardwareRecordMutationCreatehardwarerecord = Field(
-        alias="createHardwareRecord"
-    )
+class AssignationFragment(BaseModel):
+    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
+    args: Any
+    id: ID
+    parent: Optional[AssignationFragmentParent]
+    id: ID
+    status: AssignationEventKind
+    events: Tuple[AssignationFragmentEvents, ...]
+    reference: Optional[str]
+    updated_at: datetime = Field(alias="updatedAt")
 
-    class Arguments(BaseModel):
-        cpu_count: Optional[int] = Field(alias="cpuCount", default=None)
-        cpu_frequency: Optional[float] = Field(alias="cpuFrequency", default=None)
-        cpu_vendor_name: Optional[str] = Field(alias="cpuVendorName", default=None)
+    class Config:
+        """A config class"""
 
-    class Meta:
-        document = "mutation CreateHardwareRecord($cpuCount: Int, $cpuFrequency: Float, $cpuVendorName: String) {\n  createHardwareRecord(\n    input: {cpuCount: $cpuCount, cpuFrequency: $cpuFrequency, cpuVendorName: $cpuVendorName}\n  ) {\n    id\n    cpuCount\n    agent {\n      id\n    }\n  }\n}"
-
-
-class CreateTemplateMutation(BaseModel):
-    create_template: TemplateFragment = Field(alias="createTemplate")
-
-    class Arguments(BaseModel):
-        interface: str
-        definition: DefinitionInput
-        instance_id: InstanceId
-        params: Optional[Any] = Field(default=None)
-        dependencies: Optional[List[DependencyInput]] = Field(default=None)
-        extension: str
-        dynamic: Optional[bool] = Field(default=False)
-
-    class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($interface: String!, $definition: DefinitionInput!, $instance_id: InstanceId!, $params: AnyDefault, $dependencies: [DependencyInput!], $extension: String!, $dynamic: Boolean = false) {\n  createTemplate(\n    input: {definition: $definition, interface: $interface, params: $params, instanceId: $instance_id, dependencies: $dependencies, extension: $extension, dynamic: $dynamic}\n  ) {\n    ...Template\n  }\n}"
+        frozen = True
 
 
-class AssignMutation(BaseModel):
-    assign: AssignationFragment
+class TemplateFragmentAgentRegistry(BaseModel):
+    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
+    id: ID
 
-    class Arguments(BaseModel):
-        reservation: ID
-        args: Args
-        reference: Optional[str] = Field(default=None)
-        parent: Optional[ID] = Field(default=None)
-        hooks: Optional[List[HookInput]] = Field(default=None)
+    class Config:
+        """A config class"""
 
-    class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation assign($reservation: ID!, $args: Args!, $reference: String, $parent: ID, $hooks: [HookInput!]) {\n  assign(\n    input: {reservation: $reservation, args: $args, reference: $reference, parent: $parent, hooks: $hooks}\n  ) {\n    ...Assignation\n  }\n}"
+        frozen = True
 
 
-class CancelMutation(BaseModel):
-    cancel: AssignationFragment
+class TemplateFragmentAgent(BaseModel):
+    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    registry: TemplateFragmentAgentRegistry
 
-    class Arguments(BaseModel):
-        id: ID
+    class Config:
+        """A config class"""
 
-    class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation cancel($id: ID!) {\n  cancel(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
+        frozen = True
 
 
-class InterruptMutation(BaseModel):
-    interrupt: AssignationFragment
+class TemplateFragment(BaseModel):
+    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    agent: TemplateFragmentAgent
+    node: "NodeFragment"
+    params: Any
+    extension: str
+    interface: str
 
-    class Arguments(BaseModel):
-        id: ID
+    class Config:
+        """A config class"""
 
-    class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation interrupt($id: ID!) {\n  interrupt(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
+        frozen = True
+
+
+class DefinitionFragment(Reserve, BaseModel):
+    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    args: Tuple[PortFragment, ...]
+    returns: Tuple[PortFragment, ...]
+    kind: NodeKind
+    name: str
+    description: Optional[str]
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class NodeFragment(DefinitionFragment, Reserve, BaseModel):
+    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    hash: NodeHash
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
 
 
 class Create_testcaseMutation(BaseModel):
@@ -828,116 +774,39 @@ class UnreserveMutation(BaseModel):
         document = "mutation unreserve($id: ID!) {\n  unreserve(input: {reservation: $id}) {\n    id\n  }\n}"
 
 
-class GetAgentQuery(BaseModel):
-    agent: AgentFragment
+class AssignMutation(BaseModel):
+    assign: AssignationFragment
+
+    class Arguments(BaseModel):
+        input: AssignInput
+
+    class Meta:
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation assign($input: AssignInput!) {\n  assign(input: $input) {\n    ...Assignation\n  }\n}"
+
+
+class CancelMutation(BaseModel):
+    cancel: AssignationFragment
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment Agent on Agent {\n  registry {\n    app {\n      id\n    }\n    user {\n      id\n    }\n  }\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation cancel($id: ID!) {\n  cancel(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
 
 
-class FindQuery(BaseModel):
-    node: NodeFragment
-
-    class Arguments(BaseModel):
-        id: Optional[ID] = Field(default=None)
-        template: Optional[ID] = Field(default=None)
-        hash: Optional[NodeHash] = Field(default=None)
-
-    class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
-
-
-class RetrieveallQuery(BaseModel):
-    nodes: Tuple[NodeFragment, ...]
-
-    class Arguments(BaseModel):
-        pass
-
-    class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
-
-
-class Search_nodesQueryOptions(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
-    label: str
-    value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class Search_nodesQuery(BaseModel):
-    options: Tuple[Search_nodesQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-
-    class Meta:
-        document = "query search_nodes($search: String, $values: [ID!]) {\n  options: nodes(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n  }\n}"
-
-
-class Get_templateQuery(BaseModel):
-    template: TemplateFragment
+class InterruptMutation(BaseModel):
+    interrupt: AssignationFragment
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nmutation interrupt($id: ID!) {\n  interrupt(input: {assignation: $id}) {\n    ...Assignation\n  }\n}"
 
 
-class Search_templatesQueryOptions(BaseModel):
-    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
-    label: Optional[str]
-    value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
-class Search_templatesQuery(BaseModel):
-    options: Tuple[Search_templatesQueryOptions, ...]
-
-    class Arguments(BaseModel):
-        search: Optional[str] = Field(default=None)
-        values: Optional[List[ID]] = Field(default=None)
-
-    class Meta:
-        document = "query search_templates($search: String, $values: [ID!]) {\n  options: templates(\n    filters: {interface: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n  }\n}"
-
-
-class RequestsQuery(BaseModel):
-    assignations: Tuple[AssignationFragment, ...]
-
-    class Arguments(BaseModel):
-        instance_id: InstanceId
-
-    class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nquery requests($instance_id: InstanceId!) {\n  assignations(instanceId: $instance_id) {\n    ...Assignation\n  }\n}"
-
-
-class Get_provisionQuery(BaseModel):
-    provision: ProvisionFragment
-
-    class Arguments(BaseModel):
-        id: ID
-
-    class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
-
-
-class GetMeNodesQueryNodes(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
+    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
     id: ID
-    name: str
 
     class Config:
         """A config class"""
@@ -945,14 +814,74 @@ class GetMeNodesQueryNodes(Reserve, BaseModel):
         frozen = True
 
 
-class GetMeNodesQuery(BaseModel):
-    nodes: Tuple[GetMeNodesQueryNodes, ...]
+class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
+    typename: Optional[Literal["HardwareRecord"]] = Field(
+        alias="__typename", exclude=True
+    )
+    id: ID
+    cpu_count: int = Field(alias="cpuCount")
+    agent: CreateHardwareRecordMutationCreatehardwarerecordAgent
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class CreateHardwareRecordMutation(BaseModel):
+    create_hardware_record: CreateHardwareRecordMutationCreatehardwarerecord = Field(
+        alias="createHardwareRecord"
+    )
 
     class Arguments(BaseModel):
-        pass
+        cpu_count: Optional[int] = Field(alias="cpuCount", default=None)
+        cpu_frequency: Optional[float] = Field(alias="cpuFrequency", default=None)
+        cpu_vendor_name: Optional[str] = Field(alias="cpuVendorName", default=None)
 
     class Meta:
-        document = "query GetMeNodes {\n  nodes {\n    id\n    name\n  }\n}"
+        document = "mutation CreateHardwareRecord($cpuCount: Int, $cpuFrequency: Float, $cpuVendorName: String) {\n  createHardwareRecord(\n    input: {cpuCount: $cpuCount, cpuFrequency: $cpuFrequency, cpuVendorName: $cpuVendorName}\n  ) {\n    id\n    cpuCount\n    agent {\n      id\n    }\n  }\n}"
+
+
+class CreateTemplateMutation(BaseModel):
+    create_template: TemplateFragment = Field(alias="createTemplate")
+
+    class Arguments(BaseModel):
+        input: CreateTemplateInput
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n  }\n}"
+
+
+class SetExtensionTemplatesMutation(BaseModel):
+    set_extension_templates: Tuple[TemplateFragment, ...] = Field(
+        alias="setExtensionTemplates"
+    )
+
+    class Arguments(BaseModel):
+        input: SetExtensionTemplatesInput
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
+
+
+class WatchReservationsSubscription(BaseModel):
+    reservations: ReservationFragment
+
+    class Arguments(BaseModel):
+        instance_id: InstanceId = Field(alias="instanceId")
+
+    class Meta:
+        document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n  }\n}"
+
+
+class WatchAssignationsSubscription(BaseModel):
+    assignations: AssignationFragment
+
+    class Arguments(BaseModel):
+        instance_id: InstanceId = Field(alias="instanceId")
+
+    class Meta:
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...Assignation\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -1019,6 +948,47 @@ class Search_testresultsQuery(BaseModel):
         document = "query search_testresults($search: String, $values: [ID!]) {\n  options: testResults(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: createdAt\n    value: id\n  }\n}"
 
 
+class Get_provisionQuery(BaseModel):
+    provision: ProvisionFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
+
+
+class GetMeNodesQueryNodes(Reserve, BaseModel):
+    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    id: ID
+    name: str
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class GetMeNodesQuery(BaseModel):
+    nodes: Tuple[GetMeNodesQueryNodes, ...]
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "query GetMeNodes {\n  nodes {\n    id\n    name\n  }\n}"
+
+
+class GetAgentQuery(BaseModel):
+    agent: AgentFragment
+
+    class Arguments(BaseModel):
+        id: ID
+
+    class Meta:
+        document = "fragment Agent on Agent {\n  registry {\n    app {\n      id\n    }\n    user {\n      id\n    }\n  }\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n  }\n}"
+
+
 class Get_reservationQueryReservationProvisions(BaseModel):
     typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
     id: ID
@@ -1078,356 +1048,90 @@ class ReservationsQuery(BaseModel):
         document = "fragment Reservation on Reservation {\n  id\n  status\n  node {\n    id\n    hash\n  }\n  waiter {\n    id\n  }\n  reference\n  updatedAt\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n  }\n}"
 
 
-async def awatch_assignations(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[AssignationFragment]:
-    """WatchAssignations
+class RequestsQuery(BaseModel):
+    assignations: Tuple[AssignationFragment, ...]
 
+    class Arguments(BaseModel):
+        instance_id: InstanceId
 
+    class Meta:
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nquery requests($instance_id: InstanceId!) {\n  assignations(instanceId: $instance_id) {\n    ...Assignation\n  }\n}"
 
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
-    Returns:
-        AssignationFragment"""
-    async for event in asubscribe(
-        WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.assignations
+class Get_templateQuery(BaseModel):
+    template: TemplateFragment
 
+    class Arguments(BaseModel):
+        id: ID
 
-def watch_assignations(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[AssignationFragment]:
-    """WatchAssignations
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
 
 
+class Search_templatesQueryOptions(BaseModel):
+    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
+    label: Optional[str]
+    value: ID
 
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+    class Config:
+        """A config class"""
 
-    Returns:
-        AssignationFragment"""
-    for event in subscribe(
-        WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.assignations
+        frozen = True
 
 
-async def awatch_reservations(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[ReservationFragment]:
-    """WatchReservations
+class Search_templatesQuery(BaseModel):
+    options: Tuple[Search_templatesQueryOptions, ...]
 
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
 
+    class Meta:
+        document = "query search_templates($search: String, $values: [ID!]) {\n  options: templates(\n    filters: {interface: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n  }\n}"
 
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
-    Returns:
-        ReservationFragment"""
-    async for event in asubscribe(
-        WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.reservations
+class FindQuery(BaseModel):
+    node: NodeFragment
 
+    class Arguments(BaseModel):
+        id: Optional[ID] = Field(default=None)
+        template: Optional[ID] = Field(default=None)
+        hash: Optional[NodeHash] = Field(default=None)
 
-def watch_reservations(
-    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[ReservationFragment]:
-    """WatchReservations
-
-
-
-    Arguments:
-        instance_id (InstanceId): instanceId
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        ReservationFragment"""
-    for event in subscribe(
-        WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
-        yield event.reservations
-
-
-async def acreate_hardware_record(
-    cpu_count: Optional[int] = None,
-    cpu_frequency: Optional[float] = None,
-    cpu_vendor_name: Optional[str] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> CreateHardwareRecordMutationCreatehardwarerecord:
-    """CreateHardwareRecord
-
-
-
-    Arguments:
-        cpu_count (Optional[int], optional): cpuCount.
-        cpu_frequency (Optional[float], optional): cpuFrequency.
-        cpu_vendor_name (Optional[str], optional): cpuVendorName.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        CreateHardwareRecordMutationCreatehardwarerecord"""
-    return (
-        await aexecute(
-            CreateHardwareRecordMutation,
-            {
-                "cpuCount": cpu_count,
-                "cpuFrequency": cpu_frequency,
-                "cpuVendorName": cpu_vendor_name,
-            },
-            rath=rath,
-        )
-    ).create_hardware_record
-
-
-def create_hardware_record(
-    cpu_count: Optional[int] = None,
-    cpu_frequency: Optional[float] = None,
-    cpu_vendor_name: Optional[str] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> CreateHardwareRecordMutationCreatehardwarerecord:
-    """CreateHardwareRecord
-
-
-
-    Arguments:
-        cpu_count (Optional[int], optional): cpuCount.
-        cpu_frequency (Optional[float], optional): cpuFrequency.
-        cpu_vendor_name (Optional[str], optional): cpuVendorName.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        CreateHardwareRecordMutationCreatehardwarerecord"""
-    return execute(
-        CreateHardwareRecordMutation,
-        {
-            "cpuCount": cpu_count,
-            "cpuFrequency": cpu_frequency,
-            "cpuVendorName": cpu_vendor_name,
-        },
-        rath=rath,
-    ).create_hardware_record
-
-
-async def acreate_template(
-    interface: str,
-    definition: DefinitionInput,
-    instance_id: InstanceId,
-    extension: str,
-    params: Optional[Any] = None,
-    dependencies: Optional[List[DependencyInput]] = None,
-    dynamic: Optional[bool] = False,
-    rath: Optional[RekuestNextRath] = None,
-) -> TemplateFragment:
-    """createTemplate
-
-
-
-    Arguments:
-        interface (str): interface
-        definition (DefinitionInput): definition
-        instance_id (InstanceId): instance_id
-        extension (str): extension
-        params (Optional[Any], optional): params.
-        dependencies (Optional[List[DependencyInput]], optional): dependencies.
-        dynamic (Optional[bool], optional): dynamic. Defaults to False
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        TemplateFragment"""
-    return (
-        await aexecute(
-            CreateTemplateMutation,
-            {
-                "interface": interface,
-                "definition": definition,
-                "instance_id": instance_id,
-                "params": params,
-                "dependencies": dependencies,
-                "extension": extension,
-                "dynamic": dynamic,
-            },
-            rath=rath,
-        )
-    ).create_template
-
-
-def create_template(
-    interface: str,
-    definition: DefinitionInput,
-    instance_id: InstanceId,
-    extension: str,
-    params: Optional[Any] = None,
-    dependencies: Optional[List[DependencyInput]] = None,
-    dynamic: Optional[bool] = False,
-    rath: Optional[RekuestNextRath] = None,
-) -> TemplateFragment:
-    """createTemplate
-
-
-
-    Arguments:
-        interface (str): interface
-        definition (DefinitionInput): definition
-        instance_id (InstanceId): instance_id
-        extension (str): extension
-        params (Optional[Any], optional): params.
-        dependencies (Optional[List[DependencyInput]], optional): dependencies.
-        dynamic (Optional[bool], optional): dynamic. Defaults to False
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        TemplateFragment"""
-    return execute(
-        CreateTemplateMutation,
-        {
-            "interface": interface,
-            "definition": definition,
-            "instance_id": instance_id,
-            "params": params,
-            "dependencies": dependencies,
-            "extension": extension,
-            "dynamic": dynamic,
-        },
-        rath=rath,
-    ).create_template
-
-
-async def aassign(
-    reservation: ID,
-    args: Args,
-    reference: Optional[str] = None,
-    parent: Optional[ID] = None,
-    hooks: Optional[List[HookInput]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> AssignationFragment:
-    """assign
-
-
-
-    Arguments:
-        reservation (ID): reservation
-        args (Args): args
-        reference (Optional[str], optional): reference.
-        parent (Optional[ID], optional): parent.
-        hooks (Optional[List[HookInput]], optional): hooks.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return (
-        await aexecute(
-            AssignMutation,
-            {
-                "reservation": reservation,
-                "args": args,
-                "reference": reference,
-                "parent": parent,
-                "hooks": hooks,
-            },
-            rath=rath,
-        )
-    ).assign
-
-
-def assign(
-    reservation: ID,
-    args: Args,
-    reference: Optional[str] = None,
-    parent: Optional[ID] = None,
-    hooks: Optional[List[HookInput]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> AssignationFragment:
-    """assign
-
-
-
-    Arguments:
-        reservation (ID): reservation
-        args (Args): args
-        reference (Optional[str], optional): reference.
-        parent (Optional[ID], optional): parent.
-        hooks (Optional[List[HookInput]], optional): hooks.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return execute(
-        AssignMutation,
-        {
-            "reservation": reservation,
-            "args": args,
-            "reference": reference,
-            "parent": parent,
-            "hooks": hooks,
-        },
-        rath=rath,
-    ).assign
-
-
-async def acancel(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
-    """cancel
-
-
-
-    Arguments:
-        id (ID): id
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return (await aexecute(CancelMutation, {"id": id}, rath=rath)).cancel
-
-
-def cancel(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
-    """cancel
-
-
-
-    Arguments:
-        id (ID): id
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return execute(CancelMutation, {"id": id}, rath=rath).cancel
-
-
-async def ainterrupt(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
-    """interrupt
-
-
-
-    Arguments:
-        id (ID): id
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return (await aexecute(InterruptMutation, {"id": id}, rath=rath)).interrupt
-
-
-def interrupt(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
-    """interrupt
-
-
-
-    Arguments:
-        id (ID): id
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        AssignationFragment"""
-    return execute(InterruptMutation, {"id": id}, rath=rath).interrupt
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
+
+
+class RetrieveallQuery(BaseModel):
+    nodes: Tuple[NodeFragment, ...]
+
+    class Arguments(BaseModel):
+        pass
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
+
+
+class Search_nodesQueryOptions(Reserve, BaseModel):
+    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    label: str
+    value: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
+class Search_nodesQuery(BaseModel):
+    options: Tuple[Search_nodesQueryOptions, ...]
+
+    class Arguments(BaseModel):
+        search: Optional[str] = Field(default=None)
+        values: Optional[List[ID]] = Field(default=None)
+
+    class Meta:
+        document = "query search_nodes($search: String, $values: [ID!]) {\n  options: nodes(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n  }\n}"
 
 
 async def acreate_testcase(
@@ -1668,316 +1372,302 @@ def unreserve(
     return execute(UnreserveMutation, {"id": id}, rath=rath).unreserve
 
 
-async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
-    """GetAgent
+async def aassign(
+    input: AssignInput, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
+    """assign
 
 
 
     Arguments:
-        id (ID): id
+        input (AssignInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AgentFragment"""
-    return (await aexecute(GetAgentQuery, {"id": id}, rath=rath)).agent
+        AssignationFragment"""
+    return (await aexecute(AssignMutation, {"input": input}, rath=rath)).assign
 
 
-def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
-    """GetAgent
+def assign(
+    input: AssignInput, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
+    """assign
 
 
 
     Arguments:
-        id (ID): id
+        input (AssignInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AgentFragment"""
-    return execute(GetAgentQuery, {"id": id}, rath=rath).agent
+        AssignationFragment"""
+    return execute(AssignMutation, {"input": input}, rath=rath).assign
 
 
-async def afind(
-    id: Optional[ID] = None,
-    template: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> NodeFragment:
-    """find
-
-
-
-    Arguments:
-        id (Optional[ID], optional): id.
-        template (Optional[ID], optional): template.
-        hash (Optional[NodeHash], optional): hash.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        NodeFragment"""
-    return (
-        await aexecute(
-            FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
-        )
-    ).node
-
-
-def find(
-    id: Optional[ID] = None,
-    template: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> NodeFragment:
-    """find
-
-
-
-    Arguments:
-        id (Optional[ID], optional): id.
-        template (Optional[ID], optional): template.
-        hash (Optional[NodeHash], optional): hash.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        NodeFragment"""
-    return execute(
-        FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
-    ).node
-
-
-async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
-    """retrieveall
-
-
-
-    Arguments:
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[NodeFragment]"""
-    return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
-
-
-def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
-    """retrieveall
-
-
-
-    Arguments:
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[NodeFragment]"""
-    return execute(RetrieveallQuery, {}, rath=rath).nodes
-
-
-async def asearch_nodes(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> List[Search_nodesQueryOptions]:
-    """search_nodes
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[Search_nodesQueryNodes]"""
-    return (
-        await aexecute(
-            Search_nodesQuery, {"search": search, "values": values}, rath=rath
-        )
-    ).options
-
-
-def search_nodes(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> List[Search_nodesQueryOptions]:
-    """search_nodes
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[Search_nodesQueryNodes]"""
-    return execute(
-        Search_nodesQuery, {"search": search, "values": values}, rath=rath
-    ).options
-
-
-async def aget_template(
+async def acancel(
     id: ID, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
+    """cancel
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AssignationFragment"""
+    return (await aexecute(CancelMutation, {"id": id}, rath=rath)).cancel
+
+
+def cancel(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
+    """cancel
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AssignationFragment"""
+    return execute(CancelMutation, {"id": id}, rath=rath).cancel
+
+
+async def ainterrupt(
+    id: ID, rath: Optional[RekuestNextRath] = None
+) -> AssignationFragment:
+    """interrupt
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AssignationFragment"""
+    return (await aexecute(InterruptMutation, {"id": id}, rath=rath)).interrupt
+
+
+def interrupt(id: ID, rath: Optional[RekuestNextRath] = None) -> AssignationFragment:
+    """interrupt
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AssignationFragment"""
+    return execute(InterruptMutation, {"id": id}, rath=rath).interrupt
+
+
+async def acreate_hardware_record(
+    cpu_count: Optional[int] = None,
+    cpu_frequency: Optional[float] = None,
+    cpu_vendor_name: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> CreateHardwareRecordMutationCreatehardwarerecord:
+    """CreateHardwareRecord
+
+
+
+    Arguments:
+        cpu_count (Optional[int], optional): cpuCount.
+        cpu_frequency (Optional[float], optional): cpuFrequency.
+        cpu_vendor_name (Optional[str], optional): cpuVendorName.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        CreateHardwareRecordMutationCreatehardwarerecord"""
+    return (
+        await aexecute(
+            CreateHardwareRecordMutation,
+            {
+                "cpuCount": cpu_count,
+                "cpuFrequency": cpu_frequency,
+                "cpuVendorName": cpu_vendor_name,
+            },
+            rath=rath,
+        )
+    ).create_hardware_record
+
+
+def create_hardware_record(
+    cpu_count: Optional[int] = None,
+    cpu_frequency: Optional[float] = None,
+    cpu_vendor_name: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> CreateHardwareRecordMutationCreatehardwarerecord:
+    """CreateHardwareRecord
+
+
+
+    Arguments:
+        cpu_count (Optional[int], optional): cpuCount.
+        cpu_frequency (Optional[float], optional): cpuFrequency.
+        cpu_vendor_name (Optional[str], optional): cpuVendorName.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        CreateHardwareRecordMutationCreatehardwarerecord"""
+    return execute(
+        CreateHardwareRecordMutation,
+        {
+            "cpuCount": cpu_count,
+            "cpuFrequency": cpu_frequency,
+            "cpuVendorName": cpu_vendor_name,
+        },
+        rath=rath,
+    ).create_hardware_record
+
+
+async def acreate_template(
+    input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
 ) -> TemplateFragment:
-    """get_template
+    """createTemplate
 
 
 
     Arguments:
-        id (ID): id
+        input (CreateTemplateInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         TemplateFragment"""
-    return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
-
-
-def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> TemplateFragment:
-    """get_template
-
-
-
-    Arguments:
-        id (ID): id
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        TemplateFragment"""
-    return execute(Get_templateQuery, {"id": id}, rath=rath).template
-
-
-async def asearch_templates(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> List[Search_templatesQueryOptions]:
-    """search_templates
-
-
-
-    Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[Search_templatesQueryTemplates]"""
     return (
-        await aexecute(
-            Search_templatesQuery, {"search": search, "values": values}, rath=rath
-        )
-    ).options
+        await aexecute(CreateTemplateMutation, {"input": input}, rath=rath)
+    ).create_template
 
 
-def search_templates(
-    search: Optional[str] = None,
-    values: Optional[List[ID]] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> List[Search_templatesQueryOptions]:
-    """search_templates
+def create_template(
+    input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
+) -> TemplateFragment:
+    """createTemplate
 
 
 
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        input (CreateTemplateInput): input
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_templatesQueryTemplates]"""
+        TemplateFragment"""
+    return execute(CreateTemplateMutation, {"input": input}, rath=rath).create_template
+
+
+async def aset_extension_templates(
+    input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
+) -> List[TemplateFragment]:
+    """SetExtensionTemplates
+
+
+
+    Arguments:
+        input (SetExtensionTemplatesInput): input
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[TemplateFragment]"""
+    return (
+        await aexecute(SetExtensionTemplatesMutation, {"input": input}, rath=rath)
+    ).set_extension_templates
+
+
+def set_extension_templates(
+    input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
+) -> List[TemplateFragment]:
+    """SetExtensionTemplates
+
+
+
+    Arguments:
+        input (SetExtensionTemplatesInput): input
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[TemplateFragment]"""
     return execute(
-        Search_templatesQuery, {"search": search, "values": values}, rath=rath
-    ).options
+        SetExtensionTemplatesMutation, {"input": input}, rath=rath
+    ).set_extension_templates
 
 
-async def arequests(
+async def awatch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationFragment]:
-    """requests
+) -> AsyncIterator[ReservationFragment]:
+    """WatchReservations
 
 
 
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): instanceId
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationFragment]"""
-    return (
-        await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
-    ).assignations
+        ReservationFragment"""
+    async for event in asubscribe(
+        WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
+    ):
+        yield event.reservations
 
 
-def requests(
+def watch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationFragment]:
-    """requests
+) -> Iterator[ReservationFragment]:
+    """WatchReservations
 
 
 
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): instanceId
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationFragment]"""
-    return execute(RequestsQuery, {"instance_id": instance_id}, rath=rath).assignations
+        ReservationFragment"""
+    for event in subscribe(
+        WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
+    ):
+        yield event.reservations
 
 
-async def aget_provision(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> ProvisionFragment:
-    """get_provision
+async def awatch_assignations(
+    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
+) -> AsyncIterator[AssignationFragment]:
+    """WatchAssignations
 
 
 
     Arguments:
-        id (ID): id
+        instance_id (InstanceId): instanceId
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ProvisionFragment"""
-    return (await aexecute(Get_provisionQuery, {"id": id}, rath=rath)).provision
+        AssignationFragment"""
+    async for event in asubscribe(
+        WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
+    ):
+        yield event.assignations
 
 
-def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> ProvisionFragment:
-    """get_provision
+def watch_assignations(
+    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
+) -> Iterator[AssignationFragment]:
+    """WatchAssignations
 
 
 
     Arguments:
-        id (ID): id
+        instance_id (InstanceId): instanceId
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ProvisionFragment"""
-    return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
-
-
-async def aget_me_nodes(
-    rath: Optional[RekuestNextRath] = None,
-) -> List[GetMeNodesQueryNodes]:
-    """GetMeNodes
-
-
-
-    Arguments:
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[GetMeNodesQueryNodes]"""
-    return (await aexecute(GetMeNodesQuery, {}, rath=rath)).nodes
-
-
-def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQueryNodes]:
-    """GetMeNodes
-
-
-
-    Arguments:
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        List[GetMeNodesQueryNodes]"""
-    return execute(GetMeNodesQuery, {}, rath=rath).nodes
+        AssignationFragment"""
+    for event in subscribe(
+        WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
+    ):
+        yield event.assignations
 
 
 async def aget_testcase(
@@ -2130,6 +1820,92 @@ def search_testresults(
     ).options
 
 
+async def aget_provision(
+    id: ID, rath: Optional[RekuestNextRath] = None
+) -> ProvisionFragment:
+    """get_provision
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        ProvisionFragment"""
+    return (await aexecute(Get_provisionQuery, {"id": id}, rath=rath)).provision
+
+
+def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> ProvisionFragment:
+    """get_provision
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        ProvisionFragment"""
+    return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
+
+
+async def aget_me_nodes(
+    rath: Optional[RekuestNextRath] = None,
+) -> List[GetMeNodesQueryNodes]:
+    """GetMeNodes
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[GetMeNodesQueryNodes]"""
+    return (await aexecute(GetMeNodesQuery, {}, rath=rath)).nodes
+
+
+def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQueryNodes]:
+    """GetMeNodes
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[GetMeNodesQueryNodes]"""
+    return execute(GetMeNodesQuery, {}, rath=rath).nodes
+
+
+async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
+    """GetAgent
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AgentFragment"""
+    return (await aexecute(GetAgentQuery, {"id": id}, rath=rath)).agent
+
+
+def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
+    """GetAgent
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        AgentFragment"""
+    return execute(GetAgentQuery, {"id": id}, rath=rath).agent
+
+
 async def aget_reservation(
     id: ID, rath: Optional[RekuestNextRath] = None
 ) -> Get_reservationQueryReservation:
@@ -2198,11 +1974,240 @@ def reservations(
     ).reservations
 
 
+async def arequests(
+    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
+) -> List[AssignationFragment]:
+    """requests
+
+
+
+    Arguments:
+        instance_id (InstanceId): instance_id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[AssignationFragment]"""
+    return (
+        await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
+    ).assignations
+
+
+def requests(
+    instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
+) -> List[AssignationFragment]:
+    """requests
+
+
+
+    Arguments:
+        instance_id (InstanceId): instance_id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[AssignationFragment]"""
+    return execute(RequestsQuery, {"instance_id": instance_id}, rath=rath).assignations
+
+
+async def aget_template(
+    id: ID, rath: Optional[RekuestNextRath] = None
+) -> TemplateFragment:
+    """get_template
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        TemplateFragment"""
+    return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
+
+
+def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> TemplateFragment:
+    """get_template
+
+
+
+    Arguments:
+        id (ID): id
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        TemplateFragment"""
+    return execute(Get_templateQuery, {"id": id}, rath=rath).template
+
+
+async def asearch_templates(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> List[Search_templatesQueryOptions]:
+    """search_templates
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[Search_templatesQueryTemplates]"""
+    return (
+        await aexecute(
+            Search_templatesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_templates(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> List[Search_templatesQueryOptions]:
+    """search_templates
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[Search_templatesQueryTemplates]"""
+    return execute(
+        Search_templatesQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+async def afind(
+    id: Optional[ID] = None,
+    template: Optional[ID] = None,
+    hash: Optional[NodeHash] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> NodeFragment:
+    """find
+
+
+
+    Arguments:
+        id (Optional[ID], optional): id.
+        template (Optional[ID], optional): template.
+        hash (Optional[NodeHash], optional): hash.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        NodeFragment"""
+    return (
+        await aexecute(
+            FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
+        )
+    ).node
+
+
+def find(
+    id: Optional[ID] = None,
+    template: Optional[ID] = None,
+    hash: Optional[NodeHash] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> NodeFragment:
+    """find
+
+
+
+    Arguments:
+        id (Optional[ID], optional): id.
+        template (Optional[ID], optional): template.
+        hash (Optional[NodeHash], optional): hash.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        NodeFragment"""
+    return execute(
+        FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
+    ).node
+
+
+async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
+    """retrieveall
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[NodeFragment]"""
+    return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
+
+
+def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
+    """retrieveall
+
+
+
+    Arguments:
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[NodeFragment]"""
+    return execute(RetrieveallQuery, {}, rath=rath).nodes
+
+
+async def asearch_nodes(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> List[Search_nodesQueryOptions]:
+    """search_nodes
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[Search_nodesQueryNodes]"""
+    return (
+        await aexecute(
+            Search_nodesQuery, {"search": search, "values": values}, rath=rath
+        )
+    ).options
+
+
+def search_nodes(
+    search: Optional[str] = None,
+    values: Optional[List[ID]] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> List[Search_nodesQueryOptions]:
+    """search_nodes
+
+
+
+    Arguments:
+        search (Optional[str], optional): search.
+        values (Optional[List[ID]], optional): values.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[Search_nodesQueryNodes]"""
+    return execute(
+        Search_nodesQuery, {"search": search, "values": values}, rath=rath
+    ).options
+
+
+AssignInput.update_forward_refs()
 AssignWidgetInput.update_forward_refs()
 ChildPortInput.update_forward_refs()
-DefinitionFragment.update_forward_refs()
-NodeFragment.update_forward_refs()
+CreateTemplateInput.update_forward_refs()
 DefinitionInput.update_forward_refs()
 DependencyInput.update_forward_refs()
 EffectInput.update_forward_refs()
 PortInput.update_forward_refs()
+ProvisionFragment.update_forward_refs()
+TemplateFragment.update_forward_refs()
+TemplateInput.update_forward_refs()

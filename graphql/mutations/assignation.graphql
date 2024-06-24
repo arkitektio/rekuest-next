@@ -1,19 +1,5 @@
-mutation assign(
-  $reservation: ID!
-  $args: Args!
-  $reference: String
-  $parent: ID
-  $hooks: [HookInput!]
-) {
-  assign(
-    input: {
-      reservation: $reservation
-      args: $args
-      reference: $reference
-      parent: $parent
-      hooks: $hooks
-    }
-  ) {
+mutation assign($input: AssignInput!) {
+  assign(input: $input) {
     ...Assignation
   }
 }

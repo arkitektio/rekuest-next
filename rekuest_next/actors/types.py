@@ -2,9 +2,10 @@ from typing import Protocol, runtime_checkable, Callable, Awaitable, Any
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import PortGroupInput, AssignationEventKind
 from rekuest_next.definition.define import DefinitionInput
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 from pydantic import BaseModel, Field
 import uuid
+
 
 
 class Passport(BaseModel):
@@ -21,6 +22,7 @@ class Assignment(BaseModel):
     args: Dict[str, Any] = Field(default_factory=dict)
     user: Optional[str]
     reference: Optional[str]
+    context: Dict[str, Any]  = Field(default_factory=dict)
 
 
 class AssignmentUpdate(BaseModel):
@@ -35,7 +37,7 @@ class AssignmentUpdate(BaseModel):
 class Unassignment(BaseModel):
     assignation: str
     id: str
-
+    context: Dict[str, Any]  = Field(default_factory=dict)
 
 @runtime_checkable
 class ActorBuilder(Protocol):

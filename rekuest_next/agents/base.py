@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pydantic import Field
 
@@ -22,6 +22,9 @@ from rekuest_next.api.schema import (
     TemplateFragment,
     acreate_template,
     aget_provision,
+    CreateTemplateInput,
+    SetExtensionTemplatesInput,
+    aset_extension_templates,
     acreate_hardware_record,
 )
 from rekuest_next.collection.collector import Collector
@@ -30,6 +33,7 @@ from rekuest_next.definition.registry import (
     get_current_definition_registry,
     get_default_definition_registry,
 )
+from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
 from rekuest_next.definition.validate import auto_validate
 from rekuest_next.messages import (
     Assign,
@@ -82,15 +86,15 @@ class BaseAgent(KoiledModel):
     extensions: Dict[str, AgentExtension] = Field(default_factory=build_base_extensions)
     collector: Collector = Field(default_factory=Collector)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-
-    _hooks = {}
     interface_template_map: Dict[str, TemplateFragment] = Field(default_factory=dict)
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[str, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, Assignment] = Field(default_factory=dict)
+    hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry)
     _provisionTaskMap: Dict[str, asyncio.Task] = Field(default_factory=dict)
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
+    _context: Dict[str, Any] = None
 
     started = False
     running = False
@@ -128,6 +132,7 @@ class BaseAgent(KoiledModel):
                     assignation=message.assignation,
                     args=message.args,
                     user=message.user,
+                    context=self._context,
                 )
                 self.managed_assignments[message.assignation] = message
                 await actor.apass(message)
@@ -207,7 +212,11 @@ class BaseAgent(KoiledModel):
                 assignment = self.managed_assignments[message.assignation]
 
                 # Converting unassignation to unassignment
-                unass = Unassignment(assignation=message.assignation, id=assignment.id)
+                unass = Unassignment(
+                    assignation=message.assignation,
+                    id=assignment.id,
+                    context=self._context,
+                )
 
                 await actor.apass(unass)
             else:
@@ -302,33 +311,22 @@ class BaseAgent(KoiledModel):
         """
         for extension_name, extension in self.extensions.items():
             definition_registry = await extension.aretrieve_registry()
+            run_cleanup = await extension.should_cleanup_on_init()
 
-            for (
-                interface,
-                definition,
-            ) in definition_registry.definitions.items():
-                # Defined Node are nodes that are not yet reflected on arkitekt (i.e they dont have an instance
-                # id so we are trying to send them to arkitekt)
-                try:
-                    dependencies = definition_registry.dependencies.get(interface, [])
+            to_be_created_templates = tuple(definition_registry.templates.values())
 
-                    arkitekt_template = await acreate_template(
-                        definition=definition,
-                        interface=interface,
-                        dependencies=dependencies,
-                        instance_id=instance_id or self.instance_id,
-                        rath=self.rath,
-                        extension=extension_name,
-                    )
+            created_templates = await aset_extension_templates(
+                SetExtensionTemplatesInput(
+                    templates=to_be_created_templates,
+                    runCleanup=run_cleanup,
+                    instanceId=self.instance_id,
+                    extension=extension_name,
+                )
+            )
 
-                except Exception as e:
-                    logger.info(
-                        f"Error Creating template for {definition} at interface {interface}"
-                    )
-                    raise e
-
-                self.interface_template_map[interface] = arkitekt_template
-                self.template_interface_map[arkitekt_template.id] = interface
+            for template in created_templates:
+                self.interface_template_map[template.interface] = template
+                self.template_interface_map[template.id] = template
 
     async def acheck_status_for_provision(self, provide: Provide) -> ProvisionEventKind:
         passport = self.provision_passport_map[provide.provision]
@@ -418,6 +416,9 @@ class BaseAgent(KoiledModel):
             await self.process(await done.pop())
 
     async def astart(self, instance_id: Optional[str] = None):
+        self._context = await self.hook_registry.arun_startup(self.instance_id)
+        await self.hook_registry.arun_background(self._context)
+
         await self.aregister_definitions(instance_id=instance_id)
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id or self.instance_id)

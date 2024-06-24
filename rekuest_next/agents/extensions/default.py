@@ -23,6 +23,10 @@ class DefaultExtension(BaseModel):
         default_factory=get_default_definition_registry
     )
 
+    async def should_cleanup_on_init(self) -> bool:
+        """Should the extension cleanup its templates?"""
+        return True
+
     async def aspawn_actor_from_template(
         self,
         template: TemplateFragment,
@@ -40,7 +44,7 @@ class DefaultExtension(BaseModel):
             )
 
         except KeyError as e:
-            raise DefaultExtension(
+            raise ExtensionError(
                 f"No Actor Builder found for template {template.interface} and no extensions specified"
             )
 

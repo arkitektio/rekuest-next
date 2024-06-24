@@ -19,8 +19,10 @@ from rekuest_next.api.schema import (
     PortScope,
     ReturnWidgetInput,
     EffectInput,
+    TemplateInput,
     ValidatorFunction,
     ValidatorInput,
+    CreateTemplateInput,
 )
 from rekuest_next.collection.shelve import get_current_shelve
 from typing import Dict, List, Callable, Optional, Tuple, Awaitable, Any
@@ -48,6 +50,7 @@ def register_func(
     interfaces: List[str] = [],
     on_provide=None,
     on_unprovide=None,
+    dynamic: bool = False,
     in_process: bool = False,
     **actifier_params,
 ):
@@ -78,8 +81,8 @@ def register_func(
     )  # convert this to camelcase
 
     assert (
-        interface not in definition_registry.definitions
-    ), "Interface already defined. Please choose a different name"
+        interface not in definition_registry.templates
+    ), f"Interface '{interface}' already defined. Please choose a different function name"
 
     definition, actor_builder = actifier(
         function_or_actor,
@@ -101,11 +104,15 @@ def register_func(
 
     definition_registry.register_at_interface(
         interface,
-        definition,
+        TemplateInput(
+            interface=interface,
+            definition=definition,
+            dependencies=dependencies or [],
+            logo=logo,
+            dynamic=dynamic,
+        ),
         structure_registry,
         actor_builder,
-        dependencies=dependencies,
-        logo=logo,
     )
 
     return definition, actor_builder
@@ -130,6 +137,7 @@ def register(
     structure_registry: StructureRegistry = None,
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
+    dynamic: bool = False,
     **actifier_params,
 ):
     """Register a function or actor to the default definition registry.
@@ -187,6 +195,7 @@ def register(
             port_groups=port_groups,
             groups=groups,
             in_process=in_process,
+            dynamic=dynamic,
             **actifier_params,
         )
 
@@ -222,6 +231,7 @@ def register(
                 on_unprovide=on_unprovide,
                 port_groups=port_groups,
                 groups=groups,
+                dynamic=dynamic,
                 in_process=in_process,
                 **actifier_params,
             )

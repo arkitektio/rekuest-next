@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class AgentExtension(Protocol):
+    async def should_cleanup_on_init(self) -> bool:
+        """Should the extension cleanup its templates?"""
+        ...
+
     async def get_name(self) -> str:
         """This should return the name of the extension"""
         raise NotImplementedError("Implement this method")

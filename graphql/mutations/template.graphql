@@ -1,23 +1,11 @@
-mutation createTemplate(
-  $interface: String!
-  $definition: DefinitionInput!
-  $instance_id: InstanceId!
-  $params: AnyDefault
-  $dependencies: [DependencyInput!]
-  $extension: String!
-  $dynamic: Boolean = false
-) {
-  createTemplate(
-    input: {
-      definition: $definition
-      interface: $interface
-      params: $params
-      instanceId: $instance_id
-      dependencies: $dependencies
-      extension: $extension
-      dynamic: $dynamic
-    }
-  ) {
+mutation createTemplate($input: CreateTemplateInput!) {
+  createTemplate(input: $input) {
+    ...Template
+  }
+}
+
+mutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {
+  setExtensionTemplates(input: $input) {
     ...Template
   }
 }

@@ -901,7 +901,8 @@ def prepare_definition(
             "kind": NodeKind.GENERATOR if is_generator else NodeKind.FUNCTION,
             "interfaces": interfaces,
             "portGroups": port_groups,
-            "isTestFor": is_test_for,
+            "isTestFor": is_test_for or [],
+            
         }
     )
 

@@ -2,6 +2,7 @@ from rekuest_next.actors.vars import (
     get_current_assignation_helper,
 )
 from rekuest_next.api.schema import LogLevel
+from typing import Dict, Any, Optional
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
@@ -20,6 +21,14 @@ def useUser() -> str:
 def useInstanceID() -> str:
     """Returns the guardian id of the current provision"""
     return get_current_assignation_helper().passport.instance_id
+
+
+def useContext(value: Optional[str] = None) -> Dict[str, Any]:
+    context = get_current_assignation_helper().assignment.context
+    if value:
+        context = context[value]
+
+    return context
 
 
 def progress(percentage: int) -> None:
