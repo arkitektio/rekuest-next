@@ -660,6 +660,18 @@ ReturnWidgetMap = Dict[str, List[ReturnWidgetInput]]
 EffectsMap = Dict[str, List[EffectInput]]
 
 
+def snake_to_title_case(snake_str):
+    # Split the string by underscores
+    words = snake_str.split('_')
+    
+    # Capitalize each word
+    capitalized_words = [word.capitalize() for word in words]
+    
+    # Join the words back into a single string with spaces in between
+    title_case_str = ' '.join(capitalized_words)
+    
+    return title_case_str
+
 def prepare_definition(
     function: Callable,
     structure_registry: StructureRegistry,
@@ -680,6 +692,7 @@ def prepare_definition(
     omitfirst=None,
     omitlast=None,
     omitkeys=[],
+    allow_dev=True,
     allow_annotations: bool = True,
     **kwargs,  # additional kwargs can be ignored
 ) -> DefinitionInput:
@@ -729,15 +742,24 @@ def prepare_definition(
 
     # Docstring Parser to help with descriptions
     docstring = parse(function.__doc__)
+
+    is_dev = False
+
+
     if not docstring.short_description and name is None:
-        raise NonSufficientDocumentation(
-            f"Either provide a name or better document {function.__name__}. Try docstring"
+        is_dev = True
+        if not allow_dev:
+            raise NonSufficientDocumentation(
+            f"We are not in dev mode. Please provide a name or better document  {function.__name__}. Try docstring :)"
         )
 
+
     if not docstring.long_description and description is None and not allow_empty_doc:
-        raise NonSufficientDocumentation(
-            f"Please provide a description or better document  {function.__name__}. Try docstring"
-        )
+        is_dev = True
+        if not allow_dev:
+            raise NonSufficientDocumentation(
+                f"We are not in dev mode. Please provide a description or better document  {function.__name__}. Try docstring :)"
+            )
 
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
@@ -896,7 +918,7 @@ def prepare_definition(
 
     # Documentation Parsing
 
-    name = name or docstring.short_description or function.__name__
+    name = name or docstring.short_description or snake_to_title_case(function.__name__)
     description = description or docstring.long_description or "No Description"
 
     if widgets:
@@ -926,6 +948,7 @@ def prepare_definition(
             "kind": NodeKind.GENERATOR if is_generator else NodeKind.FUNCTION,
             "interfaces": interfaces,
             "portGroups": port_groups,
+            "isDev": is_dev,
             "isTestFor": is_test_for or [],
         }
     )
