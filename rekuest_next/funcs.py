@@ -16,6 +16,7 @@ async def aexecute(operation, variables, rath: RekuestNextRath = None):
 
 
 def subscribe(operation, variables, rath: RekuestNextRath = None):
+    """is subscribing"""
     return unkoil_gen(asubscribe, operation, variables, rath)
 
 
