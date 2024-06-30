@@ -1,42 +1,43 @@
 import contextvars
+import inspect
 from enum import Enum
 from typing import (
     Any,
     Awaitable,
     Callable,
-    OrderedDict,
     Dict,
-    Optional,
-    Type,
     List,
-    TypeVar,
+    Optional,
+    OrderedDict,
     Protocol,
+    Type,
+    TypeVar,
     runtime_checkable,
 )
 
+from pydantic import BaseModel, Field
+
 from rekuest_next.api.schema import (
-    ChoiceInput,
-    ReturnWidgetInput,
     AssignWidgetInput,
-    ReturnWidgetInput,
-    PortScope,
-    PortInput,
-    EffectInput,
     ChildPortInput,
+    ChoiceInput,
+    EffectInput,
+    PortInput,
     PortKind,
+    PortScope,
+    ReturnWidgetInput,
     ValidatorInput,
 )
-from pydantic import BaseModel, Field
-import inspect
+
 from .errors import (
     StructureDefinitionError,
     StructureOverwriteError,
     StructureRegistryError,
 )
-from .types import PortBuilder, FullFilledStructure
-from .hooks.types import RegistryHook
 from .hooks.default import get_default_hooks
 from .hooks.errors import HookError
+from .hooks.types import RegistryHook
+from .types import FullFilledStructure, PortBuilder
 
 current_structure_registry = contextvars.ContextVar("current_structure_registry")
 
@@ -409,5 +410,5 @@ class StructureRegistry(BaseModel):
 DEFAULT_STRUCTURE_REGISTRY = None
 
 
-def get_current_structure_registry(allow_default=True):
+def get_current_structure_registry(allow_default=True) -> StructureRegistry:
     return current_structure_registry.get()

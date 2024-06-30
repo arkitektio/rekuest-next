@@ -1,6 +1,7 @@
-from rekuest_next.api.schema import DefinitionInput, DefinitionFragment
-import json
 import hashlib
+import json
+
+from rekuest_next.api.schema import DefinitionFragment, DefinitionInput
 
 
 def auto_validate(defintion: DefinitionInput) -> DefinitionFragment:
@@ -15,7 +16,10 @@ def auto_validate(defintion: DefinitionInput) -> DefinitionFragment:
 
     """
 
-    return DefinitionFragment(**defintion.dict(by_alias=True))
+    hm = defintion.dict(by_alias=True)
+    del hm["interfaces"]
+
+    return DefinitionFragment(**hm)
 
 
 def hash_definition(definition: DefinitionInput):

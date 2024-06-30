@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+from koil.composition.base import KoiledModel
 
 
-class Reserve(BaseModel):
+class Reserve(KoiledModel):
     def get_node_kind(self):
         return getattr(self, "kind")
 
@@ -42,3 +42,22 @@ class Reserve(BaseModel):
             <div class="item item-3">Kwargs: {" ".join([port.key for port in self.kwargs])}</div>
             <div class="item item-3">Returns: {" ".join([port.key for port in self.returns])}</div>
         </div>"""
+
+    async def __aenter__(self):
+        from rekuest_next.api.schema import ReserveInput, areserve
+
+        self._reservation = areserve(
+            ReserveInput(
+                node_reference=self.node_reference,
+                kind=self.get_node_kind(),
+            )
+        )
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        from rekuest_next.api.schema import ReserveInput, UnreserveInput, aunreserve
+
+        if self._reservation:
+            await aunreserve(UnreserveInput(reservation=self._reservation))
+        return

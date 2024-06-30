@@ -3,3 +3,10 @@ query requests($instance_id: InstanceId!) {
     ...Assignation
   }
 }
+
+
+query GetEvent($id: ID){
+  event(id: $id){
+    ...AssignationEvent
+  }
+}

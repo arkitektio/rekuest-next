@@ -8,6 +8,16 @@ fragment Definition on Node {
   kind
   name
   description
+  collections {
+    name
+  }
+  isDev
+  isTestFor {
+    id
+  }
+  portGroups {
+    key
+  }
 }
 
 fragment Node on Node {
