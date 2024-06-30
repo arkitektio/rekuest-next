@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Callable, List, Tuple, Type, Union
 
-from fluss_next.api.schema import ValidatorInput
 from rekuest_next.definition.guards import cls_is_union
 from rekuest_next.scalars import ValidatorFunction
 from rekuest_next.structures.model import (
@@ -22,6 +21,7 @@ from rekuest_next.api.schema import (
     ReturnWidgetInput,
     PortGroupInput,
     EffectInput,
+    ValidatorInput,
 )
 import inspect
 from docstring_parser import parse

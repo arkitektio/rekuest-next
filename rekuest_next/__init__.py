@@ -5,6 +5,7 @@ from rekuest_next.structures.hooks.standard import id_shrink
 
 from .api.schema import AssignationEventFragment, aget_event
 from .structures.default import get_default_structure_registry
+from .arkitekt import imported
 
 structur_reg = get_default_structure_registry()
 

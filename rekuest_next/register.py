@@ -80,10 +80,7 @@ def register_func(
         function_or_actor.__name__
     )  # convert this to camelcase
 
-    assert (
-        interface not in definition_registry.templates
-    ), f"Interface '{interface}' already defined. Please choose a different function name"
-
+    
     definition, actor_builder = actifier(
         function_or_actor,
         structure_registry,
