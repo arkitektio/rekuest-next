@@ -5,8 +5,10 @@ from typing import Any, AsyncGenerator, List, Optional, Protocol, Union
 from koil import unkoil, unkoil_gen
 from koil.composition.base import KoiledModel
 
-from rekuest.actors.errors import NotWithinAnAssignationError
-from rekuest_next.actors.vars import get_current_assignation_helper
+from rekuest_next.actors.vars import (
+    get_current_assignation_helper,
+    NotWithinAnAssignationError,
+)
 from rekuest_next.api.schema import (
     AssignationEventKind,
     AssignInput,
@@ -164,6 +166,54 @@ async def aiterate(
             break
 
 
+async def aiterate_raw(
+    *args,
+    node: Optional[NodeFragment] = None,
+    template: Optional[TemplateFragment] = None,
+    reservation: Optional[ReservationFragment] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: bool = None,
+    log: bool = False,
+    **kwargs,
+) -> AsyncGenerator[tuple[Any], None]:
+    postman: BasePostman = get_current_postman()
+
+    instance_id = postman.instance_id
+
+    try:
+        parent = parent or get_current_assignation_helper().assignation
+    except:
+        print("Not in assignation")
+        parent = None
+
+    reference = reference or str(uuid.uuid4())
+
+    x = AssignInput(
+        instanceId=instance_id,
+        node=none_or_id(node),
+        template=none_or_id(template),
+        reservation=none_or_id(reservation),  # type: ignore
+        args=args,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+        isHook=False,
+    )
+
+    print("assogm omüit", x)
+
+    async for i in postman.aassign(x):
+        if i.kind == AssignationEventKind.YIELD:
+            yield i.returns
+
+        if i.kind == AssignationEventKind.DONE:
+            break
+
+
 def call(
     *args,
     node: Optional[NodeFragment] = None,
@@ -253,6 +303,13 @@ class ReservationContext(KoiledModel):
         ):
             yield i
 
+    async def aiterate_raw(self, *args, **kwargs):
+        assert self._reservation, "Not in reservation context"
+        async for i in aiterate_raw(
+            node=self.node, reservation=self._reservation, *args, **kwargs
+        ):
+            yield i
+
     def iterate(self, *args, **kwargs):
         return unkoil_gen(self.aiterate, *args, **kwargs)
 
@@ -281,7 +338,10 @@ def reserved(
     constants: Optional[dict[str, Any]] = None,
     assignation_id: Optional[str] = None,
 ) -> ReservationContext:
-    assignation_id = assignation_id or get_current_assignation_helper().assignation
+    try:
+        assignation_id = assignation_id or get_current_assignation_helper().assignation
+    except NotWithinAnAssignationError:
+        assignation_id = None
 
     return ReservationContext(
         node=node,
