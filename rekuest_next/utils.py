@@ -1,10 +1,11 @@
 import asyncio
 import uuid
-from typing import Any, AsyncGenerator, List, Optional, Union
+from typing import Any, AsyncGenerator, List, Optional, Protocol, Union
 
 from koil import unkoil, unkoil_gen
 from koil.composition.base import KoiledModel
 
+from rekuest.actors.errors import NotWithinAnAssignationError
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.api.schema import (
     AssignationEventKind,
@@ -35,11 +36,27 @@ def useUser() -> str:
     return helper.assignation.user
 
 
+class IDBearer(Protocol):
+    id: str
+
+
+def none_or_id(value: Optional[Union[IDBearer, str]]) -> Optional[str]:
+    if value:
+        if isinstance(value, str):
+            return value
+        else:
+            if hasattr(value, "id"):
+                return value.id
+            else:
+                raise ValueError("The object has no id")
+    return None
+
+
 async def acall(
     *args,
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    node: Optional[Union[NodeFragment, str]] = None,
+    template: Optional[Union[TemplateFragment, str]] = None,
+    reservation: Optional[Union[ReservationFragment, str]] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -61,7 +78,7 @@ async def acall(
 
     try:
         parent = parent or get_current_assignation_helper().assignation
-    except:
+    except NotWithinAnAssignationError as e:
         print("Not in assignation")
         parent = None
 
@@ -71,7 +88,9 @@ async def acall(
     async for i in postman.aassign(
         AssignInput(
             instanceId=instance_id,
-            node=node.id,
+            node=none_or_id(node),
+            template=none_or_id(template),
+            reservation=none_or_id(reservation),  # type: ignore
             args=shrinked_args,
             reference=reference,
             hooks=hooks or [],
@@ -195,20 +214,24 @@ def iterate(
 
 class ReservationContext(KoiledModel):
     node: NodeFragment
-    constants: Optional[dict[str, Any]] = (None,)
-    reference: Optional[str] = (None,)
-    hooks: Optional[List[HookInput]] = (None,)
-    cached: bool = (False,)
-    parent: bool = (None,)
-    log: bool = (False,)
-    assignation_id: Optional[str] = (None,)
+    constants: Optional[dict[str, Any]] = None
+    reference: Optional[str] = None
+    hooks: Optional[List[HookInput]] = None
+    cached: bool = False
+    parent: Optional[str] = None
+    log: bool = False
+    assignation_id: Optional[str] = None
+
+    _reservation: Optional[ReservationFragment] = None
 
     async def __aenter__(self) -> "ReservationContext":
+        _postman = get_current_postman()
 
-        self._reservation = areserve(
+        self._reservation = await areserve(
             ReserveInput(
-                node=self.node,
+                node=self.node.id,
                 assignationId=self.assignation_id,
+                instanceId=_postman.instance_id,
             )
         )
 
@@ -237,15 +260,15 @@ class ReservationContext(KoiledModel):
         from rekuest_next.api.schema import ReserveInput, UnreserveInput, aunreserve
 
         if self._reservation:
-            await aunreserve(UnreserveInput(reservation=self._reservation))
+            await aunreserve(UnreserveInput(reservation=self._reservation.id))
 
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.reservation.unreserve()
-
     def __enter__(self) -> "ReservationContext":
         return super().__enter__()
+
+    class Config:
+        underscore_attrs_are_private = True
 
 
 def reserved(
@@ -258,11 +281,10 @@ def reserved(
     constants: Optional[dict[str, Any]] = None,
     assignation_id: Optional[str] = None,
 ) -> ReservationContext:
-
     assignation_id = assignation_id or get_current_assignation_helper().assignation
 
     return ReservationContext(
-        node,
+        node=node,
         reference=reference,
         hooks=hooks,
         cached=cached,

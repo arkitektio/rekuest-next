@@ -67,6 +67,7 @@ class GraphQLPostman(BasePostman):
 
         try:
             assignation = await aassign(assign)
+            print("Assigned on postman")
         except Exception as e:
             raise PostmanException("Cannot Assign") from e
 
@@ -99,6 +100,10 @@ class GraphQLPostman(BasePostman):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)
+                if assignation.create:
+                    print("Created assignation")
+                    if assignation.create.reference not in self._ass_update_queues:
+                        print("NOOOOOT IN QUEUES, RACE CONDITION")
 
         except Exception as e:
             print(e)

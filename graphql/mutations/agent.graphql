@@ -1,0 +1,7 @@
+mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!]) {
+  ensureAgent(input: { instanceId: $instanceId, extensions: $extensions }) {
+    id
+    instanceId
+    extensions
+  }
+}

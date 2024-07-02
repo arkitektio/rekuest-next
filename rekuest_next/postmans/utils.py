@@ -23,12 +23,6 @@ from koil.types import ContextBool
 import uuid
 import asyncio
 import logging
-from rekuest_next.structures.serialization.postman import (
-    shrink_inputs,
-    expand_outputs,
-    serialize_inputs,
-    deserialize_outputs,
-)
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     DefinitionFragment,

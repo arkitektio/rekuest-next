@@ -23,6 +23,7 @@ from rekuest_next.api.schema import (
     acreate_template,
     aget_provision,
     CreateTemplateInput,
+    aensure_agent,
     SetExtensionTemplatesInput,
     aset_extension_templates,
     acreate_hardware_record,
@@ -309,6 +310,12 @@ class BaseAgent(KoiledModel):
         You can implement this method in your agent subclass if you want define preregistration
         logic (like registering definitions in the definition registry).
         """
+
+        x = await aensure_agent(
+            instance_id=self.instance_id,
+            extensions=[extension for extension in self.extensions.keys()],
+        )
+
         for extension_name, extension in self.extensions.items():
             definition_registry = await extension.aretrieve_registry()
             run_cleanup = await extension.should_cleanup_on_init()
