@@ -59,7 +59,7 @@ class Actor(BaseModel):
     managed_actors: Dict[str, "Actor"] = Field(default_factory=dict)
     running_assignments: Dict[str, Assignment] = Field(default_factory=dict)
 
-    _in_queue: Contextual[asyncio.Queue] = PrivateAttr(default=None)
+    _in_queue: Optional[asyncio.Queue] = PrivateAttr(default=None)
     _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
     _running_transports: Dict[str, AssignTransport] = PrivateAttr(default_factory=dict)
     _provision_task: asyncio.Task = PrivateAttr(default=None)

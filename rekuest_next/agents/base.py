@@ -128,6 +128,8 @@ class BaseAgent(KoiledModel):
                 passport = self.provision_passport_map[message.provision]
                 actor = self.managed_actors[passport.id]
 
+                print("Agent received", message)
+
                 # Converting assignation to Assignment
                 message = Assignment(
                     assignation=message.assignation,
@@ -135,6 +137,8 @@ class BaseAgent(KoiledModel):
                     user=message.user,
                     context=self._context,
                 )
+
+                print("Agent converted", message)
                 self.managed_assignments[message.assignation] = message
                 await actor.apass(message)
             else:

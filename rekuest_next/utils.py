@@ -165,6 +165,9 @@ async def aiterate(
         if i.kind == AssignationEventKind.DONE:
             break
 
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise Exception(i.returns)
+
 
 async def aiterate_raw(
     *args,
@@ -212,6 +215,9 @@ async def aiterate_raw(
 
         if i.kind == AssignationEventKind.DONE:
             break
+
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise Exception(i.message)
 
 
 def call(

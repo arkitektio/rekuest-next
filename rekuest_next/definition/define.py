@@ -66,7 +66,6 @@ def get_non_nullable_variant(cls):
 
 
 def is_union(cls):
-    print("Is Union", cls, get_origin(cls), get_args(cls))
     return (
         get_origin(cls) is types.UnionType
         or get_origin(cls) is Union
@@ -200,8 +199,6 @@ def convert_child_to_childport(
             children.append(child)
             convertermap[arg.key] = converter
 
-        print(children)
-
         return (
             ChildPortInput(
                 kind=PortKind.MODEL,
@@ -216,7 +213,6 @@ def convert_child_to_childport(
         )
 
     if is_annotated(cls):
-        print("Is Annotated", cls)
         real_type = cls.__args__[0]
 
         return convert_child_to_childport(
@@ -224,7 +220,6 @@ def convert_child_to_childport(
         )
 
     if is_nullable(cls):
-        print("Is nullable", cls)
         non_nullable = get_non_nullable_variant(cls)
         return convert_child_to_childport(
             non_nullable, registry, nullable=True, key=key
@@ -251,7 +246,6 @@ def convert_child_to_childport(
         )
 
     if is_list(cls):
-        print("IS LIST", cls)
         value_cls = get_list_value_cls(cls)
         child, nested_converter = convert_child_to_childport(
             value_cls, registry, nullable=False, key="..."
@@ -384,7 +378,6 @@ def convert_object_to_port(
     """
 
     if is_generator_type(cls):
-        print("Is Generator", cls)
         real_type = cls.__args__[0]
 
         return convert_object_to_port(
@@ -400,7 +393,6 @@ def convert_object_to_port(
         )
 
     if is_model(cls):
-        print("Is Model", cls)
         children = []
         converters = []
         set_default = default or {}
@@ -439,7 +431,6 @@ def convert_object_to_port(
         )
 
     if is_annotated(cls):
-        print("Is Annotated", cls)
         real_type = cls.__args__[0]
 
         return convert_object_to_port(
@@ -455,7 +446,6 @@ def convert_object_to_port(
         )
 
     if is_list(cls):
-        print("IS LIST", cls)
         value_cls = get_list_value_cls(cls)
         child, converter = convert_child_to_childport(
             value_cls, registry, nullable=False, key="..."
@@ -477,7 +467,6 @@ def convert_object_to_port(
         )
 
     if is_nullable(cls):
-        print("Is nullable", cls)
         return convert_object_to_port(
             cls.__args__[0],
             key,
@@ -512,8 +501,6 @@ def convert_object_to_port(
                 if predicate_port(child, default, registry):
                     set_default = converters[index](default)
                     break
-
-        print("UNION", cls, children, converters, set_default)
 
         return PortInput(
             kind=PortKind.UNION,
@@ -662,15 +649,16 @@ EffectsMap = Dict[str, List[EffectInput]]
 
 def snake_to_title_case(snake_str):
     # Split the string by underscores
-    words = snake_str.split('_')
-    
+    words = snake_str.split("_")
+
     # Capitalize each word
     capitalized_words = [word.capitalize() for word in words]
-    
+
     # Join the words back into a single string with spaces in between
-    title_case_str = ' '.join(capitalized_words)
-    
+    title_case_str = " ".join(capitalized_words)
+
     return title_case_str
+
 
 def prepare_definition(
     function: Callable,
@@ -745,14 +733,12 @@ def prepare_definition(
 
     is_dev = False
 
-
     if not docstring.short_description and name is None:
         is_dev = True
         if not allow_dev:
             raise NonSufficientDocumentation(
-            f"We are not in dev mode. Please provide a name or better document  {function.__name__}. Try docstring :)"
-        )
-
+                f"We are not in dev mode. Please provide a name or better document  {function.__name__}. Try docstring :)"
+            )
 
     if not docstring.long_description and description is None and not allow_empty_doc:
         is_dev = True

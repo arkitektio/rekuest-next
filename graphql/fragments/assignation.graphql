@@ -20,6 +20,7 @@ fragment AssignationEvent on AssignationEvent {
   kind
   returns
   reference
+  message
   progress
 }
 

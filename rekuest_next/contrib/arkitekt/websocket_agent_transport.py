@@ -30,7 +30,6 @@ class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
     async def aconnect(self, *args, **kwargs):
         if self.fakts.has_changed(self._old_fakt, self.fakts_group):
             self._old_fakt = await self.fakts.aget(self.fakts_group)
-            print(self._old_fakt)
             self.configure(WebsocketAgentTransportConfig(**self._old_fakt))
 
         return await super().aconnect(*args, **kwargs)
