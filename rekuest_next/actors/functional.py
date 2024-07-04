@@ -311,7 +311,7 @@ class ThreadedGenActor(SerializingActor):
 
         except Exception as e:
             logging.critical(f"Assignation Error {assignment} {e}", exc_info=True)
-            await transport.change(
+            await transport.log_event(
                 kind=AssignationEventKind.CRITICAL,
                 message=str(e),
             )

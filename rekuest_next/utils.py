@@ -170,7 +170,6 @@ async def aiterate(
 
 
 async def aiterate_raw(
-    *args,
     node: Optional[NodeFragment] = None,
     template: Optional[TemplateFragment] = None,
     reservation: Optional[ReservationFragment] = None,
@@ -198,7 +197,7 @@ async def aiterate_raw(
         node=none_or_id(node),
         template=none_or_id(template),
         reservation=none_or_id(reservation),  # type: ignore
-        args=args,
+        args=kwargs,
         reference=reference,
         hooks=hooks or [],
         cached=cached,
@@ -215,6 +214,58 @@ async def aiterate_raw(
 
         if i.kind == AssignationEventKind.DONE:
             break
+
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise Exception(i.message)
+
+
+async def acall_raw(
+    node: Optional[NodeFragment] = None,
+    template: Optional[TemplateFragment] = None,
+    reservation: Optional[ReservationFragment] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: bool = None,
+    log: bool = False,
+    **kwargs,
+) -> AsyncGenerator[tuple[Any], None]:
+    postman: BasePostman = get_current_postman()
+
+    instance_id = postman.instance_id
+
+    try:
+        parent = parent or get_current_assignation_helper().assignation
+    except:
+        print("Not in assignation")
+        parent = None
+
+    reference = reference or str(uuid.uuid4())
+
+    x = AssignInput(
+        instanceId=instance_id,
+        node=none_or_id(node),
+        template=none_or_id(template),
+        reservation=none_or_id(reservation),  # type: ignore
+        args=kwargs,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+        isHook=False,
+    )
+
+    print("assogm omüit", x)
+
+    returns = None
+
+    async for i in postman.aassign(x):
+        if i.kind == AssignationEventKind.YIELD:
+            returns = i.returns
+
+        if i.kind == AssignationEventKind.DONE:
+            return returns
 
         if i.kind == AssignationEventKind.CRITICAL:
             raise Exception(i.message)
@@ -296,6 +347,12 @@ class ReservationContext(KoiledModel):
     async def acall(self, *args, **kwargs):
         assert self._reservation, "Not in reservation context"
         return await acall(
+            node=self.node, reservation=self._reservation, *args, **kwargs
+        )
+
+    async def acall_raw(self, *args, **kwargs):
+        assert self._reservation, "Not in reservation context"
+        return await acall_raw(
             node=self.node, reservation=self._reservation, *args, **kwargs
         )
 
