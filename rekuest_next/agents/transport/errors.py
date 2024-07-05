@@ -1,4 +1,4 @@
-from rekuest.agents.errors import AgentException
+from rekuest_next.agents.errors import AgentException
 
 
 class AgentTransportException(AgentException):

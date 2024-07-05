@@ -225,4 +225,4 @@ async def test_shrinking(simple_registry):
     definition = auto_validate(functional_definition)
 
     args = await shrink_inputs(definition, ("hallo", "zz"), {}, simple_registry)
-    assert args == ("hallo", "zz")
+    assert args == {"name": "zz", "rep": "hallo"}

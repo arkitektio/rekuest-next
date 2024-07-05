@@ -19,6 +19,17 @@ try:
         get_default_service_builder_registry,
         Params,
     )
+
+    from .structures.default import get_default_structure_registry
+    from .api.schema import (
+            AssignationEventFragment,
+            aget_event,
+            NodeFragment,
+            afind,
+            Search_nodesQuery,
+    )
+    from rekuest_next.structures.hooks.standard import id_shrink
+    from rekuest_next.widgets import SearchWidget
     from arkitekt_next.model import Requirement
 
     class ArkitektNextRekuestNext(RekuestNext):
@@ -72,6 +83,26 @@ try:
             description="An instance of ArkitektNext Rekuest to assign to nodes",
         ),
     )
+
+
+    structur_reg = get_default_structure_registry()
+
+
+    structur_reg.register_as_structure(
+        AssignationEventFragment,
+        identifier="@rekuest/assignationevent",
+        aexpand=aget_event,
+        ashrink=id_shrink,
+    )
+
+    structur_reg.register_as_structure(
+        NodeFragment,
+        identifier="@rekuest/node",
+        aexpand=afind,
+        ashrink=id_shrink,
+        default_widget=SearchWidget(query=Search_nodesQuery.Meta.document, ward="rekuest"),
+    )
+
     imported = True
 
 

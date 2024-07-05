@@ -26,7 +26,7 @@ class PortTrait(BaseModel):
 
     @root_validator(pre=True)
     def validate_portkind_nested(cls, values):
-        from rekuest.api.schema import PortKind
+        from rekuest_next.api.schema import PortKind
 
         kind = values.get("kind")
 
@@ -58,7 +58,7 @@ class PortTrait(BaseModel):
         """
         Mocks some serialized data for this port
         """
-        from rekuest.api.schema import PortKind
+        from rekuest_next.api.schema import PortKind
 
         kind = self.kind
 
@@ -92,7 +92,7 @@ class WidgetInputTrait(BaseModel):
 
     @root_validator(pre=True)
     def validate_widgetkind_nested(cls, values):
-        from rekuest.api.schema import WidgetKind
+        from rekuest_next.api.schema import WidgetKind
 
         kind = values.get("kind")
 
@@ -131,14 +131,14 @@ class ReturnWidgetInputTrait(BaseModel):
 
     @root_validator(pre=True)
     def validate_widgetkind_nested(cls, values):
-        from rekuest.api.schema import ReturnWidgetKind
+        from rekuest_next.api.schema import ReturnWidgetKind
 
         kind = values.get("kind")
 
         if kind is None:
             raise ValueError("kind is required")
 
-        if kind == ReturnWidgetKind.CustomReturnWidget:
+        if kind == ReturnWidgetKind.CUSTOM:
             if values.get("hook") is None:
                 raise ValueError(
                     "When specifying a CustomReturnWidget you need to provide a 'hook'"
@@ -156,7 +156,7 @@ class AnnotationInputTrait(BaseModel):
 
     @root_validator(pre=True)
     def validate_annotationkind_nested(cls, values):
-        from rekuest.api.schema import AnnotationKind
+        from rekuest_next.api.schema import AnnotationKind
 
         kind = values.get("kind")
 

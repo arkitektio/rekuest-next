@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Awaitable, Callable, List, Optional, Union
 
-from rekuest.messages import Assignation, Unassignation, Provision, Unprovision
-from rekuest.api.schema import (
+from rekuest_nextmessages import Assignation, Unassignation, Provision, Unprovision
+from rekuest_nextapi.schema import (
     LogLevelInput,
     ProvisionMode,
     ProvisionStatus,
@@ -10,15 +10,15 @@ from rekuest.api.schema import (
 )
 from koil.composition import KoiledModel
 from typing import Protocol, runtime_checkable
-from rekuest.agents.transport.protocols.agent_json import (
+from rekuest_nextagents.transport.protocols.agent_json import (
     AssignationChangedMessage,
     ProvisionChangedMessage,
     ProvisionMode,
 )
 import logging
 import asyncio
-from rekuest.agents.transport.base import AgentTransport
-from rekuest.actors.types import Passport, Assignment
+from rekuest_nextagents.transport.base import AgentTransport
+from rekuest_nextactors.types import Passport, Assignment
 
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 import pytest
-from rekuest.definition.define import prepare_definition
-from rekuest.definition.validate import auto_validate
-from rekuest.structures.serialization.postman import shrink_inputs, expand_outputs
-from rekuest.structures.serialization.actor import expand_inputs, shrink_outputs
+from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.validate import auto_validate
+from rekuest_next.structures.serialization.postman import ashrink_args, aexpand_returns
+from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
 from .funcs import (
     plain_basic_function,
     plain_structure_function,
@@ -11,7 +11,7 @@ from .funcs import (
     union_structure_function,
 )
 from .structures import SecondObject, SerializableObject
-from rekuest.structures.errors import ShrinkingError, ExpandingError
+from rekuest_next.structures.errors import ShrinkingError, ExpandingError
 
 
 @pytest.mark.shrink
@@ -23,11 +23,11 @@ async def test_shrinking_nullable(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await shrink_inputs(definition, (None,), {}, simple_registry)
-    assert args == (None,)
+    args = await ashrink_args(definition, (None,), {}, simple_registry)
+    assert args == {"x": None}
 
-    args = await shrink_inputs(definition, (1,), {}, simple_registry)
-    assert args == (1,)
+    args = await ashrink_args(definition, (1,), {}, simple_registry)
+    assert args == {"x": 1}
 
 
 @pytest.mark.shrink
@@ -39,8 +39,8 @@ async def test_shrinking_basic(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await shrink_inputs(definition, ("hallo", "zz"), {}, simple_registry)
-    assert args == ("hallo", "zz")
+    args = await ashrink_args(definition, ("hallo", "zz"), {}, simple_registry)
+    assert args == {'name': 'zz', 'rep': 'hallo'}
 
 
 @pytest.mark.shrink
@@ -52,7 +52,7 @@ async def test_rountdrip_structure(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await shrink_inputs(
+    args = await ashrink_args(
         definition,
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
@@ -71,14 +71,14 @@ async def test_shrink_union(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await shrink_inputs(
+    args = await ashrink_args(
         definition,
         (SerializableObject(number=3),),
         {},
         simple_registry,
     )
 
-    assert args[0]["use"] == 0, "Should use the first union type"
+    assert args["rep"]["use"] == 0, "Should use the first union type"
 
 
 @pytest.mark.shrink
@@ -90,7 +90,7 @@ async def test_roundtrip(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    shrinked_args = await shrink_inputs(
+    shrinked_args = await ashrink_args(
         definition,
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
@@ -111,7 +111,7 @@ async def test_shrinking_structure_error(simple_registry):
     definition = auto_validate(functional_definition)
 
     with pytest.raises(ShrinkingError):
-        await shrink_inputs(
+        await ashrink_args(
             definition,
             (SerializableObject(number=3), SecondObject(id=4)),
             {},
@@ -128,13 +128,13 @@ async def test_shrinking_nested_structure(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await shrink_inputs(
+    args = await ashrink_args(
         definition,
         ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
         {},
         simple_registry,
     )
-    assert args == (["3"], {"hallo": "3"})
+    assert args ==  {'name': {'hallo': '3'}, "rep": ['3']}
 
 
 @pytest.mark.expand
@@ -146,9 +146,9 @@ async def test_expand_basic(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    await expand_outputs(
+    await aexpand_returns(
         definition,
-        ("hallo",),
+        {"return0": "hallo"},
         simple_registry,
     )
 
@@ -163,7 +163,7 @@ async def test_expand_nested_structure_error(simple_registry):
     definition = auto_validate(functional_definition)
 
     with pytest.raises(ExpandingError):
-        await expand_outputs(
+        await aexpand_returns(
             definition,
             ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
             simple_registry,

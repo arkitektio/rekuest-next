@@ -1,7 +1,7 @@
 import pytest
-from rekuest.definition.define import prepare_definition
-from rekuest.definition.validate import auto_validate
-from rekuest.structures.serialization.actor import expand_inputs
+from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.validate import auto_validate
+from rekuest_next.structures.serialization.actor import expand_inputs
 from enum import Enum
 from functools import partial
 
@@ -51,9 +51,9 @@ async def test_expand_enums(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await expand_inputs(definition, ("C",), simple_registry)
+    args = await expand_inputs(definition, {"x": "C"}, simple_registry)
     func = args["x"]  #
-    assert func(1) == "c", "Enum function should expand to the correct function"
+    assert func.value(1) == "c", "Enum function should expand to the correct function"
 
 
 # @pytest.mark.expand
@@ -65,6 +65,6 @@ async def test_expand_enums_default(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await expand_inputs(definition, (None,), simple_registry)
+    args = await expand_inputs(definition, {"x": None}, simple_registry)
     func = args["x"]  #
-    assert func(1) == "a", "Enum function should expand to the correct function"
+    assert func.value(1) == "a", "Enum function should expand to the correct function"

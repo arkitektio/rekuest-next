@@ -8,7 +8,7 @@ from koil.composition import KoiledModel
 from typing import Protocol, runtime_checkable
 import logging
 import asyncio
-from rekuest.agents.transport.base import AgentTransport
+from rekuest_next.agents.transport.base import AgentTransport
 from rekuest_next.actors.types import Passport, Assignment
 
 

@@ -43,14 +43,14 @@ async def ashrink_arg(
 
         if port.kind == PortKind.DICT:
             return {
-                key: await ashrink_arg(port.child, value, structure_registry)
+                key: await ashrink_arg(port.children[0], value, structure_registry)
                 for key, value in value.items()
             }
 
         if port.kind == PortKind.LIST:
             return await asyncio.gather(
                 *[
-                    ashrink_arg(port.child, item, structure_registry=structure_registry)
+                    ashrink_arg(port.children[0], item, structure_registry=structure_registry)
                     for item in value
                 ]
             )
@@ -59,7 +59,7 @@ async def ashrink_arg(
             return int(value) if value is not None else None
 
         if port.kind == PortKind.UNION:
-            for index, x in enumerate(port.variants):
+            for index, x in enumerate(port.children):
                 if predicate_port(x, value, structure_registry):
                     return {
                         "use": index,
@@ -67,7 +67,7 @@ async def ashrink_arg(
                     }
 
             raise ShrinkingError(
-                f"Port is union butn none of the predicated for this port held true {port.variants}"
+                f"Port is union butn none of the predicated for this port held true {port.children}"
             )
 
         if port.kind == PortKind.DATE:

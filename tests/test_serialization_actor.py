@@ -1,7 +1,7 @@
 import pytest
-from rekuest.definition.define import prepare_definition
-from rekuest.definition.validate import auto_validate
-from rekuest.structures.serialization.actor import shrink_outputs, expand_inputs
+from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.validate import auto_validate
+from rekuest_next.structures.serialization.actor import shrink_outputs, expand_inputs
 from .funcs import (
     plain_basic_function,
     plain_structure_function,
@@ -9,7 +9,7 @@ from .funcs import (
     null_function,
 )
 from .structures import SecondObject, SerializableObject
-from rekuest.structures.errors import ShrinkingError, ExpandingError
+from rekuest_next.structures.errors import ShrinkingError, ExpandingError
 
 
 @pytest.mark.expand
@@ -21,10 +21,10 @@ async def test_expand_nullable(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await expand_inputs(definition, (None,), simple_registry)
+    args = await expand_inputs(definition, {"x": None}, simple_registry)
     assert args == {"x": None}
 
-    args = await expand_inputs(definition, (1,), simple_registry)
+    args = await expand_inputs(definition,  {"x": 1}, simple_registry)
     assert args == {"x": 1}
 
 
@@ -37,7 +37,7 @@ async def test_expand_basic(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    args = await expand_inputs(definition, ("hallo", "zz"), simple_registry)
+    args = await expand_inputs(definition, {"name": "zz", "rep": "hallo"}, simple_registry)
     assert args == {"name": "zz", "rep": "hallo"}
 
 
@@ -52,7 +52,7 @@ async def test_expand_structure(simple_registry):
 
     args = await expand_inputs(
         definition,
-        ("3", "3"),
+        {"rep": 3, "name": 3},
         simple_registry,
     )
     assert args == {
@@ -73,7 +73,7 @@ async def test_expand_structure_error(simple_registry):
     with pytest.raises(ExpandingError):
         await expand_inputs(
             definition,
-            (SerializableObject(number=3), SecondObject(id=4)),
+            {"rep": SerializableObject(number=3), "name": SecondObject(id=4)},
             simple_registry,
         )
 
@@ -89,7 +89,7 @@ async def test_expand_nested_structure(simple_registry):
 
     args = await expand_inputs(
         definition,
-        (["3"], {"lala": "3"}),
+        {"rep": ["3"], "name": {"lala": "3"}},
         simple_registry,
     )
     assert args == {
@@ -115,7 +115,7 @@ async def test_shrink_basic(simple_registry):
         simple_registry,
     )
 
-    assert args == ("hallo",)
+    assert args == {"return0": "hallo"}
 
 
 @pytest.mark.shrink
@@ -127,8 +127,9 @@ async def test_shrink_nested_structure_error(simple_registry):
 
     definition = auto_validate(functional_definition)
 
-    await shrink_outputs(
-        definition,
-        ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
-        simple_registry,
-    )
+    with pytest.raises(ShrinkingError):
+        await shrink_outputs(
+            definition,
+            ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
+            simple_registry,
+        )

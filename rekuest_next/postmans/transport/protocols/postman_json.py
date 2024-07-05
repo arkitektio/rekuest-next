@@ -5,8 +5,8 @@ from typing_extensions import Literal
 
 from pydantic import BaseModel, Field
 from datetime import datetime
-from rekuest.messages import Assignation, Reservation, Unassignation, Unreservation
-from rekuest.api.schema import ReservationStatus, AssignationStatus, ReserveParamsInput
+from rekuest_nextmessages import Assignation, Reservation, Unassignation, Unreservation
+from rekuest_nextapi.schema import ReservationStatus, AssignationStatus, ReserveParamsInput
 from enum import Enum
 
 
