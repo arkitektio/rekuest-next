@@ -19,6 +19,7 @@ from rekuest_next.api.schema import (
     TemplateFragment,
     UnreserveInput,
     afind,
+    atemplates_for,
     areserve,
     aunreserve,
 )
@@ -416,3 +417,12 @@ def reserved(
         constants=constants,
         assignation_id=assignation_id,
     )
+
+
+
+def templates_for(node: NodeFragment) -> list[TemplateFragment]:
+
+
+
+
+    return node.templates

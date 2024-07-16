@@ -26,7 +26,7 @@ def hash_definition(definition: DefinitionInput):
     hashable_definition = {
         key: value
         for key, value in dict(definition.dict()).items()
-        if key not in ["meta", "interface"]
+        if key in ["name", "description", "args", "returns"]
     }
     return hashlib.sha256(
         json.dumps(hashable_definition, sort_keys=True).encode()

@@ -3,7 +3,6 @@ fragment TestCase on TestCase {
   node {
     id
   }
-  key
   isBenchmark
   description
   name
@@ -13,7 +12,6 @@ fragment TestResult on TestResult {
   id
   case {
     id
-    key
   }
   passed
 }

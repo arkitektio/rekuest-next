@@ -13,3 +13,10 @@ query search_templates($search: String, $values: [ID!]) {
     value: id
   }
 }
+
+
+query templates_for($hash: NodeHash!){
+  templates(filters: { nodeHash: $hash } ) {
+    ...Template
+  }
+}

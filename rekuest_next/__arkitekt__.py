@@ -107,6 +107,7 @@ def init_services(service_builder_registry):
     from fakts import Fakts
     from herre import Herre
     from rekuest_next.postmans.graphql import GraphQLPostman
+    from rekuest_next.agents.extensions.default import DefaultExtension
 
     from .structures.default import get_default_structure_registry
     from .api.schema import (
@@ -120,33 +121,20 @@ def init_services(service_builder_registry):
     from rekuest_next.widgets import SearchWidget
     from arkitekt_next.model import Requirement
 
+    from arkitekt_next.model import Manifest
+
     class ArkitektNextRekuestNext(RekuestNext):
         rath: RekuestNextRath
         agent: BaseAgent
 
     structur_reg = get_default_structure_registry()
 
-    structur_reg.register_as_structure(
-        AssignationEventFragment,
-        identifier="@rekuest/assignationevent",
-        aexpand=aget_event,
-        ashrink=id_shrink,
-    )
-
-    structur_reg.register_as_structure(
-        NodeFragment,
-        identifier="@rekuest/node",
-        aexpand=afind,
-        ashrink=id_shrink,
-        default_widget=SearchWidget(
-            query=Search_nodesQuery.Meta.document, ward="rekuest"
-        ),
-    )
+    
 
     extensions = check_and_import_extensions(structur_reg)
 
     def builder(
-        fakts: Fakts, herre: Herre, params: Dict[str, Any]
+        fakts: Fakts, herre: Herre, params: Dict[str, Any], manifest: Manifest
     ) -> ArkitektNextRekuestNext:
         instance_id = params.get("instance_id", "default")
 
@@ -167,6 +155,8 @@ def init_services(service_builder_registry):
             ),
             instance_id=instance_id,
             rath=rath,
+            name=f"{manifest.identifier}:{manifest.version}",
+
         )
 
         for extension_name, extension in extensions.items():

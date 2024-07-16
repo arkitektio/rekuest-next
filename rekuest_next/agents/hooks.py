@@ -19,7 +19,7 @@ class StartupHook(Protocol):
     def __init__(self):
         pass
 
-    async def arun(self) -> Optional[Dict[str, Any]]:
+    async def arun(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Should return a dictionary of state variables"""
         ...
 
@@ -39,15 +39,15 @@ class HooksRegistry(BaseModel):
         cls.startup_hooks[name] = hook
 
     async def arun_startup(self, instance_id: str) -> Dict[str, Any]:
-        state = {"instance_id": instance_id}
+        context = {"instance_id": instance_id}
         for key, hook in self.startup_hooks.items():
             try:
-                answer = await hook.arun()
+                answer = await hook.arun(context)
                 if answer is not None:
-                    state.update(answer)
+                    context.update(answer)
             except Exception as e:
                 raise StartupHookError(f"Startup hook {key} failed") from e
-        return state
+        return context
 
     async def arun_background(self, context: Dict[str, Any]):
         for name, worker in self.background_worker.items():
@@ -82,8 +82,8 @@ class WrappedStartupHook(StartupHook):
     def __init__(self, func):
         self.func = func
 
-    async def arun(self) -> Optional[Dict[str, Any]]:
-        return await self.func()
+    async def arun(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return await self.func(context)
 
 
 class WrappedBackgroundTask(BackgroundTask):

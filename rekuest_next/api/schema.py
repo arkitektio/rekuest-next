@@ -1,21 +1,21 @@
+from typing_extensions import Literal
+from typing import Optional, AsyncIterator, List, Tuple, Iterator, Any
 from rekuest_next.scalars import (
-    InstanceId,
-    ValidatorFunction,
     NodeHash,
+    InstanceId,
+    Args,
+    ValidatorFunction,
     Identifier,
     SearchQuery,
-    Args,
 )
-from typing_extensions import Literal
-from typing import AsyncIterator, Any, Tuple, Iterator, List, Optional
-from rekuest_next.funcs import aexecute, asubscribe, execute, subscribe
-from enum import Enum
+from rekuest_next.traits.node import Reserve
+from rath.scalars import ID
+from rekuest_next.funcs import execute, subscribe, asubscribe, aexecute
 from pydantic import Field, BaseModel
 from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.traits.node import Reserve
+from enum import Enum
 from datetime import datetime
-from rath.scalars import ID
 
 
 class AssignWidgetKind(str, Enum):
@@ -469,7 +469,6 @@ class TestCaseFragment(BaseModel):
     typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
     id: ID
     node: TestCaseFragmentNode
-    key: str
     is_benchmark: bool = Field(alias="isBenchmark")
     description: str
     name: str
@@ -483,7 +482,6 @@ class TestCaseFragment(BaseModel):
 class TestResultFragmentCase(BaseModel):
     typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
     id: ID
-    key: str
 
     class Config:
         """A config class"""
@@ -833,13 +831,12 @@ class Create_testcaseMutation(BaseModel):
 
     class Arguments(BaseModel):
         node: ID
-        key: str
-        is_benchmark: Optional[bool] = Field(default=None)
+        tester: ID
         description: str
         name: str
 
     class Meta:
-        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n  }\n  key\n  isBenchmark\n  description\n  name\n}\n\nmutation create_testcase($node: ID!, $key: String!, $is_benchmark: Boolean, $description: String!, $name: String!) {\n  createTestCase(\n    input: {node: $node, key: $key, isBenchmark: $is_benchmark, description: $description, name: $name}\n  ) {\n    ...TestCase\n  }\n}"
+        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n  }\n  isBenchmark\n  description\n  name\n}\n\nmutation create_testcase($node: ID!, $tester: ID!, $description: String!, $name: String!) {\n  createTestCase(\n    input: {node: $node, tester: $tester, description: $description, name: $name}\n  ) {\n    ...TestCase\n  }\n}"
 
 
 class Create_testresultMutation(BaseModel):
@@ -848,11 +845,12 @@ class Create_testresultMutation(BaseModel):
     class Arguments(BaseModel):
         case: ID
         template: ID
+        tester: ID
         passed: bool
         result: Optional[str] = Field(default=None)
 
     class Meta:
-        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n    key\n  }\n  passed\n}\n\nmutation create_testresult($case: ID!, $template: ID!, $passed: Boolean!, $result: String) {\n  createTestResult(\n    input: {case: $case, template: $template, passed: $passed, result: $result}\n  ) {\n    ...TestResult\n  }\n}"
+        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n  }\n  passed\n}\n\nmutation create_testresult($case: ID!, $template: ID!, $tester: ID!, $passed: Boolean!, $result: String) {\n  createTestResult(\n    input: {case: $case, tester: $tester, template: $template, passed: $passed, result: $result}\n  ) {\n    ...TestResult\n  }\n}"
 
 
 class EnsureAgentMutationEnsureagent(BaseModel):
@@ -873,9 +871,10 @@ class EnsureAgentMutation(BaseModel):
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
         extensions: Optional[List[str]] = Field(default=None)
+        name: Optional[str] = Field(default=None)
 
     class Meta:
-        document = "mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!]) {\n  ensureAgent(input: {instanceId: $instanceId, extensions: $extensions}) {\n    id\n    instanceId\n    extensions\n  }\n}"
+        document = "mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!], $name: String) {\n  ensureAgent(\n    input: {instanceId: $instanceId, extensions: $extensions, name: $name}\n  ) {\n    id\n    instanceId\n    extensions\n  }\n}"
 
 
 class ReserveMutation(BaseModel):
@@ -988,6 +987,18 @@ class SetExtensionTemplatesMutation(BaseModel):
         document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
 
 
+class MyTemplateAtQuery(BaseModel):
+    my_template_at: TemplateFragment = Field(alias="myTemplateAt")
+
+    class Arguments(BaseModel):
+        instance_id: str = Field(alias="instanceId")
+        interface: Optional[str] = Field(default=None)
+        node_id: Optional[ID] = Field(alias="nodeId", default=None)
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n  }\n}"
+
+
 class WatchReservationsSubscription(BaseModel):
     reservations: ReservationFragment
 
@@ -1005,7 +1016,7 @@ class WatchAssignationsSubscription(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n}\n\nfragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n  }\n  event {\n    ...AssignationEvent\n  }\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n  }\n  reference\n  updatedAt\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n  }\n  event {\n    ...AssignationEvent\n  }\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -1015,7 +1026,7 @@ class Get_testcaseQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n  }\n  key\n  isBenchmark\n  description\n  name\n}\n\nquery get_testcase($id: ID!) {\n  testCase(id: $id) {\n    ...TestCase\n  }\n}"
+        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n  }\n  isBenchmark\n  description\n  name\n}\n\nquery get_testcase($id: ID!) {\n  testCase(id: $id) {\n    ...TestCase\n  }\n}"
 
 
 class Get_testresultQuery(BaseModel):
@@ -1025,7 +1036,7 @@ class Get_testresultQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n    key\n  }\n  passed\n}\n\nquery get_testresult($id: ID!) {\n  testResult(id: $id) {\n    ...TestResult\n  }\n}"
+        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n  }\n  passed\n}\n\nquery get_testresult($id: ID!) {\n  testResult(id: $id) {\n    ...TestResult\n  }\n}"
 
 
 class Search_testcasesQueryOptions(BaseModel):
@@ -1224,6 +1235,16 @@ class Search_templatesQuery(BaseModel):
         document = "query search_templates($search: String, $values: [ID!]) {\n  options: templates(\n    filters: {interface: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n  }\n}"
 
 
+class Templates_forQuery(BaseModel):
+    templates: Tuple[TemplateFragment, ...]
+
+    class Arguments(BaseModel):
+        hash: NodeHash
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n  }\n}"
+
+
 class FindQuery(BaseModel):
     node: NodeFragment
 
@@ -1270,10 +1291,9 @@ class Search_nodesQuery(BaseModel):
 
 async def acreate_testcase(
     node: ID,
-    key: str,
+    tester: ID,
     description: str,
     name: str,
-    is_benchmark: Optional[bool] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> TestCaseFragment:
     """create_testcase
@@ -1282,10 +1302,9 @@ async def acreate_testcase(
 
     Arguments:
         node (ID): node
-        key (str): key
+        tester (ID): tester
         description (str): description
         name (str): name
-        is_benchmark (Optional[bool], optional): is_benchmark.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -1293,13 +1312,7 @@ async def acreate_testcase(
     return (
         await aexecute(
             Create_testcaseMutation,
-            {
-                "node": node,
-                "key": key,
-                "is_benchmark": is_benchmark,
-                "description": description,
-                "name": name,
-            },
+            {"node": node, "tester": tester, "description": description, "name": name},
             rath=rath,
         )
     ).create_test_case
@@ -1307,10 +1320,9 @@ async def acreate_testcase(
 
 def create_testcase(
     node: ID,
-    key: str,
+    tester: ID,
     description: str,
     name: str,
-    is_benchmark: Optional[bool] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> TestCaseFragment:
     """create_testcase
@@ -1319,23 +1331,16 @@ def create_testcase(
 
     Arguments:
         node (ID): node
-        key (str): key
+        tester (ID): tester
         description (str): description
         name (str): name
-        is_benchmark (Optional[bool], optional): is_benchmark.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         TestCaseFragment"""
     return execute(
         Create_testcaseMutation,
-        {
-            "node": node,
-            "key": key,
-            "is_benchmark": is_benchmark,
-            "description": description,
-            "name": name,
-        },
+        {"node": node, "tester": tester, "description": description, "name": name},
         rath=rath,
     ).create_test_case
 
@@ -1343,6 +1348,7 @@ def create_testcase(
 async def acreate_testresult(
     case: ID,
     template: ID,
+    tester: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -1354,6 +1360,7 @@ async def acreate_testresult(
     Arguments:
         case (ID): case
         template (ID): template
+        tester (ID): tester
         passed (bool): passed
         result (Optional[str], optional): result.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -1363,7 +1370,13 @@ async def acreate_testresult(
     return (
         await aexecute(
             Create_testresultMutation,
-            {"case": case, "template": template, "passed": passed, "result": result},
+            {
+                "case": case,
+                "template": template,
+                "tester": tester,
+                "passed": passed,
+                "result": result,
+            },
             rath=rath,
         )
     ).create_test_result
@@ -1372,6 +1385,7 @@ async def acreate_testresult(
 def create_testresult(
     case: ID,
     template: ID,
+    tester: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -1383,6 +1397,7 @@ def create_testresult(
     Arguments:
         case (ID): case
         template (ID): template
+        tester (ID): tester
         passed (bool): passed
         result (Optional[str], optional): result.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -1391,7 +1406,13 @@ def create_testresult(
         TestResultFragment"""
     return execute(
         Create_testresultMutation,
-        {"case": case, "template": template, "passed": passed, "result": result},
+        {
+            "case": case,
+            "template": template,
+            "tester": tester,
+            "passed": passed,
+            "result": result,
+        },
         rath=rath,
     ).create_test_result
 
@@ -1399,6 +1420,7 @@ def create_testresult(
 async def aensure_agent(
     instance_id: InstanceId,
     extensions: Optional[List[str]] = None,
+    name: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> EnsureAgentMutationEnsureagent:
     """EnsureAgent
@@ -1408,6 +1430,7 @@ async def aensure_agent(
     Arguments:
         instance_id (InstanceId): instanceId
         extensions (Optional[List[str]], optional): extensions.
+        name (Optional[str], optional): name.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -1415,7 +1438,7 @@ async def aensure_agent(
     return (
         await aexecute(
             EnsureAgentMutation,
-            {"instanceId": instance_id, "extensions": extensions},
+            {"instanceId": instance_id, "extensions": extensions, "name": name},
             rath=rath,
         )
     ).ensure_agent
@@ -1424,6 +1447,7 @@ async def aensure_agent(
 def ensure_agent(
     instance_id: InstanceId,
     extensions: Optional[List[str]] = None,
+    name: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> EnsureAgentMutationEnsureagent:
     """EnsureAgent
@@ -1433,13 +1457,14 @@ def ensure_agent(
     Arguments:
         instance_id (InstanceId): instanceId
         extensions (Optional[List[str]], optional): extensions.
+        name (Optional[str], optional): name.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         EnsureAgentMutationEnsureagent"""
     return execute(
         EnsureAgentMutation,
-        {"instanceId": instance_id, "extensions": extensions},
+        {"instanceId": instance_id, "extensions": extensions, "name": name},
         rath=rath,
     ).ensure_agent
 
@@ -1734,6 +1759,58 @@ def set_extension_templates(
     return execute(
         SetExtensionTemplatesMutation, {"input": input}, rath=rath
     ).set_extension_templates
+
+
+async def amy_template_at(
+    instance_id: str,
+    interface: Optional[str] = None,
+    node_id: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> TemplateFragment:
+    """MyTemplateAt
+
+
+
+    Arguments:
+        instance_id (str): instanceId
+        interface (Optional[str], optional): interface.
+        node_id (Optional[ID], optional): nodeId.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        TemplateFragment"""
+    return (
+        await aexecute(
+            MyTemplateAtQuery,
+            {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+            rath=rath,
+        )
+    ).my_template_at
+
+
+def my_template_at(
+    instance_id: str,
+    interface: Optional[str] = None,
+    node_id: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> TemplateFragment:
+    """MyTemplateAt
+
+
+
+    Arguments:
+        instance_id (str): instanceId
+        interface (Optional[str], optional): interface.
+        node_id (Optional[ID], optional): nodeId.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        TemplateFragment"""
+    return execute(
+        MyTemplateAtQuery,
+        {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+        rath=rath,
+    ).my_template_at
 
 
 async def awatch_reservations(
@@ -2254,6 +2331,38 @@ def search_templates(
     return execute(
         Search_templatesQuery, {"search": search, "values": values}, rath=rath
     ).options
+
+
+async def atemplates_for(
+    hash: NodeHash, rath: Optional[RekuestNextRath] = None
+) -> List[TemplateFragment]:
+    """templates_for
+
+
+
+    Arguments:
+        hash (NodeHash): hash
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[TemplateFragment]"""
+    return (await aexecute(Templates_forQuery, {"hash": hash}, rath=rath)).templates
+
+
+def templates_for(
+    hash: NodeHash, rath: Optional[RekuestNextRath] = None
+) -> List[TemplateFragment]:
+    """templates_for
+
+
+
+    Arguments:
+        hash (NodeHash): hash
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[TemplateFragment]"""
+    return execute(Templates_forQuery, {"hash": hash}, rath=rath).templates
 
 
 async def afind(

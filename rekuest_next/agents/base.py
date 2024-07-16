@@ -80,7 +80,7 @@ class BaseAgent(KoiledModel):
 
 
     """
-
+    name: str
     instance_id: str = "main"
     rath: RekuestNextRath
     transport: AgentTransport
@@ -317,6 +317,7 @@ class BaseAgent(KoiledModel):
 
         x = await aensure_agent(
             instance_id=self.instance_id,
+            name=self.name,
             extensions=[extension for extension in self.extensions.keys()],
         )
 

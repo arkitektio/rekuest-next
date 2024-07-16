@@ -1,15 +1,14 @@
 mutation create_testcase(
   $node: ID!
-  $key: String!
-  $is_benchmark: Boolean
+  $tester: ID!
   $description: String!
   $name: String!
+
 ) {
   createTestCase(
     input: {
       node: $node
-      key: $key
-      isBenchmark: $is_benchmark
+      tester: $tester
       description: $description
       name: $name
     }
@@ -21,12 +20,14 @@ mutation create_testcase(
 mutation create_testresult(
   $case: ID!
   $template: ID!
+  $tester: ID!
   $passed: Boolean!
   $result: String
 ) {
   createTestResult(
     input: {
       case: $case
+      tester: $tester
       template: $template
       passed: $passed
       result: $result
