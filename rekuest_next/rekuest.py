@@ -36,15 +36,9 @@ class RekuestNext(Composition):
         """
         Register a new function
         """
-        structure_registry = kwargs.pop("structure_registry", self.structure_registry)
-        definition_registry = kwargs.pop(
-            "definition_registry", self.agent.definition_registry
-        )
 
         return register(
             *args,
-            definition_registry=definition_registry,
-            structure_registry=structure_registry,
             **kwargs,
         )
 

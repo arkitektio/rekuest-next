@@ -1,15 +1,11 @@
 from typing import Any, Tuple
 from qtpy import QtCore
-from rekuest_next.agents.transport.base import AgentTransport
-from rekuest_next.messages import Provision
 from koil.qt import QtCoro
 from rekuest_next.actors.functional import FunctionalFuncActor
 from qtpy import QtWidgets
 from rekuest_next.definition.registry import ActorBuilder
 from rekuest_next.definition.define import prepare_definition, DefinitionInput
-from rekuest_next.actors.types import ActorBuilder, Passport
-from rekuest_next.collection.collector import ActorCollector
-from rekuest_next.actors.transport.types import ActorTransport
+from rekuest_next.actors.types import ActorBuilder
 
 
 class QtInLoopBuilder(QtCore.QObject):
@@ -43,8 +39,6 @@ class QtInLoopBuilder(QtCore.QObject):
     async def on_assign(self, *args, **kwargs) -> None:
         return await self.coro.acall(*args, **kwargs)
 
-    async def on_provide(self, provision: Provision) -> Any:
-        return None
 
     async def on_unprovide(self) -> Any:
         return None
@@ -56,8 +50,6 @@ class QtInLoopBuilder(QtCore.QObject):
                 **kwargs,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
-                on_provide=self.on_provide,
-                on_unprovide=self.on_unprovide,
                 definition=self.definition,
             )
             return ac
@@ -97,11 +89,6 @@ class QtFutureBuilder(QtCore.QObject):
         x = await self.coro.acall(*args, **kwargs)
         return x
 
-    async def on_provide(self, provision: Provision) -> Any:
-        return None
-
-    async def on_unprovide(self) -> Any:
-        return None
 
     def build(self, *args, **kwargs) -> Any:
         try:
@@ -110,8 +97,6 @@ class QtFutureBuilder(QtCore.QObject):
                 **kwargs,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
-                on_provide=self.on_provide,
-                on_unprovide=self.on_unprovide,
                 definition=self.definition,
             )
             return ac
