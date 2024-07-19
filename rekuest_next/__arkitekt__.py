@@ -6,6 +6,7 @@ from typing import Any, Dict
 import logging
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from rekuest_next.agents.extension import AgentExtension
     from rekuest_next.structures.registry import StructureRegistry
@@ -129,8 +130,6 @@ def init_services(service_builder_registry):
 
     structur_reg = get_default_structure_registry()
 
-    
-
     extensions = check_and_import_extensions(structur_reg)
 
     def builder(
@@ -156,7 +155,6 @@ def init_services(service_builder_registry):
             instance_id=instance_id,
             rath=rath,
             name=f"{manifest.identifier}:{manifest.version}",
-
         )
 
         for extension_name, extension in extensions.items():
