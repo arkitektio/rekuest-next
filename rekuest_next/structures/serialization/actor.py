@@ -184,9 +184,7 @@ async def expand_inputs(
         except Exception as e:
             raise ExpandingError(f"Couldn't expand Arguments {args}") from e
     else:
-        expandend_params = {
-            port.key: args.get(port.key, None) for port in node.args
-        }
+        expandend_params = {port.key: args.get(port.key, None) for port in node.args}
 
     return expandend_params
 
@@ -241,6 +239,30 @@ async def ashrink_return(
                     for item in value
                 ]
             )
+
+        if port.kind == PortKind.MODEL:
+            print("Shrinking Model")
+            try:
+                shrinked_args = await asyncio.gather(
+                    *[
+                        ashrink_return(
+                            port, getattr(value, port.key), structure_registry
+                        )
+                        for port in port.children
+                    ]
+                )
+
+                shrinked_params = {
+                    port.key: val for port, val in zip(port.children, shrinked_args)
+                }
+
+                return shrinked_params
+
+            except Exception as e:
+                print("Error Shrinking Model", e)
+                raise PortShrinkingError(
+                    f"Couldn't shrink Children {port.children}"
+                ) from e
 
         if port.kind == PortKind.INT:
             return int(value) if value is not None else None
@@ -300,8 +322,8 @@ async def shrink_outputs(
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert len(node.returns) == len(
-        returns
+    assert (
+        len(node.returns) == len(returns)
     ), (  # We are dealing with a single output, convert it to a proper port like structure
         f"Mismatch in Return Length: expected {len(node.returns)} got {len(returns)}"
     )

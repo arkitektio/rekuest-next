@@ -124,6 +124,8 @@ class AsyncGenActor(SerializingActor):
                 kind=AssignationEventKind.ASSIGN,
             )
 
+            print(assignment.assignation)
+
             async with AssignmentContext(
                 assignment=assignment, transport=transport, passport=self.passport
             ):
@@ -138,6 +140,8 @@ class AsyncGenActor(SerializingActor):
                     collector.register(
                         assignment, parse_collectable(self.definition, returns)
                     )
+
+                    print("Yielding for", assignment.assignation)
 
                     await transport.log_event(
                         kind=AssignationEventKind.YIELD,
