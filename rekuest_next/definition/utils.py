@@ -1,3 +1,7 @@
+from rekuest_next.agents.context import is_context
+from rekuest_next.state.predicate import is_state
+
+
 try:
     from typing import Annotated, get_type_hints, Any
 
@@ -33,3 +37,8 @@ except ImportError:
             bool: _description_
         """
         return False
+
+
+
+def is_local_var(type):
+    return is_context(type) or is_state(type)

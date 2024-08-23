@@ -1,0 +1,7 @@
+fragment State on State {
+  id
+  value
+  stateSchema {
+    ...StateSchema
+  }
+}

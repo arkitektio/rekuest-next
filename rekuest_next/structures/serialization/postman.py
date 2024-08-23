@@ -50,7 +50,9 @@ async def ashrink_arg(
         if port.kind == PortKind.LIST:
             return await asyncio.gather(
                 *[
-                    ashrink_arg(port.children[0], item, structure_registry=structure_registry)
+                    ashrink_arg(
+                        port.children[0], item, structure_registry=structure_registry
+                    )
                     for item in value
                 ]
             )

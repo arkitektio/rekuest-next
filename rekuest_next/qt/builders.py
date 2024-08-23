@@ -39,7 +39,6 @@ class QtInLoopBuilder(QtCore.QObject):
     async def on_assign(self, *args, **kwargs) -> None:
         return await self.coro.acall(*args, **kwargs)
 
-
     async def on_unprovide(self) -> Any:
         return None
 
@@ -88,7 +87,6 @@ class QtFutureBuilder(QtCore.QObject):
     async def on_assign(self, *args, **kwargs) -> None:
         x = await self.coro.acall(*args, **kwargs)
         return x
-
 
     def build(self, *args, **kwargs) -> Any:
         try:

@@ -43,9 +43,9 @@ class ContextLink(ContinuationLink):
             helper = get_current_assignation_helper()
 
             operation.context.headers["x-assignation-id"] = helper.assignation
-            print("Assignation", helper.assignation)
+           
         except Exception as e:
-            print("Error", e)
+            pass
 
         async for result in self.next.aexecute(operation):
             yield result

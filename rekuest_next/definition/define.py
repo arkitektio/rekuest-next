@@ -1,14 +1,16 @@
 from enum import Enum
 from typing import Callable, List, Tuple, Type, Union
 
+from rekuest_next.agents.context import is_context
 from rekuest_next.definition.guards import cls_is_union
 from rekuest_next.scalars import ValidatorFunction
+from rekuest_next.state.predicate import is_state
 from rekuest_next.structures.model import (
     is_model,
     retrieve_fullfiled_model,
 )
 from rekuest_next.structures.serialization.predication import predicate_port
-from .utils import get_type_hints, is_annotated
+from .utils import get_type_hints, is_annotated, is_local_var
 import inflection
 from rekuest_next.api.schema import (
     PortInput,
@@ -391,6 +393,8 @@ def convert_object_to_port(
             nullable=nullable,
             groups=groups,
         )
+    
+    
 
     if is_model(cls):
         children = []
@@ -798,6 +802,9 @@ def prepare_definition(
             raise DefinitionError(
                 f"Could not find type hint for {key} in {function.__name__}. Please provide a type hint (or default) for this argument."
             )
+        
+        if is_local_var(cls):
+            continue
 
         try:
             args.append(

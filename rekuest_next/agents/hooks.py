@@ -1,8 +1,14 @@
+from dataclasses import dataclass
 from functools import wraps
 from typing import List, Dict, Any, Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 import asyncio
-from .errors import StartupHookError
+
+from rekuest_next.agents.context import get_context_name, is_context, prepare_context_variables
+from rekuest_next.state.predicate import get_state_name, is_state
+from rekuest_next.state.state import prepare_state_variables
+from rekuest_next.utils import ensure_return_as_list
+from .errors import StartupHookError, StateRequirementsNotMet
 import inspect
 
 
@@ -11,7 +17,15 @@ class BackgroundTask(Protocol):
     def __init__(self):
         pass
 
-    async def arun(self, context: Dict[str, Any]): ...
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]): ...
+
+
+
+@dataclass
+class StartupHookReturns:
+    states: Dict[str, Any]
+    contexts: Dict[str, Any]
+
 
 
 @runtime_checkable
@@ -19,7 +33,7 @@ class StartupHook(Protocol):
     def __init__(self):
         pass
 
-    async def arun(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def arun(self, instance_id: str) -> StartupHookReturns:
         """Should return a dictionary of state variables"""
         ...
 
@@ -38,34 +52,31 @@ class HooksRegistry(BaseModel):
         assert name not in cls.startup_hooks, f"Name {name} already registered"
         cls.startup_hooks[name] = hook
 
-    async def arun_startup(self, instance_id: str) -> Dict[str, Any]:
-        context = {"instance_id": instance_id}
+    async def arun_startup(self, instance_id: str) -> StartupHookReturns:
+
+        states = {}
+        contexts = {}
+    
         for key, hook in self.startup_hooks.items():
             try:
-                answer = await hook.arun(context)
-                if answer is not None:
-                    context.update(answer)
+                answer = await hook.arun(instance_id)
+                for i in answer.states:
+                    if i in states:
+                        raise StartupHookError(f"State {i} already defined")
+                    states[i] = answer.states[i]
+
+                for i in answer.contexts:
+                    if i in contexts:
+                        raise StartupHookError(f"Context {i} already defined")
+                    contexts[i] = answer.contexts[i]
+
+
+
             except Exception as e:
                 raise StartupHookError(f"Startup hook {key} failed") from e
-        return context
+        return StartupHookReturns(states=states, contexts=contexts)
 
-    async def arun_background(self, context: Dict[str, Any]):
-        for name, worker in self.background_worker.items():
-            task = asyncio.create_task(worker.arun(context=context))
-            task.add_done_callback(lambda x: self._background_tasks.pop(name))
-            task.add_done_callback(lambda x: print(f"Worker {name} finished"))
-            self._background_tasks[name] = task
-
-    async def astop_background(self):
-        for name, task in self._background_tasks.items():
-            task.cancel()
-
-        try:
-            await asyncio.gather(
-                *self._background_tasks.values(), return_exceptions=True
-            )
-        except asyncio.CancelledError:
-            pass
+    
 
     def reset(self):
         self.background_worker = {}
@@ -82,8 +93,25 @@ class WrappedStartupHook(StartupHook):
     def __init__(self, func):
         self.func = func
 
-    async def arun(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return await self.func(context)
+    async def arun(self, instance_id: str) -> Optional[Dict[str, Any]]:
+        
+        parsed_returns = await self.func(instance_id)
+
+
+        returns = ensure_return_as_list(parsed_returns)
+
+        states = {}
+        contexts = {}
+
+        for return_value in returns:
+            if is_state(return_value):
+                states[get_state_name(return_value)] = return_value
+            elif is_context(return_value):
+                contexts[get_context_name(return_value)] = return_value
+            else:
+                raise StartupHookError("Startup hook must return state or context variables. Other returns are not allowed")
+
+        return StartupHookReturns(states=states, contexts=contexts)
 
 
 class WrappedBackgroundTask(BackgroundTask):
@@ -91,16 +119,35 @@ class WrappedBackgroundTask(BackgroundTask):
         self.func = func
         # check if has context argument
         arguments = inspect.signature(func).parameters
+
+        self.state_variables, self.state_returns = prepare_state_variables(func)
+
+        self.context_variables, self.context_returns = prepare_context_variables(func)
+
+
         if "context" not in arguments:
             self._do_not_pass_context = True
         else:
             self._do_not_pass_context = False
 
-    async def arun(self, context: Dict[str, Any]):
-        if self._do_not_pass_context:
-            return await self.func()
-        else:
-            return await self.func(context)
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]):
+        kwargs = {}
+        print(self.context_variables)
+        print(self.state_variables)
+        for key, value in self.context_variables.items():
+            try:
+                kwargs[key] = contexts[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        
+        for key, value in self.state_variables.items():
+            try:
+                kwargs[key] = proxies[value]
+            except KeyError as e: 
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        return await self.func(**kwargs)
 
 
 def get_default_hook_registry() -> HooksRegistry:
@@ -126,7 +173,8 @@ def background(
         function = func[0]
         assert asyncio.iscoroutinefunction(
             function
-        ), "Startup hooks must be (currently) async"
+        ) or inspect.isasyncgenfunction(function), "Background tasks be (currently) async"
+
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
         registry.register_background(name, WrappedBackgroundTask(function))
@@ -139,7 +187,8 @@ def background(
             nonlocal registry, name
             assert asyncio.iscoroutinefunction(
                 function
-            ), "Startup hooks must be (currently) async"
+            ) or inspect.isasyncgenfunction(function), "Background tasks be (currently) async"
+
 
             # Simple bypass for now
             @wraps(function)

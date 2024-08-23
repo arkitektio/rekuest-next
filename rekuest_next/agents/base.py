@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -49,6 +50,7 @@ from rekuest_next.messages import (
     AssignInquiry,
     ProvisionEvent,
 )
+import jsonpatch
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.agents.extensions.default import DefaultExtension
 from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
@@ -80,6 +82,7 @@ class BaseAgent(KoiledModel):
 
 
     """
+
     name: str
     instance_id: str = "main"
     rath: RekuestNextRath
@@ -91,11 +94,11 @@ class BaseAgent(KoiledModel):
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[str, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, Assignment] = Field(default_factory=dict)
-    hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry)
     _provisionTaskMap: Dict[str, asyncio.Task] = Field(default_factory=dict)
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
-    _context: Dict[str, Any] = None
+    _contexts: Dict[str, Any] = None
+    _states: Dict[str, Any] = None
 
     started = False
     running = False
@@ -135,7 +138,7 @@ class BaseAgent(KoiledModel):
                     assignation=message.assignation,
                     args=message.args,
                     user=message.user,
-                    context=self._context,
+                    context={},
                 )
 
                 print("Agent converted", message)
@@ -315,11 +318,16 @@ class BaseAgent(KoiledModel):
         logic (like registering definitions in the definition registry).
         """
 
+        print(self.name)
+        print(self.instance_id)
+
         x = await aensure_agent(
-            instance_id=self.instance_id,
+            instance_id=instance_id,
             name=self.name,
             extensions=[extension for extension in self.extensions.keys()],
         )
+
+        print(x)
 
         for extension_name, extension in self.extensions.items():
             definition_registry = await extension.aretrieve_registry()
@@ -331,7 +339,7 @@ class BaseAgent(KoiledModel):
                 SetExtensionTemplatesInput(
                     templates=to_be_created_templates,
                     runCleanup=run_cleanup,
-                    instanceId=self.instance_id,
+                    instanceId=instance_id,
                     extension=extension_name,
                 )
             )
@@ -371,6 +379,21 @@ class BaseAgent(KoiledModel):
             raise ProvisionException("No extensions managed to spawn an actor")
 
         return actor
+    
+    async def astart(self, instance_id: Optional[str] = None):
+        instance_id = self.instance_id
+
+        print("Starting agent", instance_id)
+
+        await self.aregister_definitions(instance_id=instance_id)
+
+        for extension in self.extensions.values():
+            await extension.astart(instance_id)
+
+        
+        
+        self._errorfuture = asyncio.Future()
+        await self.transport.aconnect(instance_id)
 
     async def on_assign_change(self, assignment: Assignment, *args, **kwargs):
         await self.transport.change_assignation(assignment.assignation, *args, **kwargs)
@@ -427,14 +450,8 @@ class BaseAgent(KoiledModel):
         else:
             await self.process(await done.pop())
 
-    async def astart(self, instance_id: Optional[str] = None):
-        self._context = await self.hook_registry.arun_startup(self.instance_id)
-        await self.hook_registry.arun_background(self._context)
 
-        await self.aregister_definitions(instance_id=instance_id)
-        self._errorfuture = asyncio.Future()
-        await self.transport.aconnect(instance_id or self.instance_id)
-        self.started = True
+    
 
     def step(self, *args, **kwargs):
         return unkoil(self.astep, *args, **kwargs)

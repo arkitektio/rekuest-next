@@ -6,7 +6,11 @@ from typing_extensions import Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 from rekuest_nextmessages import Assignation, Reservation, Unassignation, Unreservation
-from rekuest_nextapi.schema import ReservationStatus, AssignationStatus, ReserveParamsInput
+from rekuest_nextapi.schema import (
+    ReservationStatus,
+    AssignationStatus,
+    ReserveParamsInput,
+)
 from enum import Enum
 
 
@@ -52,23 +56,23 @@ class JSONMessage(BaseModel):
 
 
 class ReserveList(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_RESERVATION] = (
         PostmanMessageTypes.LIST_RESERVATION
-    ] = PostmanMessageTypes.LIST_RESERVATION
+    )
     exclude: Optional[List[ReservationStatus]]
 
 
 class ReserveListReply(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_RESERVATION_REPLY] = (
         PostmanMessageTypes.LIST_RESERVATION_REPLY
-    ] = PostmanMessageTypes.LIST_RESERVATION_REPLY
+    )
     reservations: List[Reservation]
 
 
 class ReserveListDenied(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_RESERVATION_DENIED] = (
         PostmanMessageTypes.LIST_RESERVATION_DENIED
-    ] = PostmanMessageTypes.LIST_RESERVATION_DENIED
+    )
     error: str
 
 
@@ -87,9 +91,9 @@ class ReservePubReply(JSONMessage, Reservation):
 
 
 class ReservePubDenied(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.RESERVE_DENIED] = (
         PostmanMessageTypes.RESERVE_DENIED
-    ] = PostmanMessageTypes.RESERVE_DENIED
+    )
     error: str
 
 
@@ -99,42 +103,42 @@ class UnreservePub(JSONMessage):
 
 
 class UnreservePubReply(JSONMessage, Unreservation):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.UNRESERVE_REPLY] = (
         PostmanMessageTypes.UNRESERVE_REPLY
-    ] = PostmanMessageTypes.UNRESERVE_REPLY
+    )
 
 
 class UnreservePubDenied(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.UNRESERVE_DENIED] = (
         PostmanMessageTypes.UNRESERVE_DENIED
-    ] = PostmanMessageTypes.UNRESERVE_DENIED
+    )
     error: str
 
 
 class ReserveSubUpdate(JSONMessage, Reservation):
-    type: Literal[
+    type: Literal[PostmanSubMessageTypes.RESERVE_UPDATE] = (
         PostmanSubMessageTypes.RESERVE_UPDATE
-    ] = PostmanSubMessageTypes.RESERVE_UPDATE
+    )
 
 
 class AssignList(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_ASSIGNATION] = (
         PostmanMessageTypes.LIST_ASSIGNATION
-    ] = PostmanMessageTypes.LIST_ASSIGNATION
+    )
     exclude: Optional[List[AssignationStatus]]
 
 
 class AssingListReply(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_ASSIGNATION_REPLY] = (
         PostmanMessageTypes.LIST_ASSIGNATION_REPLY
-    ] = PostmanMessageTypes.LIST_ASSIGNATION_REPLY
+    )
     assignations: List[Assignation]
 
 
 class AssignListDenied(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.LIST_ASSIGNATION_DENIED] = (
         PostmanMessageTypes.LIST_ASSIGNATION_DENIED
-    ] = PostmanMessageTypes.LIST_ASSIGNATION_DENIED
+    )
     error: str
 
 
@@ -165,19 +169,19 @@ class UnassignPub(JSONMessage):
 
 
 class UnassignPubReply(JSONMessage, Unassignation):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.UNASSIGN_REPLY] = (
         PostmanMessageTypes.UNASSIGN_REPLY
-    ] = PostmanMessageTypes.UNASSIGN_REPLY
+    )
 
 
 class UnassignPubDenied(JSONMessage):
-    type: Literal[
+    type: Literal[PostmanMessageTypes.UNASSIGN_DENIED] = (
         PostmanMessageTypes.UNASSIGN_DENIED
-    ] = PostmanMessageTypes.UNASSIGN_DENIED
+    )
     error: str
 
 
 class AssignSubUpdate(JSONMessage, Assignation):
-    type: Literal[
+    type: Literal[PostmanSubMessageTypes.ASSIGN_UPDATE] = (
         PostmanSubMessageTypes.ASSIGN_UPDATE
-    ] = PostmanSubMessageTypes.ASSIGN_UPDATE
+    )

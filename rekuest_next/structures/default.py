@@ -1,4 +1,3 @@
-
 import importlib
 import os
 import pkgutil
@@ -7,6 +6,7 @@ from typing import Dict
 import logging
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import PortScope
+
 DEFAULT_STRUCTURE_REGISTRY = None
 
 
@@ -15,6 +15,7 @@ async def id_shrink(object: object) -> str:
         return object.id
     except AttributeError:
         raise Exception(f"Object {object} does not have an id attribute")
+
 
 def check_and_import_structures(
     structur_reg: "StructureRegistry",
@@ -93,10 +94,8 @@ def get_default_structure_registry() -> StructureRegistry:
     if not DEFAULT_STRUCTURE_REGISTRY:
         DEFAULT_STRUCTURE_REGISTRY = StructureRegistry()
 
-        DEFAULT_STRUCTURE_REGISTRY = check_and_import_structures(DEFAULT_STRUCTURE_REGISTRY)
-
-
-
-        
+        DEFAULT_STRUCTURE_REGISTRY = check_and_import_structures(
+            DEFAULT_STRUCTURE_REGISTRY
+        )
 
     return DEFAULT_STRUCTURE_REGISTRY

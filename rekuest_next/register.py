@@ -80,7 +80,6 @@ def register_func(
         function_or_actor.__name__
     )  # convert this to camelcase
 
-    
     definition, actor_builder = actifier(
         function_or_actor,
         structure_registry,
@@ -323,14 +322,12 @@ def register_structure(
         return real_decorator
 
 
-
-
 def test(_for: Callable, name: Optional[str] = None, description: Optional[str] = None):
     """Register a test for a function or actor
 
     It should check if the function or actor expects templates as an input,
     and if so register the test for that template.
-    
+
     Args:
         for (Callable): The function or actor to test
         name (Optional[str], optional): The name of the test. Defaults to None.
@@ -348,7 +345,5 @@ def test(_for: Callable, name: Optional[str] = None, description: Optional[str] 
         wrapped_function.__test_description__ = description or func.__doc__
 
         return wrapped_function
-    
-
 
     raise NotImplementedError("This function is not implemented yet")

@@ -18,7 +18,7 @@ def model(cls):
 
     setattr(cls, "__rekuest_model__", inflection.underscore(cls.__name__))
 
-    return dataclass(cls)
+    return cls
 
 
 def is_model(cls):

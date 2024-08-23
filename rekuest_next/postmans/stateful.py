@@ -46,9 +46,9 @@ class StatefulPostman(BasePostman):
 
     async def aunreserve(self, reservation_id: str) -> ReservationFragment:
         unreservation = await self.transport.aunreserve(reservation_id)
-        self.reservations[
-            unreservation.reservation
-        ].status = ReservationStatus.CANCELING
+        self.reservations[unreservation.reservation].status = (
+            ReservationStatus.CANCELING
+        )
         return self.reservations[unreservation.reservation]
 
     async def aassign(
@@ -66,9 +66,9 @@ class StatefulPostman(BasePostman):
         assignation: str,
     ) -> AssignationFragment:
         unassignation = await self.transport.aunassign(assignation)
-        self.assignations[
-            unassignation.assignation
-        ].status = AssignationStatus.CANCELING
+        self.assignations[unassignation.assignation].status = (
+            AssignationStatus.CANCELING
+        )
         return unassignation
 
     def register_reservation_queue(

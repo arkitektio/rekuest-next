@@ -1,0 +1,13 @@
+mutation SetState($input: SetStateInput!) {
+  setState(input: $input) {
+    ...State
+  }
+}
+
+mutation UpdateState($input: UpdateStateInput!) {
+  updateState(input: $input) {
+    ...State
+  }
+}
+
+

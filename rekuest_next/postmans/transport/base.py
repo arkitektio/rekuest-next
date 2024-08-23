@@ -26,11 +26,9 @@ class PostmanTransport(Protocol):
         kwargs: Dict[str, Any],
         persist=True,
         log=False,
-    ) -> Assignation:
-        ...
+    ) -> Assignation: ...
 
-    async def aunassign(self, assignation: str) -> Unassignation:
-        ...
+    async def aunassign(self, assignation: str) -> Unassignation: ...
 
     async def areserve(
         self,
@@ -38,21 +36,17 @@ class PostmanTransport(Protocol):
         params: ReserveParamsInput = None,
         provision: str = None,
         reference: str = "default",
-    ) -> Reservation:
-        ...
+    ) -> Reservation: ...
 
     async def aunreserve(
         self,
         reservation: str,
-    ) -> Unreservation:
-        ...
+    ) -> Unreservation: ...
 
     async def alist_assignations(
         self, exclude: Optional[AssignationStatus] = None
-    ) -> List[Assignation]:
-        ...
+    ) -> List[Assignation]: ...
 
     async def alist_reservations(
         self, exclude: Optional[ReservationStatus] = None
-    ) -> List[Reservation]:
-        ...
+    ) -> List[Reservation]: ...

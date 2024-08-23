@@ -29,8 +29,7 @@ class Broadcast(Protocol):
     def __call__(
         self,
         assignation: Union[Assignation, Unassignation, Provision, Unprovision],
-    ) -> Awaitable[None]:
-        ...
+    ) -> Awaitable[None]: ...
 
 
 class LocalTransport(KoiledModel):

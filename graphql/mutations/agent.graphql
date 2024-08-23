@@ -3,5 +3,6 @@ mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!], $name: St
     id
     instanceId
     extensions
+    name
   }
 }

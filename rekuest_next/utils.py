@@ -29,6 +29,15 @@ from rekuest_next.structures.registry import get_current_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 
 
+def ensure_return_as_list(value: Any) -> list:
+    if not value:
+        return []
+    if isinstance(value, tuple):
+        return value
+    return [value]
+
+
+
 def useUser() -> str:
     """Use the current User
 
@@ -419,10 +428,6 @@ def reserved(
     )
 
 
-
 def templates_for(node: NodeFragment) -> list[TemplateFragment]:
-
-
-
 
     return node.templates

@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 import uuid
 
 
-
 class Passport(BaseModel):
     instance_id: str
     provision: str
@@ -22,7 +21,7 @@ class Assignment(BaseModel):
     args: Dict[str, Any] = Field(default_factory=dict)
     user: Optional[str]
     reference: Optional[str]
-    context: Dict[str, Any]  = Field(default_factory=dict)
+    context: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AssignmentUpdate(BaseModel):
@@ -37,7 +36,8 @@ class AssignmentUpdate(BaseModel):
 class Unassignment(BaseModel):
     assignation: str
     id: str
-    context: Dict[str, Any]  = Field(default_factory=dict)
+    context: Dict[str, Any] = Field(default_factory=dict)
+
 
 @runtime_checkable
 class ActorBuilder(Protocol):

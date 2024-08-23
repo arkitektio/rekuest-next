@@ -1,6 +1,8 @@
 import inspect
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Type, Union
 
+from rekuest_next.agents.context import prepare_context_variables
+from rekuest_next.state.state import prepare_state_variables
 from rekuest_next.api.schema import ValidatorInput
 from rekuest_next.actors.base import Passport
 from rekuest_next.actors.functional import (
@@ -91,6 +93,9 @@ def reactify(
         **params,
     )
 
+    state_variables, state_returns = prepare_state_variables(function)
+    context_variables, context_returns = prepare_context_variables(function)
+
     is_coroutine = inspect.iscoroutinefunction(function)
     is_asyncgen = inspect.isasyncgenfunction(function)
     is_method = inspect.ismethod(function)
@@ -106,6 +111,10 @@ def reactify(
         "on_unprovide": on_unprovide if on_unprovide else async_none_unprovide,
         "structure_registry": structure_registry,
         "definition": definition,
+        "state_variables": state_variables,
+        "state_returns": state_returns,
+        "context_variables": context_variables,
+        "context_returns": context_returns,
     }
 
     if is_coroutine:

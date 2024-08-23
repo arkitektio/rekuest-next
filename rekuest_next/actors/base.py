@@ -311,6 +311,7 @@ class SerializingActor(Actor):
     structure_registry: StructureRegistry
     expand_inputs: bool = True
     shrink_outputs: bool = True
+    state_variables: Dict[str, Any] = Field(default_factory=dict)
 
 
 Actor.update_forward_refs()

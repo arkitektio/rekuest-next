@@ -322,8 +322,8 @@ async def shrink_outputs(
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert (
-        len(node.returns) == len(returns)
+    assert len(node.returns) == len(
+        returns
     ), (  # We are dealing with a single output, convert it to a proper port like structure
         f"Mismatch in Return Length: expected {len(node.returns)} got {len(returns)}"
     )

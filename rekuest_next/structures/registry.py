@@ -410,4 +410,4 @@ DEFAULT_STRUCTURE_REGISTRY = None
 
 
 def get_current_structure_registry(allow_default=True) -> StructureRegistry:
-    return current_structure_registry.get()
+    return current_structure_registry.get(None)

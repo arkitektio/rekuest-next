@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rekuest-next"
-version = "0.2.15"
+version = "0.2.23"
 description = "rpc and node backbone"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
@@ -15,6 +15,7 @@ pydantic = ">=1.9.0"
 annotated-types = "^0.4.0"
 rath = ">=0.4.0"
 fieldz = "^0.0.2"
+jsonpatch = "^1.33"
 
 [tool.ruff]
 extend-select = ["ANN", "D1"]

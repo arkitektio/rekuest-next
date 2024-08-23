@@ -24,15 +24,15 @@ from rekuest_next.widgets import SearchWidget
 
 def register_structures(structure_reg):
     structure_reg.register_as_structure(
-            TemplateFragment,
-            "@rekuest/template",
-            scope=PortScope.GLOBAL,
-            aexpand=aget_template,
-            ashrink=id_shrink,
-            default_widget=SearchWidget(
-                query=Search_templatesQuery.Meta.document, ward="rekuest"
-            ),
-        )
+        TemplateFragment,
+        "@rekuest/template",
+        scope=PortScope.GLOBAL,
+        aexpand=aget_template,
+        ashrink=id_shrink,
+        default_widget=SearchWidget(
+            query=Search_templatesQuery.Meta.document, ward="rekuest"
+        ),
+    )
 
     structure_reg.register_as_structure(
         NodeFragment,

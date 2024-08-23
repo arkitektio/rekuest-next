@@ -1,0 +1,5 @@
+mutation CreateDashboard($input: CreateDashboardInput!) {
+  createDashboard(input: $input) {
+    ...Dashboard
+  }
+}
