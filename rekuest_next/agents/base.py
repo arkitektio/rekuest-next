@@ -50,7 +50,6 @@ from rekuest_next.messages import (
     AssignInquiry,
     ProvisionEvent,
 )
-import jsonpatch
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.agents.extensions.default import DefaultExtension
 from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
@@ -294,7 +293,7 @@ class BaseAgent(KoiledModel):
         else:
             raise AgentException(f"Unknown message type {type(message)}")
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def atear_down(self):
         cancelations = [actor.acancel() for actor in self.managed_actors.values()]
         # just stopping the actor, not cancelling the provision..
 
@@ -304,6 +303,11 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
+        for extension in self.extensions.values():
+            await extension.atear_down()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.atear_down()
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
     async def aregister_definitions(self, instance_id: Optional[str] = None):
@@ -318,16 +322,11 @@ class BaseAgent(KoiledModel):
         logic (like registering definitions in the definition registry).
         """
 
-        print(self.name)
-        print(self.instance_id)
-
         x = await aensure_agent(
             instance_id=instance_id,
             name=self.name,
             extensions=[extension for extension in self.extensions.keys()],
         )
-
-        print(x)
 
         for extension_name, extension in self.extensions.items():
             definition_registry = await extension.aretrieve_registry()
@@ -372,14 +371,13 @@ class BaseAgent(KoiledModel):
                 collector=self.collector,
             )
         except Exception as e:
-            print(self.extensions)
             raise ProvisionException("Error spawning actor from extension") from e
 
         if not actor:
             raise ProvisionException("No extensions managed to spawn an actor")
 
         return actor
-    
+
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
@@ -390,8 +388,6 @@ class BaseAgent(KoiledModel):
         for extension in self.extensions.values():
             await extension.astart(instance_id)
 
-        
-        
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id)
 
@@ -450,9 +446,6 @@ class BaseAgent(KoiledModel):
         else:
             await self.process(await done.pop())
 
-
-    
-
     def step(self, *args, **kwargs):
         return unkoil(self.astep, *args, **kwargs)
 
@@ -475,12 +468,17 @@ class BaseAgent(KoiledModel):
             raise
 
     async def aprovide(self, instance_id: Optional[str] = None):
-        logger.info(
-            f"Launching provisioning task. We are running {self.transport.instance_id}"
-        )
-        await self.astart(instance_id=instance_id)
-        logger.info("Starting to listen for requests")
-        await self.aloop()
+        try:
+            logger.info(
+                f"Launching provisioning task. We are running {self.transport.instance_id}"
+            )
+            await self.astart(instance_id=instance_id)
+            logger.info("Starting to listen for requests")
+            await self.aloop()
+        except asyncio.CancelledError as e:
+            logger.info("Provisioning task cancelled. We are running")
+            await self.atear_down()
+            raise
 
     async def __aenter__(self):
         self._inqueue = asyncio.Queue()

@@ -115,7 +115,6 @@ class EnumHook(BaseModel):
             ],
         )
 
-        print(default_widget)
 
         return FullFilledStructure(
             fullfilled_by="EnumHook",

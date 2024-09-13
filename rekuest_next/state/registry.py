@@ -78,7 +78,6 @@ class StateRegistry(KoiledModel):
         for port in self.state_schemas[state_key].ports:
             shrinked[port.key] = await ashrink_return(port, getattr(state, port.key), self.registry_schemas[state_key])
 
-        print(shrinked)
         return shrinked
 
     def dump(self):

@@ -21,7 +21,6 @@ class Assignment(BaseModel):
     args: Dict[str, Any] = Field(default_factory=dict)
     user: Optional[str]
     reference: Optional[str]
-    context: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AssignmentUpdate(BaseModel):
@@ -47,6 +46,8 @@ class ActorBuilder(Protocol):
         transport: Any,
         collector: Any,
         definition_registry: Any,
+        contexts: Dict[str, Any],
+        proxies: Dict[str, Any],
     ) -> Any: ...
 
 

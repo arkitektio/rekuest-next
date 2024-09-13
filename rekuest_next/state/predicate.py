@@ -4,8 +4,6 @@ from typing import Type, TypeVar
 T = TypeVar("T")
 
 def is_state(cls: Type[T]) -> bool:
-    print(cls)
-    print(dir(cls))
     return hasattr(cls, "__rekuest_state__")
 
 def get_state_name(cls: Type[T]) -> str:

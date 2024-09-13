@@ -4,7 +4,4 @@ fragment StateSchema on StateSchema {
   ports {
     ...Port
   }
-  agent {
-    id
-  }
 }

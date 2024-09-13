@@ -1,21 +1,21 @@
-from rekuest_next.traits.ports import ReturnWidgetInputTrait, PortTrait
-from rekuest_next.funcs import subscribe, execute, asubscribe, aexecute
-from typing_extensions import Literal
-from typing import List, Iterator, Tuple, Optional, AsyncIterator, Any
-from enum import Enum
 from rekuest_next.traits.node import Reserve
-from rekuest_next.rath import RekuestNextRath
+from rekuest_next.funcs import aexecute, asubscribe, subscribe, execute
+from datetime import datetime
 from rekuest_next.scalars import (
-    NodeHash,
-    Identifier,
     Args,
-    InstanceId,
+    NodeHash,
     ValidatorFunction,
+    InstanceId,
+    Identifier,
     SearchQuery,
 )
-from pydantic import BaseModel, Field
-from datetime import datetime
+from typing_extensions import Literal
+from typing import Iterator, List, Optional, Tuple, Any, AsyncIterator
+from rekuest_next.rath import RekuestNextRath
 from rath.scalars import ID
+from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
+from pydantic import BaseModel, Field
+from enum import Enum
 
 
 class AssignWidgetKind(str, Enum):
@@ -24,6 +24,25 @@ class AssignWidgetKind(str, Enum):
     SLIDER = "SLIDER"
     CUSTOM = "CUSTOM"
     STRING = "STRING"
+    STATE_CHOICE = "STATE_CHOICE"
+
+
+class PortScope(str, Enum):
+    GLOBAL = "GLOBAL"
+    LOCAL = "LOCAL"
+
+
+class PortKind(str, Enum):
+    INT = "INT"
+    STRING = "STRING"
+    STRUCTURE = "STRUCTURE"
+    LIST = "LIST"
+    BOOL = "BOOL"
+    DICT = "DICT"
+    FLOAT = "FLOAT"
+    DATE = "DATE"
+    UNION = "UNION"
+    MODEL = "MODEL"
 
 
 class ReturnWidgetKind(str, Enum):
@@ -52,19 +71,6 @@ class UIChildKind(str, Enum):
 class NodeKind(str, Enum):
     FUNCTION = "FUNCTION"
     GENERATOR = "GENERATOR"
-
-
-class PortKind(str, Enum):
-    INT = "INT"
-    STRING = "STRING"
-    STRUCTURE = "STRUCTURE"
-    LIST = "LIST"
-    BOOL = "BOOL"
-    DICT = "DICT"
-    FLOAT = "FLOAT"
-    DATE = "DATE"
-    UNION = "UNION"
-    MODEL = "MODEL"
 
 
 class ReservationEventKind(str, Enum):
@@ -108,11 +114,6 @@ class LogLevel(str, Enum):
     ERROR = "ERROR"
     WARN = "WARN"
     CRITICAL = "CRITICAL"
-
-
-class PortScope(str, Enum):
-    GLOBAL = "GLOBAL"
-    LOCAL = "LOCAL"
 
 
 class PanelKind(str, Enum):
@@ -174,6 +175,7 @@ class DefinitionInput(BaseModel):
     description: Optional[str] = None
     collections: Tuple[str, ...]
     name: str
+    stateful: bool
     port_groups: Tuple["PortGroupInput", ...] = Field(alias="portGroups")
     args: Tuple["PortInput", ...]
     returns: Tuple["PortInput", ...]
@@ -302,12 +304,16 @@ class AssignWidgetInput(BaseModel):
     kind: AssignWidgetKind
     query: Optional[SearchQuery] = None
     choices: Optional[Tuple["ChoiceInput", ...]] = None
+    state_choices: Optional[str] = Field(alias="stateChoices", default=None)
+    follow_value: Optional[str] = Field(alias="followValue", default=None)
     min: Optional[int] = None
     max: Optional[int] = None
     step: Optional[int] = None
     placeholder: Optional[str] = None
     hook: Optional[str] = None
     ward: Optional[str] = None
+    fallback: Optional["AssignWidgetInput"] = None
+    filters: Optional[Tuple[ChildPortInput, ...]] = None
 
     class Config:
         """A config class"""
@@ -518,7 +524,6 @@ class UIChildInput(BaseModel):
 
 class CreateStateSchemaInput(BaseModel):
     state_schema: "StateSchemaInput" = Field(alias="stateSchema")
-    instance_id: InstanceId = Field(alias="instanceId")
 
     class Config:
         """A config class"""
@@ -541,6 +546,7 @@ class StateSchemaInput(BaseModel):
 
 
 class CreatePanelInput(BaseModel):
+    name: str
     kind: PanelKind
     state: Optional[ID] = None
     state_key: Optional[str] = Field(alias="stateKey", default=None)
@@ -551,6 +557,8 @@ class CreatePanelInput(BaseModel):
     )
     interface: Optional[str] = None
     args: Optional[Args] = None
+    submit_on_change: Optional[bool] = Field(alias="submitOnChange", default=None)
+    submit_on_load: Optional[bool] = Field(alias="submitOnLoad", default=None)
 
     class Config:
         """A config class"""
@@ -562,6 +570,7 @@ class CreatePanelInput(BaseModel):
 
 class SetStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
+    instance_id: InstanceId = Field(alias="instanceId")
     value: Args
 
     class Config:
@@ -574,6 +583,7 @@ class SetStateInput(BaseModel):
 
 class UpdateStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
+    instance_id: InstanceId = Field(alias="instanceId")
     patches: Tuple[Args, ...]
 
     class Config:
@@ -642,11 +652,22 @@ class ProvisionFragment(BaseModel):
         frozen = True
 
 
+class StateFragmentAgent(BaseModel):
+    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    id: ID
+
+    class Config:
+        """A config class"""
+
+        frozen = True
+
+
 class StateFragment(BaseModel):
     typename: Optional[Literal["State"]] = Field(alias="__typename", exclude=True)
     id: ID
     value: Args
     state_schema: "StateSchemaFragment" = Field(alias="stateSchema")
+    agent: StateFragmentAgent
 
     class Config:
         """A config class"""
@@ -996,22 +1017,11 @@ class AssignationChangeEventFragment(BaseModel):
         frozen = True
 
 
-class StateSchemaFragmentAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
-    id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-
-
 class StateSchemaFragment(BaseModel):
     typename: Optional[Literal["StateSchema"]] = Field(alias="__typename", exclude=True)
     id: ID
     name: str
     ports: Tuple[PortFragment, ...]
-    agent: StateSchemaFragmentAgent
 
     class Config:
         """A config class"""
@@ -1095,6 +1105,7 @@ class DefinitionFragment(Reserve, BaseModel):
     is_dev: bool = Field(alias="isDev")
     is_test_for: Tuple[DefinitionFragmentIstestfor, ...] = Field(alias="isTestFor")
     port_groups: Tuple[DefinitionFragmentPortgroups, ...] = Field(alias="portGroups")
+    stateful: bool
 
     class Config:
         """A config class"""
@@ -1147,7 +1158,7 @@ class SetStateMutation(BaseModel):
         input: SetStateInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n  agent {\n    id\n  }\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n  }\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n  }\n  agent {\n    id\n  }\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n  }\n}"
 
 
 class UpdateStateMutation(BaseModel):
@@ -1157,7 +1168,7 @@ class UpdateStateMutation(BaseModel):
         input: UpdateStateInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n  agent {\n    id\n  }\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n  }\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n  }\n  agent {\n    id\n  }\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n  }\n}"
 
 
 class EnsureAgentMutationEnsureagent(BaseModel):
@@ -1262,7 +1273,7 @@ class CreateStateSchemaMutation(BaseModel):
         input: CreateStateSchemaInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n  agent {\n    id\n  }\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n  }\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n  }\n}"
 
 
 class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
@@ -1310,7 +1321,7 @@ class CreateTemplateMutation(BaseModel):
         input: CreateTemplateInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n  }\n}"
 
 
 class SetExtensionTemplatesMutation(BaseModel):
@@ -1322,7 +1333,7 @@ class SetExtensionTemplatesMutation(BaseModel):
         input: SetExtensionTemplatesInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
 
 
 class MyTemplateAtQuery(BaseModel):
@@ -1334,7 +1345,7 @@ class MyTemplateAtQuery(BaseModel):
         node_id: Optional[ID] = Field(alias="nodeId", default=None)
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
@@ -1428,7 +1439,7 @@ class Get_provisionQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
 
 
 class GetMeNodesQueryNodes(Reserve, BaseModel):
@@ -1568,7 +1579,7 @@ class Get_templateQuery(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
 
 
 class Search_templatesQueryOptions(BaseModel):
@@ -1600,7 +1611,7 @@ class Templates_forQuery(BaseModel):
         hash: NodeHash
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n  }\n}"
 
 
 class FindQuery(BaseModel):
@@ -1612,7 +1623,7 @@ class FindQuery(BaseModel):
         hash: Optional[NodeHash] = Field(default=None)
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
@@ -1622,7 +1633,7 @@ class RetrieveallQuery(BaseModel):
         pass
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
 
 
 class Search_nodesQueryOptions(Reserve, BaseModel):

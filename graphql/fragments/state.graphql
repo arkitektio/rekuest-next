@@ -4,4 +4,7 @@ fragment State on State {
   stateSchema {
     ...StateSchema
   }
+  agent {
+    id
+  }
 }

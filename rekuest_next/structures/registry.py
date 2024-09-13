@@ -176,7 +176,6 @@ class StructureRegistry(BaseModel):
                 ) from e
 
     def retrieve_model_expander(self, identifier: str):
-        print(self._identifier_model_map)
         return build_async_model_expander(self._identifier_model_map[identifier])
 
     def register_as_model(self, cls: Type, identifier: str) -> None:

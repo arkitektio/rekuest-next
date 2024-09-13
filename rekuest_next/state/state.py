@@ -63,7 +63,6 @@ def prepare_state_variables(function) -> Dict[str, Any]:
 
 
     for key, value in parameters.items():
-        print(key, value)
         if is_state(value.annotation):
             state_variables[key] = get_state_name(value.annotation)
 

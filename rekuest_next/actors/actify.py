@@ -61,6 +61,7 @@ def reactify(
     bypass_expand=False,
     on_provide=None,
     on_unprovide=None,
+    stateful=False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] = None,
     effects: Dict[str, EffectInput] = None,
@@ -79,6 +80,15 @@ def reactify(
     from the rekuest server.
     """
 
+
+
+    state_variables, state_returns = prepare_state_variables(function)
+    context_variables, context_returns = prepare_context_variables(function)
+
+    if state_variables:
+        stateful = True
+
+
     definition = prepare_definition(
         function,
         structure_registry,
@@ -87,14 +97,12 @@ def reactify(
         port_groups=port_groups,
         collections=collections,
         groups=groups,
+        stateful=stateful,
         validators=validators,
         effects=effects,
         is_test_for=is_test_for,
         **params,
     )
-
-    state_variables, state_returns = prepare_state_variables(function)
-    context_variables, context_returns = prepare_context_variables(function)
 
     is_coroutine = inspect.iscoroutinefunction(function)
     is_asyncgen = inspect.isasyncgenfunction(function)

@@ -37,7 +37,6 @@ def ensure_return_as_list(value: Any) -> list:
     return [value]
 
 
-
 def useUser() -> str:
     """Use the current User
 
@@ -216,8 +215,6 @@ async def aiterate_raw(
         isHook=False,
     )
 
-    print("assogm omüit", x)
-
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
             yield i.returns
@@ -264,6 +261,7 @@ async def acall_raw(
         parent=parent,
         log=log,
         isHook=False,
+        ephemeral=False,
     )
 
     print("assogm omüit", x)
@@ -429,5 +427,4 @@ def reserved(
 
 
 def templates_for(node: NodeFragment) -> list[TemplateFragment]:
-
     return node.templates

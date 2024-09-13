@@ -11,12 +11,9 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class AgentExtension(Protocol):
-
     async def astart(self):
         """This should be called when the agent starts"""
         ...
-
-
 
     async def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its templates?"""
@@ -79,4 +76,8 @@ class AgentExtension(Protocol):
 
 
         """
+        ...
+
+    async def atear_down(self):
+        """This should be called when the agent is torn down"""
         ...

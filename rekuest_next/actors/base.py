@@ -20,6 +20,7 @@ from rekuest_next.actors.errors import ProvisionDelegateException, UnknownMessag
 from rekuest_next.actors.transport.local_transport import ProxyActorTransport
 from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
 from rekuest_next.actors.types import Assignment, Passport, Unassignment
+from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.api.schema import (
     AssignationEventKind,
     LogLevel,
@@ -312,7 +313,28 @@ class SerializingActor(Actor):
     expand_inputs: bool = True
     shrink_outputs: bool = True
     state_variables: Dict[str, Any] = Field(default_factory=dict)
+    context_variables: Dict[str, Any] = Field(default_factory=dict)
+    contexts: Dict[str, Any] = Field(default_factory=dict)
+    proxies: Dict[str, Any] = Field(default_factory=dict)
 
+
+    async def add_local_variables(self, kwargs):
+        for key, value in self.context_variables.items():
+            try:
+                kwargs[key] = self.contexts[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        
+        for key, value in self.state_variables.items():
+            try:
+                kwargs[key] = self.proxies[value]
+            except KeyError as e: 
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+            
+
+        return kwargs
+    
 
 Actor.update_forward_refs()
 SerializingActor.update_forward_refs()

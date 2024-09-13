@@ -74,6 +74,9 @@ def is_union(cls):
         and get_args(cls)[1] != type(None)
     )
 
+def is_tuple(cls):
+    return get_origin(cls) in (tuple, typing.Tuple)
+
 
 def is_list(cls):
     """Check if a class is a list
@@ -676,6 +679,7 @@ def prepare_definition(
     collections: List[str] = [],
     interfaces: Optional[List[str]] = None,
     description: str = None,
+    stateful: bool = False,
     is_test_for: Optional[List[str]] = None,
     port_label_map: Optional[Dict[str, str]] = None,
     port_description_map: Optional[Dict[str, str]] = None,
@@ -831,59 +835,27 @@ def prepare_definition(
 
     function_outs_annotation = sig.return_annotation
 
-    if hasattr(function_outs_annotation, "_name"):
-        if function_outs_annotation._name == "Tuple":
-            try:
-                for index, cls in enumerate(function_outs_annotation.__args__):
-                    key = f"return{index}"
-                    return_widget = return_widgets.pop(key, None)
-                    assign_widget = widgets.pop(key, None)
-                    port_effects = effects.pop(key, None)
-                    this_port_groups = groups.pop(key, None)
+    if is_tuple(function_outs_annotation):
+        for index, cls in enumerate(get_args(function_outs_annotation)):
+            key = f"return{index}"
+            return_widget = return_widgets.pop(key, None)
+            assign_widget = widgets.pop(key, None)
+            port_effects = effects.pop(key, None)
+            this_port_groups = groups.pop(key, None)
 
-                    returns.append(
-                        convert_object_to_port(
-                            cls,
-                            key,
-                            structure_registry,
-                            return_widget=return_widget,
-                            effects=port_effects,
-                            description=doc_param_description_map.pop(key, None),
-                            label=doc_param_label_map.pop(key, None),
-                            assign_widget=assign_widget,
-                            groups=this_port_groups,
-                        )
-                    )
-            except Exception as e:
-                raise DefinitionError(
-                    f"Could not convert Return of function {function.__name__} to"
-                    f" ArgPort: {cls}"
-                ) from e
-        else:
-            try:
-                key = "return0"
-                return_widget = return_widgets.pop(key, None)
-                assign_widget = widgets.pop(key, None)
-                this_port_groups = groups.get(key, None)
-                port_effects = effects.pop(key, None)
-                returns.append(
-                    convert_object_to_port(
-                        function_outs_annotation,
-                        key,
-                        structure_registry,
-                        return_widget=return_widget,
-                        effects=port_effects,
-                        description=doc_param_description_map.pop(key, None),
-                        label=doc_param_label_map.pop(key, None),
-                        assign_widget=assign_widget,
-                        groups=this_port_groups,
-                    )
-                )  # Other types will be converted to normal lists and shit
-            except Exception as e:
-                raise DefinitionError(
-                    f"Could not convert Return of function {function.__name__} to"
-                    f" ArgPort: {function_outs_annotation}"
-                ) from e
+            returns.append(
+                convert_object_to_port(
+                    cls,
+                    key,
+                    structure_registry,
+                    return_widget=return_widget,
+                    effects=port_effects,
+                    description=doc_param_description_map.pop(key, None),
+                    label=doc_param_label_map.pop(key, None),
+                    assign_widget=assign_widget,
+                    groups=this_port_groups,
+                )
+            )
     else:
         # We are dealing with a non tuple return
         if function_outs_annotation is None:
@@ -942,6 +914,7 @@ def prepare_definition(
             "interfaces": interfaces,
             "portGroups": port_groups,
             "isDev": is_dev,
+            "stateful": stateful,
             "isTestFor": is_test_for or [],
         }
     )

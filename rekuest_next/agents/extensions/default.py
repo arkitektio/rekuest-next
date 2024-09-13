@@ -5,7 +5,13 @@ from rekuest_next.definition.registry import (
     DefinitionRegistry,
     get_default_definition_registry,
 )
-from rekuest_next.api.schema import TemplateFragment, StateSchemaInput, CreateStateSchemaInput, acreate_state_schema, StateSchemaFragment
+from rekuest_next.api.schema import (
+    TemplateFragment,
+    StateSchemaInput,
+    CreateStateSchemaInput,
+    acreate_state_schema,
+    StateSchemaFragment,
+)
 from rekuest_next.actors.base import Actor, Passport, ActorTransport
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -15,7 +21,7 @@ from rekuest_next.state.registry import StateRegistry, get_default_state_registr
 import jsonpatch
 import asyncio
 
-from rekuest_next.state.shrink import ashrink_state 
+from rekuest_next.state.shrink import ashrink_state
 
 
 class DefaultExtensionError(ExtensionError):
@@ -30,9 +36,7 @@ class DefaultExtension(BaseModel):
     definition_registry: DefinitionRegistry = Field(
         default_factory=get_default_definition_registry
     )
-    state_registry:  StateRegistry = Field(
-        default_factory=get_default_state_registry
-    )
+    state_registry: StateRegistry = Field(default_factory=get_default_state_registry)
     hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry)
     proxies: Dict[str, StateProxy] = Field(default_factory=dict)
     contexts: Dict[str, Any] = Field(default_factory=dict)
@@ -42,40 +46,41 @@ class DefaultExtension(BaseModel):
     _state_schemas: Dict[str, StateSchemaFragment] = {}
     _background_tasks = {}
     _state_lock: Optional[asyncio.Lock] = None
+    _instance_id: Optional[str] = None
 
     async def astart(self, instance_id):
         """This should be called when the agent starts"""
 
-        await self.aregister_schemas(instance_id=instance_id)
+        await self.aregister_schemas()
+
+        self._instance_id = instance_id
 
         self._state_lock = asyncio.Lock()
-
 
         hook_return = await self.hook_registry.arun_startup(instance_id)
 
         for state_key, state_value in hook_return.states.items():
             print(f"Setting state {state_key} to {state_value}")
             await self.ainit_state(state_key, state_value)
-        
+
+        for context_key, context_value in hook_return.contexts.items():
+            self.contexts[context_key] = context_value
+
         await self.arun_background()
-
-
 
     async def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its templates?"""
         return True
-    
-    async def aregister_schemas(self, instance_id):
+
+    async def aregister_schemas(self):
         for name, state_schema in self.state_registry.state_schemas.items():
+            self._state_schemas[name] = await acreate_state_schema(
+                input=CreateStateSchemaInput(stateSchema=state_schema)
+            )
 
-            self._state_schemas[name] = await acreate_state_schema(input=CreateStateSchemaInput(
-                instanceId=instance_id,
-                stateSchema=state_schema
-            ))
-
-    
     async def ainit_state(self, state_key: str, value: Any):
         from rekuest_next.api.schema import aset_state, SetStateInput
+
         schema = self._state_schemas[state_key]
         """
         if not schema.validate(value):
@@ -84,23 +89,25 @@ class DefaultExtension(BaseModel):
 
         # Shrink the value to the schema
 
-        shrunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=value)
-        await aset_state(input=SetStateInput(stateSchema=schema.id, value=shrunk_state))
-
+        shrunk_state = await self.state_registry.ashrink_state(
+            state_key=state_key, state=value
+        )
+        await aset_state(
+            input=SetStateInput(
+                stateSchema=schema.id, value=shrunk_state, instanceId=self._instance_id
+            )
+        )
 
         self._current_states[schema.name] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
-
 
     async def aget_state(self, state_key: str, attribute: Any) -> Any:
         async with self._state_lock:
             return getattr(self._current_states[state_key], attribute)
 
-
-
     async def aset_state(self, state_key: str, attribute: Any, value: Any):
         from rekuest_next.api.schema import UpdateStateInput, aupdate_state
-        print("Setting value", value)
+
         async with self._state_lock:
             schema = self._state_schemas[state_key]
             """
@@ -108,28 +115,30 @@ class DefaultExtension(BaseModel):
                 raise DefaultExtensionError(f"Value {value} does not match schema {schema}")
             """
 
-            old_shrunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=self._current_states[state_key])
+            old_shrunk_state = await self.state_registry.ashrink_state(
+                state_key=state_key, state=self._current_states[state_key]
+            )
             setattr(self._current_states[state_key], attribute, value)
-            new_shunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=self._current_states[state_key])
-
+            new_shunk_state = await self.state_registry.ashrink_state(
+                state_key=state_key, state=self._current_states[state_key]
+            )
 
             patch = jsonpatch.make_patch(old_shrunk_state, new_shunk_state)
 
-            print("Patch", patch.patch)
-
-
             # Shrink the value to the schema
-            await aupdate_state(input=UpdateStateInput(stateSchema=schema.id, patches=patch.patch))
-            
-
-
-
-
+            await aupdate_state(
+                input=UpdateStateInput(
+                    stateSchema=schema.id,
+                    patches=patch.patch,
+                    instanceId=self._instance_id,
+                )
+            )
 
     async def arun_background(self):
-
         for name, worker in self.hook_registry.background_worker.items():
-            task = asyncio.create_task(worker.arun(contexts=self.contexts, proxies=self.proxies))
+            task = asyncio.create_task(
+                worker.arun(contexts=self.contexts, proxies=self.proxies)
+            )
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
@@ -144,7 +153,6 @@ class DefaultExtension(BaseModel):
             )
         except asyncio.CancelledError:
             pass
-
 
     async def aspawn_actor_from_template(
         self,
@@ -172,11 +180,16 @@ class DefaultExtension(BaseModel):
             transport=transport,
             collector=collector,
             agent=agent,
+            contexts=self.contexts,
+            proxies=self.proxies,
         )
 
     async def aretrieve_registry(self):
         return self.definition_registry
-    
+
+    async def atear_down(self):
+        await self.astop_background()
+
     class Config:
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True

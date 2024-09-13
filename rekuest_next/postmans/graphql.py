@@ -65,7 +65,6 @@ class GraphQLPostman(BasePostman):
             if not self._watching:
                 await self.start_watching()
 
-        print(assign)
 
         try:
             assignation = await aassign(assign)

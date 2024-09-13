@@ -18,6 +18,7 @@ fragment Definition on Node {
   portGroups {
     key
   }
+  stateful
 }
 
 fragment Node on Node {

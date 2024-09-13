@@ -45,7 +45,6 @@ class AsyncFuncActor(SerializingActor):
         transport: AssignTransport,
     ):
         try:
-            print(assignment.args)
 
 
             
@@ -57,7 +56,7 @@ class AsyncFuncActor(SerializingActor):
 
             )
 
-            print(params)
+            params = await self.add_local_variables(params)
 
             await transport.log_event(
                 kind=AssignationEventKind.ASSIGN,
@@ -124,11 +123,12 @@ class AsyncGenActor(SerializingActor):
                 skip_expanding=not self.expand_inputs,
             )
 
+            params = await self.add_local_variables(params)
+
             await transport.log_event(
                 kind=AssignationEventKind.ASSIGN,
             )
 
-            print(assignment.assignation)
 
             async with AssignmentContext(
                 assignment=assignment, transport=transport, passport=self.passport
@@ -145,7 +145,6 @@ class AsyncGenActor(SerializingActor):
                         assignment, parse_collectable(self.definition, returns)
                     )
 
-                    print("Yielding for", assignment.assignation)
 
                     await transport.log_event(
                         kind=AssignationEventKind.YIELD,
@@ -210,6 +209,10 @@ class ThreadedFuncActor(SerializingActor):
                 structure_registry=self.structure_registry,
                 skip_expanding=not self.expand_inputs,
             )
+
+
+            params = await self.add_local_variables(params)
+
 
             await transport.log_event(
                 kind=AssignationEventKind.ASSIGN,
@@ -278,6 +281,9 @@ class ThreadedGenActor(SerializingActor):
                 structure_registry=self.structure_registry,
                 skip_expanding=not self.expand_inputs,
             )
+
+            params = await self.add_local_variables(params)
+
             await transport.log_event(
                 kind=AssignationEventKind.ASSIGN,
             )
@@ -344,6 +350,10 @@ class ProcessedGenActor(SerializingActor):
                 structure_registry=self.structure_registry,
                 skip_expanding=not self.expand_inputs,
             )
+
+            params = await self.add_local_variables(params)
+            
+
             await transport.change(
                 status=AssignationEventKind.ASSIGN,
             )
@@ -409,6 +419,8 @@ class ProcessedFuncActor(SerializingActor):
                 structure_registry=self.structure_registry,
                 skip_expanding=not self.expand_inputs,
             )
+
+            params = await self.add_local_variables(params)
 
             await transport.change(
                 status=AssignationEventKind.ASSIGN,

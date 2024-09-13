@@ -6,7 +6,7 @@ from rekuest_next.api.schema import (
     ReturnWidgetKind,
 )
 from rekuest_next.scalars import SearchQuery
-from typing import List
+from typing import List, Optional
 
 
 def SliderWidget(min: int = None, max: int = None, **kwargs) -> AssignWidgetInput:
@@ -111,3 +111,26 @@ def ChoiceReturnWidget(choices: List[ChoiceInput], **kwargs) -> ReturnWidgetInpu
         ReturnWidgetInput: _description_
     """
     return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=choices, **kwargs)
+
+
+def StateChoiceWidget(
+    stateChoices: str, followValue: Optional[str] = None, **kwargs
+) -> AssignWidgetInput:
+    """A state choice widget.
+
+    A state choice widget is a widget that renders a list of choices with the
+    value of the choice being highlighted.
+
+    Args:
+        stateChoices (str): The state key that contains the choices
+        followValue (str): The state key that the value should be followed
+
+    Returns:
+        AssignWidgetInput: The widget input
+    """
+    return AssignWidgetInput(
+        kind=AssignWidgetKind.STATE_CHOICE,
+        stateChoices=stateChoices,
+        followValue=followValue,
+        **kwargs,
+    )

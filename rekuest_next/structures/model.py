@@ -32,8 +32,6 @@ def retrieve_args_for_model(cls) -> List[FullFilledArg]:
 
     args = []
     for field in children_clses:
-        print(field.default)
-        print(field)
         args.append(
             FullFilledArg(
                 cls=field.type,
@@ -42,7 +40,6 @@ def retrieve_args_for_model(cls) -> List[FullFilledArg]:
                 description=field.description,
             )
         )
-    print(args)
     return args
 
 
