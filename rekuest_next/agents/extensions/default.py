@@ -60,7 +60,6 @@ class DefaultExtension(BaseModel):
         hook_return = await self.hook_registry.arun_startup(instance_id)
 
         for state_key, state_value in hook_return.states.items():
-            print(f"Setting state {state_key} to {state_value}")
             await self.ainit_state(state_key, state_value)
 
         for context_key, context_value in hook_return.contexts.items():

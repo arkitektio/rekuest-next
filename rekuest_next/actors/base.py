@@ -52,7 +52,7 @@ class Agent(Protocol):
 
 
 class Actor(BaseModel):
-    model_config = ConfigDict(allow_arbitrary_types=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     passport: Passport
     transport: ActorTransport
     collector: Collector
@@ -118,7 +118,6 @@ class Actor(BaseModel):
             logger.info(f"Actor {self.passport.id} was cancelled")
 
     async def provide(self):
-        print("XX is", type(self))
         try:
             logging.info(f"Providing {self.passport}")
             await self.on_provide(self.passport)

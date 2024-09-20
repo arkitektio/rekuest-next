@@ -129,7 +129,6 @@ class BaseAgent(KoiledModel):
                 passport = self.provision_passport_map[message.provision]
                 actor = self.managed_actors[passport.id]
 
-                print("Agent received", message)
 
                 # Converting assignation to Assignment
                 message = Assignment(
@@ -139,7 +138,6 @@ class BaseAgent(KoiledModel):
                     context={},
                 )
 
-                print("Agent converted", message)
                 self.managed_assignments[message.assignation] = message
                 await actor.apass(message)
             else:
@@ -380,7 +378,6 @@ class BaseAgent(KoiledModel):
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
-        print("Starting agent", instance_id)
 
         await self.aregister_definitions(instance_id=instance_id)
 
@@ -397,7 +394,6 @@ class BaseAgent(KoiledModel):
         await self.transport.log_to_assignation(assignment.assignation, *args, **kwargs)
 
     async def on_actor_change(self, passport: Passport, *args, **kwargs):
-        print("Changing actor state?")
         await self.transport.change_provision(passport.provision, *args, **kwargs)
 
     async def on_actor_log(self, passport: Passport, *args, **kwargs):
@@ -425,7 +421,6 @@ class BaseAgent(KoiledModel):
 
         await actor.arun()  # TODO: Maybe move this outside?
         self.managed_actors[actor.passport.id] = actor
-        print("Actor spawned", actor.passport.provision)
         self.provision_passport_map[int(provision.id)] = actor.passport # TODO: This should be a passport
 
         return actor

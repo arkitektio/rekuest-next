@@ -181,7 +181,6 @@ class StructureRegistry(BaseModel):
     def register_as_model(self, cls: Type, identifier: str) -> None:
         self._identifier_model_map[identifier] = cls
         self._model_identifier_map[cls] = identifier
-        print(f"Registered {cls} as {identifier}")
 
     def register_as_structure(
         self,

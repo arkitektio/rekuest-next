@@ -89,7 +89,6 @@ async def acall(
     try:
         parent = parent or get_current_assignation_helper().assignation
     except NotWithinAnAssignationError as e:
-        print("Not in assignation")
         parent = None
 
     reference = reference or str(uuid.uuid4())
@@ -111,7 +110,6 @@ async def acall(
             ephemeral=False,
         )
     ):
-        print(i)
         if i.kind == AssignationEventKind.YIELD:
             value = i.returns
 
@@ -147,7 +145,6 @@ async def aiterate(
     try:
         parent = parent or get_current_assignation_helper().assignation
     except:
-        print("Not in assignation")
         parent = None
 
     reference = reference or str(uuid.uuid4())
@@ -195,7 +192,6 @@ async def aiterate_raw(
     try:
         parent = parent or get_current_assignation_helper().assignation
     except:
-        print("Not in assignation")
         parent = None
 
     reference = reference or str(uuid.uuid4())
@@ -243,7 +239,6 @@ async def acall_raw(
     try:
         parent = parent or get_current_assignation_helper().assignation
     except:
-        print("Not in assignation")
         parent = None
 
     reference = reference or str(uuid.uuid4())
@@ -263,7 +258,6 @@ async def acall_raw(
         ephemeral=False,
     )
 
-    print("assogm omüit", x)
 
     returns = None
 

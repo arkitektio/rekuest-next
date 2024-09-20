@@ -29,7 +29,6 @@ def context(name: str) -> Callable[[Type[T]], Type[T]]: ...
 
 def context(*func, name: str = None) -> Callable[[Type[T]], Type[T]]:
     if len(func) == 1 and not isinstance(func[0], str):
-        print("Is without parameter")
 
         cls = func[0]
         setattr(cls, "__rekuest_context__", cls.__name__)
@@ -37,8 +36,6 @@ def context(*func, name: str = None) -> Callable[[Type[T]], Type[T]]:
         return cls
 
     else:
-        print("Is with parameter")
-
         def wrapper(cls: Type[T]) -> Type[T]:
             setattr(cls, "__rekuest_context__", name)
             return cls

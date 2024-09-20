@@ -244,7 +244,6 @@ async def ashrink_return(
             )
 
         if port.kind == PortKind.MODEL:
-            print("Shrinking Model")
             try:
                 shrinked_args = await asyncio.gather(
                     *[
@@ -262,7 +261,6 @@ async def ashrink_return(
                 return shrinked_params
 
             except Exception as e:
-                print("Error Shrinking Model", e)
                 raise PortShrinkingError(
                     f"Couldn't shrink Children {port.children}"
                 ) from e

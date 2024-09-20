@@ -67,7 +67,6 @@ class GraphQLPostman(BasePostman):
 
         try:
             assignation = await aassign(assign)
-            print("Assigned on postman")
         except Exception as e:
             raise PostmanException("Cannot Assign") from e
 
@@ -92,7 +91,6 @@ class GraphQLPostman(BasePostman):
         del self._ass_update_queues[ass_id]
 
     async def watch_assignations(self):
-        print("Start to watch")
         try:
             async for assignation in awatch_assignations(
                 self.instance_id, rath=self.rath
@@ -101,12 +99,13 @@ class GraphQLPostman(BasePostman):
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)
                 if assignation.create:
-                    print("Created assignation")
                     if assignation.create.reference not in self._ass_update_queues:
-                        print("NOOOOOT IN QUEUES, RACE CONDITION")
+                        logger.critical("RACE CONDITION EXPERIENCED")
 
         except Exception as e:
-            print(e)
+            logger.error("Watching Assignations failed", exc_info=True)
+            raise e
+
 
     async def watch_assraces(self):
         try:
@@ -131,7 +130,6 @@ class GraphQLPostman(BasePostman):
         self._watching = True
 
     def log_assignation_fail(self, future):
-        print(future)
         return
 
     async def stop_watching(self):

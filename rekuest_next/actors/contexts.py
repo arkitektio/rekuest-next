@@ -7,10 +7,11 @@ from rekuest_next.actors.vars import (
 )
 from rekuest_next.actors.transport.types import AssignTransport
 from rekuest_next.actors.types import Assignment, Passport
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class AssignmentContext(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     
     passport: Passport
     assignment: Assignment
