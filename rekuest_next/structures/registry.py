@@ -402,7 +402,6 @@ class StructureRegistry(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
 
 
 DEFAULT_STRUCTURE_REGISTRY = None

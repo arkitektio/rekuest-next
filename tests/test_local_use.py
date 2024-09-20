@@ -1,10 +1,10 @@
-from rekuest.postmans.utils import actoruse
-from rekuest.definition.define import prepare_definition
+from rekuest_next.postmans.utils import actoruse
+from rekuest_next.definition.define import prepare_definition
 import asyncio
 import pytest
-from rekuest.definition.registry import DefinitionRegistry
-from rekuest.agents.base import BaseAgent
-from rekuest.agents.transport.mock import MockAgentTransport
+from rekuest_next.definition.registry import DefinitionRegistry
+from rekuest_next.agents.base import BaseAgent
+from rekuest_next.agents.transport.mock import MockAgentTransport
 
 
 @pytest.mark.skip
@@ -34,6 +34,6 @@ async def test_local_use(simple_registry):
             return await a.aassign(4)
 
     async with agent:
-        result = await what_we_want
+        result = await do_func
 
     assert result == 1, "The result should be 1"

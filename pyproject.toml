@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rekuest-next"
-version = "0.2.26"
+version = "0.2.27"
 description = "rpc and node backbone"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
@@ -9,13 +9,13 @@ packages = [{ include = "rekuest_next" }]
 [tool.poetry.dependencies]
 python = "^3.8"
 docstring-parser = ">=0.11"
-inflection = "^0.5.1"
-websockets = "^10.0"
+inflection = ">=0.5.1"
+websockets = ">=12.0"
 pydantic = ">=1.9.0"
-annotated-types = "^0.4.0"
-rath = ">=0.4.0"
-fieldz = "^0.0.2"
-jsonpatch = "^1.33"
+rath = ">=1.0.0"
+fieldz = ">=0.0.2"
+jsonpatch = ">=1.33"
+koil = ">=1.0.0"
 
 [tool.ruff]
 extend-select = ["ANN", "D1"]
@@ -52,9 +52,7 @@ testcontainers = "3.7.0"
 autoflake = "^1.7.7"
 pytest = "^7.2.0"
 pytest-asyncio = "^0.20.2"
-turms = { version = ">=0.3.1", python = "^3.9" }
 aiohttp = "^3.8.3"
-websockets = "^10.4"
 black = "^23.1.0"
 pytest-cov = "^4.0.0"
 pytest-aiohttp = "^1.0.4"

@@ -114,5 +114,3 @@ class DefinitionRegistry(KoiledModel):
             self.actor_builders[key] = other.actor_builders[key]
             self.structure_registries[key] = other.structure_registries[key]
 
-    class Config:
-        copy_on_model_validation = False

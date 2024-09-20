@@ -42,8 +42,8 @@ class ContextLink(ContinuationLink):
         try:
             helper = get_current_assignation_helper()
 
-            operation.context.headers["x-assignation-id"] = helper.assignation
-           
+            operation.context.headers["x-assignation-id"] = str(helper.assignation)
+
         except Exception as e:
             pass
 
@@ -52,6 +52,4 @@ class ContextLink(ContinuationLink):
 
     class Config:
         """pydantic configuration for the AuthTokenLink"""
-
-        underscore_attrs_are_private = True
         arbitary_types_allowed = True

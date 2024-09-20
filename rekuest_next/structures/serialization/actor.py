@@ -193,6 +193,7 @@ async def ashrink_return(
     port: Union[PortFragment, ChildPortFragment],
     value: Any,
     structure_registry=None,
+    assert_type: bool = True,
 ) -> Union[str, int, float, dict, list, None]:
     """Expand a value through a port
 
@@ -225,12 +226,14 @@ async def ashrink_return(
             )
 
         if port.kind == PortKind.DICT:
+            assert isinstance(value, dict), f"Expected dict got {value}"
             return {
                 key: await ashrink_return(port.children[0], value, structure_registry)
                 for key, value in value.items()
             }
 
         if port.kind == PortKind.LIST:
+            assert isinstance(value, list), f"Expected list got {value}"
             return await asyncio.gather(
                 *[
                     ashrink_return(
@@ -265,15 +268,19 @@ async def ashrink_return(
                 ) from e
 
         if port.kind == PortKind.INT:
+            assert isinstance(value, int), f"Expected int got {value}"
             return int(value) if value is not None else None
 
         if port.kind == PortKind.FLOAT:
+            assert isinstance(value, float), f"Expected float got {value}"
             return float(value) if value is not None else None
 
         if port.kind == PortKind.DATE:
+            assert isinstance(value, dt.datetime), f"Expected date got {value}"
             return value.isoformat() if value is not None else None
 
         if port.kind == PortKind.STRUCTURE:
+
             # We always convert structures returns to strings
             try:
                 shrinker = structure_registry.get_shrinker_for_identifier(
@@ -292,9 +299,11 @@ async def ashrink_return(
                 ) from e
 
         if port.kind == PortKind.BOOL:
+            assert isinstance(value, bool), f"Expected bool got {value}"
             return bool(value) if value is not None else None
 
         if port.kind == PortKind.STRING:
+            assert isinstance(value, str), f"Expected str got {value}"
             return str(value) if value is not None else None
 
         raise NotImplementedError(f"Should be implemented by subclass {port}")
@@ -337,6 +346,6 @@ async def shrink_outputs(
             shrinked_returns = await asyncio.gather(*shrinked_returns_future)
             return {port.key: val for port, val in zip(node.returns, shrinked_returns)}
         except Exception as e:
-            raise ShrinkingError(f"Couldn't shrink Returns {returns}") from e
+            raise ShrinkingError(f"Couldn't shrink Returns {returns}: {str(e)}") from e
     else:
         return {port.key: val for port, val in zip(node.returns, returns)}

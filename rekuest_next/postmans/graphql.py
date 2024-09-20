@@ -65,7 +65,6 @@ class GraphQLPostman(BasePostman):
             if not self._watching:
                 await self.start_watching()
 
-
         try:
             assignation = await aassign(assign)
             print("Assigned on postman")
@@ -161,5 +160,3 @@ class GraphQLPostman(BasePostman):
         current_postman.set(None)
         return await super().__aexit__(exc_type, exc_val, exc_tb)
 
-    class Config:
-        underscore_attrs_are_private = True

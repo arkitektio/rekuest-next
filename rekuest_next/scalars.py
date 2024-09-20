@@ -13,17 +13,9 @@ import inspect
 from typing import Dict, Any
 
 
-class QString(str):
-    pass
-
-
-class InstanceId(str):
-    pass
-
-
-class NodeHash(str):
-    pass
-
+NodeHash = str
+InstanceId = str
+QString = str
 
 ValueMap = Dict[str, Any]
 
@@ -53,7 +45,7 @@ class Identifier(str):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         if not isinstance(v, str):
             raise TypeError("Identifier must be a string")
         if "@" in v and "/" not in v:
@@ -106,7 +98,7 @@ class SearchQuery(str):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *info):
         if not isinstance(v, str) and not isinstance(v, DocumentNode):
             raise TypeError(
                 "Search query must be either a str or a graphql DocumentNode"

@@ -64,7 +64,6 @@ def none_or_id(value: Optional[Union[IDBearer, str]]) -> Optional[str]:
 
 
 async def acall(
-    *args,
     node: Optional[Union[NodeFragment, str]] = None,
     template: Optional[Union[TemplateFragment, str]] = None,
     reservation: Optional[Union[ReservationFragment, str]] = None,
@@ -82,7 +81,7 @@ async def acall(
     structure_registry = get_current_structure_registry()
 
     shrinked_args = await ashrink_args(
-        node, args, kwargs, structure_registry=structure_registry
+        node, tuple(), kwargs, structure_registry=structure_registry
     )
 
     instance_id = postman.instance_id
@@ -109,6 +108,7 @@ async def acall(
             parent=parent,
             log=log,
             isHook=False,
+            ephemeral=False,
         )
     ):
         print(i)
@@ -122,7 +122,6 @@ async def acall(
 
 
 async def aiterate(
-    *args,
     node: Optional[NodeFragment] = None,
     template: Optional[TemplateFragment] = None,
     reservation: Optional[ReservationFragment] = None,
@@ -140,7 +139,7 @@ async def aiterate(
     structure_registry = get_current_structure_registry()
 
     shrinked_args = await ashrink_args(
-        node, args, kwargs, structure_registry=structure_registry
+        node, tuple(), kwargs, structure_registry=structure_registry
     )
 
     instance_id = postman.instance_id
@@ -280,7 +279,6 @@ async def acall_raw(
 
 
 def call(
-    *args,
     node: Optional[NodeFragment] = None,
     template: Optional[TemplateFragment] = None,
     reservation: Optional[ReservationFragment] = None,
@@ -293,7 +291,7 @@ def call(
 ) -> tuple[Any]:
     return unkoil(
         acall,
-        node,
+        node=node,
         reference=reference,
         hooks=hooks,
         cached=cached,
@@ -326,6 +324,11 @@ def iterate(
         **kwargs,
     )
 
+
+
+def call_raw(*args, **kwargs):
+    return unkoil(acall_raw, *args, **kwargs)
+        
 
 class ReservationContext(KoiledModel):
     node: NodeFragment
@@ -395,8 +398,6 @@ class ReservationContext(KoiledModel):
     def __enter__(self) -> "ReservationContext":
         return super().__enter__()
 
-    class Config:
-        underscore_attrs_are_private = True
 
 
 def reserved(

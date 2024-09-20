@@ -105,5 +105,3 @@ class Collector(BaseModel):
             for child in self.children_tree[id]:
                 await self.collect(child)
 
-    class Config:
-        copy_on_model_validation = False

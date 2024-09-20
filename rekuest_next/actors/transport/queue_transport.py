@@ -109,9 +109,7 @@ class LocalTransport(KoiledModel):
         pass
 
     class Config:
-        underscore_attrs_are_private = True
         arbitrary_types_allowed = True
-        copy_on_model_validation = False
 
 
 class AgentActorAssignTransport(KoiledModel):
@@ -143,9 +141,7 @@ class AgentActorAssignTransport(KoiledModel):
         )
 
     class Config:
-        underscore_attrs_are_private = True
         arbitrary_types_allowed = True
-        copy_on_model_validation = False
 
 
 class AgentActorTransport(KoiledModel):
@@ -200,13 +196,8 @@ class AgentActorTransport(KoiledModel):
     def spawn(self, assignment: Assignment) -> AgentActorAssignTransport:
         return AgentActorAssignTransport(actor_transport=self, assignment=assignment)
 
-    class Config:
-        underscore_attrs_are_private = True
-        arbitrary_types_allowed = True
-        copy_on_model_validation = False
 
-
-AgentActorAssignTransport.update_forward_refs()
+AgentActorAssignTransport.model_rebuild()
 
 
 class ProxyAssignTransport(KoiledModel):
@@ -219,11 +210,6 @@ class ProxyAssignTransport(KoiledModel):
 
     async def log_to_assignation(self, *args, **kwargs):
         await self.on_log(self.assignment, *args, **kwargs)
-
-    class Config:
-        underscore_attrs_are_private = True
-        arbitrary_types_allowed = True
-        copy_on_model_validation = False
 
 
 class ProxyActorTransport(KoiledModel):

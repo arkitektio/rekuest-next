@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 
 class AssignmentContext(BaseModel):
+    
     passport: Passport
     assignment: Assignment
     transport: AssignTransport
@@ -35,7 +36,3 @@ class AssignmentContext(BaseModel):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         return self.__exit__(exc_type, exc_val, exc_tb)
-
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True

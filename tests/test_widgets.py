@@ -1,4 +1,4 @@
-from rekuest.widgets import SearchWidget, SliderWidget
+from rekuest_next.widgets import SearchWidget, SliderWidget
 from pydantic import ValidationError
 import pytest
 

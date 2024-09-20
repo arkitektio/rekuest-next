@@ -1,6 +1,6 @@
-from rekuest.definition.define import prepare_definition
-from rekuest.definition.registry import DefinitionRegistry
-from rekuest.register import register_structure, register_func
+from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.registry import DefinitionRegistry
+from rekuest_next.register import register_structure, register_func
 
 
 def test_register_function(simple_registry):
@@ -17,4 +17,4 @@ def test_register_function(simple_registry):
 
     register_func(func, simple_registry, defi)
 
-    assert defi.definitions["func"]
+    assert defi.actor_builders["func"]

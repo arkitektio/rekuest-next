@@ -25,9 +25,7 @@ class ProxyAssignTransport(KoiledModel):
         )  # Forwards assignment up
 
     class Config:
-        underscore_attrs_are_private = True
         arbitrary_types_allowed = True
-        copy_on_model_validation = False
 
 
 class ProxyActorTransport(KoiledModel):

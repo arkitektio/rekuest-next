@@ -65,7 +65,7 @@ agent_error_message = {
 }
 
 
-class WebsocketAgentTransport(AgentTransport):
+class MockAgentTransport(AgentTransport):
     endpoint_url: str
     ssl_context: ssl.SSLContext = Field(
         default_factory=lambda: ssl.create_default_context(cafile=certifi.where())

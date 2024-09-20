@@ -16,7 +16,7 @@ def auto_validate(defintion: DefinitionInput) -> DefinitionFragment:
 
     """
 
-    hm = defintion.dict(by_alias=True)
+    hm = defintion.model_dump(by_alias=True)
     del hm["interfaces"]
 
     return DefinitionFragment(**hm)
@@ -25,7 +25,7 @@ def auto_validate(defintion: DefinitionInput) -> DefinitionFragment:
 def hash_definition(definition: DefinitionInput):
     hashable_definition = {
         key: value
-        for key, value in dict(definition.dict()).items()
+        for key, value in definition.model_dump().items()
         if key in ["name", "description", "args", "returns"]
     }
     return hashlib.sha256(

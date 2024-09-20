@@ -1,9 +1,9 @@
-from rekuest.structures.registry import (
+from rekuest_next.structures.registry import (
     StructureDefinitionError,
     StructureRegistry,
     StructureOverwriteError,
 )
-from rekuest.register import register_structure
+from rekuest_next.register import register_structure
 import pytest
 
 

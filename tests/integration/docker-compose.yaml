@@ -8,8 +8,8 @@ services:
       POSTGRES_MULTIPLE_DATABASES: arkitekt_db
       POSTGRES_PASSWORD: 6398045f7711b517ac0aa3c7e6b77a63
       POSTGRES_USER: arkitekt
-  rekuest:
-    image: jhnnsrs/rekuest:prod
+  rekuest_next:
+    image: jhnnsrs/rekuest_next:prod
     volumes:
       - ./configs/arkitekt.yaml:/workspace/config.yaml
     ports:

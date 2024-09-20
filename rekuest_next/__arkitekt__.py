@@ -141,8 +141,12 @@ def init_services(service_builder_registry):
             link=RekuestNextLinkComposition(
                 auth=HerreAuthLink(herre=herre),
                 split=SplitLink(
-                    left=FaktsAIOHttpLink(fakts_group="rekuest", fakts=fakts),
-                    right=FaktsGraphQLWSLink(fakts_group="rekuest", fakts=fakts),
+                    left=FaktsAIOHttpLink(
+                        fakts_group="rekuest", fakts=fakts, endpoint_url="FAKE_URL"
+                    ),
+                    right=FaktsGraphQLWSLink(
+                        fakts_group="rekuest", fakts=fakts, ws_endpoint_url="FAKE_URL"
+                    ),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                 ),
             )
@@ -150,7 +154,11 @@ def init_services(service_builder_registry):
 
         agent = BaseAgent(
             transport=ArkitektWebsocketAgentTransport(
-                fakts_group="rekuest.agent", fakts=fakts, herre=herre
+                fakts_group="rekuest.agent",
+                fakts=fakts,
+                herre=herre,
+                endpoint_url="FAKE_URL",
+                instance_id=instance_id,
             ),
             instance_id=instance_id,
             rath=rath,

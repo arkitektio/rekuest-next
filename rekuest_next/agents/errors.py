@@ -39,6 +39,7 @@ class StateRequirementsNotMet(AgentException):
     Raised when the state requirements are not met
     """
 
+
 class ContextRequirementsNotMet(AgentException):
     """
     Raised when the context requirements are not met

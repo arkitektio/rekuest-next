@@ -91,16 +91,15 @@ class BaseAgent(KoiledModel):
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
     interface_template_map: Dict[str, TemplateFragment] = Field(default_factory=dict)
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
-    provision_passport_map: Dict[str, Passport] = Field(default_factory=dict)
+    provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, Assignment] = Field(default_factory=dict)
-    _provisionTaskMap: Dict[str, asyncio.Task] = Field(default_factory=dict)
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
     _contexts: Dict[str, Any] = None
     _states: Dict[str, Any] = None
 
-    started = False
-    running = False
+    started: bool = False
+    running: bool = False
 
     async def abroadcast(self, message: InMessage):
         await self._inqueue.put(message)
@@ -272,7 +271,7 @@ class BaseAgent(KoiledModel):
                 await actor.acancel()
                 await self.transport.log_event(
                     ProvisionEvent(
-                        assignation=message.provision,
+                        provision=message.provision,
                         kind=ProvisionEventKind.UNHAPPY,
                         message=f"Actor was sucessfully unprovided",
                     )
@@ -284,7 +283,7 @@ class BaseAgent(KoiledModel):
             else:
                 await self.transport.log_event(
                     ProvisionEvent(
-                        assignation=message.provision,
+                        provision=message.provision,
                         kind=ProvisionEventKind.CRITICAL,
                         message=f"Received Unprovision for never provisioned provision",
                     )
@@ -426,7 +425,8 @@ class BaseAgent(KoiledModel):
 
         await actor.arun()  # TODO: Maybe move this outside?
         self.managed_actors[actor.passport.id] = actor
-        self.provision_passport_map[provision.id] = actor.passport
+        print("Actor spawned", actor.passport.provision)
+        self.provision_passport_map[int(provision.id)] = actor.passport # TODO: This should be a passport
 
         return actor
 
@@ -488,4 +488,3 @@ class BaseAgent(KoiledModel):
 
     class Config:
         arbitrary_types_allowed = True
-        underscore_attrs_are_private = True

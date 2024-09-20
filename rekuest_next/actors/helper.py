@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 from rekuest_next.api.schema import AssignationEventKind, LogLevel
 from koil import unkoil
@@ -17,14 +18,15 @@ class AssignmentHelper(BaseModel):
     async def alog(self, level: LogLevel, message: str) -> None:
         await self.transport.log_event(kind=AssignationEventKind.LOG, message=message)
 
-    async def aprogress(self, progress: int) -> None:
+    async def aprogress(self, progress: int, message: Optional[str] = None) -> None:
         await self.transport.log_event(
             kind=AssignationEventKind.PROGRESS,
             progress=progress,
+            message=message,
         )
 
-    def progress(self, progress: int) -> None:
-        return unkoil(self.aprogress, progress)
+    def progress(self, progress: int, message:  Optional[str] = None) -> None:
+        return unkoil(self.aprogress, progress, message=message)
 
     def log(self, level: LogLevel, message: str) -> None:
         return unkoil(self.alog, level, message)

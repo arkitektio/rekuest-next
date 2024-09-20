@@ -14,10 +14,16 @@ class WebsocketAgentTransportConfig(BaseModel):
     instance_id: str = "default"
 
 
+async def fake_token_loader(*args, **kwargs):
+    raise NotImplementedError("You did not set a token loader")
+
+
 class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
     endpoint_url: Optional[str]
     instance_id: Optional[str]
-    token_loader: Optional[Callable[[], Awaitable[str]]] = Field(exclude=True)
+    token_loader: Optional[Callable[[], Awaitable[str]]] = Field(
+        exclude=True, default=fake_token_loader
+    )
     fakts: Fakts
     herre: Herre
     fakts_group: str
@@ -25,7 +31,7 @@ class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
 
     def configure(self, fakt: WebsocketAgentTransportConfig) -> None:
         self.endpoint_url = fakt.endpoint_url
-        self.token_loader = self.token_loader or self.herre.aget_token
+        self.token_loader = self.herre.aget_token
 
     async def aconnect(self, *args, **kwargs):
         if self.fakts.has_changed(self._old_fakt, self.fakts_group):

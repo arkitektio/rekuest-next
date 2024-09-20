@@ -1,21 +1,25 @@
-from rekuest_next.traits.node import Reserve
-from rekuest_next.funcs import aexecute, asubscribe, subscribe, execute
-from datetime import datetime
-from rekuest_next.scalars import (
-    Args,
-    NodeHash,
-    ValidatorFunction,
-    InstanceId,
-    Identifier,
-    SearchQuery,
-)
+from pydantic import Field, BaseModel, ConfigDict
 from typing_extensions import Literal
-from typing import Iterator, List, Optional, Tuple, Any, AsyncIterator
+from typing import Iterator, List, Optional, AsyncIterator, Tuple, Any
+from rekuest_next.scalars import (
+    NodeHash,
+    Identifier,
+    ValidatorFunction,
+    Args,
+    SearchQuery,
+    InstanceId,
+)
 from rekuest_next.rath import RekuestNextRath
-from rath.scalars import ID
-from rekuest_next.traits.ports import PortTrait, ReturnWidgetInputTrait
-from pydantic import BaseModel, Field
+from rekuest_next.funcs import aexecute, execute, asubscribe, subscribe
+from rekuest_next.traits.ports import (
+    WidgetInputTrait,
+    ReturnWidgetInputTrait,
+    PortTrait,
+)
+from datetime import datetime
 from enum import Enum
+from rath.scalars import ID
+from rekuest_next.traits.node import Reserve
 
 
 class AssignWidgetKind(str, Enum):
@@ -146,13 +150,7 @@ class CreateTemplateInput(BaseModel):
     template: "TemplateInput"
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class TemplateInput(BaseModel):
@@ -162,13 +160,7 @@ class TemplateInput(BaseModel):
     params: Optional[Any] = None
     dynamic: bool
     logo: Optional[str] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class DefinitionInput(BaseModel):
@@ -183,25 +175,13 @@ class DefinitionInput(BaseModel):
     is_test_for: Tuple[str, ...] = Field(alias="isTestFor")
     interfaces: Tuple[str, ...]
     is_dev: bool = Field(alias="isDev")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class PortGroupInput(BaseModel):
     key: str
     hidden: bool
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class PortInput(PortTrait, BaseModel):
@@ -223,13 +203,7 @@ class PortInput(PortTrait, BaseModel):
         alias="returnWidget", default=None
     )
     groups: Optional[Tuple[str, ...]] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class ValidatorInput(BaseModel):
@@ -237,13 +211,7 @@ class ValidatorInput(BaseModel):
     dependencies: Optional[Tuple[str, ...]] = None
     label: Optional[str] = None
     error_message: Optional[str] = Field(alias="errorMessage", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class EffectInput(BaseModel):
@@ -251,26 +219,14 @@ class EffectInput(BaseModel):
     description: Optional[str] = None
     dependencies: Tuple["EffectDependencyInput", ...]
     kind: EffectKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class EffectDependencyInput(BaseModel):
     key: str
     condition: LogicalCondition
     value: Any
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class ChildPortInput(PortTrait, BaseModel):
@@ -290,16 +246,10 @@ class ChildPortInput(PortTrait, BaseModel):
     return_widget: Optional["ReturnWidgetInput"] = Field(
         alias="returnWidget", default=None
     )
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
-class AssignWidgetInput(BaseModel):
+class AssignWidgetInput(WidgetInputTrait, BaseModel):
     as_paragraph: Optional[bool] = Field(alias="asParagraph", default=None)
     kind: AssignWidgetKind
     query: Optional[SearchQuery] = None
@@ -314,26 +264,14 @@ class AssignWidgetInput(BaseModel):
     ward: Optional[str] = None
     fallback: Optional["AssignWidgetInput"] = None
     filters: Optional[Tuple[ChildPortInput, ...]] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class ChoiceInput(BaseModel):
     value: Any
     label: str
     description: Optional[str] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
@@ -346,13 +284,7 @@ class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
     placeholder: Optional[str] = None
     hook: Optional[str] = None
     ward: Optional[str] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class DependencyInput(BaseModel):
@@ -361,26 +293,14 @@ class DependencyInput(BaseModel):
     binds: Optional["BindsInput"] = None
     optional: bool
     viable_instances: Optional[int] = Field(alias="viableInstances", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class BindsInput(BaseModel):
     templates: Optional[Tuple[str, ...]] = None
     clients: Optional[Tuple[str, ...]] = None
     desired_instances: int = Field(alias="desiredInstances")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class SetExtensionTemplatesInput(BaseModel):
@@ -388,13 +308,7 @@ class SetExtensionTemplatesInput(BaseModel):
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
     run_cleanup: bool = Field(alias="runCleanup")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class AssignInput(BaseModel):
@@ -410,47 +324,23 @@ class AssignInput(BaseModel):
     log: bool
     ephemeral: bool
     is_hook: bool = Field(alias="isHook")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class HookInput(BaseModel):
     kind: HookKind
     hash: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class CancelInput(BaseModel):
     assignation: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class InterruptInput(BaseModel):
     assignation: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class ReserveInput(BaseModel):
@@ -462,48 +352,24 @@ class ReserveInput(BaseModel):
     hash: Optional[NodeHash] = None
     reference: Optional[str] = None
     binds: Optional[BindsInput] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class UnreserveInput(BaseModel):
     reservation: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class CreateDashboardInput(BaseModel):
     name: Optional[str] = None
     panels: Optional[Tuple[ID, ...]] = None
     tree: Optional["UITreeInput"] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class UITreeInput(BaseModel):
     child: "UIChildInput"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class UIChildInput(BaseModel):
@@ -513,36 +379,18 @@ class UIChildInput(BaseModel):
     children: Optional[Tuple["UIChildInput", ...]] = None
     left: Optional["UIChildInput"] = None
     right: Optional["UIChildInput"] = None
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class CreateStateSchemaInput(BaseModel):
     state_schema: "StateSchemaInput" = Field(alias="stateSchema")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class StateSchemaInput(BaseModel):
     ports: Tuple[PortInput, ...]
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class CreatePanelInput(BaseModel):
@@ -559,569 +407,457 @@ class CreatePanelInput(BaseModel):
     args: Optional[Args] = None
     submit_on_change: Optional[bool] = Field(alias="submitOnChange", default=None)
     submit_on_load: Optional[bool] = Field(alias="submitOnLoad", default=None)
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class SetStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
     instance_id: InstanceId = Field(alias="instanceId")
     value: Args
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class UpdateStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
     instance_id: InstanceId = Field(alias="instanceId")
     patches: Tuple[Args, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
-        extra = "forbid"
-        use_enum_values = True
+    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
 class TestCaseFragmentNode(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TestCaseFragment(BaseModel):
-    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["TestCase"]] = Field(
+        alias="__typename", default="TestCase", exclude=True
+    )
     id: ID
     node: TestCaseFragmentNode
     is_benchmark: bool = Field(alias="isBenchmark")
     description: str
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TestResultFragmentCase(BaseModel):
-    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["TestCase"]] = Field(
+        alias="__typename", default="TestCase", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TestResultFragment(BaseModel):
-    typename: Optional[Literal["TestResult"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["TestResult"]] = Field(
+        alias="__typename", default="TestResult", exclude=True
+    )
     id: ID
     case: TestResultFragmentCase
     passed: bool
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ProvisionFragment(BaseModel):
-    typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Provision"]] = Field(
+        alias="__typename", default="Provision", exclude=True
+    )
     id: ID
     status: ProvisionEventKind
     template: "TemplateFragment"
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class StateFragmentAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Agent"]] = Field(
+        alias="__typename", default="Agent", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class StateFragment(BaseModel):
-    typename: Optional[Literal["State"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["State"]] = Field(
+        alias="__typename", default="State", exclude=True
+    )
     id: ID
     value: Args
     state_schema: "StateSchemaFragment" = Field(alias="stateSchema")
     agent: StateFragmentAgent
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ChildPortNestedFragmentChildren(PortTrait, BaseModel):
-    typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
-    identifier: Optional[Identifier]
+    typename: Optional[Literal["ChildPort"]] = Field(
+        alias="__typename", default="ChildPort", exclude=True
+    )
+    identifier: Optional[Identifier] = Field(default=None)
     nullable: bool
     kind: PortKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ChildPortNestedFragment(PortTrait, BaseModel):
-    typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ChildPort"]] = Field(
+        alias="__typename", default="ChildPort", exclude=True
+    )
     key: str
     kind: PortKind
-    children: Optional[Tuple[ChildPortNestedFragmentChildren, ...]]
-    identifier: Optional[Identifier]
+    children: Optional[Tuple[ChildPortNestedFragmentChildren, ...]] = Field(
+        default=None
+    )
+    identifier: Optional[Identifier] = Field(default=None)
     nullable: bool
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ChildPortFragment(PortTrait, BaseModel):
-    typename: Optional[Literal["ChildPort"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["ChildPort"]] = Field(
+        alias="__typename", default="ChildPort", exclude=True
+    )
     key: str
     kind: PortKind
-    identifier: Optional[Identifier]
-    children: Optional[Tuple[ChildPortNestedFragment, ...]]
+    identifier: Optional[Identifier] = Field(default=None)
+    children: Optional[Tuple[ChildPortNestedFragment, ...]] = Field(default=None)
     nullable: bool
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class PortFragmentValidators(BaseModel):
-    typename: Optional[Literal["Validator"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Validator"]] = Field(
+        alias="__typename", default="Validator", exclude=True
+    )
     function: ValidatorFunction
-    error_message: Optional[str] = Field(alias="errorMessage")
-    dependencies: Optional[Tuple[str, ...]]
-    label: Optional[str]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    error_message: Optional[str] = Field(default=None, alias="errorMessage")
+    dependencies: Optional[Tuple[str, ...]] = Field(default=None)
+    label: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class PortFragment(PortTrait, BaseModel):
-    typename: Optional[Literal["Port"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Port"]] = Field(
+        alias="__typename", default="Port", exclude=True
+    )
     key: str
-    label: Optional[str]
+    label: Optional[str] = Field(default=None)
     nullable: bool
-    description: Optional[str]
-    default: Optional[Any]
+    description: Optional[str] = Field(default=None)
+    default: Optional[Any] = Field(default=None)
     kind: PortKind
-    identifier: Optional[Identifier]
-    children: Optional[Tuple[ChildPortFragment, ...]]
-    validators: Optional[Tuple[PortFragmentValidators, ...]]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    identifier: Optional[Identifier] = Field(default=None)
+    children: Optional[Tuple[ChildPortFragment, ...]] = Field(default=None)
+    validators: Optional[Tuple[PortFragmentValidators, ...]] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class AgentFragmentRegistryApp(BaseModel):
-    typename: Optional[Literal["App"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["App"]] = Field(
+        alias="__typename", default="App", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AgentFragmentRegistryUser(BaseModel):
-    typename: Optional[Literal["User"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["User"]] = Field(
+        alias="__typename", default="User", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AgentFragmentRegistry(BaseModel):
-    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Registry"]] = Field(
+        alias="__typename", default="Registry", exclude=True
+    )
     app: AgentFragmentRegistryApp
     user: AgentFragmentRegistryUser
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AgentFragment(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Agent"]] = Field(
+        alias="__typename", default="Agent", exclude=True
+    )
     registry: AgentFragmentRegistry
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class PanelFragmentState(BaseModel):
-    typename: Optional[Literal["State"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["State"]] = Field(
+        alias="__typename", default="State", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class PanelFragmentReservation(BaseModel):
-    typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Reservation"]] = Field(
+        alias="__typename", default="Reservation", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class PanelFragment(BaseModel):
-    typename: Optional[Literal["Panel"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Panel"]] = Field(
+        alias="__typename", default="Panel", exclude=True
+    )
     id: ID
     kind: PanelKind
-    state: Optional[PanelFragmentState]
-    reservation: Optional[PanelFragmentReservation]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    state: Optional[PanelFragmentState] = Field(default=None)
+    reservation: Optional[PanelFragmentReservation] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class ReservationFragmentNode(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     id: ID
     hash: NodeHash
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ReservationFragmentWaiter(BaseModel):
-    typename: Optional[Literal["Waiter"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Waiter"]] = Field(
+        alias="__typename", default="Waiter", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class ReservationFragment(BaseModel):
-    typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Reservation"]] = Field(
+        alias="__typename", default="Reservation", exclude=True
+    )
     id: ID
     status: ReservationEventKind
     node: ReservationFragmentNode
     waiter: ReservationFragmentWaiter
     reference: str
     updated_at: datetime = Field(alias="updatedAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentUitreeChildBase(BaseModel):
     pass
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentUitreeChildUIGridInlineFragmentChildren(BaseModel):
-    typename: Optional[Literal["UIGridItem"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["UIGridItem"]] = Field(
+        alias="__typename", default="UIGridItem", exclude=True
+    )
     x: int
     y: int
     w: int
     h: int
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentUitreeChildUIGridInlineFragment(
     DashboardFragmentUitreeChildBase
 ):
-    typename: Optional[Literal["UIGrid"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["UIGrid"]] = Field(
+        alias="__typename", default="UIGrid", exclude=True
+    )
     row_height: int = Field(alias="rowHeight")
     children: Tuple[DashboardFragmentUitreeChildUIGridInlineFragmentChildren, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentUitree(BaseModel):
-    typename: Optional[Literal["UITree"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["UITree"]] = Field(
+        alias="__typename", default="UITree", exclude=True
+    )
     child: DashboardFragmentUitreeChildUIGridInlineFragment
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentPanelsState(BaseModel):
-    typename: Optional[Literal["State"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["State"]] = Field(
+        alias="__typename", default="State", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentPanelsReservation(BaseModel):
-    typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Reservation"]] = Field(
+        alias="__typename", default="Reservation", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragmentPanels(BaseModel):
-    typename: Optional[Literal["Panel"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Panel"]] = Field(
+        alias="__typename", default="Panel", exclude=True
+    )
     id: ID
-    state: Optional[DashboardFragmentPanelsState]
-    reservation: Optional[DashboardFragmentPanelsReservation]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    state: Optional[DashboardFragmentPanelsState] = Field(default=None)
+    reservation: Optional[DashboardFragmentPanelsReservation] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class DashboardFragment(BaseModel):
-    typename: Optional[Literal["Dashboard"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Dashboard"]] = Field(
+        alias="__typename", default="Dashboard", exclude=True
+    )
     id: ID
-    name: Optional[str]
-    ui_tree: Optional[DashboardFragmentUitree] = Field(alias="uiTree")
-    panels: Optional[Tuple[DashboardFragmentPanels, ...]]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    name: Optional[str] = Field(default=None)
+    ui_tree: Optional[DashboardFragmentUitree] = Field(default=None, alias="uiTree")
+    panels: Optional[Tuple[DashboardFragmentPanels, ...]] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class AssignationFragmentParent(BaseModel):
-    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Assignation"]] = Field(
+        alias="__typename", default="Assignation", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AssignationFragmentEvents(BaseModel):
     typename: Optional[Literal["AssignationEvent"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="AssignationEvent", exclude=True
     )
     id: ID
-    returns: Optional[Any]
-    level: Optional[LogLevel]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    returns: Optional[Any] = Field(default=None)
+    level: Optional[LogLevel] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class AssignationFragment(BaseModel):
-    typename: Optional[Literal["Assignation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Assignation"]] = Field(
+        alias="__typename", default="Assignation", exclude=True
+    )
     args: Any
     id: ID
-    parent: Optional[AssignationFragmentParent]
+    parent: Optional[AssignationFragmentParent] = Field(default=None)
     id: ID
     status: AssignationEventKind
     events: Tuple[AssignationFragmentEvents, ...]
-    reference: Optional[str]
+    reference: Optional[str] = Field(default=None)
     updated_at: datetime = Field(alias="updatedAt")
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class AssignationEventFragment(BaseModel):
     typename: Optional[Literal["AssignationEvent"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="AssignationEvent", exclude=True
     )
     id: ID
     kind: AssignationEventKind
-    returns: Optional[Any]
+    returns: Optional[Any] = Field(default=None)
     reference: str
-    message: Optional[str]
-    progress: Optional[int]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    message: Optional[str] = Field(default=None)
+    progress: Optional[int] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class AssignationChangeEventFragment(BaseModel):
     typename: Optional[Literal["AssignationChangeEvent"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="AssignationChangeEvent", exclude=True
     )
-    create: Optional[AssignationFragment]
-    event: Optional[AssignationEventFragment]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    create: Optional[AssignationFragment] = Field(default=None)
+    event: Optional[AssignationEventFragment] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
 
 
 class StateSchemaFragment(BaseModel):
-    typename: Optional[Literal["StateSchema"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["StateSchema"]] = Field(
+        alias="__typename", default="StateSchema", exclude=True
+    )
     id: ID
     name: str
     ports: Tuple[PortFragment, ...]
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TemplateFragmentAgentRegistry(BaseModel):
-    typename: Optional[Literal["Registry"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Registry"]] = Field(
+        alias="__typename", default="Registry", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TemplateFragmentAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Agent"]] = Field(
+        alias="__typename", default="Agent", exclude=True
+    )
     registry: TemplateFragmentAgentRegistry
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class TemplateFragment(BaseModel):
-    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Template"]] = Field(
+        alias="__typename", default="Template", exclude=True
+    )
     id: ID
     agent: TemplateFragmentAgent
     node: "NodeFragment"
     params: Any
     extension: str
     interface: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DefinitionFragmentCollections(BaseModel):
-    typename: Optional[Literal["Collection"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Collection"]] = Field(
+        alias="__typename", default="Collection", exclude=True
+    )
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DefinitionFragmentIstestfor(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DefinitionFragmentPortgroups(BaseModel):
-    typename: Optional[Literal["PortGroup"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["PortGroup"]] = Field(
+        alias="__typename", default="PortGroup", exclude=True
+    )
     key: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class DefinitionFragment(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     args: Tuple[PortFragment, ...]
     returns: Tuple[PortFragment, ...]
     kind: NodeKind
     name: str
-    description: Optional[str]
+    description: Optional[str] = Field(default=None)
     collections: Tuple[DefinitionFragmentCollections, ...]
     is_dev: bool = Field(alias="isDev")
     is_test_for: Tuple[DefinitionFragmentIstestfor, ...] = Field(alias="isTestFor")
     port_groups: Tuple[DefinitionFragmentPortgroups, ...] = Field(alias="portGroups")
     stateful: bool
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class NodeFragment(DefinitionFragment, Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     hash: NodeHash
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Create_testcaseMutation(BaseModel):
@@ -1172,16 +908,14 @@ class UpdateStateMutation(BaseModel):
 
 
 class EnsureAgentMutationEnsureagent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Agent"]] = Field(
+        alias="__typename", default="Agent", exclude=True
+    )
     id: ID
     instance_id: InstanceId = Field(alias="instanceId")
     extensions: Tuple[str, ...]
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class EnsureAgentMutation(BaseModel):
@@ -1277,27 +1011,21 @@ class CreateStateSchemaMutation(BaseModel):
 
 
 class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
-    typename: Optional[Literal["Agent"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Agent"]] = Field(
+        alias="__typename", default="Agent", exclude=True
+    )
     id: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
     typename: Optional[Literal["HardwareRecord"]] = Field(
-        alias="__typename", exclude=True
+        alias="__typename", default="HardwareRecord", exclude=True
     )
     id: ID
     cpu_count: int = Field(alias="cpuCount")
     agent: CreateHardwareRecordMutationCreatehardwarerecordAgent
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class CreateHardwareRecordMutation(BaseModel):
@@ -1389,14 +1117,12 @@ class Get_testresultQuery(BaseModel):
 
 
 class Search_testcasesQueryOptions(BaseModel):
-    typename: Optional[Literal["TestCase"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["TestCase"]] = Field(
+        alias="__typename", default="TestCase", exclude=True
+    )
     label: str
     value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Search_testcasesQuery(BaseModel):
@@ -1411,14 +1137,12 @@ class Search_testcasesQuery(BaseModel):
 
 
 class Search_testresultsQueryOptions(BaseModel):
-    typename: Optional[Literal["TestResult"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["TestResult"]] = Field(
+        alias="__typename", default="TestResult", exclude=True
+    )
     label: datetime
     value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Search_testresultsQuery(BaseModel):
@@ -1443,14 +1167,12 @@ class Get_provisionQuery(BaseModel):
 
 
 class GetMeNodesQueryNodes(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     id: ID
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class GetMeNodesQuery(BaseModel):
@@ -1484,42 +1206,36 @@ class GetPanelQuery(BaseModel):
 
 
 class Get_reservationQueryReservationProvisions(BaseModel):
-    typename: Optional[Literal["Provision"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Provision"]] = Field(
+        alias="__typename", default="Provision", exclude=True
+    )
     id: ID
     status: ProvisionEventKind
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Get_reservationQueryReservationNode(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     id: ID
     kind: NodeKind
     name: str
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Get_reservationQueryReservation(BaseModel):
-    typename: Optional[Literal["Reservation"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Reservation"]] = Field(
+        alias="__typename", default="Reservation", exclude=True
+    )
     id: ID
     provisions: Tuple[Get_reservationQueryReservationProvisions, ...]
-    title: Optional[str]
+    title: Optional[str] = Field(default=None)
     status: ReservationEventKind
     id: ID
     reference: str
     node: Get_reservationQueryReservationNode
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Get_reservationQuery(BaseModel):
@@ -1583,14 +1299,12 @@ class Get_templateQuery(BaseModel):
 
 
 class Search_templatesQueryOptions(BaseModel):
-    typename: Optional[Literal["Template"]] = Field(alias="__typename", exclude=True)
-    label: Optional[str]
+    typename: Optional[Literal["Template"]] = Field(
+        alias="__typename", default="Template", exclude=True
+    )
+    label: Optional[str] = Field(default=None)
     value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Search_templatesQuery(BaseModel):
@@ -1637,14 +1351,12 @@ class RetrieveallQuery(BaseModel):
 
 
 class Search_nodesQueryOptions(Reserve, BaseModel):
-    typename: Optional[Literal["Node"]] = Field(alias="__typename", exclude=True)
+    typename: Optional[Literal["Node"]] = Field(
+        alias="__typename", default="Node", exclude=True
+    )
     label: str
     value: ID
-
-    class Config:
-        """A config class"""
-
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
 
 class Search_nodesQuery(BaseModel):
@@ -3082,19 +2794,19 @@ def search_nodes(
     ).options
 
 
-AssignInput.update_forward_refs()
-AssignWidgetInput.update_forward_refs()
-ChildPortInput.update_forward_refs()
-CreateDashboardInput.update_forward_refs()
-CreateStateSchemaInput.update_forward_refs()
-CreateTemplateInput.update_forward_refs()
-DefinitionInput.update_forward_refs()
-DependencyInput.update_forward_refs()
-EffectInput.update_forward_refs()
-PortInput.update_forward_refs()
-ProvisionFragment.update_forward_refs()
-StateFragment.update_forward_refs()
-TemplateFragment.update_forward_refs()
-TemplateInput.update_forward_refs()
-UIChildInput.update_forward_refs()
-UITreeInput.update_forward_refs()
+AssignInput.model_rebuild()
+AssignWidgetInput.model_rebuild()
+ChildPortInput.model_rebuild()
+CreateDashboardInput.model_rebuild()
+CreateStateSchemaInput.model_rebuild()
+CreateTemplateInput.model_rebuild()
+DefinitionInput.model_rebuild()
+DependencyInput.model_rebuild()
+EffectInput.model_rebuild()
+PortInput.model_rebuild()
+ProvisionFragment.model_rebuild()
+StateFragment.model_rebuild()
+TemplateFragment.model_rebuild()
+TemplateInput.model_rebuild()
+UIChildInput.model_rebuild()
+UITreeInput.model_rebuild()

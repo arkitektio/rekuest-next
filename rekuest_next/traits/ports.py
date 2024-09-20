@@ -1,5 +1,5 @@
 from typing import Callable
-from pydantic import BaseModel, root_validator, validator
+from pydantic import BaseModel, field_validator, model_validator
 import uuid
 import random
 
@@ -11,8 +11,8 @@ class PortTrait(BaseModel):
 
     """
 
-    @validator("default", check_fields=False)
-    def validator(cls, v):
+    @field_validator("default", check_fields=False)
+    def validator(cls, v, info):
         # Check if the default value is JSON serializable
         if v is None:
             return v
@@ -24,29 +24,33 @@ class PortTrait(BaseModel):
 
         return v
 
-    @root_validator(pre=True)
-    def validate_portkind_nested(cls, values):
+    @model_validator(mode="after")
+    def validate_portkind_nested(cls, self):
         from rekuest_next.api.schema import PortKind
 
-        kind = values.get("kind")
 
-        if kind is None:
-            raise ValueError("kind is required")
-
-        if kind == PortKind.STRUCTURE:
-            if values.get("identifier") is None:
+        if self.kind == PortKind.STRUCTURE:
+            if self.identifier is None:
                 raise ValueError(
                     "When specifying a structure you need to provide an arkitekt"
-                    " identifier got:" + str(values)
+                    " identifier got:" 
                 )
 
-        if kind == PortKind.LIST:
-            if values.get("children") is None:
+        if self.kind == PortKind.LIST:
+            if self.children is None:
                 raise ValueError(
-                    "When specifying a list you need to provide a wrapped 'chidlren' port"
+                    "When specifying a list you need to provide a wrapped 'children' port"
                 )
+            assert len(self.children) == 1, "List can only have one child"
 
-        return values
+        if self.kind == PortKind.DICT:
+            if self.children is None:
+                raise ValueError(
+                    "When specifying a dict you need to provide a wrapped 'children' port"
+                )
+            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
+
+        return self
 
     def mock(
         self,
@@ -90,36 +94,32 @@ class WidgetInputTrait(BaseModel):
 
     """
 
-    @root_validator(pre=True)
-    def validate_widgetkind_nested(cls, values):
-        from rekuest_next.api.schema import WidgetKind
+    @model_validator(mode="after")
+    def validate_widgetkind_nested(cls, self):
+        from rekuest_next.api.schema import AssignWidgetKind
 
-        kind = values.get("kind")
 
-        if kind is None:
-            raise ValueError("kind is required")
-
-        if kind == WidgetKind.SearchWidget:
-            if values.get("query") is None:
+        if self.kind == AssignWidgetKind.SEARCH:
+            if self.query is None:
                 raise ValueError(
                     "When specifying a SearchWidget you need to provide an query"
                     " parameter"
                 )
 
-        if kind == WidgetKind.SliderWidget:
-            if values.get("min") is None or values.get("max") is None:
+        if self.kind == AssignWidgetKind.SLIDER:
+            if self.min is None or self.max is None:
                 raise ValueError(
                     "When specifying a Slider you need to provide an 'max and 'min'"
-                    f" parameter {values}"
+                    f" parameter"
                 )
 
-            if values.get("min") > values.get("max"):
+            if self.min > self.max:
                 raise ValueError(
                     "When specifying a Slider you need to provide an 'max' greater than"
                     " 'min'"
                 )
 
-        return values
+        return self
 
 
 class ReturnWidgetInputTrait(BaseModel):
@@ -129,65 +129,20 @@ class ReturnWidgetInputTrait(BaseModel):
 
     """
 
-    @root_validator(pre=True)
-    def validate_widgetkind_nested(cls, values):
+    @model_validator(mode="after")
+    def validate_widgetkind_nested(cls, self):
         from rekuest_next.api.schema import ReturnWidgetKind
 
-        kind = values.get("kind")
 
-        if kind is None:
+        if self.kind is None:
             raise ValueError("kind is required")
 
-        if kind == ReturnWidgetKind.CUSTOM:
-            if values.get("hook") is None:
+        if self.kind == ReturnWidgetKind.CUSTOM:
+            if self.hook is None:
                 raise ValueError(
                     "When specifying a CustomReturnWidget you need to provide a 'hook'"
                     " parameter, corresponding to the desired reigstered hook"
                 )
 
-        return values
+        return self
 
-
-class AnnotationInputTrait(BaseModel):
-    """
-    Abstract class for serialization of data.
-
-    """
-
-    @root_validator(pre=True)
-    def validate_annotationkind_nested(cls, values):
-        from rekuest_next.api.schema import AnnotationKind
-
-        kind = values.get("kind")
-
-        if kind is None:
-            raise ValueError("kind is required")
-
-        if kind == AnnotationKind.ValueRange:
-            if values.get("min") is None and values.get("max") is None:
-                raise ValueError("min or max is required when using Value Range")
-
-            if values.get("min") is not None and values.get("max") is not None:
-                if values.get("min") > values.get("max"):
-                    raise ValueError(
-                        "When using a ValueRange min must be less than max"
-                    )
-
-        if kind == AnnotationKind.IsPredicate:
-            if values.get("predicate") is None:
-                raise ValueError("predicate is required when using IsPredicate")
-
-        if kind == AnnotationKind.CustomAnnotation:
-            if values.get("hook") is None:
-                raise ValueError("hook is required when using CustomAnnotation")
-
-        if kind == AnnotationKind.AttributePredicate:
-            if values.get("attribute") is None:
-                raise ValueError("atrribute is required when using AttributePredicate")
-            if values.get("annotations") is None:
-                raise ValueError(
-                    "annotations on the predicate is required when using"
-                    " AttributePredicate"
-                )
-
-        return values

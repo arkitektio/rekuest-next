@@ -74,6 +74,7 @@ def is_union(cls):
         and get_args(cls)[1] != type(None)
     )
 
+
 def is_tuple(cls):
     return get_origin(cls) in (tuple, typing.Tuple)
 
@@ -214,7 +215,7 @@ def convert_child_to_childport(
                 key=key,
                 description=full_filled_model.description,
             ),
-            lambda default: default.dict(),
+            lambda default: default.model_dump(),
         )
 
     if is_annotated(cls):
@@ -396,8 +397,6 @@ def convert_object_to_port(
             nullable=nullable,
             groups=groups,
         )
-    
-    
 
     if is_model(cls):
         children = []
@@ -806,7 +805,7 @@ def prepare_definition(
             raise DefinitionError(
                 f"Could not find type hint for {key} in {function.__name__}. Please provide a type hint (or default) for this argument."
             )
-        
+
         if is_local_var(cls):
             continue
 

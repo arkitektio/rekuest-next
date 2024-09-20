@@ -26,5 +26,4 @@ class SetAssignationLink(ContinuationLink):
             yield result
 
     class Config:
-        underscore_attrs_are_private = True
         arbitary_types_allowed = True

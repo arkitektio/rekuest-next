@@ -115,7 +115,6 @@ class EnumHook(BaseModel):
             ],
         )
 
-
         return FullFilledStructure(
             fullfilled_by="EnumHook",
             cls=cls,

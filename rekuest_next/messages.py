@@ -28,56 +28,56 @@ class Message(BaseModel):
 
 class Assign(Message):
     type: Literal[MessageType.ASSIGN] = MessageType.ASSIGN
-    assignation: str
-    reference: Optional[str]
-    provision: Optional[str]
-    reservation: Optional[str]
-    args: Optional[Dict[str, Any]]
-    message: Optional[str]
-    user: Optional[str]
+    assignation: int
+    reference: Optional[str] = None
+    provision: Optional[int] = None
+    reservation: Optional[int] = None
+    args: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+    user: Optional[str] = None
 
 
 class Cancel(Message):
     type: Literal[MessageType.CANCEL] = MessageType.CANCEL
-    assignation: str
-    provision: str
+    assignation: int
+    provision: int
 
 
 class Interrupt(Message):
     type: Literal[MessageType.INTERRUPT] = MessageType.INTERRUPT
-    assignation: str
-    provision: str
+    assignation: int
+    provision: int
 
 
 class Provide(Message):
     type: Literal[MessageType.PROVIDE] = MessageType.PROVIDE
-    provision: str
+    provision: int
 
 
 class Unprovide(Message):
     type: Literal[MessageType.UNPROVIDE] = MessageType.UNPROVIDE
-    provision: str
-    message: Optional[str]
+    provision: int
+    message: Optional[str] = None
 
 
 class AssignationEvent(Message):
     type: Literal[MessageType.ASSIGNATION_EVENT] = MessageType.ASSIGNATION_EVENT
-    assignation: str
+    assignation: int
     kind: AssignationEventKind
-    message: Optional[str]
-    returns: Optional[Dict[str, Any]] = Field(default_factory=None)
-    persist: Optional[bool]
-    progress: Optional[int]
-    log: Optional[bool]
-    status: Optional[AssignationEventKind]
+    message: Optional[str] = None
+    returns: Optional[Dict[str, Any]] = None
+    persist: Optional[bool] = None
+    progress: Optional[int] = None
+    log: Optional[bool] = None
+    status: Optional[AssignationEventKind] = None
 
 
 class ProvisionEvent(Message):
     type: Literal[MessageType.PROVISION_EVENT] = MessageType.PROVISION_EVENT
-    provision: str
+    provision: int
     kind: ProvisionEventKind
-    message: Optional[str]
-    user: Optional[str]
+    message: Optional[str] = None
+    user: Optional[str] = None
 
 
 class AssignInquiry(BaseModel):

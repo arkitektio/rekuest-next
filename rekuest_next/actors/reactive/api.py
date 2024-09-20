@@ -26,7 +26,7 @@ def useInstanceID() -> str:
     return get_current_assignation_helper().passport.instance_id
 
 
-def progress(percentage: int) -> None:
+def progress(percentage: int, message:  Optional[str] = None) -> None:
     """Progress
 
     Args:
@@ -34,10 +34,10 @@ def progress(percentage: int) -> None:
     """
 
     helper = get_current_assignation_helper()
-    helper.progress(percentage)
+    helper.progress(int(percentage), message=message)
 
 
-async def aprogress(percentage: int) -> None:
+async def aprogress(percentage: int, message: Optional[str] = None) -> None:
     """Progress
 
     Args:
@@ -45,4 +45,4 @@ async def aprogress(percentage: int) -> None:
     """
 
     helper = get_current_assignation_helper()
-    await helper.aprogress(percentage)
+    await helper.aprogress(int(percentage), message=message)

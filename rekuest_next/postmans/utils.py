@@ -15,7 +15,6 @@ from typing import (
 )
 import uuid
 from pydantic import Field
-from fluss_next.api.schema import BindsInput
 from rekuest_next.messages import AssignationEvent, ProvisionEvent
 from rekuest_next.structures.default import get_default_structure_registry
 from koil.composition import KoiledModel
@@ -25,6 +24,7 @@ import asyncio
 import logging
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
+    BindsInput,
     DefinitionFragment,
     ReservationFragment,
     TemplateFragment,
@@ -426,8 +426,6 @@ class actoruse(RPCContractBase):
 
     class Config:
         arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
-        copy_on_model_validation = False
 
 
 class arkiuse(RPCContractBase):
@@ -682,8 +680,6 @@ class arkiuse(RPCContractBase):
 
     class Config:
         arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
-        copy_on_model_validation = False
 
 
 class mockuse(RPCContract):
@@ -740,7 +736,6 @@ class mockuse(RPCContract):
 
     class Config:
         arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
 
 
 class serializingarkiuse(arkiuse):

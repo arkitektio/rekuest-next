@@ -9,27 +9,27 @@ import uuid
 
 class Passport(BaseModel):
     instance_id: str
-    provision: str
-    parent: Optional[str]
+    provision: int
+    parent: Optional[str] = None
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
 class Assignment(BaseModel):
-    assignation: Optional[str]
-    parent: Optional[str]
+    assignation: Optional[int] = None
+    parent: Optional[str] = None
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     args: Dict[str, Any] = Field(default_factory=dict)
-    user: Optional[str]
-    reference: Optional[str]
+    user: Optional[str] = None
+    reference: Optional[str] = None
 
 
 class AssignmentUpdate(BaseModel):
     assignment: str
     status: AssignationEventKind
-    message: Optional[str]
-    parent: Optional[str]
-    progress: Optional[int]
-    returns: Optional[List[Any]]
+    message: Optional[str] = None
+    parent: Optional[str] = None
+    progress: Optional[int] = None
+    returns: Optional[List[Any]] = None
 
 
 class Unassignment(BaseModel):

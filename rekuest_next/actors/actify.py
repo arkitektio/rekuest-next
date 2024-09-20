@@ -80,14 +80,11 @@ def reactify(
     from the rekuest server.
     """
 
-
-
     state_variables, state_returns = prepare_state_variables(function)
     context_variables, context_returns = prepare_context_variables(function)
 
     if state_variables:
         stateful = True
-
 
     definition = prepare_definition(
         function,

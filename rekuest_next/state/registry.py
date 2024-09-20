@@ -38,14 +38,15 @@ def get_current_state_registry(allow_global=True):
 
 
 class StateRegistry(KoiledModel):
-    state_schemas: Dict[str, StateSchemaInput] = Field(default_factory=dict, exclude=True)
-    registry_schemas: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
+    state_schemas: Dict[str, StateSchemaInput] = Field(
+        default_factory=dict, exclude=True
+    )
+    registry_schemas: Dict[str, StructureRegistry] = Field(
+        default_factory=dict, exclude=True
+    )
 
     def register_at_name(
-        self,
-        name: str,
-        state_schema: StateSchemaInput,
-        registry: StructureRegistry
+        self, name: str, state_schema: StateSchemaInput, registry: StructureRegistry
     ):  # New Node
         self.state_schemas[name] = state_schema
         self.registry_schemas[name] = registry
@@ -67,16 +68,18 @@ class StateRegistry(KoiledModel):
     async def __aenter__(self):
         self._token = current_state_registry.set(self)
         return self
-    
+
     async def __aexit__(self, *args, **kwargs):
         current_state_registry.reset(self._token)
         self._token = None
         return
-    
-    async def ashrink_state(self,  state_key, state) -> Dict[str, Any]:
+
+    async def ashrink_state(self, state_key, state) -> Dict[str, Any]:
         shrinked = {}
         for port in self.state_schemas[state_key].ports:
-            shrinked[port.key] = await ashrink_return(port, getattr(state, port.key), self.registry_schemas[state_key])
+            shrinked[port.key] = await ashrink_return(
+                port, getattr(state, port.key), self.registry_schemas[state_key]
+            )
 
         return shrinked
 
@@ -93,6 +96,3 @@ class StateRegistry(KoiledModel):
             json.dumps(self.dump(), sort_keys=True).encode()
         ).hexdigest()
 
-
-    class Config:
-        copy_on_model_validation = False

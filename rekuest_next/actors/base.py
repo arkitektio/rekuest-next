@@ -13,7 +13,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from koil.types import Contextual
 from rekuest_next.actors.errors import ProvisionDelegateException, UnknownMessageError
@@ -52,6 +52,7 @@ class Agent(Protocol):
 
 
 class Actor(BaseModel):
+    model_config = ConfigDict(allow_arbitrary_types=True)
     passport: Passport
     transport: ActorTransport
     collector: Collector
@@ -117,6 +118,7 @@ class Actor(BaseModel):
             logger.info(f"Actor {self.passport.id} was cancelled")
 
     async def provide(self):
+        print("XX is", type(self))
         try:
             logging.info(f"Providing {self.passport}")
             await self.on_provide(self.passport)
@@ -301,10 +303,6 @@ class Actor(BaseModel):
         if self._provision_task and not self._provision_task.done():
             await self.acancel()
 
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True
-        copy_on_model_validation = "none"
 
 
 class SerializingActor(Actor):
@@ -317,7 +315,6 @@ class SerializingActor(Actor):
     contexts: Dict[str, Any] = Field(default_factory=dict)
     proxies: Dict[str, Any] = Field(default_factory=dict)
 
-
     async def add_local_variables(self, kwargs):
         for key, value in self.context_variables.items():
             try:
@@ -325,16 +322,14 @@ class SerializingActor(Actor):
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        
         for key, value in self.state_variables.items():
             try:
                 kwargs[key] = self.proxies[value]
-            except KeyError as e: 
+            except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
-            
 
         return kwargs
-    
 
-Actor.update_forward_refs()
-SerializingActor.update_forward_refs()
+
+Actor.model_rebuild()
+SerializingActor.model_rebuild()

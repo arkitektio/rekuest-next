@@ -1,4 +1,4 @@
-from rekuest.scalars import Identifier
+from rekuest_next.scalars import Identifier
 import pydantic
 from pydantic import ValidationError
 import pytest

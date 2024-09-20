@@ -128,8 +128,10 @@ async def test_shrink_nested_structure_error(simple_registry):
     definition = auto_validate(functional_definition)
 
     with pytest.raises(ShrinkingError):
-        await shrink_outputs(
+        # Should error because first return should be string
+        x = await shrink_outputs(
             definition,
             ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
             simple_registry,
         )
+

@@ -29,7 +29,7 @@ class BasePostman(KoiledModel):
 
     """
 
-    connected = Field(default=False)
+    connected: bool = Field(default=False)
     instance_id: str
 
     async def aassign(

@@ -49,6 +49,14 @@ def check_and_import_structures(
                 logging.info(
                     f"Called register_structures function from {module_name}.__rekuest__ with result"
                 )
+
+            if hasattr(rekuest_module, "init_extensions"):
+                at_least_one = True
+                logging.info(
+                    f"Called init_extensions function from {module_name}.__rekuest__"
+                )
+
+
             if not at_least_one:
                 logging.warning(
                     f"No init_extensions or register_structures function found in {module_name}.__rekuest__. This module will not be used."

@@ -1,6 +1,6 @@
-from rekuest.actors.actify import reactify
-from rekuest.definition.define import prepare_definition
-from rekuest.api.schema import NodeKind
+from rekuest_next.actors.actify import reactify
+from rekuest_next.definition.define import prepare_definition
+from rekuest_next.api.schema import NodeKind
 
 
 def test_actify_function(simple_registry):

@@ -39,6 +39,5 @@ except ImportError:
         return False
 
 
-
 def is_local_var(type):
     return is_context(type) or is_state(type)
