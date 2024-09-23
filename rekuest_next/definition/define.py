@@ -687,6 +687,7 @@ def prepare_definition(
     omitfirst=None,
     omitlast=None,
     omitkeys=[],
+    return_annotations: Optional[List[Any]] = None,
     allow_dev=True,
     allow_annotations: bool = True,
     **kwargs,  # additional kwargs can be ignored
@@ -834,7 +835,30 @@ def prepare_definition(
 
     function_outs_annotation = sig.return_annotation
 
-    if is_tuple(function_outs_annotation):
+
+    if return_annotations:
+        for index, cls in enumerate(return_annotations):
+            key = f"return{index}"
+            return_widget = return_widgets.pop(key, None)
+            assign_widget = widgets.pop(key, None)
+            port_effects = effects.pop(key, None)
+            this_port_groups = groups.pop(key, None)
+
+            returns.append(
+                convert_object_to_port(
+                    cls,
+                    key,
+                    structure_registry,
+                    return_widget=return_widget,
+                    effects=port_effects,
+                    description=doc_param_description_map.pop(key, None),
+                    label=doc_param_label_map.pop(key, None),
+                    assign_widget=assign_widget,
+                    groups=this_port_groups,
+                )
+            )
+
+    elif is_tuple(function_outs_annotation):
         for index, cls in enumerate(get_args(function_outs_annotation)):
             key = f"return{index}"
             return_widget = return_widgets.pop(key, None)

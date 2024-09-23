@@ -219,7 +219,7 @@ class BaseAgent(KoiledModel):
                 unass = Unassignment(
                     assignation=message.assignation,
                     id=assignment.id,
-                    context=self._context,
+                    context={},
                 )
 
                 await actor.apass(unass)

@@ -33,8 +33,8 @@ class AssignmentUpdate(BaseModel):
 
 
 class Unassignment(BaseModel):
-    assignation: str
-    id: str
+    assignation: int
+    id: str  = Field(default_factory=lambda: str(uuid.uuid4()))
     context: Dict[str, Any] = Field(default_factory=dict)
 
 
