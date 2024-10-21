@@ -717,13 +717,13 @@ files = [
 
 [[package]]
 name = "koil"
-version = "1.0.0"
+version = "1.0.1"
 description = "Async for a sync world"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "koil-1.0.0-py3-none-any.whl", hash = "sha256:3b15cde8037b201b6490ced277e9bf5c32f7c0e1c77d1d3db878fac747511eb8"},
-    {file = "koil-1.0.0.tar.gz", hash = "sha256:8be00945a27415fa9606f97206779a26a099d478409fe7699a9c229f1ccd07cc"},
+    {file = "koil-1.0.1-py3-none-any.whl", hash = "sha256:bc19acc9fb7b4314796933b258ae93155233e750830368aff7b9a5ad57db9191"},
+    {file = "koil-1.0.1.tar.gz", hash = "sha256:d28f64ff8436a51483ff0b6a4b10747a72324b0cfd444f2192087dedddad3311"},
 ]
 
 [package.dependencies]
@@ -1577,4 +1577,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "f1f712b53dddb2b149bc10c2ea4929c8a300d0c56473068b283fe509345f43e5"
+content-hash = "610ba1d13ff6d34cae413556383c1646a083548437125ae47719c23bf19fdec6"

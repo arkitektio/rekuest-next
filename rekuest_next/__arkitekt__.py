@@ -112,17 +112,17 @@ def init_services(service_builder_registry):
 
     from .structures.default import get_default_structure_registry
     from .api.schema import (
-        AssignationEventFragment,
+        AssignationEvent,
         aget_event,
-        NodeFragment,
+        Node,
         afind,
         Search_nodesQuery,
     )
     from rekuest_next.structures.hooks.standard import id_shrink
     from rekuest_next.widgets import SearchWidget
-    from arkitekt_next.model import Requirement
+    from arkitekt_next.base_models import Requirement
 
-    from arkitekt_next.model import Manifest
+    from arkitekt_next.base_models import Manifest
 
     class ArkitektNextRekuestNext(RekuestNext):
         rath: RekuestNextRath

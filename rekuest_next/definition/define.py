@@ -170,6 +170,8 @@ def convert_child_to_childport(
     nullable: bool = False,
     key: str | None = None,
     description: str | None = None,
+    assign_widget: AssignWidgetInput | None = None,
+    return_widget: ReturnWidgetInput | None = None,
 ) -> Tuple[ChildPortInput, Callable]:
     """Converts a element of a annotation to a child port
 
@@ -219,16 +221,32 @@ def convert_child_to_childport(
         )
 
     if is_annotated(cls):
-        real_type = cls.__args__[0]
+        real_type, *args = get_args(cls)
+
+        for annotation in args:
+            if hasattr(annotation, "get_assign_widget"):
+                assign_widget = annotation.get_assign_widget()
+            if hasattr(annotation, "get_return_widget"):
+                return_widget = annotation.get_return_widget()
 
         return convert_child_to_childport(
-            real_type, registry, nullable=nullable, key=key
+            real_type,
+            registry,
+            nullable=nullable,
+            key=key,
+            assign_widget=assign_widget,
+            return_widget=return_widget,
         )
 
     if is_nullable(cls):
         non_nullable = get_non_nullable_variant(cls)
         return convert_child_to_childport(
-            non_nullable, registry, nullable=True, key=key
+            non_nullable,
+            registry,
+            nullable=True,
+            key=key,
+            assign_widget=assign_widget,
+            return_widget=return_widget,
         )
 
     if is_union(cls):
@@ -437,7 +455,17 @@ def convert_object_to_port(
         )
 
     if is_annotated(cls):
-        real_type = cls.__args__[0]
+        real_type, *args = get_args(cls)
+
+        for annotation in args:
+            if hasattr(annotation, "get_assign_widget"):
+                assign_widget = annotation.get_assign_widget()
+            if hasattr(annotation, "get_return_widget"):
+                return_widget = annotation.get_return_widget()
+            if hasattr(annotation, "get_effects"):
+                effects = annotation.get_effects()
+            if hasattr(annotation, "get_default"):
+                default = annotation.get_default()
 
         return convert_object_to_port(
             real_type,
@@ -835,7 +863,6 @@ def prepare_definition(
 
     function_outs_annotation = sig.return_annotation
 
-
     if return_annotations:
         for index, cls in enumerate(return_annotations):
             key = f"return{index}"
@@ -904,10 +931,18 @@ def prepare_definition(
                 )
             )
 
+    node_name = None
     # Documentation Parsing
+    if name is not None:
+        node_name = name
 
-    name = name or docstring.short_description or snake_to_title_case(function.__name__)
-    description = description or docstring.long_description or "No Description"
+    elif docstring.long_description:
+        node_name = docstring.short_description
+        description = description or docstring.long_description
+
+    else:
+        node_name = name or snake_to_title_case(function.__name__)
+        description = description or docstring.short_description or "No Description"
 
     if widgets:
         raise DefinitionError(
@@ -928,7 +963,7 @@ def prepare_definition(
 
     x = DefinitionInput(
         **{
-            "name": name,
+            "name": node_name,
             "description": description,
             "collections": collections,
             "args": args,

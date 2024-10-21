@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from rekuest_next.state.predicate import get_state_name, is_state
 from rekuest_next.structures.model import model
 from typing import Optional, Type, TypeVar, Callable
@@ -35,7 +36,7 @@ def inspect_state_schema(
 
 
 def state(
-    name: str,
+    name_or_function: str,
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[Type[T]], Type[T]]:
@@ -44,6 +45,10 @@ def state(
     structure_registry = structure_reg or get_default_structure_registry()
 
     def wrapper(cls: Type[T]) -> Type[T]:
+        try:
+            fields(cls)
+        except TypeError:
+            cls = dataclass(cls)
 
         setattr(cls, "__rekuest_state__", name)
 
@@ -53,7 +58,13 @@ def state(
 
         return cls
 
-    return wrapper
+    if isinstance(name_or_function, str):
+        name = name_or_function
+        return wrapper
+
+    else:
+        name = name_or_function.__name__
+        return wrapper(name_or_function)
 
 
 def prepare_state_variables(function) -> Dict[str, Any]:

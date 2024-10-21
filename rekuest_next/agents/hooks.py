@@ -92,6 +92,13 @@ class WrappedStartupHook(StartupHook):
     def __init__(self, func):
         self.func = func
 
+        # check if has context argument
+        arguments = inspect.signature(func).parameters
+        if len(arguments) != 1:
+            raise StartupHookError(
+                "Startup hook must have exactly one argument (instance_id) or no arguments"
+            )
+
     async def arun(self, instance_id: str) -> Optional[Dict[str, Any]]:
         parsed_returns = await self.func(instance_id)
 

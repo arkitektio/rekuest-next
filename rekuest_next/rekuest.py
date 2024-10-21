@@ -1,6 +1,6 @@
 from typing import Dict
 from pydantic import Field
-from rekuest_next.api.schema import TemplateFragment
+from rekuest_next.api.schema import Template
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.structures.default import get_default_structure_registry
@@ -30,7 +30,7 @@ class RekuestNext(Composition):
     agent: BaseAgent = Field(default_factory=BaseAgent)
     postman: BasePostman = Field(default_factory=GraphQLPostman)
 
-    registered_templates: Dict[str, TemplateFragment] = Field(default_factory=dict)
+    registered_templates: Dict[str, Template] = Field(default_factory=dict)
 
     def register(self, *args, **kwargs) -> None:
         """

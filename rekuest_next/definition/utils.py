@@ -3,7 +3,7 @@ from rekuest_next.state.predicate import is_state
 
 
 try:
-    from typing import Annotated, get_type_hints, Any
+    from typing import Annotated, get_type_hints, Any, get_origin
 
     annot_type = type(Annotated[int, "spam"])
 
@@ -17,7 +17,7 @@ try:
         Returns:
             bool: _description_
         """
-        return (type(obj) is annot_type) and hasattr(obj, "__metadata__")
+        return get_origin(obj) is Annotated
 
 except ImportError:
     Annotated = None

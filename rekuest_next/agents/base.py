@@ -13,14 +13,14 @@ from rekuest_next.actors.transport.local_transport import (
     ProxyActorTransport,
 )
 from rekuest_next.actors.transport.types import ActorTransport
-from rekuest_next.actors.types import ActorBuilder, Assignment, Passport, Unassignment
+from rekuest_next.actors.types import ActorBuilder, Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.extension import AgentExtension
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
     AssignationEventKind,
     ProvisionEventKind,
-    TemplateFragment,
+    Template,
     acreate_template,
     aget_provision,
     CreateTemplateInput,
@@ -89,10 +89,10 @@ class BaseAgent(KoiledModel):
     extensions: Dict[str, AgentExtension] = Field(default_factory=build_base_extensions)
     collector: Collector = Field(default_factory=Collector)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_template_map: Dict[str, TemplateFragment] = Field(default_factory=dict)
+    interface_template_map: Dict[str, Template] = Field(default_factory=dict)
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
-    managed_assignments: Dict[str, Assignment] = Field(default_factory=dict)
+    managed_assignments: Dict[str, Assign] = Field(default_factory=dict)
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
     _contexts: Dict[str, Any] = None
@@ -129,9 +129,8 @@ class BaseAgent(KoiledModel):
                 passport = self.provision_passport_map[message.provision]
                 actor = self.managed_actors[passport.id]
 
-
                 # Converting assignation to Assignment
-                message = Assignment(
+                message = Assign(
                     assignation=message.assignation,
                     args=message.args,
                     user=message.user,
@@ -160,7 +159,7 @@ class BaseAgent(KoiledModel):
                 assignment = self.managed_assignments[message.assignation]
 
                 # Converting unassignation to unassignment
-                unass = Unassignment(assignation=message.assignation, id=assignment.id)
+                unass = Cancel(assignation=message.assignation, id=assignment.id)
 
                 await actor.apass(unass)
             else:
@@ -216,7 +215,7 @@ class BaseAgent(KoiledModel):
                 assignment = self.managed_assignments[message.assignation]
 
                 # Converting unassignation to unassignment
-                unass = Unassignment(
+                unass = Cancel(
                     assignation=message.assignation,
                     id=assignment.id,
                     context={},
@@ -349,8 +348,15 @@ class BaseAgent(KoiledModel):
         actor = self.managed_actors[passport.id]
         return await actor.aget_status()
 
+    async def afind_local_template_for_nodehash(
+        self, nodehash: str
+    ) -> Optional[Template]:
+        for template in self.interface_template_map.values():
+            if template.node.hash == nodehash:
+                return template
+
     async def abuild_actor_for_template(
-        self, template: TemplateFragment, passport: Passport, transport: ActorTransport
+        self, template: Template, passport: Passport, transport: ActorTransport
     ) -> Actor:
         if not template.extension:
             raise ProvisionException(
@@ -378,7 +384,6 @@ class BaseAgent(KoiledModel):
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
-
         await self.aregister_definitions(instance_id=instance_id)
 
         for extension in self.extensions.values():
@@ -387,10 +392,10 @@ class BaseAgent(KoiledModel):
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id)
 
-    async def on_assign_change(self, assignment: Assignment, *args, **kwargs):
+    async def on_assign_change(self, assignment: Assign, *args, **kwargs):
         await self.transport.change_assignation(assignment.assignation, *args, **kwargs)
 
-    async def on_assign_log(self, assignment: Assignment, *args, **kwargs):
+    async def on_assign_log(self, assignment: Assign, *args, **kwargs):
         await self.transport.log_to_assignation(assignment.assignation, *args, **kwargs)
 
     async def on_actor_change(self, passport: Passport, *args, **kwargs):
@@ -403,10 +408,22 @@ class BaseAgent(KoiledModel):
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps template"""
 
-        provision = await aget_provision(
-            provide_message.provision,
-            rath=self.rath,
-        )
+        if provide_message.provision in self.provision_passport_map:
+            logger.warning("Received provision for a provision that is already running")
+            return
+
+        try:
+            provision = await aget_provision(
+                provide_message.provision,
+                rath=self.rath,
+            )
+
+        except Exception as e:
+            print(e)
+            logger.error(
+                f"Error when getting provision for {provide_message}", exc_info=True
+            )
+            return
 
         passport = Passport(provision=provision.id, instance_id=self.instance_id)
 
@@ -421,7 +438,9 @@ class BaseAgent(KoiledModel):
 
         await actor.arun()  # TODO: Maybe move this outside?
         self.managed_actors[actor.passport.id] = actor
-        self.provision_passport_map[int(provision.id)] = actor.passport # TODO: This should be a passport
+        self.provision_passport_map[int(provision.id)] = (
+            actor.passport
+        )  # TODO: This should be a passport
 
         return actor
 

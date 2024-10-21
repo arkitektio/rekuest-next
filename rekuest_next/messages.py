@@ -22,12 +22,17 @@ class MessageType(str, Enum):
 
 
 class Message(BaseModel):
+    # This is the local mapping of the message, reply messages should have the same id
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     type: MessageType
 
 
 class Assign(Message):
     type: Literal[MessageType.ASSIGN] = MessageType.ASSIGN
+    mother: Optional[int] = None
+    """ The mother assignation (root)"""
+    parent: Optional[int] = None
+    """ The parent assignation"""
     assignation: int
     reference: Optional[str] = None
     provision: Optional[int] = None

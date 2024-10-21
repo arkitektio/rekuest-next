@@ -36,6 +36,7 @@ def context(*func, name: str = None) -> Callable[[Type[T]], Type[T]]:
         return cls
 
     else:
+
         def wrapper(cls: Type[T]) -> Type[T]:
             setattr(cls, "__rekuest_context__", name)
             return cls

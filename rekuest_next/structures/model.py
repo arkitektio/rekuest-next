@@ -12,9 +12,12 @@ def model(cls):
     try:
         fields(cls)
     except TypeError:
-        raise TypeError(
-            "Models must be serializable by fieldz in order to be used in rekuest_next."
-        )
+        try:
+            return model(dataclass(cls))
+        except TypeError:
+            raise TypeError(
+                "Models must be serializable by fieldz in order to be used in rekuest_next."
+            )
 
     setattr(cls, "__rekuest_model__", inflection.underscore(cls.__name__))
 

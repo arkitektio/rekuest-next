@@ -95,4 +95,3 @@ class StateRegistry(KoiledModel):
         return hashlib.sha256(
             json.dumps(self.dump(), sort_keys=True).encode()
         ).hexdigest()
-

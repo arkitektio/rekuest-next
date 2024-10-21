@@ -1,9 +1,9 @@
 from typing import Any, AsyncGenerator, Dict, List, Union
 import uuid
 from rekuest_next.api.schema import (
-    AssignationEventFragment,
-    AssignationFragment,
-    ReservationFragment,
+    AssignationEvent,
+    Assignation,
+    Reservation,
     aassign,
     areserve,
     awatch_assignations,
@@ -12,7 +12,7 @@ from rekuest_next.api.schema import (
     aunreserve,
     AssignInput,
     CancelInput,
-    AssignationChangeEventFragment,
+    AssignationChangeEvent,
     InterruptInput,
     BindsInput,
 )
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class GraphQLPostman(BasePostman):
     rath: RekuestNextRath
     instance_id: str
-    assignations: Dict[str, AssignationFragment] = Field(default_factory=dict)
+    assignations: Dict[str, Assignation] = Field(default_factory=dict)
 
     _ass_update_queues: Dict[str, asyncio.Queue] = {}
 
@@ -60,7 +60,7 @@ class GraphQLPostman(BasePostman):
 
     async def aassign(
         self, assign: AssignInput
-    ) -> AsyncGenerator[AssignationEventFragment, None]:
+    ) -> AsyncGenerator[AssignationEvent, None]:
         async with self._lock:
             if not self._watching:
                 await self.start_watching()
@@ -106,11 +106,10 @@ class GraphQLPostman(BasePostman):
             logger.error("Watching Assignations failed", exc_info=True)
             raise e
 
-
     async def watch_assraces(self):
         try:
             while True:
-                ass: AssignationEventFragment = await self._ass_update_queue.get()
+                ass: AssignationEvent = await self._ass_update_queue.get()
                 self._ass_update_queue.task_done()
                 logger.info(f"Postman received Assignation {ass}")
 
@@ -157,4 +156,3 @@ class GraphQLPostman(BasePostman):
             await self.stop_watching()
         current_postman.set(None)
         return await super().__aexit__(exc_type, exc_val, exc_tb)
-

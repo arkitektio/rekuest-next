@@ -1,6 +1,15 @@
 import asyncio
 import uuid
-from typing import Any, AsyncGenerator, List, Optional, Protocol, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
 
 from koil import unkoil, unkoil_gen
 from koil.composition.base import KoiledModel
@@ -13,10 +22,10 @@ from rekuest_next.api.schema import (
     AssignationEventKind,
     AssignInput,
     HookInput,
-    NodeFragment,
-    ReservationFragment,
+    Node,
+    Reservation,
     ReserveInput,
-    TemplateFragment,
+    Template,
     UnreserveInput,
     afind,
     atemplates_for,
@@ -64,9 +73,9 @@ def none_or_id(value: Optional[Union[IDBearer, str]]) -> Optional[str]:
 
 
 async def acall(
-    node: Optional[Union[NodeFragment, str]] = None,
-    template: Optional[Union[TemplateFragment, str]] = None,
-    reservation: Optional[Union[ReservationFragment, str]] = None,
+    node: Optional[Union[Node, str]] = None,
+    template: Optional[Union[Template, str]] = None,
+    reservation: Optional[Union[Reservation, str]] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -74,7 +83,7 @@ async def acall(
     log: bool = False,
     **kwargs,
 ) -> tuple[Any]:
-    if not isinstance(node, NodeFragment):
+    if not isinstance(node, Node):
         node = await afind(id=node)
 
     postman: BasePostman = get_current_postman()
@@ -120,9 +129,9 @@ async def acall(
 
 
 async def aiterate(
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -130,7 +139,7 @@ async def aiterate(
     log: bool = False,
     **kwargs,
 ) -> AsyncGenerator[tuple[Any], None]:
-    if not isinstance(node, NodeFragment):
+    if not isinstance(node, Node):
         node = await afind(id=node)
 
     postman: BasePostman = get_current_postman()
@@ -175,15 +184,15 @@ async def aiterate(
 
 
 async def aiterate_raw(
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    kwargs: Dict[str, Any] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     parent: bool = None,
     log: bool = False,
-    **kwargs,
 ) -> AsyncGenerator[tuple[Any], None]:
     postman: BasePostman = get_current_postman()
 
@@ -206,6 +215,7 @@ async def aiterate_raw(
         hooks=hooks or [],
         cached=cached,
         parent=parent,
+        ephemeral=False,
         log=log,
         isHook=False,
     )
@@ -222,15 +232,16 @@ async def aiterate_raw(
 
 
 async def acall_raw(
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    kwargs: Dict[str, Any] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     parent: bool = None,
     log: bool = False,
-    **kwargs,
+    
 ) -> AsyncGenerator[tuple[Any], None]:
     postman: BasePostman = get_current_postman()
 
@@ -258,7 +269,6 @@ async def acall_raw(
         ephemeral=False,
     )
 
-
     returns = None
 
     async for i in postman.aassign(x):
@@ -273,9 +283,9 @@ async def acall_raw(
 
 
 def call(
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -297,9 +307,9 @@ def call(
 
 def iterate(
     *args,
-    node: Optional[NodeFragment] = None,
-    template: Optional[TemplateFragment] = None,
-    reservation: Optional[ReservationFragment] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -319,13 +329,12 @@ def iterate(
     )
 
 
-
 def call_raw(*args, **kwargs):
     return unkoil(acall_raw, *args, **kwargs)
-        
+
 
 class ReservationContext(KoiledModel):
-    node: NodeFragment
+    node: Node
     constants: Optional[dict[str, Any]] = None
     reference: Optional[str] = None
     hooks: Optional[List[HookInput]] = None
@@ -334,7 +343,7 @@ class ReservationContext(KoiledModel):
     log: bool = False
     assignation_id: Optional[str] = None
 
-    _reservation: Optional[ReservationFragment] = None
+    _reservation: Optional[Reservation] = None
 
     async def __aenter__(self) -> "ReservationContext":
         _postman = get_current_postman()
@@ -393,9 +402,8 @@ class ReservationContext(KoiledModel):
         return super().__enter__()
 
 
-
 def reserved(
-    node: NodeFragment,
+    node: Node,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -421,5 +429,5 @@ def reserved(
     )
 
 
-def templates_for(node: NodeFragment) -> list[TemplateFragment]:
+def templates_for(node: Node) -> list[Template]:
     return node.templates

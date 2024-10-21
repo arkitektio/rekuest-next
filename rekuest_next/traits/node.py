@@ -3,13 +3,10 @@ from koil.composition.base import KoiledModel
 
 class Reserve(KoiledModel):
 
-
     def validate_args(self, **kwargs):
         for arg in self.args:
             if arg.key not in kwargs and arg.nullable is False:
                 raise ValueError(f"Key {arg.key} not in args")
-        
-
 
     def get_node_kind(self):
         return getattr(self, "kind")

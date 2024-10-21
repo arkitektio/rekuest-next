@@ -1,8 +1,8 @@
 from typing import Any, Dict, List, Optional, Union
 from rekuest_next.api.schema import (
-    AssignationFragment,
+    Assignation,
     AssignationStatus,
-    ReservationFragment,
+    Reservation,
     ReservationStatus,
 )
 
@@ -44,7 +44,7 @@ class StatefulPostman(BasePostman):
             node, params, provision=provision, reference=reference
         )
 
-    async def aunreserve(self, reservation_id: str) -> ReservationFragment:
+    async def aunreserve(self, reservation_id: str) -> Reservation:
         unreservation = await self.transport.aunreserve(reservation_id)
         self.reservations[unreservation.reservation].status = (
             ReservationStatus.CANCELING
@@ -64,7 +64,7 @@ class StatefulPostman(BasePostman):
     async def aunassign(
         self,
         assignation: str,
-    ) -> AssignationFragment:
+    ) -> Assignation:
         unassignation = await self.transport.aunassign(assignation)
         self.assignations[unassignation.assignation].status = (
             AssignationStatus.CANCELING

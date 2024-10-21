@@ -6,15 +6,15 @@ from rekuest_next.actors.vars import (
     current_assignment,
 )
 from rekuest_next.actors.transport.types import AssignTransport
-from rekuest_next.actors.types import Assignment, Passport
+from rekuest_next.actors.types import Passport
 from pydantic import BaseModel, ConfigDict
 
 
 class AssignmentContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+
     passport: Passport
-    assignment: Assignment
+    assignment: Assign
     transport: AssignTransport
     _helper = None
 

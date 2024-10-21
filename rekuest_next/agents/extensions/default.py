@@ -6,11 +6,11 @@ from rekuest_next.definition.registry import (
     get_default_definition_registry,
 )
 from rekuest_next.api.schema import (
-    TemplateFragment,
+    Template,
     StateSchemaInput,
     CreateStateSchemaInput,
     acreate_state_schema,
-    StateSchemaFragment,
+    StateSchema,
 )
 from rekuest_next.actors.base import Actor, Passport, ActorTransport
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -43,7 +43,7 @@ class DefaultExtension(BaseModel):
 
     _current_states = {}
     _shrunk_states = {}
-    _state_schemas: Dict[str, StateSchemaFragment] = {}
+    _state_schemas: Dict[str, StateSchema] = {}
     _background_tasks = {}
     _state_lock: Optional[asyncio.Lock] = None
     _instance_id: Optional[str] = None
@@ -155,7 +155,7 @@ class DefaultExtension(BaseModel):
 
     async def aspawn_actor_from_template(
         self,
-        template: TemplateFragment,
+        template: Template,
         passport: Passport,
         transport: ActorTransport,
         collector: "Collector",

@@ -19,13 +19,14 @@ from koil.types import Contextual
 from rekuest_next.actors.errors import ProvisionDelegateException, UnknownMessageError
 from rekuest_next.actors.transport.local_transport import ProxyActorTransport
 from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
-from rekuest_next.actors.types import Assignment, Passport, Unassignment
+from rekuest_next.actors.types import Passport
+from rekuest_next.messages import Assign, Cancel, InMessage, OutMessage
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.api.schema import (
     AssignationEventKind,
     LogLevel,
     ProvisionEventKind,
-    TemplateFragment,
+    Template,
 )
 from rekuest_next.collection.collector import (
     ActorCollector,
@@ -47,8 +48,12 @@ logger = logging.getLogger(__name__)
 @runtime_checkable
 class Agent(Protocol):
     async def abuild_actor_for_template(
-        self, template: TemplateFragment, passport: Passport, transport: ActorTransport
+        self, template: Template, passport: Passport, transport: ActorTransport
     ) -> "Actor": ...
+
+    async def afind_local_template_for_nodehash(
+        self, nodehash: str
+    ) -> Optional[Template]: ...
 
 
 class Actor(BaseModel):
@@ -59,7 +64,7 @@ class Actor(BaseModel):
     agent: Agent
     supervisor: Optional["Actor"] = None
     managed_actors: Dict[str, "Actor"] = Field(default_factory=dict)
-    running_assignments: Dict[str, Assignment] = Field(default_factory=dict)
+    running_assignments: Dict[str, Assign] = Field(default_factory=dict)
 
     _in_queue: Optional[asyncio.Queue] = PrivateAttr(default=None)
     _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
@@ -75,7 +80,7 @@ class Actor(BaseModel):
 
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: AssignationCollector,
         transport: AssignTransport,
     ):
@@ -86,7 +91,7 @@ class Actor(BaseModel):
     async def aget_status(self):
         return self._status
 
-    async def apass(self, message: Union[Unassignment, Assignment]):
+    async def apass(self, message: Union[Assign, Cancel]):
         assert self._in_queue, "Actor is currently not listening"
         await self._in_queue.put(message)
 
@@ -161,15 +166,15 @@ class Actor(BaseModel):
                 )
             pass
 
-    async def is_assignment_still_running(self, message: Union[Assignment]):
+    async def is_assignment_still_running(self, message: Union[Assign]):
         if message.id in self._running_asyncio_tasks:
             return True
         return False
 
-    async def aprocess(self, message: Union[Assignment, Unassignment]):
+    async def aprocess(self, message: Union[Assign, Cancel]):
         logger.info(f"Actor for {self.passport}: Received {message}")
 
-        if isinstance(message, Assignment):
+        if isinstance(message, Assign):
             transport = self.transport.spawn(message)
 
             task = asyncio.create_task(
@@ -185,7 +190,7 @@ class Actor(BaseModel):
             self._running_transports[message.id] = transport
             self._running_asyncio_tasks[message.id] = task
 
-        elif isinstance(message, Unassignment):
+        elif isinstance(message, Cancel):
             if message.id in self._running_asyncio_tasks:
                 task = self._running_asyncio_tasks[message.id]
                 assign_transport = self._running_transports[message.id]
@@ -276,7 +281,7 @@ class Actor(BaseModel):
 
     async def aspawn_actor(
         self,
-        template: TemplateFragment,
+        template: Template,
         on_log_event: Callable[[OutMessage], Awaitable[None]],
     ) -> "SerializingActor":
         """Spawns an Actor managed by thisfrom the definition of the given interface"""
@@ -301,7 +306,6 @@ class Actor(BaseModel):
     async def __aexit__(self, exc_type, exc, tb):
         if self._provision_task and not self._provision_task.done():
             await self.acancel()
-
 
 
 class SerializingActor(Actor):

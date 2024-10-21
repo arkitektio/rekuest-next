@@ -1,5 +1,5 @@
 from typing import runtime_checkable, Protocol, Optional
-from rekuest_next.api.schema import TemplateFragment
+from rekuest_next.api.schema import Template
 from rekuest_next.actors.base import Actor, Passport, ActorTransport
 from typing import TYPE_CHECKING
 from rekuest_next.definition.registry import DefinitionRegistry
@@ -25,7 +25,7 @@ class AgentExtension(Protocol):
 
     async def aspawn_actor_from_template(
         self,
-        template: TemplateFragment,
+        template: Template,
         passport: Passport,
         transport: ActorTransport,
         agent: "BaseAgent",

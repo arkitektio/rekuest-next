@@ -1,14 +1,14 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
-from rekuest_next.api.schema import NodeFragment
+from rekuest_next.api.schema import Node
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
-    PortFragment,
+    Port,
     PortKind,
     DefinitionInput,
-    DefinitionFragment,
-    ChildPortFragment,
+    Definition,
+    ChildPort,
 )
 from rekuest_next.structures.errors import (
     PortShrinkingError,
@@ -20,7 +20,7 @@ import datetime as dt
 
 
 def predicate_port(
-    port: Union[PortFragment, ChildPortFragment],
+    port: Union[Port, ChildPort],
     value: Any,
     structure_registry: StructureRegistry = None,
 ):

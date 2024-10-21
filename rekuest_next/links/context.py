@@ -52,4 +52,5 @@ class ContextLink(ContinuationLink):
 
     class Config:
         """pydantic configuration for the AuthTokenLink"""
+
         arbitary_types_allowed = True

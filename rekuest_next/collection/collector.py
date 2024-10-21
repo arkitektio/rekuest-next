@@ -1,4 +1,5 @@
-from rekuest_next.actors.types import Passport, Assignment
+from rekuest_next.actors.types import Passport
+from rekuest_next.messages import Assign
 from rekuest_next.structures.default import (
     get_default_structure_registry,
     StructureRegistry,
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class AssignationCollector(BaseModel):
-    assignment: Assignment
+    assignment: Assign
 
     async def collect(self):
         """
@@ -37,7 +38,7 @@ class ActorCollector(BaseModel):
     sub_collectors: Dict[str, AssignationCollector] = Field(default_factory=dict)
     delegated_collector: Dict[str, "ActorCollector"] = Field(default_factory=dict)
 
-    def spawn(self, assignment: Assignment):
+    def spawn(self, assignment: Assign):
         """
         Spawn a new collector for the given assignation.
         """
@@ -45,7 +46,7 @@ class ActorCollector(BaseModel):
         self.sub_collectors[assignment.parent] = assign_collector
         return assign_collector
 
-    async def collect(self, assignment: Assignment):
+    async def collect(self, assignment: Assign):
         """
         Collect data from the source.
 
@@ -68,7 +69,7 @@ class Collector(BaseModel):
     assignment_map: Dict[str, List[Any]] = Field(default_factory=dict)
     children_tree: Dict[str, List[str]] = Field(default_factory=dict)
 
-    def register(self, assignment: Assignment, items: List[any]):
+    def register(self, assignment: Assign, items: List[any]):
         logger.debug(f"Registering {assignment.id}")
 
         if assignment.id in self.assignment_map:
@@ -104,4 +105,3 @@ class Collector(BaseModel):
         if id in self.children_tree:
             for child in self.children_tree[id]:
                 await self.collect(child)
-

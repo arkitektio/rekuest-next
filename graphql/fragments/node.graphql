@@ -8,6 +8,7 @@ fragment Definition on Node {
   kind
   name
   description
+  interfaces
   collections {
     name
   }

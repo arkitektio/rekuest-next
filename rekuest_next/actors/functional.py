@@ -9,7 +9,7 @@ from rekuest_next.messages import Assign, Provide
 from rekuest_next.api.schema import AssignationEventKind
 from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
 from rekuest_next.actors.contexts import AssignmentContext
-from rekuest_next.actors.types import OnProvide, OnUnprovide, Assignment, Unassignment
+
 from rekuest_next.collection.collector import Collector
 from rekuest_next.actors.transport.types import AssignTransport
 from rekuest_next.structures.parse_collectables import parse_collectable
@@ -32,11 +32,10 @@ class FunctionalActor(BaseModel):
     assign: Callable[..., Any]
 
 
-
 class AsyncFuncActor(SerializingActor):
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -104,7 +103,7 @@ class AsyncFuncActor(SerializingActor):
 class AsyncGenActor(SerializingActor):
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -182,7 +181,7 @@ class ThreadedFuncActor(SerializingActor):
 
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -253,7 +252,7 @@ class ThreadedGenActor(SerializingActor):
 
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -322,7 +321,7 @@ class ThreadedGenActor(SerializingActor):
 class ProcessedGenActor(SerializingActor):
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -389,7 +388,7 @@ class ProcessedGenActor(SerializingActor):
 class ProcessedFuncActor(SerializingActor):
     async def on_assign(
         self,
-        assignment: Assignment,
+        assignment: Assign,
         collector: Collector,
         transport: AssignTransport,
     ):
@@ -426,7 +425,7 @@ class ProcessedFuncActor(SerializingActor):
             collector.register(assignment, parse_collectable(self.definition, returns))
 
             await transport.change(
-                status=AssignationEventKind.RETURNED,
+                status=AssignationEventKind.YIELD,
                 returns=returns,
             )
 
@@ -455,11 +454,9 @@ class FunctionalThreadedFuncActor(FunctionalActor, ThreadedFuncActor):
         await self._progress(value, percentage)
 
 
-
 class FunctionalThreadedGenActor(FunctionalActor, ThreadedGenActor):
     async def progress(self, value, percentage):
         await self._progress(value, percentage)
-
 
 
 class FunctionalProcessedFuncActor(FunctionalActor, ProcessedFuncActor):

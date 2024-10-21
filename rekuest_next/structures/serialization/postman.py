@@ -1,14 +1,14 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
-from rekuest_next.api.schema import NodeFragment
+from rekuest_next.api.schema import Node
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
-    PortFragment,
+    Port,
     PortKind,
     DefinitionInput,
-    DefinitionFragment,
-    ChildPortFragment,
+    Definition,
+    ChildPort,
 )
 from rekuest_next.structures.errors import (
     PortShrinkingError,
@@ -21,12 +21,12 @@ import datetime as dt
 
 
 async def ashrink_arg(
-    port: Union[PortFragment, ChildPortFragment], value: Any, structure_registry=None
+    port: Union[Port, ChildPort], value: Any, structure_registry=None
 ) -> Any:
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
@@ -108,7 +108,7 @@ async def ashrink_arg(
 
 
 async def ashrink_args(
-    node: NodeFragment,
+    node: Node,
     args: List[Any],
     kwargs: Dict[str, Any],
     structure_registry: StructureRegistry,
@@ -161,14 +161,14 @@ async def ashrink_args(
 
 
 async def aexpand_return(
-    port: Union[PortFragment, ChildPortFragment],
+    port: Union[Port, ChildPort],
     value: Any,
     structure_registry=None,
 ) -> Any:
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
@@ -244,7 +244,7 @@ async def aexpand_return(
 
 
 async def aexpand_returns(
-    node: NodeFragment,
+    node: Node,
     returns: Dict[str, Any],
     structure_registry: StructureRegistry,
 ) -> Tuple[Any]:
@@ -291,7 +291,7 @@ async def aexpand_returns(
 
 
 def serialize_inputs(
-    definition: Union[DefinitionFragment, DefinitionInput],
+    definition: Union[Definition, DefinitionInput],
     kwargs: Dict[str, Any],
 ) -> Tuple[Any]:
     """Shrinks args and kwargs
@@ -327,7 +327,7 @@ def serialize_inputs(
 
 
 def deserialize_outputs(
-    definition: Union[DefinitionFragment, DefinitionInput],
+    definition: Union[Definition, DefinitionInput],
     returns: List[Any],
 ) -> Dict[str, Any]:
     """Expands Returns

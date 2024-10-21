@@ -1,25 +1,25 @@
-from rekuest_next.scalars import (
-    Args,
-    ValidatorFunction,
-    SearchQuery,
-    InstanceId,
-    Identifier,
-    NodeHash,
-)
-from rekuest_next.funcs import asubscribe, execute, aexecute, subscribe
-from typing_extensions import Literal
-from typing import Tuple, Any, Iterator, AsyncIterator, Optional, List
-from pydantic import BaseModel, ConfigDict, Field
-from rath.scalars import ID
 from rekuest_next.traits.ports import (
     PortTrait,
     WidgetInputTrait,
     ReturnWidgetInputTrait,
 )
-from rekuest_next.rath import RekuestNextRath
-from enum import Enum
-from rekuest_next.traits.node import Reserve
 from datetime import datetime
+from rekuest_next.scalars import (
+    Args,
+    InstanceId,
+    NodeHash,
+    SearchQuery,
+    Identifier,
+    ValidatorFunction,
+)
+from rath.scalars import ID
+from typing_extensions import Literal
+from typing import Tuple, List, Optional, Iterator, AsyncIterator, Any
+from rekuest_next.traits.node import Reserve
+from rekuest_next.funcs import asubscribe, aexecute, subscribe, execute
+from enum import Enum
+from pydantic import Field, ConfigDict, BaseModel
+from rekuest_next.rath import RekuestNextRath
 
 
 class AssignWidgetKind(str, Enum):
@@ -120,11 +120,6 @@ class LogLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class PanelKind(str, Enum):
-    STATE = "STATE"
-    ASSIGN = "ASSIGN"
-
-
 class AssignationEventKind(str, Enum):
     BOUND = "BOUND"
     ASSIGN = "ASSIGN"
@@ -139,6 +134,11 @@ class AssignationEventKind(str, Enum):
     INTERUPTED = "INTERUPTED"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
+
+class PanelKind(str, Enum):
+    STATE = "STATE"
+    ASSIGN = "ASSIGN"
 
 
 class HookKind(str, Enum):
@@ -424,7 +424,7 @@ class UpdateStateInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
 
 
-class TestCaseFragmentNode(Reserve, BaseModel):
+class TestCaseNode(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(
         alias="__typename", default="Node", exclude=True
     )
@@ -432,19 +432,19 @@ class TestCaseFragmentNode(Reserve, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TestCaseFragment(BaseModel):
+class TestCase(BaseModel):
     typename: Optional[Literal["TestCase"]] = Field(
         alias="__typename", default="TestCase", exclude=True
     )
     id: ID
-    node: TestCaseFragmentNode
+    node: TestCaseNode
     is_benchmark: bool = Field(alias="isBenchmark")
     description: str
     name: str
     model_config = ConfigDict(frozen=True)
 
 
-class TestResultFragmentCase(BaseModel):
+class TestResultCase(BaseModel):
     typename: Optional[Literal["TestCase"]] = Field(
         alias="__typename", default="TestCase", exclude=True
     )
@@ -452,27 +452,27 @@ class TestResultFragmentCase(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TestResultFragment(BaseModel):
+class TestResult(BaseModel):
     typename: Optional[Literal["TestResult"]] = Field(
         alias="__typename", default="TestResult", exclude=True
     )
     id: ID
-    case: TestResultFragmentCase
+    case: TestResultCase
     passed: bool
     model_config = ConfigDict(frozen=True)
 
 
-class ProvisionFragment(BaseModel):
+class Provision(BaseModel):
     typename: Optional[Literal["Provision"]] = Field(
         alias="__typename", default="Provision", exclude=True
     )
     id: ID
     status: ProvisionEventKind
-    template: "TemplateFragment"
+    template: "Template"
     model_config = ConfigDict(frozen=True)
 
 
-class StateFragmentAgent(BaseModel):
+class StateAgent(BaseModel):
     typename: Optional[Literal["Agent"]] = Field(
         alias="__typename", default="Agent", exclude=True
     )
@@ -480,18 +480,18 @@ class StateFragmentAgent(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class StateFragment(BaseModel):
+class State(BaseModel):
     typename: Optional[Literal["State"]] = Field(
         alias="__typename", default="State", exclude=True
     )
     id: ID
     value: Args
-    state_schema: "StateSchemaFragment" = Field(alias="stateSchema")
-    agent: StateFragmentAgent
+    state_schema: "StateSchema" = Field(alias="stateSchema")
+    agent: StateAgent
     model_config = ConfigDict(frozen=True)
 
 
-class ChildPortNestedFragmentChildren(PortTrait, BaseModel):
+class ChildPortNestedChildren(PortTrait, BaseModel):
     typename: Optional[Literal["ChildPort"]] = Field(
         alias="__typename", default="ChildPort", exclude=True
     )
@@ -501,33 +501,31 @@ class ChildPortNestedFragmentChildren(PortTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ChildPortNestedFragment(PortTrait, BaseModel):
-    typename: Optional[Literal["ChildPort"]] = Field(
-        alias="__typename", default="ChildPort", exclude=True
-    )
-    key: str
-    kind: PortKind
-    children: Optional[Tuple[ChildPortNestedFragmentChildren, ...]] = Field(
-        default=None
-    )
-    identifier: Optional[Identifier] = Field(default=None)
-    nullable: bool
-    model_config = ConfigDict(frozen=True)
-
-
-class ChildPortFragment(PortTrait, BaseModel):
+class ChildPortNested(PortTrait, BaseModel):
     typename: Optional[Literal["ChildPort"]] = Field(
         alias="__typename", default="ChildPort", exclude=True
     )
     key: str
     kind: PortKind
+    children: Optional[Tuple[ChildPortNestedChildren, ...]] = Field(default=None)
     identifier: Optional[Identifier] = Field(default=None)
-    children: Optional[Tuple[ChildPortNestedFragment, ...]] = Field(default=None)
     nullable: bool
     model_config = ConfigDict(frozen=True)
 
 
-class PortFragmentValidators(BaseModel):
+class ChildPort(PortTrait, BaseModel):
+    typename: Optional[Literal["ChildPort"]] = Field(
+        alias="__typename", default="ChildPort", exclude=True
+    )
+    key: str
+    kind: PortKind
+    identifier: Optional[Identifier] = Field(default=None)
+    children: Optional[Tuple[ChildPortNested, ...]] = Field(default=None)
+    nullable: bool
+    model_config = ConfigDict(frozen=True)
+
+
+class PortValidators(BaseModel):
     typename: Optional[Literal["Validator"]] = Field(
         alias="__typename", default="Validator", exclude=True
     )
@@ -538,7 +536,7 @@ class PortFragmentValidators(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class PortFragment(PortTrait, BaseModel):
+class Port(PortTrait, BaseModel):
     typename: Optional[Literal["Port"]] = Field(
         alias="__typename", default="Port", exclude=True
     )
@@ -549,12 +547,12 @@ class PortFragment(PortTrait, BaseModel):
     default: Optional[Any] = Field(default=None)
     kind: PortKind
     identifier: Optional[Identifier] = Field(default=None)
-    children: Optional[Tuple[ChildPortFragment, ...]] = Field(default=None)
-    validators: Optional[Tuple[PortFragmentValidators, ...]] = Field(default=None)
+    children: Optional[Tuple[ChildPort, ...]] = Field(default=None)
+    validators: Optional[Tuple[PortValidators, ...]] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
-class AgentFragmentRegistryApp(BaseModel):
+class AgentRegistryApp(BaseModel):
     typename: Optional[Literal["App"]] = Field(
         alias="__typename", default="App", exclude=True
     )
@@ -562,7 +560,7 @@ class AgentFragmentRegistryApp(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AgentFragmentRegistryUser(BaseModel):
+class AgentRegistryUser(BaseModel):
     typename: Optional[Literal["User"]] = Field(
         alias="__typename", default="User", exclude=True
     )
@@ -570,24 +568,24 @@ class AgentFragmentRegistryUser(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AgentFragmentRegistry(BaseModel):
+class AgentRegistry(BaseModel):
     typename: Optional[Literal["Registry"]] = Field(
         alias="__typename", default="Registry", exclude=True
     )
-    app: AgentFragmentRegistryApp
-    user: AgentFragmentRegistryUser
+    app: AgentRegistryApp
+    user: AgentRegistryUser
     model_config = ConfigDict(frozen=True)
 
 
-class AgentFragment(BaseModel):
+class Agent(BaseModel):
     typename: Optional[Literal["Agent"]] = Field(
         alias="__typename", default="Agent", exclude=True
     )
-    registry: AgentFragmentRegistry
+    registry: AgentRegistry
     model_config = ConfigDict(frozen=True)
 
 
-class PanelFragmentState(BaseModel):
+class PanelState(BaseModel):
     typename: Optional[Literal["State"]] = Field(
         alias="__typename", default="State", exclude=True
     )
@@ -595,7 +593,7 @@ class PanelFragmentState(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class PanelFragmentReservation(BaseModel):
+class PanelReservation(BaseModel):
     typename: Optional[Literal["Reservation"]] = Field(
         alias="__typename", default="Reservation", exclude=True
     )
@@ -603,18 +601,18 @@ class PanelFragmentReservation(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class PanelFragment(BaseModel):
+class Panel(BaseModel):
     typename: Optional[Literal["Panel"]] = Field(
         alias="__typename", default="Panel", exclude=True
     )
     id: ID
     kind: PanelKind
-    state: Optional[PanelFragmentState] = Field(default=None)
-    reservation: Optional[PanelFragmentReservation] = Field(default=None)
+    state: Optional[PanelState] = Field(default=None)
+    reservation: Optional[PanelReservation] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
-class ReservationFragmentNode(Reserve, BaseModel):
+class ReservationNode(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(
         alias="__typename", default="Node", exclude=True
     )
@@ -623,7 +621,7 @@ class ReservationFragmentNode(Reserve, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ReservationFragmentWaiter(BaseModel):
+class ReservationWaiter(BaseModel):
     typename: Optional[Literal["Waiter"]] = Field(
         alias="__typename", default="Waiter", exclude=True
     )
@@ -631,25 +629,25 @@ class ReservationFragmentWaiter(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ReservationFragment(BaseModel):
+class Reservation(BaseModel):
     typename: Optional[Literal["Reservation"]] = Field(
         alias="__typename", default="Reservation", exclude=True
     )
     id: ID
     status: ReservationEventKind
-    node: ReservationFragmentNode
-    waiter: ReservationFragmentWaiter
+    node: ReservationNode
+    waiter: ReservationWaiter
     reference: str
     updated_at: datetime = Field(alias="updatedAt")
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentUitreeChildBase(BaseModel):
+class DashboardUitreeChildBase(BaseModel):
     pass
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentUitreeChildUIGridInlineFragmentChildren(BaseModel):
+class DashboardUitreeChildUIGridInlineFragmentChildren(BaseModel):
     typename: Optional[Literal["UIGridItem"]] = Field(
         alias="__typename", default="UIGridItem", exclude=True
     )
@@ -660,26 +658,24 @@ class DashboardFragmentUitreeChildUIGridInlineFragmentChildren(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentUitreeChildUIGridInlineFragment(
-    DashboardFragmentUitreeChildBase
-):
+class DashboardUitreeChildUIGridInlineFragment(DashboardUitreeChildBase):
     typename: Optional[Literal["UIGrid"]] = Field(
         alias="__typename", default="UIGrid", exclude=True
     )
     row_height: int = Field(alias="rowHeight")
-    children: Tuple[DashboardFragmentUitreeChildUIGridInlineFragmentChildren, ...]
+    children: Tuple[DashboardUitreeChildUIGridInlineFragmentChildren, ...]
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentUitree(BaseModel):
+class DashboardUitree(BaseModel):
     typename: Optional[Literal["UITree"]] = Field(
         alias="__typename", default="UITree", exclude=True
     )
-    child: DashboardFragmentUitreeChildUIGridInlineFragment
+    child: DashboardUitreeChildUIGridInlineFragment
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentPanelsState(BaseModel):
+class DashboardPanelsState(BaseModel):
     typename: Optional[Literal["State"]] = Field(
         alias="__typename", default="State", exclude=True
     )
@@ -687,7 +683,7 @@ class DashboardFragmentPanelsState(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentPanelsReservation(BaseModel):
+class DashboardPanelsReservation(BaseModel):
     typename: Optional[Literal["Reservation"]] = Field(
         alias="__typename", default="Reservation", exclude=True
     )
@@ -695,28 +691,28 @@ class DashboardFragmentPanelsReservation(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragmentPanels(BaseModel):
+class DashboardPanels(BaseModel):
     typename: Optional[Literal["Panel"]] = Field(
         alias="__typename", default="Panel", exclude=True
     )
     id: ID
-    state: Optional[DashboardFragmentPanelsState] = Field(default=None)
-    reservation: Optional[DashboardFragmentPanelsReservation] = Field(default=None)
+    state: Optional[DashboardPanelsState] = Field(default=None)
+    reservation: Optional[DashboardPanelsReservation] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
-class DashboardFragment(BaseModel):
+class Dashboard(BaseModel):
     typename: Optional[Literal["Dashboard"]] = Field(
         alias="__typename", default="Dashboard", exclude=True
     )
     id: ID
     name: Optional[str] = Field(default=None)
-    ui_tree: Optional[DashboardFragmentUitree] = Field(default=None, alias="uiTree")
-    panels: Optional[Tuple[DashboardFragmentPanels, ...]] = Field(default=None)
+    ui_tree: Optional[DashboardUitree] = Field(default=None, alias="uiTree")
+    panels: Optional[Tuple[DashboardPanels, ...]] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
-class AssignationFragmentParent(BaseModel):
+class AssignationParent(BaseModel):
     typename: Optional[Literal["Assignation"]] = Field(
         alias="__typename", default="Assignation", exclude=True
     )
@@ -724,7 +720,7 @@ class AssignationFragmentParent(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AssignationFragmentEvents(BaseModel):
+class AssignationEvents(BaseModel):
     typename: Optional[Literal["AssignationEvent"]] = Field(
         alias="__typename", default="AssignationEvent", exclude=True
     )
@@ -734,22 +730,24 @@ class AssignationFragmentEvents(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AssignationFragment(BaseModel):
+class Assignation(BaseModel):
     typename: Optional[Literal["Assignation"]] = Field(
         alias="__typename", default="Assignation", exclude=True
     )
     args: Any
     id: ID
-    parent: Optional[AssignationFragmentParent] = Field(default=None)
+    parent: Optional[AssignationParent] = Field(default=None)
+    "A parent assignation is the next assignation in the chain of assignations that caused this assignation to be created. Parents can be created by intent or by the system. If null, this assignation is the parent"
     id: ID
     status: AssignationEventKind
-    events: Tuple[AssignationFragmentEvents, ...]
+    "The status of this assignation"
+    events: Tuple[AssignationEvents, ...]
     reference: Optional[str] = Field(default=None)
     updated_at: datetime = Field(alias="updatedAt")
     model_config = ConfigDict(frozen=True)
 
 
-class AssignationEventFragment(BaseModel):
+class AssignationEvent(BaseModel):
     typename: Optional[Literal["AssignationEvent"]] = Field(
         alias="__typename", default="AssignationEvent", exclude=True
     )
@@ -762,26 +760,26 @@ class AssignationEventFragment(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AssignationChangeEventFragment(BaseModel):
+class AssignationChangeEvent(BaseModel):
     typename: Optional[Literal["AssignationChangeEvent"]] = Field(
         alias="__typename", default="AssignationChangeEvent", exclude=True
     )
-    create: Optional[AssignationFragment] = Field(default=None)
-    event: Optional[AssignationEventFragment] = Field(default=None)
+    create: Optional[Assignation] = Field(default=None)
+    event: Optional[AssignationEvent] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
-class StateSchemaFragment(BaseModel):
+class StateSchema(BaseModel):
     typename: Optional[Literal["StateSchema"]] = Field(
         alias="__typename", default="StateSchema", exclude=True
     )
     id: ID
     name: str
-    ports: Tuple[PortFragment, ...]
+    ports: Tuple[Port, ...]
     model_config = ConfigDict(frozen=True)
 
 
-class TemplateFragmentAgentRegistry(BaseModel):
+class TemplateAgentRegistry(BaseModel):
     typename: Optional[Literal["Registry"]] = Field(
         alias="__typename", default="Registry", exclude=True
     )
@@ -789,28 +787,28 @@ class TemplateFragmentAgentRegistry(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TemplateFragmentAgent(BaseModel):
+class TemplateAgent(BaseModel):
     typename: Optional[Literal["Agent"]] = Field(
         alias="__typename", default="Agent", exclude=True
     )
-    registry: TemplateFragmentAgentRegistry
+    registry: TemplateAgentRegistry
     model_config = ConfigDict(frozen=True)
 
 
-class TemplateFragment(BaseModel):
+class Template(BaseModel):
     typename: Optional[Literal["Template"]] = Field(
         alias="__typename", default="Template", exclude=True
     )
     id: ID
-    agent: TemplateFragmentAgent
-    node: "NodeFragment"
+    agent: TemplateAgent
+    node: "Node"
     params: Any
     extension: str
     interface: str
     model_config = ConfigDict(frozen=True)
 
 
-class DefinitionFragmentCollections(BaseModel):
+class DefinitionCollections(BaseModel):
     typename: Optional[Literal["Collection"]] = Field(
         alias="__typename", default="Collection", exclude=True
     )
@@ -818,7 +816,7 @@ class DefinitionFragmentCollections(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DefinitionFragmentIstestfor(Reserve, BaseModel):
+class DefinitionIstestfor(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(
         alias="__typename", default="Node", exclude=True
     )
@@ -826,7 +824,7 @@ class DefinitionFragmentIstestfor(Reserve, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DefinitionFragmentPortgroups(BaseModel):
+class DefinitionPortgroups(BaseModel):
     typename: Optional[Literal["PortGroup"]] = Field(
         alias="__typename", default="PortGroup", exclude=True
     )
@@ -834,24 +832,25 @@ class DefinitionFragmentPortgroups(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DefinitionFragment(Reserve, BaseModel):
+class Definition(Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(
         alias="__typename", default="Node", exclude=True
     )
-    args: Tuple[PortFragment, ...]
-    returns: Tuple[PortFragment, ...]
+    args: Tuple[Port, ...]
+    returns: Tuple[Port, ...]
     kind: NodeKind
     name: str
     description: Optional[str] = Field(default=None)
-    collections: Tuple[DefinitionFragmentCollections, ...]
+    interfaces: Tuple[str, ...]
+    collections: Tuple[DefinitionCollections, ...]
     is_dev: bool = Field(alias="isDev")
-    is_test_for: Tuple[DefinitionFragmentIstestfor, ...] = Field(alias="isTestFor")
-    port_groups: Tuple[DefinitionFragmentPortgroups, ...] = Field(alias="portGroups")
+    is_test_for: Tuple[DefinitionIstestfor, ...] = Field(alias="isTestFor")
+    port_groups: Tuple[DefinitionPortgroups, ...] = Field(alias="portGroups")
     stateful: bool
     model_config = ConfigDict(frozen=True)
 
 
-class NodeFragment(DefinitionFragment, Reserve, BaseModel):
+class Node(Definition, Reserve, BaseModel):
     typename: Optional[Literal["Node"]] = Field(
         alias="__typename", default="Node", exclude=True
     )
@@ -861,7 +860,7 @@ class NodeFragment(DefinitionFragment, Reserve, BaseModel):
 
 
 class Create_testcaseMutation(BaseModel):
-    create_test_case: TestCaseFragment = Field(alias="createTestCase")
+    create_test_case: TestCase = Field(alias="createTestCase")
 
     class Arguments(BaseModel):
         node: ID
@@ -874,7 +873,7 @@ class Create_testcaseMutation(BaseModel):
 
 
 class Create_testresultMutation(BaseModel):
-    create_test_result: TestResultFragment = Field(alias="createTestResult")
+    create_test_result: TestResult = Field(alias="createTestResult")
 
     class Arguments(BaseModel):
         case: ID
@@ -888,7 +887,7 @@ class Create_testresultMutation(BaseModel):
 
 
 class SetStateMutation(BaseModel):
-    set_state: StateFragment = Field(alias="setState")
+    set_state: State = Field(alias="setState")
 
     class Arguments(BaseModel):
         input: SetStateInput
@@ -898,7 +897,7 @@ class SetStateMutation(BaseModel):
 
 
 class UpdateStateMutation(BaseModel):
-    update_state: StateFragment = Field(alias="updateState")
+    update_state: State = Field(alias="updateState")
 
     class Arguments(BaseModel):
         input: UpdateStateInput
@@ -931,7 +930,7 @@ class EnsureAgentMutation(BaseModel):
 
 
 class CreatePanelMutation(BaseModel):
-    create_panel: PanelFragment = Field(alias="createPanel")
+    create_panel: Panel = Field(alias="createPanel")
 
     class Arguments(BaseModel):
         input: CreatePanelInput
@@ -941,7 +940,7 @@ class CreatePanelMutation(BaseModel):
 
 
 class ReserveMutation(BaseModel):
-    reserve: ReservationFragment
+    reserve: Reservation
 
     class Arguments(BaseModel):
         input: ReserveInput
@@ -961,7 +960,7 @@ class UnreserveMutation(BaseModel):
 
 
 class AssignMutation(BaseModel):
-    assign: AssignationFragment
+    assign: Assignation
 
     class Arguments(BaseModel):
         input: AssignInput
@@ -971,7 +970,7 @@ class AssignMutation(BaseModel):
 
 
 class CancelMutation(BaseModel):
-    cancel: AssignationFragment
+    cancel: Assignation
 
     class Arguments(BaseModel):
         input: CancelInput
@@ -981,7 +980,7 @@ class CancelMutation(BaseModel):
 
 
 class InterruptMutation(BaseModel):
-    interrupt: AssignationFragment
+    interrupt: Assignation
 
     class Arguments(BaseModel):
         input: InterruptInput
@@ -991,7 +990,7 @@ class InterruptMutation(BaseModel):
 
 
 class CreateDashboardMutation(BaseModel):
-    create_dashboard: DashboardFragment = Field(alias="createDashboard")
+    create_dashboard: Dashboard = Field(alias="createDashboard")
 
     class Arguments(BaseModel):
         input: CreateDashboardInput
@@ -1001,7 +1000,7 @@ class CreateDashboardMutation(BaseModel):
 
 
 class CreateStateSchemaMutation(BaseModel):
-    create_state_schema: StateSchemaFragment = Field(alias="createStateSchema")
+    create_state_schema: StateSchema = Field(alias="createStateSchema")
 
     class Arguments(BaseModel):
         input: CreateStateSchemaInput
@@ -1043,29 +1042,27 @@ class CreateHardwareRecordMutation(BaseModel):
 
 
 class CreateTemplateMutation(BaseModel):
-    create_template: TemplateFragment = Field(alias="createTemplate")
+    create_template: Template = Field(alias="createTemplate")
 
     class Arguments(BaseModel):
         input: CreateTemplateInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n  }\n}"
 
 
 class SetExtensionTemplatesMutation(BaseModel):
-    set_extension_templates: Tuple[TemplateFragment, ...] = Field(
-        alias="setExtensionTemplates"
-    )
+    set_extension_templates: Tuple[Template, ...] = Field(alias="setExtensionTemplates")
 
     class Arguments(BaseModel):
         input: SetExtensionTemplatesInput
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n  }\n}"
 
 
 class MyTemplateAtQuery(BaseModel):
-    my_template_at: TemplateFragment = Field(alias="myTemplateAt")
+    my_template_at: Template = Field(alias="myTemplateAt")
 
     class Arguments(BaseModel):
         instance_id: str = Field(alias="instanceId")
@@ -1073,11 +1070,11 @@ class MyTemplateAtQuery(BaseModel):
         node_id: Optional[ID] = Field(alias="nodeId", default=None)
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
-    reservations: ReservationFragment
+    reservations: Reservation
 
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
@@ -1087,7 +1084,7 @@ class WatchReservationsSubscription(BaseModel):
 
 
 class WatchAssignationsSubscription(BaseModel):
-    assignations: AssignationChangeEventFragment
+    assignations: AssignationChangeEvent
 
     class Arguments(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
@@ -1097,7 +1094,7 @@ class WatchAssignationsSubscription(BaseModel):
 
 
 class Get_testcaseQuery(BaseModel):
-    test_case: TestCaseFragment = Field(alias="testCase")
+    test_case: TestCase = Field(alias="testCase")
 
     class Arguments(BaseModel):
         id: ID
@@ -1107,7 +1104,7 @@ class Get_testcaseQuery(BaseModel):
 
 
 class Get_testresultQuery(BaseModel):
-    test_result: TestResultFragment = Field(alias="testResult")
+    test_result: TestResult = Field(alias="testResult")
 
     class Arguments(BaseModel):
         id: ID
@@ -1157,13 +1154,13 @@ class Search_testresultsQuery(BaseModel):
 
 
 class Get_provisionQuery(BaseModel):
-    provision: ProvisionFragment
+    provision: Provision
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nfragment Provision on Provision {\n  id\n  status\n  template {\n    ...Template\n  }\n}\n\nquery get_provision($id: ID!) {\n  provision(id: $id) {\n    ...Provision\n  }\n}"
 
 
 class GetMeNodesQueryNodes(Reserve, BaseModel):
@@ -1186,7 +1183,7 @@ class GetMeNodesQuery(BaseModel):
 
 
 class GetAgentQuery(BaseModel):
-    agent: AgentFragment
+    agent: Agent
 
     class Arguments(BaseModel):
         id: ID
@@ -1196,7 +1193,7 @@ class GetAgentQuery(BaseModel):
 
 
 class GetPanelQuery(BaseModel):
-    panel: PanelFragment
+    panel: Panel
 
     class Arguments(BaseModel):
         id: ID
@@ -1249,7 +1246,7 @@ class Get_reservationQuery(BaseModel):
 
 
 class ReservationsQuery(BaseModel):
-    reservations: Tuple[ReservationFragment, ...]
+    reservations: Tuple[Reservation, ...]
 
     class Arguments(BaseModel):
         instance_id: InstanceId
@@ -1259,7 +1256,7 @@ class ReservationsQuery(BaseModel):
 
 
 class RequestsQuery(BaseModel):
-    assignations: Tuple[AssignationFragment, ...]
+    assignations: Tuple[Assignation, ...]
 
     class Arguments(BaseModel):
         instance_id: InstanceId
@@ -1269,7 +1266,7 @@ class RequestsQuery(BaseModel):
 
 
 class GetEventQuery(BaseModel):
-    event: Tuple[AssignationEventFragment, ...]
+    event: Tuple[AssignationEvent, ...]
 
     class Arguments(BaseModel):
         id: Optional[ID] = Field(default=None)
@@ -1279,7 +1276,7 @@ class GetEventQuery(BaseModel):
 
 
 class GetDashboardQuery(BaseModel):
-    dashboard: DashboardFragment
+    dashboard: Dashboard
 
     class Arguments(BaseModel):
         id: ID
@@ -1289,20 +1286,20 @@ class GetDashboardQuery(BaseModel):
 
 
 class Get_templateQuery(BaseModel):
-    template: TemplateFragment
+    template: Template
 
     class Arguments(BaseModel):
         id: ID
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n  }\n}"
 
 
 class Search_templatesQueryOptions(BaseModel):
     typename: Optional[Literal["Template"]] = Field(
         alias="__typename", default="Template", exclude=True
     )
-    label: Optional[str] = Field(default=None)
+    label: str
     value: ID
     model_config = ConfigDict(frozen=True)
 
@@ -1319,17 +1316,17 @@ class Search_templatesQuery(BaseModel):
 
 
 class Templates_forQuery(BaseModel):
-    templates: Tuple[TemplateFragment, ...]
+    templates: Tuple[Template, ...]
 
     class Arguments(BaseModel):
         hash: NodeHash
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n    }\n  }\n  node {\n    ...Node\n  }\n  params\n  extension\n  interface\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n  }\n}"
 
 
 class FindQuery(BaseModel):
-    node: NodeFragment
+    node: Node
 
     class Arguments(BaseModel):
         id: Optional[ID] = Field(default=None)
@@ -1337,17 +1334,17 @@ class FindQuery(BaseModel):
         hash: Optional[NodeHash] = Field(default=None)
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
-    nodes: Tuple[NodeFragment, ...]
+    nodes: Tuple[Node, ...]
 
     class Arguments(BaseModel):
         pass
 
     class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n  }\n  identifier\n  nullable\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n  }\n  nullable\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n  }\n  returns {\n    ...Port\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n  }\n  isDev\n  isTestFor {\n    id\n  }\n  portGroups {\n    key\n  }\n  stateful\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n  }\n}"
 
 
 class Search_nodesQueryOptions(Reserve, BaseModel):
@@ -1376,7 +1373,7 @@ async def acreate_testcase(
     description: str,
     name: str,
     rath: Optional[RekuestNextRath] = None,
-) -> TestCaseFragment:
+) -> TestCase:
     """create_testcase
 
 
@@ -1389,7 +1386,7 @@ async def acreate_testcase(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCaseFragment"""
+        TestCase"""
     return (
         await aexecute(
             Create_testcaseMutation,
@@ -1405,7 +1402,7 @@ def create_testcase(
     description: str,
     name: str,
     rath: Optional[RekuestNextRath] = None,
-) -> TestCaseFragment:
+) -> TestCase:
     """create_testcase
 
 
@@ -1418,7 +1415,7 @@ def create_testcase(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCaseFragment"""
+        TestCase"""
     return execute(
         Create_testcaseMutation,
         {"node": node, "tester": tester, "description": description, "name": name},
@@ -1433,7 +1430,7 @@ async def acreate_testresult(
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> TestResultFragment:
+) -> TestResult:
     """create_testresult
 
 
@@ -1447,7 +1444,7 @@ async def acreate_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResultFragment"""
+        TestResult"""
     return (
         await aexecute(
             Create_testresultMutation,
@@ -1470,7 +1467,7 @@ def create_testresult(
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> TestResultFragment:
+) -> TestResult:
     """create_testresult
 
 
@@ -1484,7 +1481,7 @@ def create_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResultFragment"""
+        TestResult"""
     return execute(
         Create_testresultMutation,
         {
@@ -1500,7 +1497,7 @@ def create_testresult(
 
 async def aset_state(
     input: SetStateInput, rath: Optional[RekuestNextRath] = None
-) -> StateFragment:
+) -> State:
     """SetState
 
 
@@ -1510,13 +1507,11 @@ async def aset_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateFragment"""
+        State"""
     return (await aexecute(SetStateMutation, {"input": input}, rath=rath)).set_state
 
 
-def set_state(
-    input: SetStateInput, rath: Optional[RekuestNextRath] = None
-) -> StateFragment:
+def set_state(input: SetStateInput, rath: Optional[RekuestNextRath] = None) -> State:
     """SetState
 
 
@@ -1526,13 +1521,13 @@ def set_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateFragment"""
+        State"""
     return execute(SetStateMutation, {"input": input}, rath=rath).set_state
 
 
 async def aupdate_state(
     input: UpdateStateInput, rath: Optional[RekuestNextRath] = None
-) -> StateFragment:
+) -> State:
     """UpdateState
 
 
@@ -1542,7 +1537,7 @@ async def aupdate_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateFragment"""
+        State"""
     return (
         await aexecute(UpdateStateMutation, {"input": input}, rath=rath)
     ).update_state
@@ -1550,7 +1545,7 @@ async def aupdate_state(
 
 def update_state(
     input: UpdateStateInput, rath: Optional[RekuestNextRath] = None
-) -> StateFragment:
+) -> State:
     """UpdateState
 
 
@@ -1560,7 +1555,7 @@ def update_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateFragment"""
+        State"""
     return execute(UpdateStateMutation, {"input": input}, rath=rath).update_state
 
 
@@ -1618,7 +1613,7 @@ def ensure_agent(
 
 async def acreate_panel(
     input: CreatePanelInput, rath: Optional[RekuestNextRath] = None
-) -> PanelFragment:
+) -> Panel:
     """CreatePanel
 
 
@@ -1628,7 +1623,7 @@ async def acreate_panel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        PanelFragment"""
+        Panel"""
     return (
         await aexecute(CreatePanelMutation, {"input": input}, rath=rath)
     ).create_panel
@@ -1636,7 +1631,7 @@ async def acreate_panel(
 
 def create_panel(
     input: CreatePanelInput, rath: Optional[RekuestNextRath] = None
-) -> PanelFragment:
+) -> Panel:
     """CreatePanel
 
 
@@ -1646,13 +1641,13 @@ def create_panel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        PanelFragment"""
+        Panel"""
     return execute(CreatePanelMutation, {"input": input}, rath=rath).create_panel
 
 
 async def areserve(
     input: ReserveInput, rath: Optional[RekuestNextRath] = None
-) -> ReservationFragment:
+) -> Reservation:
     """reserve
 
 
@@ -1662,13 +1657,11 @@ async def areserve(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationFragment"""
+        Reservation"""
     return (await aexecute(ReserveMutation, {"input": input}, rath=rath)).reserve
 
 
-def reserve(
-    input: ReserveInput, rath: Optional[RekuestNextRath] = None
-) -> ReservationFragment:
+def reserve(input: ReserveInput, rath: Optional[RekuestNextRath] = None) -> Reservation:
     """reserve
 
 
@@ -1678,7 +1671,7 @@ def reserve(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationFragment"""
+        Reservation"""
     return execute(ReserveMutation, {"input": input}, rath=rath).reserve
 
 
@@ -1718,7 +1711,7 @@ def unreserve(input: UnreserveInput, rath: Optional[RekuestNextRath] = None) -> 
 
 async def aassign(
     input: AssignInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+) -> Assignation:
     """assign
 
 
@@ -1728,13 +1721,11 @@ async def aassign(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return (await aexecute(AssignMutation, {"input": input}, rath=rath)).assign
 
 
-def assign(
-    input: AssignInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+def assign(input: AssignInput, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """assign
 
 
@@ -1744,13 +1735,13 @@ def assign(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return execute(AssignMutation, {"input": input}, rath=rath).assign
 
 
 async def acancel(
     input: CancelInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+) -> Assignation:
     """cancel
 
 
@@ -1760,13 +1751,11 @@ async def acancel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return (await aexecute(CancelMutation, {"input": input}, rath=rath)).cancel
 
 
-def cancel(
-    input: CancelInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+def cancel(input: CancelInput, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """cancel
 
 
@@ -1776,13 +1765,13 @@ def cancel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return execute(CancelMutation, {"input": input}, rath=rath).cancel
 
 
 async def ainterrupt(
     input: InterruptInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+) -> Assignation:
     """interrupt
 
 
@@ -1792,13 +1781,13 @@ async def ainterrupt(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return (await aexecute(InterruptMutation, {"input": input}, rath=rath)).interrupt
 
 
 def interrupt(
     input: InterruptInput, rath: Optional[RekuestNextRath] = None
-) -> AssignationFragment:
+) -> Assignation:
     """interrupt
 
 
@@ -1808,13 +1797,13 @@ def interrupt(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationFragment"""
+        Assignation"""
     return execute(InterruptMutation, {"input": input}, rath=rath).interrupt
 
 
 async def acreate_dashboard(
     input: CreateDashboardInput, rath: Optional[RekuestNextRath] = None
-) -> DashboardFragment:
+) -> Dashboard:
     """CreateDashboard
 
 
@@ -1824,7 +1813,7 @@ async def acreate_dashboard(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        DashboardFragment"""
+        Dashboard"""
     return (
         await aexecute(CreateDashboardMutation, {"input": input}, rath=rath)
     ).create_dashboard
@@ -1832,7 +1821,7 @@ async def acreate_dashboard(
 
 def create_dashboard(
     input: CreateDashboardInput, rath: Optional[RekuestNextRath] = None
-) -> DashboardFragment:
+) -> Dashboard:
     """CreateDashboard
 
 
@@ -1842,7 +1831,7 @@ def create_dashboard(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        DashboardFragment"""
+        Dashboard"""
     return execute(
         CreateDashboardMutation, {"input": input}, rath=rath
     ).create_dashboard
@@ -1850,7 +1839,7 @@ def create_dashboard(
 
 async def acreate_state_schema(
     input: CreateStateSchemaInput, rath: Optional[RekuestNextRath] = None
-) -> StateSchemaFragment:
+) -> StateSchema:
     """CreateStateSchema
 
 
@@ -1860,7 +1849,7 @@ async def acreate_state_schema(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateSchemaFragment"""
+        StateSchema"""
     return (
         await aexecute(CreateStateSchemaMutation, {"input": input}, rath=rath)
     ).create_state_schema
@@ -1868,7 +1857,7 @@ async def acreate_state_schema(
 
 def create_state_schema(
     input: CreateStateSchemaInput, rath: Optional[RekuestNextRath] = None
-) -> StateSchemaFragment:
+) -> StateSchema:
     """CreateStateSchema
 
 
@@ -1878,7 +1867,7 @@ def create_state_schema(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateSchemaFragment"""
+        StateSchema"""
     return execute(
         CreateStateSchemaMutation, {"input": input}, rath=rath
     ).create_state_schema
@@ -1946,7 +1935,7 @@ def create_hardware_record(
 
 async def acreate_template(
     input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
-) -> TemplateFragment:
+) -> Template:
     """createTemplate
 
 
@@ -1956,7 +1945,7 @@ async def acreate_template(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return (
         await aexecute(CreateTemplateMutation, {"input": input}, rath=rath)
     ).create_template
@@ -1964,7 +1953,7 @@ async def acreate_template(
 
 def create_template(
     input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
-) -> TemplateFragment:
+) -> Template:
     """createTemplate
 
 
@@ -1974,13 +1963,13 @@ def create_template(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return execute(CreateTemplateMutation, {"input": input}, rath=rath).create_template
 
 
 async def aset_extension_templates(
     input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
-) -> List[TemplateFragment]:
+) -> List[Template]:
     """SetExtensionTemplates
 
 
@@ -1990,7 +1979,7 @@ async def aset_extension_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[TemplateFragment]"""
+        List[Template]"""
     return (
         await aexecute(SetExtensionTemplatesMutation, {"input": input}, rath=rath)
     ).set_extension_templates
@@ -1998,7 +1987,7 @@ async def aset_extension_templates(
 
 def set_extension_templates(
     input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
-) -> List[TemplateFragment]:
+) -> List[Template]:
     """SetExtensionTemplates
 
 
@@ -2008,7 +1997,7 @@ def set_extension_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[TemplateFragment]"""
+        List[Template]"""
     return execute(
         SetExtensionTemplatesMutation, {"input": input}, rath=rath
     ).set_extension_templates
@@ -2019,7 +2008,7 @@ async def amy_template_at(
     interface: Optional[str] = None,
     node_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> TemplateFragment:
+) -> Template:
     """MyTemplateAt
 
 
@@ -2031,7 +2020,7 @@ async def amy_template_at(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return (
         await aexecute(
             MyTemplateAtQuery,
@@ -2046,7 +2035,7 @@ def my_template_at(
     interface: Optional[str] = None,
     node_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> TemplateFragment:
+) -> Template:
     """MyTemplateAt
 
 
@@ -2058,7 +2047,7 @@ def my_template_at(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return execute(
         MyTemplateAtQuery,
         {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
@@ -2068,7 +2057,7 @@ def my_template_at(
 
 async def awatch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[ReservationFragment]:
+) -> AsyncIterator[Reservation]:
     """WatchReservations
 
 
@@ -2078,7 +2067,7 @@ async def awatch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationFragment"""
+        Reservation"""
     async for event in asubscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2087,7 +2076,7 @@ async def awatch_reservations(
 
 def watch_reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[ReservationFragment]:
+) -> Iterator[Reservation]:
     """WatchReservations
 
 
@@ -2097,7 +2086,7 @@ def watch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReservationFragment"""
+        Reservation"""
     for event in subscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2106,7 +2095,7 @@ def watch_reservations(
 
 async def awatch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> AsyncIterator[AssignationChangeEventFragment]:
+) -> AsyncIterator[AssignationChangeEvent]:
     """WatchAssignations
 
 
@@ -2116,7 +2105,7 @@ async def awatch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationChangeEventFragment"""
+        AssignationChangeEvent"""
     async for event in asubscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2125,7 +2114,7 @@ async def awatch_assignations(
 
 def watch_assignations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> Iterator[AssignationChangeEventFragment]:
+) -> Iterator[AssignationChangeEvent]:
     """WatchAssignations
 
 
@@ -2135,16 +2124,14 @@ def watch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationChangeEventFragment"""
+        AssignationChangeEvent"""
     for event in subscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
         yield event.assignations
 
 
-async def aget_testcase(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> TestCaseFragment:
+async def aget_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
     """get_testcase
 
 
@@ -2154,11 +2141,11 @@ async def aget_testcase(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCaseFragment"""
+        TestCase"""
     return (await aexecute(Get_testcaseQuery, {"id": id}, rath=rath)).test_case
 
 
-def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCaseFragment:
+def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
     """get_testcase
 
 
@@ -2168,13 +2155,11 @@ def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCaseFrag
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCaseFragment"""
+        TestCase"""
     return execute(Get_testcaseQuery, {"id": id}, rath=rath).test_case
 
 
-async def aget_testresult(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> TestResultFragment:
+async def aget_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult:
     """get_testresult
 
 
@@ -2184,13 +2169,11 @@ async def aget_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResultFragment"""
+        TestResult"""
     return (await aexecute(Get_testresultQuery, {"id": id}, rath=rath)).test_result
 
 
-def get_testresult(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> TestResultFragment:
+def get_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult:
     """get_testresult
 
 
@@ -2200,7 +2183,7 @@ def get_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResultFragment"""
+        TestResult"""
     return execute(Get_testresultQuery, {"id": id}, rath=rath).test_result
 
 
@@ -2292,9 +2275,7 @@ def search_testresults(
     ).options
 
 
-async def aget_provision(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> ProvisionFragment:
+async def aget_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Provision:
     """get_provision
 
 
@@ -2304,11 +2285,11 @@ async def aget_provision(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ProvisionFragment"""
+        Provision"""
     return (await aexecute(Get_provisionQuery, {"id": id}, rath=rath)).provision
 
 
-def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> ProvisionFragment:
+def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Provision:
     """get_provision
 
 
@@ -2318,7 +2299,7 @@ def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> ProvisionFr
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ProvisionFragment"""
+        Provision"""
     return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
 
 
@@ -2350,7 +2331,7 @@ def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQuery
     return execute(GetMeNodesQuery, {}, rath=rath).nodes
 
 
-async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
+async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
 
@@ -2360,11 +2341,11 @@ async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFra
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AgentFragment"""
+        Agent"""
     return (await aexecute(GetAgentQuery, {"id": id}, rath=rath)).agent
 
 
-def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
+def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
 
@@ -2374,11 +2355,11 @@ def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> AgentFragment:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AgentFragment"""
+        Agent"""
     return execute(GetAgentQuery, {"id": id}, rath=rath).agent
 
 
-async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> PanelFragment:
+async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
 
@@ -2388,11 +2369,11 @@ async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> PanelFra
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        PanelFragment"""
+        Panel"""
     return (await aexecute(GetPanelQuery, {"id": id}, rath=rath)).panel
 
 
-def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> PanelFragment:
+def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
 
@@ -2402,7 +2383,7 @@ def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> PanelFragment:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        PanelFragment"""
+        Panel"""
     return execute(GetPanelQuery, {"id": id}, rath=rath).panel
 
 
@@ -2440,7 +2421,7 @@ def get_reservation(
 
 async def areservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[ReservationFragment]:
+) -> List[Reservation]:
     """reservations
 
 
@@ -2450,7 +2431,7 @@ async def areservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[ReservationFragment]"""
+        List[Reservation]"""
     return (
         await aexecute(ReservationsQuery, {"instance_id": instance_id}, rath=rath)
     ).reservations
@@ -2458,7 +2439,7 @@ async def areservations(
 
 def reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[ReservationFragment]:
+) -> List[Reservation]:
     """reservations
 
 
@@ -2468,7 +2449,7 @@ def reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[ReservationFragment]"""
+        List[Reservation]"""
     return execute(
         ReservationsQuery, {"instance_id": instance_id}, rath=rath
     ).reservations
@@ -2476,7 +2457,7 @@ def reservations(
 
 async def arequests(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationFragment]:
+) -> List[Assignation]:
     """requests
 
 
@@ -2486,7 +2467,7 @@ async def arequests(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationFragment]"""
+        List[Assignation]"""
     return (
         await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
     ).assignations
@@ -2494,7 +2475,7 @@ async def arequests(
 
 def requests(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationFragment]:
+) -> List[Assignation]:
     """requests
 
 
@@ -2504,13 +2485,13 @@ def requests(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationFragment]"""
+        List[Assignation]"""
     return execute(RequestsQuery, {"instance_id": instance_id}, rath=rath).assignations
 
 
 async def aget_event(
     id: Optional[ID] = None, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationEventFragment]:
+) -> List[AssignationEvent]:
     """GetEvent
 
 
@@ -2520,13 +2501,13 @@ async def aget_event(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationEventFragment]"""
+        List[AssignationEvent]"""
     return (await aexecute(GetEventQuery, {"id": id}, rath=rath)).event
 
 
 def get_event(
     id: Optional[ID] = None, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationEventFragment]:
+) -> List[AssignationEvent]:
     """GetEvent
 
 
@@ -2536,13 +2517,11 @@ def get_event(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationEventFragment]"""
+        List[AssignationEvent]"""
     return execute(GetEventQuery, {"id": id}, rath=rath).event
 
 
-async def aget_dashboard(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> DashboardFragment:
+async def aget_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
     """GetDashboard
 
 
@@ -2552,11 +2531,11 @@ async def aget_dashboard(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        DashboardFragment"""
+        Dashboard"""
     return (await aexecute(GetDashboardQuery, {"id": id}, rath=rath)).dashboard
 
 
-def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> DashboardFragment:
+def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
     """GetDashboard
 
 
@@ -2566,13 +2545,11 @@ def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> DashboardFr
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        DashboardFragment"""
+        Dashboard"""
     return execute(GetDashboardQuery, {"id": id}, rath=rath).dashboard
 
 
-async def aget_template(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> TemplateFragment:
+async def aget_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
     """get_template
 
 
@@ -2582,11 +2559,11 @@ async def aget_template(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
 
 
-def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> TemplateFragment:
+def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
     """get_template
 
 
@@ -2596,7 +2573,7 @@ def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> TemplateFrag
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TemplateFragment"""
+        Template"""
     return execute(Get_templateQuery, {"id": id}, rath=rath).template
 
 
@@ -2646,7 +2623,7 @@ def search_templates(
 
 async def atemplates_for(
     hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> List[TemplateFragment]:
+) -> List[Template]:
     """templates_for
 
 
@@ -2656,13 +2633,13 @@ async def atemplates_for(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[TemplateFragment]"""
+        List[Template]"""
     return (await aexecute(Templates_forQuery, {"hash": hash}, rath=rath)).templates
 
 
 def templates_for(
     hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> List[TemplateFragment]:
+) -> List[Template]:
     """templates_for
 
 
@@ -2672,7 +2649,7 @@ def templates_for(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[TemplateFragment]"""
+        List[Template]"""
     return execute(Templates_forQuery, {"hash": hash}, rath=rath).templates
 
 
@@ -2681,7 +2658,7 @@ async def afind(
     template: Optional[ID] = None,
     hash: Optional[NodeHash] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> NodeFragment:
+) -> Node:
     """find
 
 
@@ -2693,7 +2670,7 @@ async def afind(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        NodeFragment"""
+        Node"""
     return (
         await aexecute(
             FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
@@ -2706,7 +2683,7 @@ def find(
     template: Optional[ID] = None,
     hash: Optional[NodeHash] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> NodeFragment:
+) -> Node:
     """find
 
 
@@ -2718,13 +2695,13 @@ def find(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        NodeFragment"""
+        Node"""
     return execute(
         FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
     ).node
 
 
-async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
+async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
     """retrieveall
 
 
@@ -2733,11 +2710,11 @@ async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragm
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[NodeFragment]"""
+        List[Node]"""
     return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
 
 
-def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
+def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
     """retrieveall
 
 
@@ -2746,7 +2723,7 @@ def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[NodeFragment]:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[NodeFragment]"""
+        List[Node]"""
     return execute(RetrieveallQuery, {}, rath=rath).nodes
 
 
@@ -2804,9 +2781,9 @@ DefinitionInput.model_rebuild()
 DependencyInput.model_rebuild()
 EffectInput.model_rebuild()
 PortInput.model_rebuild()
-ProvisionFragment.model_rebuild()
-StateFragment.model_rebuild()
-TemplateFragment.model_rebuild()
+Provision.model_rebuild()
+State.model_rebuild()
+Template.model_rebuild()
 TemplateInput.model_rebuild()
 UIChildInput.model_rebuild()
 UITreeInput.model_rebuild()

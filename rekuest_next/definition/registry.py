@@ -1,7 +1,7 @@
 import contextvars
 from rekuest_next.api.schema import (
     DefinitionInput,
-    DefinitionFragment,
+    Definition,
     DependencyInput,
     TemplateInput,
     CreateTemplateInput,
@@ -113,4 +113,3 @@ class DefinitionRegistry(KoiledModel):
             self.templates[key] = other.templates[key]
             self.actor_builders[key] = other.actor_builders[key]
             self.structure_registries[key] = other.structure_registries[key]
-

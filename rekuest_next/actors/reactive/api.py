@@ -26,7 +26,7 @@ def useInstanceID() -> str:
     return get_current_assignation_helper().passport.instance_id
 
 
-def progress(percentage: int, message:  Optional[str] = None) -> None:
+def progress(percentage: int, message: Optional[str] = None) -> None:
     """Progress
 
     Args:

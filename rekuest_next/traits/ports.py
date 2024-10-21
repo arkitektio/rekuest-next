@@ -28,12 +28,11 @@ class PortTrait(BaseModel):
     def validate_portkind_nested(cls, self):
         from rekuest_next.api.schema import PortKind
 
-
         if self.kind == PortKind.STRUCTURE:
             if self.identifier is None:
                 raise ValueError(
                     "When specifying a structure you need to provide an arkitekt"
-                    " identifier got:" 
+                    " identifier got:"
                 )
 
         if self.kind == PortKind.LIST:
@@ -48,7 +47,9 @@ class PortTrait(BaseModel):
                 raise ValueError(
                     "When specifying a dict you need to provide a wrapped 'children' port"
                 )
-            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
+            assert (
+                len(self.children) == 1
+            ), "Dict can only one child (key is always strings)"
 
         return self
 
@@ -98,7 +99,6 @@ class WidgetInputTrait(BaseModel):
     def validate_widgetkind_nested(cls, self):
         from rekuest_next.api.schema import AssignWidgetKind
 
-
         if self.kind == AssignWidgetKind.SEARCH:
             if self.query is None:
                 raise ValueError(
@@ -133,7 +133,6 @@ class ReturnWidgetInputTrait(BaseModel):
     def validate_widgetkind_nested(cls, self):
         from rekuest_next.api.schema import ReturnWidgetKind
 
-
         if self.kind is None:
             raise ValueError("kind is required")
 
@@ -145,4 +144,3 @@ class ReturnWidgetInputTrait(BaseModel):
                 )
 
         return self
-

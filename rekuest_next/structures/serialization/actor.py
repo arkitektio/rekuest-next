@@ -5,11 +5,11 @@ from rekuest_next.structures.registry import StructureRegistry
 import asyncio
 from typing import Any, Union
 from rekuest_next.api.schema import (
-    PortFragment,
+    Port,
     PortKind,
-    ChildPortFragment,
+    ChildPort,
     DefinitionInput,
-    DefinitionFragment,
+    Definition,
 )
 from rekuest_next.structures.errors import (
     PortShrinkingError,
@@ -22,14 +22,14 @@ import datetime as dt
 
 
 async def aexpand_arg(
-    port: Union[PortFragment, ChildPortFragment],
+    port: Union[Port, ChildPort],
     value: Union[str, int, float, dict, list],
     structure_registry,
 ) -> Any:
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
@@ -147,7 +147,7 @@ async def aexpand_arg(
 
 
 async def expand_inputs(
-    definition: Union[DefinitionInput, DefinitionFragment],
+    definition: Union[DefinitionInput, Definition],
     args: Dict[str, Union[str, int, float, dict, list]],
     structure_registry: StructureRegistry,
     skip_expanding: bool = False,
@@ -155,7 +155,7 @@ async def expand_inputs(
     """Expand
 
     Args:
-        node (NodeFragment): [description]
+        node (Node): [description]
         args (List[Any]): [description]
         kwargs (List[Any]): [description]
         registry (Registry): [description]
@@ -182,7 +182,7 @@ async def expand_inputs(
             }
 
         except Exception as e:
-            raise ExpandingError(f"Couldn't expand Arguments {args}") from e
+            raise ExpandingError(f"Couldn't expand Arguments {args}: {e}") from e
     else:
         expandend_params = {port.key: args.get(port.key, None) for port in node.args}
 
@@ -190,7 +190,7 @@ async def expand_inputs(
 
 
 async def ashrink_return(
-    port: Union[PortFragment, ChildPortFragment],
+    port: Union[Port, ChildPort],
     value: Any,
     structure_registry=None,
     assert_type: bool = True,
@@ -198,7 +198,7 @@ async def ashrink_return(
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
@@ -313,7 +313,7 @@ async def ashrink_return(
 
 
 async def shrink_outputs(
-    definition: Union[DefinitionInput, DefinitionFragment],
+    definition: Union[DefinitionInput, Definition],
     returns: List[Any],
     structure_registry: StructureRegistry,
     skip_shrinking: bool = False,

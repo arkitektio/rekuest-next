@@ -14,30 +14,6 @@ class Passport(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
-class Assignment(BaseModel):
-    assignation: Optional[int] = None
-    parent: Optional[str] = None
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    args: Dict[str, Any] = Field(default_factory=dict)
-    user: Optional[str] = None
-    reference: Optional[str] = None
-
-
-class AssignmentUpdate(BaseModel):
-    assignment: str
-    status: AssignationEventKind
-    message: Optional[str] = None
-    parent: Optional[str] = None
-    progress: Optional[int] = None
-    returns: Optional[List[Any]] = None
-
-
-class Unassignment(BaseModel):
-    assignation: int
-    id: str  = Field(default_factory=lambda: str(uuid.uuid4()))
-    context: Dict[str, Any] = Field(default_factory=dict)
-
-
 @runtime_checkable
 class ActorBuilder(Protocol):
     def __call__(

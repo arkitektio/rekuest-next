@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic import BaseModel
 from rekuest_next.api.schema import AssignationEventKind, LogLevel
 from koil import unkoil
-from rekuest_next.actors.types import Assignment
+from rekuest_next.messages import Assign
 from rekuest_next.actors.transport.types import (
     ActorTransport,
     AssignTransport,
@@ -12,7 +12,7 @@ from rekuest_next.actors.transport.types import (
 
 class AssignmentHelper(BaseModel):
     passport: Passport
-    assignment: Assignment
+    assignment: Assign
     transport: AssignTransport
 
     async def alog(self, level: LogLevel, message: str) -> None:
@@ -25,7 +25,7 @@ class AssignmentHelper(BaseModel):
             message=message,
         )
 
-    def progress(self, progress: int, message:  Optional[str] = None) -> None:
+    def progress(self, progress: int, message: Optional[str] = None) -> None:
         return unkoil(self.aprogress, progress, message=message)
 
     def log(self, level: LogLevel, message: str) -> None:

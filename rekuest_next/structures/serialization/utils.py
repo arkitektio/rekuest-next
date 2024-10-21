@@ -1,14 +1,14 @@
 import asyncio
 from typing import Any
-from rekuest_next.api.schema import PortFragment, PortKind
+from rekuest_next.api.schema import Port, PortKind
 from rekuest_next.structures.errors import PortShrinkingError, StructureShrinkingError
 
 
-async def aexpand(port: PortFragment, value: Any, structure_registry=None) -> Any:
+async def aexpand(port: Port, value: Any, structure_registry=None) -> Any:
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
@@ -60,11 +60,11 @@ async def aexpand(port: PortFragment, value: Any, structure_registry=None) -> An
     raise NotImplementedError("Should be implemented by subclass")
 
 
-async def ashrink(port: PortFragment, value: Any, structure_registry=None) -> Any:
+async def ashrink(port: Port, value: Any, structure_registry=None) -> Any:
     """Expand a value through a port
 
     Args:
-        port (ArgPortFragment): Port to expand to
+        port (ArgPort): Port to expand to
         value (Any): Value to expand
     Returns:
         Any: Expanded value
