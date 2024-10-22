@@ -402,6 +402,58 @@ class ReservationContext(KoiledModel):
         return super().__enter__()
 
 
+class DirectContext(KoiledModel):
+    node: Node
+    constants: Optional[dict[str, Any]] = None
+    reference: Optional[str] = None
+    hooks: Optional[List[HookInput]] = None
+    cached: bool = False
+    parent: Optional[str] = None
+    log: bool = False
+    assignation_id: Optional[str] = None
+
+    async def __aenter__(self) -> "ReservationContext":
+        _postman = get_current_postman()
+
+        return self
+
+    async def acall(self, *args, **kwargs):
+        return await acall(
+            node=self.node,  *args, **kwargs
+        )
+
+    async def acall_raw(self, *args, **kwargs):
+        return await acall_raw(
+            node=self.node,  *args, **kwargs
+        )
+
+    def call(self, *args, **kwargs):
+        return unkoil(self.acall, *args, **kwargs)
+
+    async def aiterate(self, *args, **kwargs):
+        async for i in aiterate(
+            node=self.node,  *args, **kwargs
+        ):
+            yield i
+
+    async def aiterate_raw(self, *args, **kwargs):
+        async for i in aiterate_raw(
+            node=self.node,  *args, **kwargs
+        ):
+            yield i
+
+    def iterate(self, *args, **kwargs):
+        return unkoil_gen(self.aiterate, *args, **kwargs)
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+
+
+        return self
+
+    def __enter__(self) -> "ReservationContext":
+        return super().__enter__()
+
+
 def reserved(
     node: Node,
     reference: Optional[str] = None,
@@ -427,6 +479,47 @@ def reserved(
         constants=constants,
         assignation_id=assignation_id,
     )
+
+
+
+
+def direct(
+    node: Node,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: bool = None,
+    log: bool = False,
+    constants: Optional[dict[str, Any]] = None,
+    assignation_id: Optional[str] = None,
+) -> ReservationContext:
+    try:
+        assignation_id = assignation_id or get_current_assignation_helper().assignation
+    except NotWithinAnAssignationError:
+        assignation_id = None
+
+    return DirectContext(
+        node=node,
+        reference=reference,
+        hooks=hooks,
+        cached=cached,
+        parent=parent,
+        log=log,
+        constants=constants,
+        assignation_id=assignation_id,
+    )
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def templates_for(node: Node) -> list[Template]:
