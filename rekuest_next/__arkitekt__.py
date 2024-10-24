@@ -181,6 +181,7 @@ def init_services(service_builder_registry):
         "rekuest",
         builder,
         Requirement(
+            key="rekuest",
             service="live.arkitekt.rekuest",
             description="An instance of ArkitektNext Rekuest to assign to nodes",
         ),

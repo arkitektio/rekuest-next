@@ -32,6 +32,7 @@ from rekuest_next.api.schema import (
     areserve,
     aunreserve,
 )
+from rekuest_next.messages import Assign
 from rekuest_next.postmans.base import BasePostman
 from rekuest_next.postmans.vars import get_current_postman
 from rekuest_next.structures.registry import get_current_structure_registry
@@ -235,11 +236,11 @@ async def acall_raw(
     kwargs: Dict[str, Any] = None,
     node: Optional[Node] = None,
     template: Optional[Template] = None,
+    parent: Optional[Assign] = None,
     reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
-    parent: bool = None,
     log: bool = False,
     
 ) -> AsyncGenerator[tuple[Any], None]:
@@ -248,7 +249,7 @@ async def acall_raw(
     instance_id = postman.instance_id
 
     try:
-        parent = parent or get_current_assignation_helper().assignation
+        parent = parent.assignation or get_current_assignation_helper().assignation
     except:
         parent = None
 
