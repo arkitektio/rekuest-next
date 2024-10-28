@@ -105,8 +105,8 @@ def init_services(service_builder_registry):
         ArkitektWebsocketAgentTransport,
     )
     from rekuest_next.agents.base import BaseAgent
-    from fakts import Fakts
-    from herre import Herre
+    from fakts_next import Fakts
+    from herre_next import Herre
     from rekuest_next.postmans.graphql import GraphQLPostman
     from rekuest_next.agents.extensions.default import DefaultExtension
 
