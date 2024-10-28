@@ -52,7 +52,7 @@ def StringWidget(as_paragraph: bool = False, **kwargs) -> AssignWidgetInput:
         WidgetInput: _description_
     """
     return AssignWidgetInput(
-        kind=AssignWidgetKind.SEARCH, asParagraph=as_paragraph, **kwargs
+        kind=AssignWidgetKind.STRING, asParagraph=as_paragraph, **kwargs
     )
 
 
@@ -65,7 +65,7 @@ def ParagraphWidget(**kwargs) -> AssignWidgetInput:
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.SEARCH, asParagraph=True, **kwargs)
+    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=True, **kwargs)
 
 
 def CustomWidget(hook: str, **kwargs) -> AssignWidgetInput:
@@ -132,5 +132,27 @@ def StateChoiceWidget(
         kind=AssignWidgetKind.STATE_CHOICE,
         stateChoices=stateChoices,
         followValue=followValue,
+        **kwargs,
+    )
+
+
+def ChoiceWidget(
+    choices: List[ChoiceInput],  **kwargs
+) -> AssignWidgetInput:
+    """A state choice widget.
+
+    A state choice widget is a widget that renders a list of choices with the
+    value of the choice being highlighted.
+
+    Args:
+        stateChoices (str): The state key that contains the choices
+        followValue (str): The state key that the value should be followed
+
+    Returns:
+        AssignWidgetInput: The widget input
+    """
+    return AssignWidgetInput(
+        kind=AssignWidgetKind.CHOICE,
+        choices=choices,
         **kwargs,
     )

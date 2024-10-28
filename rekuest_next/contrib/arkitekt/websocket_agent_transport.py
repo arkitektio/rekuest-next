@@ -1,6 +1,6 @@
 from typing import Optional
-from fakts import Fakts
-from herre import Herre
+from fakts_next import Fakts
+from herre_next import Herre
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 from pydantic import Field, BaseModel
 

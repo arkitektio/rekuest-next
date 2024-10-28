@@ -1,25 +1,25 @@
-from rekuest_next.traits.ports import (
-    PortTrait,
-    WidgetInputTrait,
-    ReturnWidgetInputTrait,
-)
-from datetime import datetime
+from rath.scalars import ID
+from pydantic import Field, BaseModel, ConfigDict
+from rekuest_next.funcs import asubscribe, execute, subscribe, aexecute
 from rekuest_next.scalars import (
     Args,
     InstanceId,
-    NodeHash,
-    SearchQuery,
     Identifier,
     ValidatorFunction,
+    SearchQuery,
+    NodeHash,
 )
-from rath.scalars import ID
+from rekuest_next.traits.ports import (
+    WidgetInputTrait,
+    ReturnWidgetInputTrait,
+    PortTrait,
+)
 from typing_extensions import Literal
-from typing import Tuple, List, Optional, Iterator, AsyncIterator, Any
+from typing import Iterator, List, Optional, AsyncIterator, Any, Tuple
+from datetime import datetime
 from rekuest_next.traits.node import Reserve
-from rekuest_next.funcs import asubscribe, aexecute, subscribe, execute
-from enum import Enum
-from pydantic import Field, ConfigDict, BaseModel
 from rekuest_next.rath import RekuestNextRath
+from enum import Enum
 
 
 class AssignWidgetKind(str, Enum):
@@ -256,9 +256,9 @@ class AssignWidgetInput(WidgetInputTrait, BaseModel):
     choices: Optional[Tuple["ChoiceInput", ...]] = None
     state_choices: Optional[str] = Field(alias="stateChoices", default=None)
     follow_value: Optional[str] = Field(alias="followValue", default=None)
-    min: Optional[int] = None
-    max: Optional[int] = None
-    step: Optional[int] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+    step: Optional[float] = None
     placeholder: Optional[str] = None
     hook: Optional[str] = None
     ward: Optional[str] = None

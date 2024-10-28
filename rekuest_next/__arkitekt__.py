@@ -94,10 +94,10 @@ def check_and_import_extensions(
 
 
 def init_services(service_builder_registry):
-    from rath.contrib.fakts.links.aiohttp import FaktsAIOHttpLink
     from rath.links.split import SplitLink
-    from rath.contrib.fakts.links.graphql_ws import FaktsGraphQLWSLink
-    from rath.contrib.herre.links.auth import HerreAuthLink
+    from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
+    from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
+    from herre_next.contrib.rath.auth_link import HerreAuthLink
     from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
     from rekuest_next.rekuest import RekuestNext
     from graphql import OperationType

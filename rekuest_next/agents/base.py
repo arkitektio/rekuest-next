@@ -101,6 +101,10 @@ class BaseAgent(KoiledModel):
     started: bool = False
     running: bool = False
 
+
+    def register_extension(self, name:str, extension: AgentExtension):
+        self.extensions[name] = extension
+
     async def abroadcast(self, message: InMessage):
         await self._inqueue.put(message)
 

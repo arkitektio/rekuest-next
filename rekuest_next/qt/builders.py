@@ -187,14 +187,14 @@ def qtwithfutureactifier(
 
     if len(sig.parameters) == 0:
         raise ValueError(
-            "The function you are trying to register with a generator actifier must have at least one parameter, the Generator"
+            f"The function  {function} you are trying to register with a generator actifier must have at least one parameter, the Generator"
         )
 
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtFuture:
         raise ValueError(
-            "The function needs to have a QtGenerator as its first parameter"
+            f"The function {function}  you are trying to register needs to have a QtGenerator as its first parameter"
         )
 
     return_params = get_args(first)
