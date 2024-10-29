@@ -303,6 +303,14 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
+        if self._errorfuture is not None and not self._errorfuture.done():
+            self._errorfuture.cancel()
+            try:
+                await self._errorfuture
+            except asyncio.CancelledError:
+                pass
+
+
         for extension in self.extensions.values():
             await extension.atear_down()
 
@@ -458,6 +466,16 @@ class BaseAgent(KoiledModel):
             [queue_task, error_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
+
+        for task in pending:
+            task.cancel()
+
+            try: # Cancelling the task
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        
 
         if self._errorfuture.done():
             raise self._errorfuture.exception()
