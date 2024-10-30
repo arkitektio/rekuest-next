@@ -466,15 +466,6 @@ class BaseAgent(KoiledModel):
             [queue_task, error_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
-
-        for task in pending:
-            task.cancel()
-
-            try: # Cancelling the task
-                await task
-            except asyncio.CancelledError:
-                pass
-
         
 
         if self._errorfuture.done():
