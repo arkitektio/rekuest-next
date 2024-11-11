@@ -93,6 +93,7 @@ class BaseAgent(KoiledModel):
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, Assign] = Field(default_factory=dict)
+    running_assignments: Dict[str, str] = Field(default_factory=dict, description="Maps assignation to actor id")
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
     _contexts: Dict[str, Any] = None
@@ -142,6 +143,7 @@ class BaseAgent(KoiledModel):
                 )
 
                 self.managed_assignments[message.assignation] = message
+                self.running_assignments[message.assignation] = passport.id
                 await actor.apass(message)
             else:
                 logger.warning(
@@ -213,9 +215,9 @@ class BaseAgent(KoiledModel):
                 )
 
         elif isinstance(message, Cancel):
-            if message.assignation in self.managed_assignments:
-                passport = self.provision_passport_map[message.provision]
-                actor = self.managed_actors[passport.id]
+            if message.assignation in self.running_assignments:
+                actor_id = self.running_assignments[message.assignation]
+                actor = self.managed_actors[actor_id]
                 assignment = self.managed_assignments[message.assignation]
 
                 # Converting unassignation to unassignment

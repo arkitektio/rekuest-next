@@ -45,13 +45,11 @@ class Assign(Message):
 class Cancel(Message):
     type: Literal[MessageType.CANCEL] = MessageType.CANCEL
     assignation: int
-    provision: int
 
 
 class Interrupt(Message):
     type: Literal[MessageType.INTERRUPT] = MessageType.INTERRUPT
     assignation: int
-    provision: int
 
 
 class Provide(Message):

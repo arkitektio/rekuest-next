@@ -1,5 +1,6 @@
 from typing import Dict
 from pydantic import Field
+from koil.helpers import unkoil_task
 from rekuest_next.api.schema import Template
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.rath import RekuestNextRath
@@ -47,6 +48,12 @@ class RekuestNext(Composition):
         Run the application.
         """
         return unkoil(self.arun, *args, **kwargs)
+    
+    def run_detached(self, *args, **kwargs) -> None:
+        """
+        Run the application detached.
+        """
+        return unkoil_task(self.arun, *args, **kwargs)
 
     async def arun(self) -> None:
         """
