@@ -225,20 +225,6 @@ class ThreadedFuncActor(SerializingActor):
                 kind=AssignationEventKind.DONE,
             )
 
-        except SerializationError as ex:
-            logger.error("Serializing Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
-
-        except AssertionError as ex:
-            logger.error("AssertionError in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
-
         except Exception as e:
             logger.error("Error in actor", exc_info=True)
             await transport.log_event(
