@@ -1,0 +1,1358 @@
+"""Make string uppercase"""
+directive @upper on FIELD
+
+directive @replace(old: String!, new: String!) on FIELD
+
+"""Make get stuff uppercase"""
+directive @relation(on: String!) on FIELD
+
+type SliderAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  min: Float
+  max: Float
+  step: Float
+}
+
+interface AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+}
+
+enum AssignWidgetKind {
+  SEARCH
+  CHOICE
+  SLIDER
+  CUSTOM
+  STRING
+  STATE_CHOICE
+}
+
+type ChoiceAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  choices: [Choice!]
+}
+
+type Choice {
+  label: String!
+  value: String!
+  description: String
+}
+
+type SearchAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  query: String!
+  ward: String!
+  filters: [ChildPort!]
+}
+
+type ChildPort {
+  key: String!
+  label: String
+  scope: PortScope!
+  kind: PortKind!
+  description: String
+  identifier: Identifier
+  nullable: Boolean!
+  default: AnyDefault
+  children: [ChildPort!]
+  assignWidget: AssignWidget
+  returnWidget: ReturnWidget
+}
+
+enum PortScope {
+  GLOBAL
+  LOCAL
+}
+
+enum PortKind {
+  INT
+  STRING
+  STRUCTURE
+  LIST
+  BOOL
+  DICT
+  FLOAT
+  DATE
+  UNION
+  MODEL
+}
+
+"""
+The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+"""
+scalar Identifier
+
+"""
+The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+"""
+scalar AnyDefault
+
+interface ReturnWidget {
+  kind: ReturnWidgetKind!
+}
+
+enum ReturnWidgetKind {
+  CHOICE
+  CUSTOM
+}
+
+type StateChoiceAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  stateChoices: String!
+}
+
+type CustomReturnWidget implements ReturnWidget {
+  kind: ReturnWidgetKind!
+  hook: String!
+  ward: String!
+}
+
+type ChoiceReturnWidget implements ReturnWidget {
+  kind: ReturnWidgetKind!
+  choices: [Choice!]
+}
+
+type StringAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  placeholder: String!
+  asParagraph: Boolean!
+}
+
+type CustomAssignWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  hook: String!
+  ward: String!
+}
+
+type CustomEffect implements Effect {
+  dependencies: [EffectDependency!]!
+  kind: EffectKind!
+  hook: String!
+  ward: String!
+}
+
+interface Effect {
+  dependencies: [EffectDependency!]!
+  kind: EffectKind!
+}
+
+type EffectDependency {
+  condition: LogicalCondition!
+  key: String!
+  value: String!
+}
+
+enum LogicalCondition {
+  IS
+  IS_NOT
+  IN
+}
+
+enum EffectKind {
+  MESSAGE
+  CUSTOM
+}
+
+type MessageEffect implements Effect {
+  dependencies: [EffectDependency!]!
+  kind: EffectKind!
+  message: String!
+}
+
+interface UIChild {
+  kind: UIChildKind!
+}
+
+enum UIChildKind {
+  GRID
+  SPLIT
+  RESERVATION
+  STATE
+}
+
+type UIGrid implements UIChild {
+  kind: UIChildKind!
+  rowHeight: Int!
+  columns: Int!
+  children: [UIGridItem!]!
+}
+
+type UIGridItem {
+  x: Int!
+  y: Int!
+  w: Int!
+  h: Int!
+  minW: Int!
+  maxW: Int!
+  child: UIChild!
+}
+
+type UISplit implements UIChild {
+  kind: UIChildKind!
+  left: UIChild!
+  right: UIChild!
+}
+
+type UIState implements UIChild {
+  kind: UIChildKind!
+  state: String!
+}
+
+type Query {
+  clients(filters: AppFilter, order: AppOrder, pagination: OffsetPaginationInput): [App!]!
+  hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+  agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
+  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
+  testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
+  reservations(instanceId: InstanceId = null): [Reservation!]!
+  myreservations(instanceId: InstanceId = null): [Reservation!]!
+  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
+  dashboards: [Dashboard!]!
+  states: [State!]!
+  panels: [Panel!]!
+  stateSchemas: [StateSchema!]!
+  node(id: ID = null, reservation: ID = null, assignation: ID = null, template: ID = null, hash: NodeHash = null): Node!
+  assignations(instanceId: InstanceId = null): [Assignation!]!
+  event(id: ID = null): [AssignationEvent!]!
+  templateAt(agent: ID!, extension: String = null, interface: String = null, nodeHash: String = null): Template!
+  myTemplateAt(instanceId: String!, nodeId: ID = null, interface: String = null): Template!
+  stateFor(template: ID = null, agent: ID = null, stateHash: String = null): State!
+  state(id: ID!): State!
+  panel(id: ID!): Panel!
+  stateSchema(id: ID!): StateSchema!
+  hardwareRecord(id: ID!): HardwareRecord!
+  agent(id: ID!): Agent!
+  dashboard(id: ID!): Dashboard!
+  dependency(id: ID!): Dependency!
+  testCase(id: ID!): TestCase!
+  testResult(id: ID!): TestResult!
+  reservation(id: ID!): Reservation!
+  template(id: ID!): Template!
+  provision(id: ID!): Provision!
+  assignation(id: ID!): Assignation!
+}
+
+type App {
+  id: ID!
+  name: String!
+  clientId: String!
+}
+
+input AppFilter {
+  interface: StrFilterLookup
+  ids: [ID!]
+  hasTemplatesFor: [NodeHash!]
+  mine: Boolean
+  AND: AppFilter
+  OR: AppFilter
+}
+
+input StrFilterLookup {
+  exact: String
+  iExact: String
+  contains: String
+  iContains: String
+  inList: [String!]
+  gt: String
+  gte: String
+  lt: String
+  lte: String
+  startsWith: String
+  iStartsWith: String
+  endsWith: String
+  iEndsWith: String
+  range: [String!]
+  isNull: Boolean
+  regex: String
+  iRegex: String
+  nExact: String
+  nIExact: String
+  nContains: String
+  nIContains: String
+  nInList: [String!]
+  nGt: String
+  nGte: String
+  nLt: String
+  nLte: String
+  nStartsWith: String
+  nIStartsWith: String
+  nEndsWith: String
+  nIEndsWith: String
+  nRange: [String!]
+  nIsNull: Boolean
+  nRegex: String
+  nIRegex: String
+}
+
+"""
+The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+"""
+scalar NodeHash
+
+input AppOrder {
+  definedAt: Ordering
+}
+
+enum Ordering {
+  ASC
+  DESC
+}
+
+input OffsetPaginationInput {
+  offset: Int! = 0
+  limit: Int! = -1
+}
+
+type HardwareRecord {
+  id: ID!
+  cpuCount: Int!
+  cpuVendorName: String!
+  cpuFrequency: Float!
+  createdAt: DateTime!
+  agent: Agent!
+}
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+type Agent {
+  id: ID!
+  instanceId: InstanceId!
+  registry: Registry!
+  status: AgentStatus!
+  hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
+  lastSeen: DateTime
+  connected: Boolean!
+  extensions: [String!]!
+  name: String!
+  states: [State!]!
+  template(interface: String!): Template
+  active: Boolean!
+  latestHardwareRecord: HardwareRecord
+  pinned: Boolean!
+}
+
+"""
+The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+"""
+scalar InstanceId
+
+type Registry {
+  id: ID!
+  app: App!
+  user: User!
+  agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
+}
+
+type User {
+  id: ID!
+}
+
+input AgentFilter {
+  clientId: String
+  instanceId: String
+  ids: [ID!]
+  extensions: [String!]
+  hasTemplates: [String!]
+  hasStates: [String!]
+  pinned: Boolean
+  AND: AgentFilter
+  OR: AgentFilter
+}
+
+input AgentOrder {
+  lastSeen: Ordering
+}
+
+enum AgentStatus {
+  ACTIVE
+  KICKED
+  DISCONNECTED
+  VANILLA
+}
+
+input HardwareRecordFilter {
+  ids: [ID!]
+  cpuVendorName: String
+  AND: HardwareRecordFilter
+  OR: HardwareRecordFilter
+}
+
+type Template {
+  id: ID!
+  interface: String!
+  extension: String!
+  agent: Agent!
+  node: Node!
+  params: AnyDefault!
+  dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
+  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
+  dependencyGraph: DependencyGraph!
+  name: String!
+  pinned: Boolean!
+}
+
+type Node {
+  id: ID!
+  hash: NodeHash!
+  name: String!
+  kind: NodeKind!
+  stateful: Boolean!
+  description: String
+  collections: [Collection!]!
+  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  scope: NodeScope!
+  isTestFor(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  isDev: Boolean!
+  tests(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  interfaces: [String!]!
+  protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+  definedAt: DateTime!
+  reservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]
+  testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]
+  runs: [Assignation!]
+  dependencyGraph: DependencyGraph!
+  args: [Port!]!
+  returns: [Port!]!
+  portGroups: [PortGroup!]!
+  pinned: Boolean!
+}
+
+enum NodeKind {
+  FUNCTION
+  GENERATOR
+}
+
+type Collection {
+  id: ID!
+  name: String!
+  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+}
+
+input NodeFilter {
+  search: String
+  name: StrFilterLookup
+  ids: [ID!]
+  demands: [PortDemandInput!]
+  protocols: [String!]
+  kind: NodeKind
+  AND: NodeFilter
+  OR: NodeFilter
+}
+
+input PortDemandInput {
+  kind: DemandKind!
+  matches: [PortMatchInput!] = null
+  forceLength: Int = null
+  forceNonNullableLength: Int = null
+  forceStructureLength: Int = null
+}
+
+enum DemandKind {
+  ARGS
+  RETURNS
+}
+
+input PortMatchInput {
+  at: Int = null
+  key: String = null
+  kind: PortKind = null
+  identifier: String = null
+  nullable: Boolean = null
+  children: [PortMatchInput!] = null
+}
+
+input NodeOrder {
+  definedAt: Ordering
+}
+
+input TemplateFilter {
+  interface: StrFilterLookup
+  ids: [ID!]
+  nodeHash: NodeHash
+  node: TemplateNodeFilter
+  extension: String
+  agent: TemplateAgentFilter
+  parameters: [ParamPair!]
+  AND: TemplateFilter
+  OR: TemplateFilter
+}
+
+input TemplateNodeFilter {
+  search: String
+  name: String
+  ids: [ID!]
+  demands: [PortDemandInput!]
+  protocols: [String!]
+  kind: NodeKind
+  AND: TemplateNodeFilter
+  OR: TemplateNodeFilter
+}
+
+input TemplateAgentFilter {
+  clientId: String
+  instanceId: String
+  ids: [ID!]
+  extensions: [String!]
+  hasTemplates: [String!]
+  hasStates: [String!]
+  AND: TemplateAgentFilter
+  OR: TemplateAgentFilter
+}
+
+input ParamPair {
+  key: String!
+  value: String!
+}
+
+enum NodeScope {
+  GLOBAL
+  LOCAL
+  BRIDGE_GLOBAL_TO_LOCAL
+  BRIDGE_LOCAL_TO_GLOBAL
+}
+
+type Protocol {
+  id: ID!
+  name: String!
+  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+}
+
+input ProtocolFilter {
+  search: String
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: ProtocolFilter
+  OR: ProtocolFilter
+}
+
+input ProtocolOrder {
+  name: Ordering
+}
+
+type Reservation {
+  id: ID!
+  name: String!
+  waiter: Waiter!
+  title: String
+  node: Node!
+  status: ReservationEventKind!
+  updatedAt: DateTime!
+  reference: String!
+  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
+  binds: Binds
+  causingDependency: Dependency
+  causingProvision: Provision
+  strategy: ReservationStrategy!
+  viable: Boolean!
+  happy: Boolean!
+  template: Template
+  dependencyGraph: DependencyGraph!
+  events: [ReservationEvent!]!
+}
+
+type Waiter {
+  id: ID!
+  instanceId: InstanceId!
+  registry: Registry!
+}
+
+enum ReservationEventKind {
+  PENDING
+  CREATE
+  RESCHEDULE
+  DELETED
+  CHANGE
+  ACTIVE
+  INACTIVE
+  UNCONNECTED
+  ENDED
+  UNHAPPY
+  HAPPY
+  LOG
+}
+
+type Provision {
+  id: ID!
+  name: String!
+  agent: Agent!
+  template: Template!
+  status: ProvisionEventKind!
+  causedReservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]!
+  provided: Boolean!
+  active: Boolean!
+  dependenciesMet: Boolean!
+}
+
+enum ProvisionEventKind {
+  CHANGE
+  UNHAPPY
+  PENDING
+  CRITICAL
+  DENIED
+  ACTIVE
+  REFUSED
+  INACTIVE
+  CANCELING
+  DISCONNECTED
+  RECONNECTING
+  ERROR
+  ENDED
+  CANCELLED
+  BOUND
+  PROVIDING
+  LOG
+}
+
+input ReservationFilter {
+  waiter: WaiterFilter
+  ids: [ID!]
+  status: [ReservationStatus!]
+  AND: ReservationFilter
+  OR: ReservationFilter
+}
+
+input WaiterFilter {
+  instanceId: InstanceId!
+  ids: [ID!]
+  AND: WaiterFilter
+  OR: WaiterFilter
+}
+
+enum ReservationStatus {
+  ACTIVE
+  INACTIVE
+  UNHAPPY
+  HAPPY
+  UNCONNECTED
+  ENDED
+}
+
+input ProvisionFilter {
+  agent: AgentFilter
+  ids: [ID!]
+  status: [ProvisionStatus!]
+  AND: ProvisionFilter
+  OR: ProvisionFilter
+}
+
+enum ProvisionStatus {
+  DENIED
+  PENDING
+  BOUND
+  PROVIDING
+  ACTIVE
+  REFUSED
+  INACTIVE
+  CANCELING
+  DISCONNECTED
+  RECONNECTING
+  ERROR
+  CRITICAL
+  ENDED
+  CANCELLED
+}
+
+type Binds {
+  templates: [ID!]!
+  clients: [ID!]!
+  desiredInstances: Int!
+}
+
+type Dependency {
+  id: ID!
+  template: Template!
+  node: Node
+  hash: NodeHash!
+  initialHash: NodeHash!
+  reference: String
+  optional: Boolean!
+  binds: Binds
+  resolvable: Boolean!
+}
+
+enum ReservationStrategy {
+  RANDOM
+  ROUND_ROBIN
+  LEAST_BUSY
+  LEAST_TIME
+  LEAST_LOAD
+  DIRECT
+}
+
+type DependencyGraph {
+  nodes: [NodeNodeInvalidNodeTemplateNode!]!
+  edges: [DependencyEdgeImplementationEdge!]!
+}
+
+union NodeNodeInvalidNodeTemplateNode = NodeNode | InvalidNode | TemplateNode
+
+type NodeNode {
+  id: String!
+  nodeId: String!
+  name: String!
+  status: String
+  reservationId: String
+}
+
+type InvalidNode {
+  id: String!
+  initialHash: String!
+}
+
+type TemplateNode {
+  id: String!
+  templateId: String!
+  interface: String!
+  clientId: String!
+  status: String
+  provisionId: String
+  reservationId: String
+  linked: Boolean!
+  active: Boolean!
+}
+
+union DependencyEdgeImplementationEdge = DependencyEdge | ImplementationEdge
+
+type DependencyEdge {
+  id: String!
+  source: String!
+  target: String!
+  optional: Boolean!
+  depId: String!
+  reservationId: String
+}
+
+type ImplementationEdge {
+  id: String!
+  source: String!
+  target: String!
+  reservationId: String
+  linked: Boolean!
+}
+
+type ReservationEvent {
+  id: ID!
+  reservation: Reservation!
+  kind: ReservationEventKind!
+  level: LogLevel
+  createdAt: DateTime!
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  ERROR
+  WARN
+  CRITICAL
+}
+
+type TestCase {
+  id: ID!
+  tester: Node!
+  node: Node!
+  isBenchmark: Boolean!
+  description: String!
+  name: String!
+  results(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
+}
+
+type TestResult {
+  id: ID!
+  template: Template!
+  tester: Template!
+  case: TestCase!
+  passed: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input TestResultFilter {
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: TestResultFilter
+  OR: TestResultFilter
+}
+
+input TestCaseFilter {
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: TestCaseFilter
+  OR: TestCaseFilter
+}
+
+type Assignation {
+  id: ID!
+  name: String!
+  reference: String
+  args: AnyDefault!
+
+  """
+  A mother assignation is the root assignation that caused this assignation to be created. This mother is always created by intent (e.g a user action). If null, this assignation is the mother
+  """
+  mother: Assignation
+
+  """
+  A parent assignation is the next assignation in the chain of assignations that caused this assignation to be created. Parents can be created by intent or by the system. If null, this assignation is the parent
+  """
+  parent: Assignation
+
+  """
+  If this assignation is the result of a reservation, this field will contain the reservation that caused this assignation to be created
+  """
+  reservation: Reservation
+
+  """The node that this assignation is assigned to"""
+  node: Node!
+
+  """If set, this assignation was directly assigned to a template"""
+  template: Template
+
+  """The status of this assignation"""
+  status: AssignationEventKind!
+  statusMessage: String
+
+  """The Waiter that this assignation was created by"""
+  waiter: Waiter!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  """The provision that this assignation was assigned to"""
+  provision: Provision
+  events: [AssignationEvent!]!
+  arg(key: String!): Args
+}
+
+enum AssignationEventKind {
+  BOUND
+  ASSIGN
+  PROGRESS
+  DISCONNECTED
+  YIELD
+  DONE
+  LOG
+  CANCELING
+  CANCELLED
+  INTERUPTING
+  INTERUPTED
+  ERROR
+  CRITICAL
+}
+
+type AssignationEvent {
+  id: ID!
+  name: String!
+  returns: AnyDefault
+  assignation: Assignation!
+  kind: AssignationEventKind!
+  message: String
+  level: LogLevel
+  progress: Int
+  createdAt: DateTime!
+  reference: String!
+}
+
+"""The `Args` scalar type represents a Dictionary of arguments"""
+scalar Args
+
+type Port {
+  key: String!
+  scope: PortScope!
+  label: String
+  kind: PortKind!
+  description: String
+  identifier: Identifier
+  nullable: Boolean!
+  effects: [Effect!]
+  default: AnyDefault
+  children: [ChildPort!]
+  assignWidget: AssignWidget
+  returnWidget: ReturnWidget
+  groups: [String!]
+  validators: [Validator!]
+}
+
+type Validator {
+  function: ValidatorFunction!
+  dependencies: [String!]
+  label: String
+  errorMessage: String
+}
+
+"\n    The `Validator` scalar represents a javascript function that should execute on the client side (inside a shadow realm)\n      to validate a value (or a set of values) before it is sent to the server.  The function has two parameters (value, otherValues) and should return a string if the value is invalid and undefined if the value is valid.\n        The otherValues parameter is an object with the other values in the form {fieldName: value}."
+scalar ValidatorFunction
+
+type PortGroup {
+  key: String!
+  hidden: Boolean!
+}
+
+input DependencyFilter {
+  ids: [ID!]
+  AND: DependencyFilter
+  OR: DependencyFilter
+}
+
+type State {
+  id: ID!
+  stateSchema: StateSchema!
+  value: Args!
+  agent: Agent!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  historicalStates: [HistoricalState!]!
+}
+
+type StateSchema {
+  id: ID!
+  hash: String!
+  name: String!
+  ports: [Port!]!
+}
+
+type HistoricalState {
+  id: ID!
+  state: State!
+  value: Args!
+  archivedAt: DateTime!
+}
+
+type Dashboard {
+  id: ID!
+  name: String
+  panels: [Panel!]
+  uiTree: UITree
+}
+
+type Panel {
+  id: ID!
+  kind: PanelKind!
+  name: String!
+  reservation: Reservation
+  state: State
+  accessors: [String!]
+  submitOnLoad: Boolean!
+  submitOnChange: Boolean!
+}
+
+enum PanelKind {
+  STATE
+  ASSIGN
+}
+
+type UITree {
+  child: UIChild!
+}
+
+type Mutation {
+  createTemplate(input: CreateTemplateInput!): Template!
+  createForeignTemplate(input: CreateForeignTemplateInput!): Template!
+  setExtensionTemplates(input: SetExtensionTemplatesInput!): [Template!]!
+  ack(input: AckInput!): Assignation!
+  assign(input: AssignInput!): Assignation!
+  cancel(input: CancelInput!): Assignation!
+  interrupt(input: InterruptInput!): Assignation!
+
+  """Provide a provision"""
+  provide(input: ProvideInput!): Provision!
+  reserve(input: ReserveInput!): Reservation!
+  link(input: LinkInput!): Provision!
+  unlink(input: UnlinkInput!): Provision!
+  unreserve(input: UnreserveInput!): String!
+
+  """Delete a template"""
+  deleteTemplate(input: DeleteTemplateInput!): String!
+  ensureAgent(input: AgentInput!): Agent!
+  createTestCase(input: CreateTestCaseInput!): TestCase!
+  createTestResult(input: CreateTestResultInput!): TestResult!
+  activate(input: ActivateInput!): Provision!
+  deactivate(input: DeActivateInput!): Provision!
+  createHardwareRecord(input: CreateHardwareRecordInput!): HardwareRecord!
+  createDashboard(input: CreateDashboardInput!): Dashboard!
+  createStateSchema(input: CreateStateSchemaInput!): StateSchema!
+  createPanel(input: CreatePanelInput!): Panel!
+  setState(input: SetStateInput!): State!
+  updateState(input: UpdateStateInput!): State!
+  archiveState(input: ArchiveStateInput!): StateSchema!
+  pinAgent(input: PinInput!): Agent!
+  pinTemplate(input: PinInput!): Template!
+  reinit(input: ReInitInput!): String!
+  unprovide(input: UnProvideInput!): ID!
+  deleteAgent(input: DeleteAgentInput!): ID!
+}
+
+input CreateTemplateInput {
+  template: TemplateInput!
+  instanceId: InstanceId!
+  extension: String!
+}
+
+input TemplateInput {
+  definition: DefinitionInput!
+  dependencies: [DependencyInput!]!
+  interface: String!
+  params: AnyDefault = null
+  dynamic: Boolean! = false
+  logo: String = null
+}
+
+input DefinitionInput {
+  description: String = null
+  collections: [String!]! = []
+  name: String!
+  stateful: Boolean! = false
+  portGroups: [PortGroupInput!]! = []
+  args: [PortInput!]! = []
+  returns: [PortInput!]! = []
+  kind: NodeKind!
+  isTestFor: [String!]! = []
+  interfaces: [String!]! = []
+  isDev: Boolean! = false
+}
+
+input PortGroupInput {
+  key: String!
+  hidden: Boolean!
+}
+
+input PortInput {
+  validators: [ValidatorInput!] = null
+  key: String!
+  scope: PortScope!
+  label: String = null
+  kind: PortKind!
+  description: String = null
+  identifier: String = null
+  nullable: Boolean! = false
+  effects: [EffectInput!] = null
+  default: AnyDefault = null
+  children: [ChildPortInput!] = null
+  assignWidget: AssignWidgetInput = null
+  returnWidget: ReturnWidgetInput = null
+  groups: [String!] = null
+}
+
+input ValidatorInput {
+  function: ValidatorFunction!
+  dependencies: [String!] = []
+  label: String = null
+  errorMessage: String = null
+}
+
+input EffectInput {
+  label: String!
+  description: String
+  dependencies: [EffectDependencyInput!]!
+  kind: EffectKind!
+}
+
+input EffectDependencyInput {
+  key: String!
+  condition: LogicalCondition!
+  value: AnyDefault!
+}
+
+input ChildPortInput {
+  default: AnyDefault = null
+  key: String!
+  label: String = null
+  kind: PortKind!
+  scope: PortScope!
+  description: String = null
+  identifier: Identifier = null
+  nullable: Boolean!
+  children: [ChildPortInput!] = null
+  effects: [EffectInput!] = null
+  assignWidget: AssignWidgetInput = null
+  returnWidget: ReturnWidgetInput = null
+}
+
+input AssignWidgetInput {
+  asParagraph: Boolean = null
+  kind: AssignWidgetKind!
+  query: SearchQuery = null
+  choices: [ChoiceInput!] = null
+  stateChoices: String = null
+  followValue: String = null
+  min: Float = null
+  max: Float = null
+  step: Float = null
+  placeholder: String = null
+  hook: String = null
+  ward: String = null
+  fallback: AssignWidgetInput = null
+  filters: [ChildPortInput!] = null
+}
+
+"""
+The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+"""
+scalar SearchQuery
+
+input ChoiceInput {
+  value: AnyDefault!
+  label: String!
+  description: String = null
+}
+
+input ReturnWidgetInput {
+  kind: ReturnWidgetKind!
+  query: SearchQuery = null
+  choices: [ChoiceInput!] = null
+  min: Int = null
+  max: Int = null
+  step: Int = null
+  placeholder: String = null
+  hook: String = null
+  ward: String = null
+}
+
+input DependencyInput {
+  hash: NodeHash
+  reference: String = null
+  binds: BindsInput = null
+  optional: Boolean! = false
+  viableInstances: Int = null
+}
+
+input BindsInput {
+  templates: [String!] = null
+  clients: [String!] = null
+  desiredInstances: Int! = 1
+}
+
+input CreateForeignTemplateInput {
+  agent: ID!
+  template: TemplateInput!
+  extension: String!
+}
+
+input SetExtensionTemplatesInput {
+  templates: [TemplateInput!]!
+  instanceId: InstanceId!
+  extension: String!
+  runCleanup: Boolean! = false
+}
+
+input AckInput {
+  assignation: ID!
+}
+
+input AssignInput {
+  instanceId: InstanceId!
+  node: ID = null
+  template: ID = null
+  reservation: ID = null
+  hooks: [HookInput!] = null
+  args: Args!
+  reference: String = null
+  parent: ID = null
+  cached: Boolean! = false
+  log: Boolean! = false
+  ephemeral: Boolean! = false
+  isHook: Boolean! = false
+}
+
+input HookInput {
+  kind: HookKind!
+  hash: String!
+}
+
+enum HookKind {
+  CLEANUP
+  INIT
+}
+
+input CancelInput {
+  assignation: ID!
+}
+
+input InterruptInput {
+  assignation: ID!
+}
+
+input ProvideInput {
+  provision: ID!
+}
+
+input ReserveInput {
+  assignationId: String = null
+  instanceId: InstanceId!
+  node: ID = null
+  template: ID = null
+  title: String = null
+  hash: NodeHash = null
+  reference: String = null
+  binds: BindsInput = null
+}
+
+input LinkInput {
+  provision: ID!
+  reservation: ID!
+}
+
+input UnlinkInput {
+  provision: ID!
+  reservation: ID!
+}
+
+input UnreserveInput {
+  reservation: ID!
+}
+
+input DeleteTemplateInput {
+  template: ID!
+}
+
+input AgentInput {
+  instanceId: InstanceId!
+  name: String = null
+  extensions: [String!] = null
+}
+
+input CreateTestCaseInput {
+  node: ID!
+  tester: ID!
+  description: String = null
+  name: String = null
+}
+
+input CreateTestResultInput {
+  case: ID!
+  tester: ID!
+  template: ID!
+  passed: Boolean!
+  result: String = null
+}
+
+input ActivateInput {
+  provision: ID!
+}
+
+input DeActivateInput {
+  provision: ID!
+}
+
+input CreateHardwareRecordInput {
+  cpuCount: Int = null
+  cpuFrequency: Float = null
+  cpuVendorName: String = null
+  instanceId: InstanceId = null
+}
+
+input CreateDashboardInput {
+  name: String = null
+  panels: [ID!] = null
+  tree: UITreeInput = null
+}
+
+input UITreeInput {
+  child: UIChildInput!
+}
+
+input UIChildInput {
+  state: String = null
+  kind: UIChildKind!
+  hidden: Boolean
+  children: [UIChildInput!] = null
+  left: UIChildInput = null
+  right: UIChildInput = null
+}
+
+input CreateStateSchemaInput {
+  stateSchema: StateSchemaInput!
+}
+
+input StateSchemaInput {
+  ports: [PortInput!]!
+  name: String!
+}
+
+input CreatePanelInput {
+  name: String!
+  kind: PanelKind!
+  state: ID = null
+  stateKey: String = null
+  reservation: ID = null
+  instanceId: InstanceId = null
+  stateAccessors: [String!] = null
+  interface: String = null
+  args: Args = null
+  submitOnChange: Boolean = false
+  submitOnLoad: Boolean = false
+}
+
+input SetStateInput {
+  stateSchema: ID!
+  instanceId: InstanceId!
+  value: Args!
+}
+
+input UpdateStateInput {
+  stateSchema: ID!
+  instanceId: InstanceId!
+  patches: [Args!]!
+}
+
+input ArchiveStateInput {
+  stateSchema: ID!
+}
+
+input PinInput {
+  id: ID!
+  pin: Boolean!
+}
+
+input ReInitInput {
+  agent: ID = null
+}
+
+input UnProvideInput {
+  provision: ID!
+}
+
+input DeleteAgentInput {
+  id: ID!
+}
+
+type Subscription {
+  newNodes(cage: ID!): Node!
+  assignations(instanceId: InstanceId!): AssignationChangeEvent!
+  reservations(instanceId: InstanceId!): Reservation!
+  assignationEvents(instanceId: InstanceId!): AssignationEvent!
+  reservationEvents(instanceId: InstanceId!): ReservationEvent!
+  provisionEvents(instanceId: InstanceId!): ProvisionEvent!
+  templateChange(template: ID!): Template!
+  templates(agent: ID!): TemplateUpdate!
+  stateUpdateEvents(stateId: ID!): State!
+}
+
+type AssignationChangeEvent {
+  event: AssignationEvent
+  create: Assignation
+}
+
+type ProvisionEvent {
+  id: ID!
+  provision: Provision!
+  kind: ProvisionEventKind!
+  level: LogLevel
+  createdAt: DateTime!
+}
+
+type TemplateUpdate {
+  create: Template!
+  update: Template!
+  delete: ID!
+}

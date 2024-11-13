@@ -1,15 +1,47 @@
 import importlib
+import json
 import os
 import pkgutil
 import traceback
 from typing import Any, Dict
 import logging
 from typing import TYPE_CHECKING
+from rath.links.split import SplitLink
+from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
+from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
+from herre_next.contrib.rath.auth_link import HerreAuthLink
+from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
+from rekuest_next.rekuest import RekuestNext
+from graphql import OperationType
+from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
+    ArkitektWebsocketAgentTransport,
+)
+from rekuest_next.agents.base import BaseAgent
+from fakts_next import Fakts
+from herre_next import Herre
+from rekuest_next.postmans.graphql import GraphQLPostman
+from rekuest_next.agents.extensions.default import DefaultExtension
+
+from .structures.default import get_default_structure_registry
+from rekuest_next.structures.hooks.standard import id_shrink
+from rekuest_next.widgets import SearchWidget
+from arkitekt_next.base_models import Requirement
+from arkitekt_next.service_registry import (
+    Params,
+    BaseArkitektService
+)
+from arkitekt_next.base_models import Manifest
 
 
 if TYPE_CHECKING:
     from rekuest_next.agents.extension import AgentExtension
     from rekuest_next.structures.registry import StructureRegistry
+
+class ArkitektNextRekuestNext(RekuestNext):
+    rath: RekuestNextRath
+    agent: BaseAgent
+
+
 
 
 def check_and_import_extensions(
@@ -93,48 +125,22 @@ def check_and_import_extensions(
     return results
 
 
-def init_services(service_builder_registry):
-    from rath.links.split import SplitLink
-    from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
-    from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
-    from herre_next.contrib.rath.auth_link import HerreAuthLink
-    from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
-    from rekuest_next.rekuest import RekuestNext
-    from graphql import OperationType
-    from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
-        ArkitektWebsocketAgentTransport,
-    )
-    from rekuest_next.agents.base import BaseAgent
-    from fakts_next import Fakts
-    from herre_next import Herre
-    from rekuest_next.postmans.graphql import GraphQLPostman
-    from rekuest_next.agents.extensions.default import DefaultExtension
+def build_relative_path(*path: str) -> str:
+    return os.path.join(os.path.dirname(__file__), *path)
 
-    from .structures.default import get_default_structure_registry
-    from .api.schema import (
-        AssignationEvent,
-        aget_event,
-        Node,
-        afind,
-        Search_nodesQuery,
-    )
-    from rekuest_next.structures.hooks.standard import id_shrink
-    from rekuest_next.widgets import SearchWidget
-    from arkitekt_next.base_models import Requirement
 
-    from arkitekt_next.base_models import Manifest
 
-    class ArkitektNextRekuestNext(RekuestNext):
-        rath: RekuestNextRath
-        agent: BaseAgent
+class RekuestNextService(BaseArkitektService):
 
-    structur_reg = get_default_structure_registry()
 
-    extensions = check_and_import_extensions(structur_reg)
+    def __init__(self):
+        self.structure_reg = get_default_structure_registry()
+        self.extensions = check_and_import_extensions(self.structure_reg)
 
-    def builder(
-        fakts: Fakts, herre: Herre, params: Dict[str, Any], manifest: Manifest
-    ) -> ArkitektNextRekuestNext:
+    def get_service_name(self):
+        return "rekuest"
+    
+    def build_service(self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
         instance_id = params.get("instance_id", "default")
 
         rath = RekuestNextRath(
@@ -165,7 +171,7 @@ def init_services(service_builder_registry):
             name=f"{manifest.identifier}:{manifest.version}",
         )
 
-        for extension_name, extension in extensions.items():
+        for extension_name, extension in self.extensions.items():
             agent.extensions[extension_name] = extension
 
         return ArkitektNextRekuestNext(
@@ -176,15 +182,28 @@ def init_services(service_builder_registry):
                 instance_id=instance_id,
             ),
         )
+    
+    def get_requirements(self):
+        return [
+            Requirement(
+                key="rekuest",
+                service="live.arkitekt.rekuest",
+                description="An instance of ArkitektNext Rekuest to assign to nodes",
+            )
+        ]
+    
+    def get_graphql_schema(self):
+        schema_graphql_path = build_relative_path("api", "schema.graphql")
+        with open(schema_graphql_path) as f:
+            return f.read()
+        
+    def get_turms_project(self):
+        turms_prject = build_relative_path("api", "project.json")
+        with open(turms_prject) as f:
+            return json.loads(f.read())
 
-    service_builder_registry.register(
-        "rekuest",
-        builder,
-        Requirement(
-            key="rekuest",
-            service="live.arkitekt.rekuest",
-            description="An instance of ArkitektNext Rekuest to assign to nodes",
-        ),
-    )
 
-    return None
+
+
+def build_services():
+    return [RekuestNextService()]

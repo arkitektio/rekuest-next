@@ -155,16 +155,15 @@ class Actor(BaseModel):
 
     def assign_task_done(self, task):
         logger.info(f"Assign task is done: {task}")
-        if task.exception():
-            try:
-                raise task.exception()
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                logger.error(
-                    f"Assign task {task} failed with exception {e}", exc_info=True
-                )
+        try:
+            result = task.result()
+        except asyncio.CancelledError:
             pass
+        except Exception as e:
+            logger.error(
+                f"Assign task {task} failed with exception {e}", exc_info=True
+            )
+        pass
 
     async def is_assignment_still_running(self, message: Union[Assign]):
         if message.id in self._running_asyncio_tasks:
