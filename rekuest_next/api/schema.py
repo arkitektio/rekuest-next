@@ -1,25 +1,35 @@
-from enum import Enum
+from typing_extensions import Literal
+from typing import (
+    Iterable,
+    Optional,
+    List,
+    Iterator,
+    Annotated,
+    AsyncIterator,
+    Tuple,
+    Union,
+    Any,
+)
+from rekuest_next.scalars import (
+    SearchQuery,
+    ValidatorFunction,
+    Args,
+    NodeHash,
+    Identifier,
+    InstanceId,
+)
+from rekuest_next.funcs import subscribe, aexecute, execute, asubscribe
 from rekuest_next.traits.ports import (
     WidgetInputTrait,
     PortTrait,
     ReturnWidgetInputTrait,
 )
-from pydantic import ConfigDict, BaseModel, Field
-from rekuest_next.scalars import (
-    InstanceId,
-    ValidatorFunction,
-    SearchQuery,
-    Args,
-    Identifier,
-    NodeHash,
-)
-from datetime import datetime
-from rekuest_next.funcs import asubscribe, subscribe, aexecute, execute
-from typing_extensions import Literal
-from typing import Any, List, Iterator, Optional, AsyncIterator, Union, Annotated, Tuple
-from rekuest_next.traits.node import Reserve
-from rath.scalars import ID
+from enum import Enum
 from rekuest_next.rath import RekuestNextRath
+from rath.scalars import ID
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+from rekuest_next.traits.node import Reserve
 
 
 class AssignWidgetKind(str, Enum):
@@ -150,7 +160,9 @@ class CreateTemplateInput(BaseModel):
     template: "TemplateInput"
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class TemplateInput(BaseModel):
@@ -160,7 +172,9 @@ class TemplateInput(BaseModel):
     params: Optional[Any] = None
     dynamic: bool
     logo: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class DefinitionInput(BaseModel):
@@ -175,13 +189,17 @@ class DefinitionInput(BaseModel):
     is_test_for: Tuple[str, ...] = Field(alias="isTestFor")
     interfaces: Tuple[str, ...]
     is_dev: bool = Field(alias="isDev")
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PortGroupInput(BaseModel):
     key: str
     hidden: bool
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class PortInput(PortTrait, BaseModel):
@@ -203,7 +221,9 @@ class PortInput(PortTrait, BaseModel):
         alias="returnWidget", default=None
     )
     groups: Optional[Tuple[str, ...]] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ValidatorInput(BaseModel):
@@ -211,7 +231,9 @@ class ValidatorInput(BaseModel):
     dependencies: Optional[Tuple[str, ...]] = None
     label: Optional[str] = None
     error_message: Optional[str] = Field(alias="errorMessage", default=None)
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class EffectInput(BaseModel):
@@ -219,14 +241,18 @@ class EffectInput(BaseModel):
     description: Optional[str] = None
     dependencies: Tuple["EffectDependencyInput", ...]
     kind: EffectKind
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class EffectDependencyInput(BaseModel):
     key: str
     condition: LogicalCondition
     value: Any
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ChildPortInput(PortTrait, BaseModel):
@@ -246,7 +272,9 @@ class ChildPortInput(PortTrait, BaseModel):
     return_widget: Optional["ReturnWidgetInput"] = Field(
         alias="returnWidget", default=None
     )
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class AssignWidgetInput(WidgetInputTrait, BaseModel):
@@ -264,14 +292,18 @@ class AssignWidgetInput(WidgetInputTrait, BaseModel):
     ward: Optional[str] = None
     fallback: Optional["AssignWidgetInput"] = None
     filters: Optional[Tuple[ChildPortInput, ...]] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ChoiceInput(BaseModel):
     value: Any
     label: str
     description: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
@@ -284,7 +316,9 @@ class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
     placeholder: Optional[str] = None
     hook: Optional[str] = None
     ward: Optional[str] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class DependencyInput(BaseModel):
@@ -293,14 +327,18 @@ class DependencyInput(BaseModel):
     binds: Optional["BindsInput"] = None
     optional: bool
     viable_instances: Optional[int] = Field(alias="viableInstances", default=None)
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class BindsInput(BaseModel):
     templates: Optional[Tuple[str, ...]] = None
     clients: Optional[Tuple[str, ...]] = None
     desired_instances: int = Field(alias="desiredInstances")
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class SetExtensionTemplatesInput(BaseModel):
@@ -308,7 +346,9 @@ class SetExtensionTemplatesInput(BaseModel):
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
     run_cleanup: bool = Field(alias="runCleanup")
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class AssignInput(BaseModel):
@@ -324,23 +364,31 @@ class AssignInput(BaseModel):
     log: bool
     ephemeral: bool
     is_hook: bool = Field(alias="isHook")
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class HookInput(BaseModel):
     kind: HookKind
     hash: str
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class CancelInput(BaseModel):
     assignation: ID
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class InterruptInput(BaseModel):
     assignation: ID
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class ReserveInput(BaseModel):
@@ -352,24 +400,62 @@ class ReserveInput(BaseModel):
     hash: Optional[NodeHash] = None
     reference: Optional[str] = None
     binds: Optional[BindsInput] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UnreserveInput(BaseModel):
     reservation: ID
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class AgentInput(BaseModel):
+    instance_id: InstanceId = Field(alias="instanceId")
+    name: Optional[str] = None
+    extensions: Optional[Tuple[str, ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateTestCaseInput(BaseModel):
+    node: ID
+    tester: ID
+    description: Optional[str] = None
+    name: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class CreateTestResultInput(BaseModel):
+    case: ID
+    tester: ID
+    template: ID
+    passed: bool
+    result: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class CreateDashboardInput(BaseModel):
     name: Optional[str] = None
     panels: Optional[Tuple[ID, ...]] = None
     tree: Optional["UITreeInput"] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UITreeInput(BaseModel):
     child: "UIChildInput"
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UIChildInput(BaseModel):
@@ -379,18 +465,24 @@ class UIChildInput(BaseModel):
     children: Optional[Tuple["UIChildInput", ...]] = None
     left: Optional["UIChildInput"] = None
     right: Optional["UIChildInput"] = None
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class CreateStateSchemaInput(BaseModel):
     state_schema: "StateSchemaInput" = Field(alias="stateSchema")
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class StateSchemaInput(BaseModel):
     ports: Tuple[PortInput, ...]
     name: str
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class CreatePanelInput(BaseModel):
@@ -407,21 +499,27 @@ class CreatePanelInput(BaseModel):
     args: Optional[Args] = None
     submit_on_change: Optional[bool] = Field(alias="submitOnChange", default=None)
     submit_on_load: Optional[bool] = Field(alias="submitOnLoad", default=None)
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class SetStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
     instance_id: InstanceId = Field(alias="instanceId")
     value: Args
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class UpdateStateInput(BaseModel):
     state_schema: ID = Field(alias="stateSchema")
     instance_id: InstanceId = Field(alias="instanceId")
     patches: Tuple[Args, ...]
-    model_config = ConfigDict(frozen=True, extra="forbid", use_enum_values=True)
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
 
 
 class TestCaseNode(Reserve, BaseModel):
@@ -852,27 +950,20 @@ class Create_testcaseMutation(BaseModel):
     create_test_case: TestCase = Field(alias="createTestCase")
 
     class Arguments(BaseModel):
-        node: ID
-        tester: ID
-        description: str
-        name: str
+        input: CreateTestCaseInput
 
     class Meta:
-        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nmutation create_testcase($node: ID!, $tester: ID!, $description: String!, $name: String!) {\n  createTestCase(\n    input: {node: $node, tester: $tester, description: $description, name: $name}\n  ) {\n    ...TestCase\n    __typename\n  }\n}"
+        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nmutation create_testcase($input: CreateTestCaseInput!) {\n  createTestCase(input: $input) {\n    ...TestCase\n    __typename\n  }\n}"
 
 
 class Create_testresultMutation(BaseModel):
     create_test_result: TestResult = Field(alias="createTestResult")
 
     class Arguments(BaseModel):
-        case: ID
-        template: ID
-        tester: ID
-        passed: bool
-        result: Optional[str] = Field(default=None)
+        input: CreateTestResultInput
 
     class Meta:
-        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n    __typename\n  }\n  passed\n  __typename\n}\n\nmutation create_testresult($case: ID!, $template: ID!, $tester: ID!, $passed: Boolean!, $result: String) {\n  createTestResult(\n    input: {case: $case, tester: $tester, template: $template, passed: $passed, result: $result}\n  ) {\n    ...TestResult\n    __typename\n  }\n}"
+        document = "fragment TestResult on TestResult {\n  id\n  case {\n    id\n    __typename\n  }\n  passed\n  __typename\n}\n\nmutation create_testresult($input: CreateTestResultInput!) {\n  createTestResult(input: $input) {\n    ...TestResult\n    __typename\n  }\n}"
 
 
 class SetStateMutation(BaseModel):
@@ -910,12 +1001,10 @@ class EnsureAgentMutation(BaseModel):
     ensure_agent: EnsureAgentMutationEnsureagent = Field(alias="ensureAgent")
 
     class Arguments(BaseModel):
-        instance_id: InstanceId = Field(alias="instanceId")
-        extensions: Optional[List[str]] = Field(default=None)
-        name: Optional[str] = Field(default=None)
+        input: AgentInput
 
     class Meta:
-        document = "mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!], $name: String) {\n  ensureAgent(\n    input: {instanceId: $instanceId, extensions: $extensions, name: $name}\n  ) {\n    id\n    instanceId\n    extensions\n    name\n    __typename\n  }\n}"
+        document = "mutation EnsureAgent($input: AgentInput!) {\n  ensureAgent(input: $input) {\n    id\n    instanceId\n    extensions\n    name\n    __typename\n  }\n}"
 
 
 class CreatePanelMutation(BaseModel):
@@ -998,38 +1087,6 @@ class CreateStateSchemaMutation(BaseModel):
         document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  __typename\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
 
 
-class CreateHardwareRecordMutationCreatehardwarerecordAgent(BaseModel):
-    typename: Literal["Agent"] = Field(
-        alias="__typename", default="Agent", exclude=True
-    )
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class CreateHardwareRecordMutationCreatehardwarerecord(BaseModel):
-    typename: Literal["HardwareRecord"] = Field(
-        alias="__typename", default="HardwareRecord", exclude=True
-    )
-    id: ID
-    cpu_count: int = Field(alias="cpuCount")
-    agent: CreateHardwareRecordMutationCreatehardwarerecordAgent
-    model_config = ConfigDict(frozen=True)
-
-
-class CreateHardwareRecordMutation(BaseModel):
-    create_hardware_record: CreateHardwareRecordMutationCreatehardwarerecord = Field(
-        alias="createHardwareRecord"
-    )
-
-    class Arguments(BaseModel):
-        cpu_count: Optional[int] = Field(alias="cpuCount", default=None)
-        cpu_frequency: Optional[float] = Field(alias="cpuFrequency", default=None)
-        cpu_vendor_name: Optional[str] = Field(alias="cpuVendorName", default=None)
-
-    class Meta:
-        document = "mutation CreateHardwareRecord($cpuCount: Int, $cpuFrequency: Float, $cpuVendorName: String) {\n  createHardwareRecord(\n    input: {cpuCount: $cpuCount, cpuFrequency: $cpuFrequency, cpuVendorName: $cpuVendorName}\n  ) {\n    id\n    cpuCount\n    agent {\n      id\n      __typename\n    }\n    __typename\n  }\n}"
-
-
 class CreateTemplateMutation(BaseModel):
     create_template: Template = Field(alias="createTemplate")
 
@@ -1050,18 +1107,6 @@ class SetExtensionTemplatesMutation(BaseModel):
         document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  __typename\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n    __typename\n  }\n}"
 
 
-class MyTemplateAtQuery(BaseModel):
-    my_template_at: Template = Field(alias="myTemplateAt")
-
-    class Arguments(BaseModel):
-        instance_id: str = Field(alias="instanceId")
-        interface: Optional[str] = Field(default=None)
-        node_id: Optional[ID] = Field(alias="nodeId", default=None)
-
-    class Meta:
-        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  __typename\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n    __typename\n  }\n}"
-
-
 class WatchReservationsSubscription(BaseModel):
     reservations: Reservation
 
@@ -1079,7 +1124,7 @@ class WatchAssignationsSubscription(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
+        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -1312,6 +1357,18 @@ class Templates_forQuery(BaseModel):
         document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  __typename\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n    __typename\n  }\n}"
 
 
+class MyTemplateAtQuery(BaseModel):
+    my_template_at: Template = Field(alias="myTemplateAt")
+
+    class Arguments(BaseModel):
+        instance_id: str = Field(alias="instanceId")
+        interface: Optional[str] = Field(default=None)
+        node_id: Optional[ID] = Field(alias="nodeId", default=None)
+
+    class Meta:
+        document = "fragment ChildPortNested on ChildPort {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  __typename\n}\n\nfragment ChildPort on ChildPort {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n    __typename\n  }\n}"
+
+
 class FindQuery(BaseModel):
     node: Node
 
@@ -1355,27 +1412,33 @@ class Search_nodesQuery(BaseModel):
 async def acreate_testcase(
     node: ID,
     tester: ID,
-    description: str,
-    name: str,
+    description: Optional[str] = None,
+    name: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> TestCase:
     """create_testcase
 
 
-
     Arguments:
-        node (ID): node
-        tester (ID): tester
-        description (str): description
-        name (str): name
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Create_testcaseMutationCreatetestcase"""
+        TestCase"""
     return (
         await aexecute(
             Create_testcaseMutation,
-            {"node": node, "tester": tester, "description": description, "name": name},
+            {
+                "input": {
+                    "node": node,
+                    "tester": tester,
+                    "description": description,
+                    "name": name,
+                }
+            },
             rath=rath,
         )
     ).create_test_case
@@ -1384,34 +1447,40 @@ async def acreate_testcase(
 def create_testcase(
     node: ID,
     tester: ID,
-    description: str,
-    name: str,
+    description: Optional[str] = None,
+    name: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> TestCase:
     """create_testcase
 
 
-
     Arguments:
-        node (ID): node
-        tester (ID): tester
-        description (str): description
-        name (str): name
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Create_testcaseMutationCreatetestcase"""
+        TestCase"""
     return execute(
         Create_testcaseMutation,
-        {"node": node, "tester": tester, "description": description, "name": name},
+        {
+            "input": {
+                "node": node,
+                "tester": tester,
+                "description": description,
+                "name": name,
+            }
+        },
         rath=rath,
     ).create_test_case
 
 
 async def acreate_testresult(
     case: ID,
-    template: ID,
     tester: ID,
+    template: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -1419,26 +1488,27 @@ async def acreate_testresult(
     """create_testresult
 
 
-
     Arguments:
-        case (ID): case
-        template (ID): template
-        tester (ID): tester
-        passed (bool): passed
-        result (Optional[str], optional): result.
+        case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        passed: The `Boolean` scalar type represents `true` or `false`. (required)
+        result: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Create_testresultMutationCreatetestresult"""
+        TestResult"""
     return (
         await aexecute(
             Create_testresultMutation,
             {
-                "case": case,
-                "template": template,
-                "tester": tester,
-                "passed": passed,
-                "result": result,
+                "input": {
+                    "case": case,
+                    "tester": tester,
+                    "template": template,
+                    "passed": passed,
+                    "result": result,
+                }
             },
             rath=rath,
         )
@@ -1447,8 +1517,8 @@ async def acreate_testresult(
 
 def create_testresult(
     case: ID,
-    template: ID,
     tester: ID,
+    template: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -1456,108 +1526,168 @@ def create_testresult(
     """create_testresult
 
 
-
     Arguments:
-        case (ID): case
-        template (ID): template
-        tester (ID): tester
-        passed (bool): passed
-        result (Optional[str], optional): result.
+        case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        passed: The `Boolean` scalar type represents `true` or `false`. (required)
+        result: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Create_testresultMutationCreatetestresult"""
+        TestResult"""
     return execute(
         Create_testresultMutation,
         {
-            "case": case,
-            "template": template,
-            "tester": tester,
-            "passed": passed,
-            "result": result,
+            "input": {
+                "case": case,
+                "tester": tester,
+                "template": template,
+                "passed": passed,
+                "result": result,
+            }
         },
         rath=rath,
     ).create_test_result
 
 
 async def aset_state(
-    input: SetStateInput, rath: Optional[RekuestNextRath] = None
+    state_schema: ID,
+    instance_id: InstanceId,
+    value: Args,
+    rath: Optional[RekuestNextRath] = None,
 ) -> State:
     """SetState
 
 
-
     Arguments:
-        input (SetStateInput): input
+        state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        value: The `Args` scalar type represents a Dictionary of arguments (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        SetStateMutationSetstate"""
-    return (await aexecute(SetStateMutation, {"input": input}, rath=rath)).set_state
+        State"""
+    return (
+        await aexecute(
+            SetStateMutation,
+            {
+                "input": {
+                    "state_schema": state_schema,
+                    "instance_id": instance_id,
+                    "value": value,
+                }
+            },
+            rath=rath,
+        )
+    ).set_state
 
 
-def set_state(input: SetStateInput, rath: Optional[RekuestNextRath] = None) -> State:
+def set_state(
+    state_schema: ID,
+    instance_id: InstanceId,
+    value: Args,
+    rath: Optional[RekuestNextRath] = None,
+) -> State:
     """SetState
 
 
-
     Arguments:
-        input (SetStateInput): input
+        state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        value: The `Args` scalar type represents a Dictionary of arguments (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        SetStateMutationSetstate"""
-    return execute(SetStateMutation, {"input": input}, rath=rath).set_state
+        State"""
+    return execute(
+        SetStateMutation,
+        {
+            "input": {
+                "state_schema": state_schema,
+                "instance_id": instance_id,
+                "value": value,
+            }
+        },
+        rath=rath,
+    ).set_state
 
 
 async def aupdate_state(
-    input: UpdateStateInput, rath: Optional[RekuestNextRath] = None
+    state_schema: ID,
+    instance_id: InstanceId,
+    patches: Iterable[Args],
+    rath: Optional[RekuestNextRath] = None,
 ) -> State:
     """UpdateState
 
 
-
     Arguments:
-        input (UpdateStateInput): input
+        state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        patches: The `Args` scalar type represents a Dictionary of arguments (required) (list) (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        UpdateStateMutationUpdatestate"""
+        State"""
     return (
-        await aexecute(UpdateStateMutation, {"input": input}, rath=rath)
+        await aexecute(
+            UpdateStateMutation,
+            {
+                "input": {
+                    "state_schema": state_schema,
+                    "instance_id": instance_id,
+                    "patches": patches,
+                }
+            },
+            rath=rath,
+        )
     ).update_state
 
 
 def update_state(
-    input: UpdateStateInput, rath: Optional[RekuestNextRath] = None
+    state_schema: ID,
+    instance_id: InstanceId,
+    patches: Iterable[Args],
+    rath: Optional[RekuestNextRath] = None,
 ) -> State:
     """UpdateState
 
 
-
     Arguments:
-        input (UpdateStateInput): input
+        state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        patches: The `Args` scalar type represents a Dictionary of arguments (required) (list) (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        UpdateStateMutationUpdatestate"""
-    return execute(UpdateStateMutation, {"input": input}, rath=rath).update_state
+        State"""
+    return execute(
+        UpdateStateMutation,
+        {
+            "input": {
+                "state_schema": state_schema,
+                "instance_id": instance_id,
+                "patches": patches,
+            }
+        },
+        rath=rath,
+    ).update_state
 
 
 async def aensure_agent(
     instance_id: InstanceId,
-    extensions: Optional[List[str]] = None,
     name: Optional[str] = None,
+    extensions: Optional[Iterable[str]] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> EnsureAgentMutationEnsureagent:
     """EnsureAgent
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
-        extensions (Optional[List[str]], optional): extensions.
-        name (Optional[str], optional): name.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        extensions: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -1565,7 +1695,13 @@ async def aensure_agent(
     return (
         await aexecute(
             EnsureAgentMutation,
-            {"instanceId": instance_id, "extensions": extensions, "name": name},
+            {
+                "input": {
+                    "instance_id": instance_id,
+                    "name": name,
+                    "extensions": extensions,
+                }
+            },
             rath=rath,
         )
     ).ensure_agent
@@ -1573,471 +1709,662 @@ async def aensure_agent(
 
 def ensure_agent(
     instance_id: InstanceId,
-    extensions: Optional[List[str]] = None,
     name: Optional[str] = None,
+    extensions: Optional[Iterable[str]] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> EnsureAgentMutationEnsureagent:
     """EnsureAgent
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
-        extensions (Optional[List[str]], optional): extensions.
-        name (Optional[str], optional): name.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        extensions: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         EnsureAgentMutationEnsureagent"""
     return execute(
         EnsureAgentMutation,
-        {"instanceId": instance_id, "extensions": extensions, "name": name},
+        {"input": {"instance_id": instance_id, "name": name, "extensions": extensions}},
         rath=rath,
     ).ensure_agent
 
 
 async def acreate_panel(
-    input: CreatePanelInput, rath: Optional[RekuestNextRath] = None
+    name: str,
+    kind: PanelKind,
+    state: Optional[ID] = None,
+    state_key: Optional[str] = None,
+    reservation: Optional[ID] = None,
+    instance_id: Optional[InstanceId] = None,
+    state_accessors: Optional[Iterable[str]] = None,
+    interface: Optional[str] = None,
+    args: Optional[Args] = None,
+    submit_on_change: Optional[bool] = None,
+    submit_on_load: Optional[bool] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Panel:
     """CreatePanel
 
 
-
     Arguments:
-        input (CreatePanelInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        kind: PanelKind (required)
+        state: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        state_key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        state_accessors: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
+        interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        args: The `Args` scalar type represents a Dictionary of arguments
+        submit_on_change: The `Boolean` scalar type represents `true` or `false`.
+        submit_on_load: The `Boolean` scalar type represents `true` or `false`.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreatePanelMutationCreatepanel"""
+        Panel"""
     return (
-        await aexecute(CreatePanelMutation, {"input": input}, rath=rath)
+        await aexecute(
+            CreatePanelMutation,
+            {
+                "input": {
+                    "name": name,
+                    "kind": kind,
+                    "state": state,
+                    "state_key": state_key,
+                    "reservation": reservation,
+                    "instance_id": instance_id,
+                    "state_accessors": state_accessors,
+                    "interface": interface,
+                    "args": args,
+                    "submit_on_change": submit_on_change,
+                    "submit_on_load": submit_on_load,
+                }
+            },
+            rath=rath,
+        )
     ).create_panel
 
 
 def create_panel(
-    input: CreatePanelInput, rath: Optional[RekuestNextRath] = None
+    name: str,
+    kind: PanelKind,
+    state: Optional[ID] = None,
+    state_key: Optional[str] = None,
+    reservation: Optional[ID] = None,
+    instance_id: Optional[InstanceId] = None,
+    state_accessors: Optional[Iterable[str]] = None,
+    interface: Optional[str] = None,
+    args: Optional[Args] = None,
+    submit_on_change: Optional[bool] = None,
+    submit_on_load: Optional[bool] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Panel:
     """CreatePanel
 
 
-
     Arguments:
-        input (CreatePanelInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        kind: PanelKind (required)
+        state: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        state_key: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        state_accessors: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required) (list)
+        interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        args: The `Args` scalar type represents a Dictionary of arguments
+        submit_on_change: The `Boolean` scalar type represents `true` or `false`.
+        submit_on_load: The `Boolean` scalar type represents `true` or `false`.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreatePanelMutationCreatepanel"""
-    return execute(CreatePanelMutation, {"input": input}, rath=rath).create_panel
+        Panel"""
+    return execute(
+        CreatePanelMutation,
+        {
+            "input": {
+                "name": name,
+                "kind": kind,
+                "state": state,
+                "state_key": state_key,
+                "reservation": reservation,
+                "instance_id": instance_id,
+                "state_accessors": state_accessors,
+                "interface": interface,
+                "args": args,
+                "submit_on_change": submit_on_change,
+                "submit_on_load": submit_on_load,
+            }
+        },
+        rath=rath,
+    ).create_panel
 
 
 async def areserve(
-    input: ReserveInput, rath: Optional[RekuestNextRath] = None
+    instance_id: InstanceId,
+    assignation_id: Optional[str] = None,
+    node: Optional[ID] = None,
+    template: Optional[ID] = None,
+    title: Optional[str] = None,
+    hash: Optional[NodeHash] = None,
+    reference: Optional[str] = None,
+    binds: Optional[BindsInput] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Reservation:
     """reserve
 
 
-
     Arguments:
-        input (ReserveInput): input
+        assignation_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        title: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        binds:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReserveMutationReserve"""
-    return (await aexecute(ReserveMutation, {"input": input}, rath=rath)).reserve
+        Reservation"""
+    return (
+        await aexecute(
+            ReserveMutation,
+            {
+                "input": {
+                    "assignation_id": assignation_id,
+                    "instance_id": instance_id,
+                    "node": node,
+                    "template": template,
+                    "title": title,
+                    "hash": hash,
+                    "reference": reference,
+                    "binds": binds,
+                }
+            },
+            rath=rath,
+        )
+    ).reserve
 
 
-def reserve(input: ReserveInput, rath: Optional[RekuestNextRath] = None) -> Reservation:
+def reserve(
+    instance_id: InstanceId,
+    assignation_id: Optional[str] = None,
+    node: Optional[ID] = None,
+    template: Optional[ID] = None,
+    title: Optional[str] = None,
+    hash: Optional[NodeHash] = None,
+    reference: Optional[str] = None,
+    binds: Optional[BindsInput] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Reservation:
     """reserve
 
 
-
     Arguments:
-        input (ReserveInput): input
+        assignation_id: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        title: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        binds:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        ReserveMutationReserve"""
-    return execute(ReserveMutation, {"input": input}, rath=rath).reserve
+        Reservation"""
+    return execute(
+        ReserveMutation,
+        {
+            "input": {
+                "assignation_id": assignation_id,
+                "instance_id": instance_id,
+                "node": node,
+                "template": template,
+                "title": title,
+                "hash": hash,
+                "reference": reference,
+                "binds": binds,
+            }
+        },
+        rath=rath,
+    ).reserve
 
 
-async def aunreserve(
-    input: UnreserveInput, rath: Optional[RekuestNextRath] = None
-) -> str:
+async def aunreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
     """unreserve
 
 
-     unreserve: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-
-
     Arguments:
-        input (UnreserveInput): input
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         str"""
-    return (await aexecute(UnreserveMutation, {"input": input}, rath=rath)).unreserve
+    return (
+        await aexecute(
+            UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
+        )
+    ).unreserve
 
 
-def unreserve(input: UnreserveInput, rath: Optional[RekuestNextRath] = None) -> str:
+def unreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
     """unreserve
 
 
-     unreserve: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-
-
     Arguments:
-        input (UnreserveInput): input
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
         str"""
-    return execute(UnreserveMutation, {"input": input}, rath=rath).unreserve
+    return execute(
+        UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
+    ).unreserve
 
 
 async def aassign(
-    input: AssignInput, rath: Optional[RekuestNextRath] = None
+    instance_id: InstanceId,
+    args: Args,
+    cached: bool,
+    log: bool,
+    ephemeral: bool,
+    is_hook: bool,
+    node: Optional[ID] = None,
+    template: Optional[ID] = None,
+    reservation: Optional[ID] = None,
+    hooks: Optional[Iterable[HookInput]] = None,
+    reference: Optional[str] = None,
+    parent: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Assignation:
     """assign
 
 
-
     Arguments:
-        input (AssignInput): input
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        hooks:  (required) (list)
+        args: The `Args` scalar type represents a Dictionary of arguments (required)
+        reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        cached: The `Boolean` scalar type represents `true` or `false`. (required)
+        log: The `Boolean` scalar type represents `true` or `false`. (required)
+        ephemeral: The `Boolean` scalar type represents `true` or `false`. (required)
+        is_hook: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignMutationAssign"""
-    return (await aexecute(AssignMutation, {"input": input}, rath=rath)).assign
+        Assignation"""
+    return (
+        await aexecute(
+            AssignMutation,
+            {
+                "input": {
+                    "instance_id": instance_id,
+                    "node": node,
+                    "template": template,
+                    "reservation": reservation,
+                    "hooks": hooks,
+                    "args": args,
+                    "reference": reference,
+                    "parent": parent,
+                    "cached": cached,
+                    "log": log,
+                    "ephemeral": ephemeral,
+                    "is_hook": is_hook,
+                }
+            },
+            rath=rath,
+        )
+    ).assign
 
 
-def assign(input: AssignInput, rath: Optional[RekuestNextRath] = None) -> Assignation:
+def assign(
+    instance_id: InstanceId,
+    args: Args,
+    cached: bool,
+    log: bool,
+    ephemeral: bool,
+    is_hook: bool,
+    node: Optional[ID] = None,
+    template: Optional[ID] = None,
+    reservation: Optional[ID] = None,
+    hooks: Optional[Iterable[HookInput]] = None,
+    reference: Optional[str] = None,
+    parent: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Assignation:
     """assign
 
 
-
     Arguments:
-        input (AssignInput): input
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        hooks:  (required) (list)
+        args: The `Args` scalar type represents a Dictionary of arguments (required)
+        reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        cached: The `Boolean` scalar type represents `true` or `false`. (required)
+        log: The `Boolean` scalar type represents `true` or `false`. (required)
+        ephemeral: The `Boolean` scalar type represents `true` or `false`. (required)
+        is_hook: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignMutationAssign"""
-    return execute(AssignMutation, {"input": input}, rath=rath).assign
+        Assignation"""
+    return execute(
+        AssignMutation,
+        {
+            "input": {
+                "instance_id": instance_id,
+                "node": node,
+                "template": template,
+                "reservation": reservation,
+                "hooks": hooks,
+                "args": args,
+                "reference": reference,
+                "parent": parent,
+                "cached": cached,
+                "log": log,
+                "ephemeral": ephemeral,
+                "is_hook": is_hook,
+            }
+        },
+        rath=rath,
+    ).assign
 
 
 async def acancel(
-    input: CancelInput, rath: Optional[RekuestNextRath] = None
+    assignation: ID, rath: Optional[RekuestNextRath] = None
 ) -> Assignation:
     """cancel
 
 
-
     Arguments:
-        input (CancelInput): input
+        assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CancelMutationCancel"""
-    return (await aexecute(CancelMutation, {"input": input}, rath=rath)).cancel
+        Assignation"""
+    return (
+        await aexecute(
+            CancelMutation, {"input": {"assignation": assignation}}, rath=rath
+        )
+    ).cancel
 
 
-def cancel(input: CancelInput, rath: Optional[RekuestNextRath] = None) -> Assignation:
+def cancel(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """cancel
 
 
-
     Arguments:
-        input (CancelInput): input
+        assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CancelMutationCancel"""
-    return execute(CancelMutation, {"input": input}, rath=rath).cancel
+        Assignation"""
+    return execute(
+        CancelMutation, {"input": {"assignation": assignation}}, rath=rath
+    ).cancel
 
 
 async def ainterrupt(
-    input: InterruptInput, rath: Optional[RekuestNextRath] = None
+    assignation: ID, rath: Optional[RekuestNextRath] = None
 ) -> Assignation:
     """interrupt
 
 
-
     Arguments:
-        input (InterruptInput): input
+        assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        InterruptMutationInterrupt"""
-    return (await aexecute(InterruptMutation, {"input": input}, rath=rath)).interrupt
+        Assignation"""
+    return (
+        await aexecute(
+            InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
+        )
+    ).interrupt
 
 
-def interrupt(
-    input: InterruptInput, rath: Optional[RekuestNextRath] = None
-) -> Assignation:
+def interrupt(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """interrupt
 
 
-
     Arguments:
-        input (InterruptInput): input
+        assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        InterruptMutationInterrupt"""
-    return execute(InterruptMutation, {"input": input}, rath=rath).interrupt
+        Assignation"""
+    return execute(
+        InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
+    ).interrupt
 
 
 async def acreate_dashboard(
-    input: CreateDashboardInput, rath: Optional[RekuestNextRath] = None
+    name: Optional[str] = None,
+    panels: Optional[Iterable[ID]] = None,
+    tree: Optional[UITreeInput] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Dashboard:
     """CreateDashboard
 
 
-
     Arguments:
-        input (CreateDashboardInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        panels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        tree:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateDashboardMutationCreatedashboard"""
+        Dashboard"""
     return (
-        await aexecute(CreateDashboardMutation, {"input": input}, rath=rath)
+        await aexecute(
+            CreateDashboardMutation,
+            {"input": {"name": name, "panels": panels, "tree": tree}},
+            rath=rath,
+        )
     ).create_dashboard
 
 
 def create_dashboard(
-    input: CreateDashboardInput, rath: Optional[RekuestNextRath] = None
+    name: Optional[str] = None,
+    panels: Optional[Iterable[ID]] = None,
+    tree: Optional[UITreeInput] = None,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Dashboard:
     """CreateDashboard
 
 
-
     Arguments:
-        input (CreateDashboardInput): input
+        name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
+        panels: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list)
+        tree:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateDashboardMutationCreatedashboard"""
+        Dashboard"""
     return execute(
-        CreateDashboardMutation, {"input": input}, rath=rath
+        CreateDashboardMutation,
+        {"input": {"name": name, "panels": panels, "tree": tree}},
+        rath=rath,
     ).create_dashboard
 
 
 async def acreate_state_schema(
-    input: CreateStateSchemaInput, rath: Optional[RekuestNextRath] = None
+    state_schema: StateSchemaInput, rath: Optional[RekuestNextRath] = None
 ) -> StateSchema:
     """CreateStateSchema
 
 
-
     Arguments:
-        input (CreateStateSchemaInput): input
+        state_schema:  (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateStateSchemaMutationCreatestateschema"""
+        StateSchema"""
     return (
-        await aexecute(CreateStateSchemaMutation, {"input": input}, rath=rath)
+        await aexecute(
+            CreateStateSchemaMutation,
+            {"input": {"state_schema": state_schema}},
+            rath=rath,
+        )
     ).create_state_schema
 
 
 def create_state_schema(
-    input: CreateStateSchemaInput, rath: Optional[RekuestNextRath] = None
+    state_schema: StateSchemaInput, rath: Optional[RekuestNextRath] = None
 ) -> StateSchema:
     """CreateStateSchema
 
 
-
     Arguments:
-        input (CreateStateSchemaInput): input
+        state_schema:  (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateStateSchemaMutationCreatestateschema"""
+        StateSchema"""
     return execute(
-        CreateStateSchemaMutation, {"input": input}, rath=rath
+        CreateStateSchemaMutation, {"input": {"state_schema": state_schema}}, rath=rath
     ).create_state_schema
 
 
-async def acreate_hardware_record(
-    cpu_count: Optional[int] = None,
-    cpu_frequency: Optional[float] = None,
-    cpu_vendor_name: Optional[str] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> CreateHardwareRecordMutationCreatehardwarerecord:
-    """CreateHardwareRecord
-
-
-
-    Arguments:
-        cpu_count (Optional[int], optional): cpuCount.
-        cpu_frequency (Optional[float], optional): cpuFrequency.
-        cpu_vendor_name (Optional[str], optional): cpuVendorName.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        CreateHardwareRecordMutationCreatehardwarerecord"""
-    return (
-        await aexecute(
-            CreateHardwareRecordMutation,
-            {
-                "cpuCount": cpu_count,
-                "cpuFrequency": cpu_frequency,
-                "cpuVendorName": cpu_vendor_name,
-            },
-            rath=rath,
-        )
-    ).create_hardware_record
-
-
-def create_hardware_record(
-    cpu_count: Optional[int] = None,
-    cpu_frequency: Optional[float] = None,
-    cpu_vendor_name: Optional[str] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> CreateHardwareRecordMutationCreatehardwarerecord:
-    """CreateHardwareRecord
-
-
-
-    Arguments:
-        cpu_count (Optional[int], optional): cpuCount.
-        cpu_frequency (Optional[float], optional): cpuFrequency.
-        cpu_vendor_name (Optional[str], optional): cpuVendorName.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        CreateHardwareRecordMutationCreatehardwarerecord"""
-    return execute(
-        CreateHardwareRecordMutation,
-        {
-            "cpuCount": cpu_count,
-            "cpuFrequency": cpu_frequency,
-            "cpuVendorName": cpu_vendor_name,
-        },
-        rath=rath,
-    ).create_hardware_record
-
-
 async def acreate_template(
-    input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
+    template: TemplateInput,
+    instance_id: InstanceId,
+    extension: str,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Template:
     """createTemplate
 
 
-
     Arguments:
-        input (CreateTemplateInput): input
+        template:  (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateTemplateMutationCreatetemplate"""
+        Template"""
     return (
-        await aexecute(CreateTemplateMutation, {"input": input}, rath=rath)
+        await aexecute(
+            CreateTemplateMutation,
+            {
+                "input": {
+                    "template": template,
+                    "instance_id": instance_id,
+                    "extension": extension,
+                }
+            },
+            rath=rath,
+        )
     ).create_template
 
 
 def create_template(
-    input: CreateTemplateInput, rath: Optional[RekuestNextRath] = None
+    template: TemplateInput,
+    instance_id: InstanceId,
+    extension: str,
+    rath: Optional[RekuestNextRath] = None,
 ) -> Template:
     """createTemplate
 
 
-
     Arguments:
-        input (CreateTemplateInput): input
+        template:  (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        CreateTemplateMutationCreatetemplate"""
-    return execute(CreateTemplateMutation, {"input": input}, rath=rath).create_template
+        Template"""
+    return execute(
+        CreateTemplateMutation,
+        {
+            "input": {
+                "template": template,
+                "instance_id": instance_id,
+                "extension": extension,
+            }
+        },
+        rath=rath,
+    ).create_template
 
 
 async def aset_extension_templates(
-    input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
+    templates: Iterable[TemplateInput],
+    instance_id: InstanceId,
+    extension: str,
+    run_cleanup: bool,
+    rath: Optional[RekuestNextRath] = None,
 ) -> List[Template]:
     """SetExtensionTemplates
 
 
-
     Arguments:
-        input (SetExtensionTemplatesInput): input
+        templates:  (required) (list) (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        run_cleanup: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[SetExtensionTemplatesMutationSetextensiontemplates]"""
+        List[Template]"""
     return (
-        await aexecute(SetExtensionTemplatesMutation, {"input": input}, rath=rath)
+        await aexecute(
+            SetExtensionTemplatesMutation,
+            {
+                "input": {
+                    "templates": templates,
+                    "instance_id": instance_id,
+                    "extension": extension,
+                    "run_cleanup": run_cleanup,
+                }
+            },
+            rath=rath,
+        )
     ).set_extension_templates
 
 
 def set_extension_templates(
-    input: SetExtensionTemplatesInput, rath: Optional[RekuestNextRath] = None
+    templates: Iterable[TemplateInput],
+    instance_id: InstanceId,
+    extension: str,
+    run_cleanup: bool,
+    rath: Optional[RekuestNextRath] = None,
 ) -> List[Template]:
     """SetExtensionTemplates
 
 
-
     Arguments:
-        input (SetExtensionTemplatesInput): input
+        templates:  (required) (list) (required)
+        instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
+        extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
+        run_cleanup: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[SetExtensionTemplatesMutationSetextensiontemplates]"""
+        List[Template]"""
     return execute(
-        SetExtensionTemplatesMutation, {"input": input}, rath=rath
-    ).set_extension_templates
-
-
-async def amy_template_at(
-    instance_id: str,
-    interface: Optional[str] = None,
-    node_id: Optional[ID] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """MyTemplateAt
-
-
-
-    Arguments:
-        instance_id (str): instanceId
-        interface (Optional[str], optional): interface.
-        node_id (Optional[ID], optional): nodeId.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        MyTemplateAtQueryMytemplateat"""
-    return (
-        await aexecute(
-            MyTemplateAtQuery,
-            {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
-            rath=rath,
-        )
-    ).my_template_at
-
-
-def my_template_at(
-    instance_id: str,
-    interface: Optional[str] = None,
-    node_id: Optional[ID] = None,
-    rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """MyTemplateAt
-
-
-
-    Arguments:
-        instance_id (str): instanceId
-        interface (Optional[str], optional): interface.
-        node_id (Optional[ID], optional): nodeId.
-        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
-
-    Returns:
-        MyTemplateAtQueryMytemplateat"""
-    return execute(
-        MyTemplateAtQuery,
-        {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+        SetExtensionTemplatesMutation,
+        {
+            "input": {
+                "templates": templates,
+                "instance_id": instance_id,
+                "extension": extension,
+                "run_cleanup": run_cleanup,
+            }
+        },
         rath=rath,
-    ).my_template_at
+    ).set_extension_templates
 
 
 async def awatch_reservations(
@@ -2046,13 +2373,12 @@ async def awatch_reservations(
     """WatchReservations
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        WatchReservationsSubscriptionReservations"""
+        Reservation"""
     async for event in asubscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2065,13 +2391,12 @@ def watch_reservations(
     """WatchReservations
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        WatchReservationsSubscriptionReservations"""
+        Reservation"""
     for event in subscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2084,13 +2409,12 @@ async def awatch_assignations(
     """WatchAssignations
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        WatchAssignationsSubscriptionAssignations"""
+        AssignationChangeEvent"""
     async for event in asubscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2103,13 +2427,12 @@ def watch_assignations(
     """WatchAssignations
 
 
-
     Arguments:
-        instance_id (InstanceId): instanceId
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        WatchAssignationsSubscriptionAssignations"""
+        AssignationChangeEvent"""
     for event in subscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2120,13 +2443,12 @@ async def aget_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestC
     """get_testcase
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_testcaseQueryTestcase"""
+        TestCase"""
     return (await aexecute(Get_testcaseQuery, {"id": id}, rath=rath)).test_case
 
 
@@ -2134,13 +2456,12 @@ def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
     """get_testcase
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_testcaseQueryTestcase"""
+        TestCase"""
     return execute(Get_testcaseQuery, {"id": id}, rath=rath).test_case
 
 
@@ -2148,13 +2469,12 @@ async def aget_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> Tes
     """get_testresult
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_testresultQueryTestresult"""
+        TestResult"""
     return (await aexecute(Get_testresultQuery, {"id": id}, rath=rath)).test_result
 
 
@@ -2162,13 +2482,12 @@ def get_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult
     """get_testresult
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_testresultQueryTestresult"""
+        TestResult"""
     return execute(Get_testresultQuery, {"id": id}, rath=rath).test_result
 
 
@@ -2180,10 +2499,9 @@ async def asearch_testcases(
     """search_testcases
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2203,10 +2521,9 @@ def search_testcases(
     """search_testcases
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2224,10 +2541,9 @@ async def asearch_testresults(
     """search_testresults
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2247,10 +2563,9 @@ def search_testresults(
     """search_testresults
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2264,13 +2579,12 @@ async def aget_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Prov
     """get_provision
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_provisionQueryProvision"""
+        Provision"""
     return (await aexecute(Get_provisionQuery, {"id": id}, rath=rath)).provision
 
 
@@ -2278,13 +2592,12 @@ def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Provision:
     """get_provision
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_provisionQueryProvision"""
+        Provision"""
     return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
 
 
@@ -2292,7 +2605,6 @@ async def aget_me_nodes(
     rath: Optional[RekuestNextRath] = None,
 ) -> List[GetMeNodesQueryNodes]:
     """GetMeNodes
-
 
 
     Arguments:
@@ -2307,7 +2619,6 @@ def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQuery
     """GetMeNodes
 
 
-
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
@@ -2320,13 +2631,12 @@ async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetAgentQueryAgent"""
+        Agent"""
     return (await aexecute(GetAgentQuery, {"id": id}, rath=rath)).agent
 
 
@@ -2334,13 +2644,12 @@ def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetAgentQueryAgent"""
+        Agent"""
     return execute(GetAgentQuery, {"id": id}, rath=rath).agent
 
 
@@ -2348,13 +2657,12 @@ async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetPanelQueryPanel"""
+        Panel"""
     return (await aexecute(GetPanelQuery, {"id": id}, rath=rath)).panel
 
 
@@ -2362,13 +2670,12 @@ def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetPanelQueryPanel"""
+        Panel"""
     return execute(GetPanelQuery, {"id": id}, rath=rath).panel
 
 
@@ -2378,9 +2685,8 @@ async def aget_reservation(
     """get_reservation
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2394,9 +2700,8 @@ def get_reservation(
     """get_reservation
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2410,13 +2715,12 @@ async def areservations(
     """reservations
 
 
-
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[ReservationsQueryReservations]"""
+        List[Reservation]"""
     return (
         await aexecute(ReservationsQuery, {"instance_id": instance_id}, rath=rath)
     ).reservations
@@ -2428,13 +2732,12 @@ def reservations(
     """reservations
 
 
-
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[ReservationsQueryReservations]"""
+        List[Reservation]"""
     return execute(
         ReservationsQuery, {"instance_id": instance_id}, rath=rath
     ).reservations
@@ -2446,13 +2749,12 @@ async def arequests(
     """requests
 
 
-
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[RequestsQueryAssignations]"""
+        List[Assignation]"""
     return (
         await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
     ).assignations
@@ -2464,13 +2766,12 @@ def requests(
     """requests
 
 
-
     Arguments:
-        instance_id (InstanceId): instance_id
+        instance_id (InstanceId): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[RequestsQueryAssignations]"""
+        List[Assignation]"""
     return execute(RequestsQuery, {"instance_id": instance_id}, rath=rath).assignations
 
 
@@ -2480,13 +2781,12 @@ async def aget_event(
     """GetEvent
 
 
-
     Arguments:
-        id (Optional[ID], optional): id.
+        id (Optional[ID], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetEventQueryEvent]"""
+        List[AssignationEvent]"""
     return (await aexecute(GetEventQuery, {"id": id}, rath=rath)).event
 
 
@@ -2496,13 +2796,12 @@ def get_event(
     """GetEvent
 
 
-
     Arguments:
-        id (Optional[ID], optional): id.
+        id (Optional[ID], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetEventQueryEvent]"""
+        List[AssignationEvent]"""
     return execute(GetEventQuery, {"id": id}, rath=rath).event
 
 
@@ -2510,13 +2809,12 @@ async def aget_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dash
     """GetDashboard
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetDashboardQueryDashboard"""
+        Dashboard"""
     return (await aexecute(GetDashboardQuery, {"id": id}, rath=rath)).dashboard
 
 
@@ -2524,13 +2822,12 @@ def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
     """GetDashboard
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        GetDashboardQueryDashboard"""
+        Dashboard"""
     return execute(GetDashboardQuery, {"id": id}, rath=rath).dashboard
 
 
@@ -2538,13 +2835,12 @@ async def aget_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Templ
     """get_template
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_templateQueryTemplate"""
+        Template"""
     return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
 
 
@@ -2552,13 +2848,12 @@ def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
     """get_template
 
 
-
     Arguments:
-        id (ID): id
+        id (ID): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_templateQueryTemplate"""
+        Template"""
     return execute(Get_templateQuery, {"id": id}, rath=rath).template
 
 
@@ -2570,10 +2865,9 @@ async def asearch_templates(
     """search_templates
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2593,10 +2887,9 @@ def search_templates(
     """search_templates
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2612,13 +2905,12 @@ async def atemplates_for(
     """templates_for
 
 
-
     Arguments:
-        hash (NodeHash): hash
+        hash (NodeHash): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Templates_forQueryTemplates]"""
+        List[Template]"""
     return (await aexecute(Templates_forQuery, {"hash": hash}, rath=rath)).templates
 
 
@@ -2628,14 +2920,63 @@ def templates_for(
     """templates_for
 
 
-
     Arguments:
-        hash (NodeHash): hash
+        hash (NodeHash): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Templates_forQueryTemplates]"""
+        List[Template]"""
     return execute(Templates_forQuery, {"hash": hash}, rath=rath).templates
+
+
+async def amy_template_at(
+    instance_id: str,
+    interface: Optional[str] = None,
+    node_id: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Template:
+    """MyTemplateAt
+
+
+    Arguments:
+        instance_id (str): No description
+        interface (Optional[str], optional): No description.
+        node_id (Optional[ID], optional): No description.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        Template"""
+    return (
+        await aexecute(
+            MyTemplateAtQuery,
+            {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+            rath=rath,
+        )
+    ).my_template_at
+
+
+def my_template_at(
+    instance_id: str,
+    interface: Optional[str] = None,
+    node_id: Optional[ID] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Template:
+    """MyTemplateAt
+
+
+    Arguments:
+        instance_id (str): No description
+        interface (Optional[str], optional): No description.
+        node_id (Optional[ID], optional): No description.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        Template"""
+    return execute(
+        MyTemplateAtQuery,
+        {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+        rath=rath,
+    ).my_template_at
 
 
 async def afind(
@@ -2647,15 +2988,14 @@ async def afind(
     """find
 
 
-
     Arguments:
-        id (Optional[ID], optional): id.
-        template (Optional[ID], optional): template.
-        hash (Optional[NodeHash], optional): hash.
+        id (Optional[ID], optional): No description.
+        template (Optional[ID], optional): No description.
+        hash (Optional[NodeHash], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        FindQueryNode"""
+        Node"""
     return (
         await aexecute(
             FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
@@ -2672,15 +3012,14 @@ def find(
     """find
 
 
-
     Arguments:
-        id (Optional[ID], optional): id.
-        template (Optional[ID], optional): template.
-        hash (Optional[NodeHash], optional): hash.
+        id (Optional[ID], optional): No description.
+        template (Optional[ID], optional): No description.
+        hash (Optional[NodeHash], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        FindQueryNode"""
+        Node"""
     return execute(
         FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
     ).node
@@ -2690,12 +3029,11 @@ async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
     """retrieveall
 
 
-
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[RetrieveallQueryNodes]"""
+        List[Node]"""
     return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
 
 
@@ -2703,12 +3041,11 @@ def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
     """retrieveall
 
 
-
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[RetrieveallQueryNodes]"""
+        List[Node]"""
     return execute(RetrieveallQuery, {}, rath=rath).nodes
 
 
@@ -2720,10 +3057,9 @@ async def asearch_nodes(
     """search_nodes
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
@@ -2743,10 +3079,9 @@ def search_nodes(
     """search_nodes
 
 
-
     Arguments:
-        search (Optional[str], optional): search.
-        values (Optional[List[ID]], optional): values.
+        search (Optional[str], optional): No description.
+        values (Optional[List[ID]], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:

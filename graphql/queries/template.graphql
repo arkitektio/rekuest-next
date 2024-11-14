@@ -14,9 +14,18 @@ query search_templates($search: String, $values: [ID!]) {
   }
 }
 
+query templates_for($hash: NodeHash!) {
+  templates(filters: { nodeHash: $hash }) {
+    ...Template
+  }
+}
 
-query templates_for($hash: NodeHash!){
-  templates(filters: { nodeHash: $hash } ) {
+query MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {
+  myTemplateAt(
+    instanceId: $instanceId
+    interface: $interface
+    nodeId: $nodeId
+  ) {
     ...Template
   }
 }

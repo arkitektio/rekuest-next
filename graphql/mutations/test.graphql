@@ -1,38 +1,11 @@
-mutation create_testcase(
-  $node: ID!
-  $tester: ID!
-  $description: String!
-  $name: String!
-
-) {
-  createTestCase(
-    input: {
-      node: $node
-      tester: $tester
-      description: $description
-      name: $name
-    }
-  ) {
+mutation create_testcase($input: CreateTestCaseInput!) {
+  createTestCase(input: $input) {
     ...TestCase
   }
 }
 
-mutation create_testresult(
-  $case: ID!
-  $template: ID!
-  $tester: ID!
-  $passed: Boolean!
-  $result: String
-) {
-  createTestResult(
-    input: {
-      case: $case
-      tester: $tester
-      template: $template
-      passed: $passed
-      result: $result
-    }
-  ) {
+mutation create_testresult($input: CreateTestResultInput!) {
+  createTestResult(input: $input) {
     ...TestResult
   }
 }

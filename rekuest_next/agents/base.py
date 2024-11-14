@@ -27,7 +27,6 @@ from rekuest_next.api.schema import (
     aensure_agent,
     SetExtensionTemplatesInput,
     aset_extension_templates,
-    acreate_hardware_record,
 )
 from rekuest_next.collection.collector import Collector
 from rekuest_next.definition.registry import (
@@ -345,12 +344,10 @@ class BaseAgent(KoiledModel):
             to_be_created_templates = tuple(definition_registry.templates.values())
 
             created_templates = await aset_extension_templates(
-                SetExtensionTemplatesInput(
-                    templates=to_be_created_templates,
-                    runCleanup=run_cleanup,
-                    instanceId=instance_id,
-                    extension=extension_name,
-                )
+                templates=to_be_created_templates,
+                run_cleanup=run_cleanup,
+                instance_id=instance_id,
+                extension=extension_name,
             )
 
             for template in created_templates:

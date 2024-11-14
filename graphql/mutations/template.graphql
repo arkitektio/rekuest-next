@@ -9,9 +9,3 @@ mutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {
     ...Template
   }
 }
-
-query MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID){
-  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId){
-    ...Template
-  }
-}

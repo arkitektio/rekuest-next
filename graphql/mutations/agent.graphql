@@ -1,5 +1,5 @@
-mutation EnsureAgent($instanceId: InstanceId!, $extensions: [String!], $name: String) {
-  ensureAgent(input: { instanceId: $instanceId, extensions: $extensions, name: $name }) {
+mutation EnsureAgent($input: AgentInput!) {
+  ensureAgent(input: $input) {
     id
     instanceId
     extensions

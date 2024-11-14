@@ -54,7 +54,7 @@
                 "enabled": true,
                 "extra": "forbid",
                 "allow_mutation": null,
-                "allow_population_by_field_name": null,
+                "allow_population_by_field_name": true,
                 "orm_mode": null,
                 "use_enum_values": true,
                 "validate_assignment": null,

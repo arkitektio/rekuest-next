@@ -66,7 +66,7 @@ class GraphQLPostman(BasePostman):
                 await self.start_watching()
 
         try:
-            assignation = await aassign(assign)
+            assignation = await aassign(**assign.model_dump())
         except Exception as e:
             raise PostmanException("Cannot Assign") from e
 
@@ -80,7 +80,7 @@ class GraphQLPostman(BasePostman):
                 queue.task_done()
 
         except asyncio.CancelledError as e:
-            unassignation = await acancel(CancelInput(assignation=assignation.id))
+            unassignation = await acancel(assignation=assignation.id)
             del self._ass_update_queues[assign.reference]
             raise e
 
