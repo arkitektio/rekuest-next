@@ -1,35 +1,35 @@
-from typing_extensions import Literal
-from typing import (
-    Iterable,
-    Optional,
-    List,
-    Iterator,
-    Annotated,
-    AsyncIterator,
-    Tuple,
-    Union,
-    Any,
-)
-from rekuest_next.scalars import (
-    SearchQuery,
-    ValidatorFunction,
-    Args,
-    NodeHash,
-    Identifier,
-    InstanceId,
-)
-from rekuest_next.funcs import subscribe, aexecute, execute, asubscribe
 from rekuest_next.traits.ports import (
-    WidgetInputTrait,
     PortTrait,
     ReturnWidgetInputTrait,
+    WidgetInputTrait,
 )
-from enum import Enum
-from rekuest_next.rath import RekuestNextRath
-from rath.scalars import ID
-from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from rekuest_next.scalars import (
+    InstanceId,
+    SearchQuery,
+    Identifier,
+    Args,
+    ValidatorFunction,
+    NodeHash,
+)
+from typing_extensions import Literal
+from typing import (
+    AsyncIterator,
+    Iterable,
+    List,
+    Iterator,
+    Tuple,
+    Optional,
+    Annotated,
+    Any,
+    Union,
+)
+from rekuest_next.funcs import execute, aexecute, asubscribe, subscribe
 from rekuest_next.traits.node import Reserve
+from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
+from enum import Enum
+from rath.scalars import ID
+from rekuest_next.rath import RekuestNextRath
 
 
 class AssignWidgetKind(str, Enum):
@@ -1124,7 +1124,7 @@ class WatchAssignationsSubscription(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):

@@ -114,6 +114,9 @@
                 },
                 {
                     "type": "turms.plugins.funcs.FuncsPlugin",
+                    "expand_input_types": [
+                        "input"
+                    ],
                     "global_kwargs": [
                         {
                             "type": "rekuest_next.rath.RekuestNextRath",
