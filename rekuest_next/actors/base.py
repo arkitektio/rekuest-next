@@ -13,7 +13,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from koil.types import Contextual
 from rekuest_next.actors.errors import ProvisionDelegateException, UnknownMessageError
@@ -41,6 +41,7 @@ from rekuest_next.messages import OutMessage
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
+from rekuest_next.actors.sync import SyncGroup
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +66,19 @@ class Actor(BaseModel):
     supervisor: Optional["Actor"] = None
     managed_actors: Dict[str, "Actor"] = Field(default_factory=dict)
     running_assignments: Dict[str, Assign] = Field(default_factory=dict)
+    sync: SyncGroup = Field(default_factory=SyncGroup)
 
     _in_queue: Optional[asyncio.Queue] = PrivateAttr(default=None)
     _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
     _running_transports: Dict[str, AssignTransport] = PrivateAttr(default_factory=dict)
     _provision_task: asyncio.Task = PrivateAttr(default=None)
     _status: ProvisionEventKind = PrivateAttr(default=ProvisionEventKind.UNHAPPY)
+
+    @model_validator(mode='before')
+    def validate_sync(cls, values):
+        if values.get('sync') is None:
+            values['sync'] = SyncGroup()
+        return values
 
     async def on_provide(self, passport: Passport):
         return None
@@ -175,6 +183,8 @@ class Actor(BaseModel):
 
         if isinstance(message, Assign):
             transport = self.transport.spawn(message)
+
+            
 
             task = asyncio.create_task(
                 self.on_assign(
@@ -305,6 +315,17 @@ class Actor(BaseModel):
     async def __aexit__(self, exc_type, exc, tb):
         if self._provision_task and not self._provision_task.done():
             await self.acancel()
+
+
+class SyncAwareActor(Actor):
+
+
+    async def on_sync_assign(self, assignment: Assign, collector: AssignationCollector, transport: AssignTransport):
+        raise NotImplementedError()
+
+    async def on_assign(self, assignment: Assign, collector: AssignationCollector, transport: AssignTransport):
+        async with self.sync:
+            return await self.on_sync_assign(assignment, collector, transport)
 
 
 class SerializingActor(Actor):

@@ -1,3 +1,4 @@
+from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import Actifier
 from rekuest_next.actors.vars import is_inside_assignation
 from rekuest_next.definition.validate import hash_definition
@@ -65,6 +66,7 @@ def register_func(
     on_unprovide=None,
     dynamic: bool = False,
     in_process: bool = False,
+    sync: Optional[SyncGroup] = None,
     **actifier_params,
 ):
     """Register a function or actor with the definition registry
@@ -159,6 +161,7 @@ def register(
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
     dynamic: bool = False,
+    sync: Optional[SyncGroup] = None,
     **actifier_params,
 ) -> Callable[[T], T]: ...
 
@@ -184,6 +187,7 @@ def register(
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
     dynamic: bool = False,
+    sync: Optional[SyncGroup] = None,
     **actifier_params,
 ):
     """Register a function or actor to the default definition registry.
@@ -243,6 +247,7 @@ def register(
             groups=groups,
             in_process=in_process,
             dynamic=dynamic,
+            sync=sync,
             **actifier_params,
         )
 
@@ -281,6 +286,7 @@ def register(
                 groups=groups,
                 dynamic=dynamic,
                 in_process=in_process,
+                sync=sync,
                 **actifier_params,
             )
 

@@ -395,10 +395,12 @@ class BaseAgent(KoiledModel):
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
-        await self.aregister_definitions(instance_id=instance_id)
 
         for extension in self.extensions.values():
             await extension.astart(instance_id)
+
+        
+        await self.aregister_definitions(instance_id=instance_id)
 
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id)

@@ -25,6 +25,7 @@ from rekuest_next.api.schema import (
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.scalars import ValidatorFunction
 from rekuest_next.structures.registry import StructureRegistry
+from rekuest_next.actors.sync import SyncGroup
 
 
 async def async_none_provide(prov: Passport):
@@ -71,6 +72,7 @@ def reactify(
     widgets: Dict[str, AssignWidgetInput] = None,
     interfaces: List[str] = [],
     in_process: bool = False,
+    sync: Optional[SyncGroup] = None,
     **params,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Reactify a function
@@ -120,6 +122,7 @@ def reactify(
         "state_returns": state_returns,
         "context_variables": context_variables,
         "context_returns": context_returns,
+        "sync": sync 
     }
 
     if is_coroutine:

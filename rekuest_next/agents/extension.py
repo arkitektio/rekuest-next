@@ -4,6 +4,7 @@ from rekuest_next.actors.base import Actor, Passport, ActorTransport
 from typing import TYPE_CHECKING
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.collection.collector import Collector
+from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
@@ -81,3 +82,54 @@ class AgentExtension(Protocol):
     async def atear_down(self):
         """This should be called when the agent is torn down"""
         ...
+
+
+
+class BaseAgentExtension(ABC):
+    
+    @abstractmethod
+    async def astart(self):
+        """This should be called when the agent starts"""
+        ...
+
+    @abstractmethod
+    async def should_cleanup_on_init(self) -> bool:
+        """Should the extension cleanup its templates?"""
+        ...
+
+    @abstractmethod
+    async def get_name(self) -> str:
+        """This should return the name of the extension"""
+        raise NotImplementedError("Implement this method")
+    
+    @abstractmethod
+    async def aspawn_actor_from_template(
+        self,
+        template: Template,
+        passport: Passport,
+        transport: ActorTransport,
+        agent: "BaseAgent",
+        collector: "Collector",
+    ) -> Optional[Actor]:
+        """This should create an actor from a template and return it.
+
+        The actor should not be started!
+        """
+        ...
+
+
+    @abstractmethod
+    async def aretrieve_registry(self) -> DefinitionRegistry:
+        """This should register the definitions for the agent.
+
+        This is called when the agent is started, for each extensions. Extensions
+        should register their definitions here and merge them with the agent's
+        definition registry.
+        """
+        ...
+
+    @abstractmethod
+    async def atear_down(self):
+        """
+        This should be called when the agent is torn down
+        """

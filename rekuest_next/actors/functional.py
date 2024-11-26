@@ -14,6 +14,7 @@ from rekuest_next.collection.collector import Collector
 from rekuest_next.actors.transport.types import AssignTransport
 from rekuest_next.structures.parse_collectables import parse_collectable
 from rekuest_next.structures.errors import SerializationError
+from rekuest_next.actors.base import Actor
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class FunctionalActor(BaseModel):
     assign: Callable[..., Any]
 
 
+
 class AsyncFuncActor(SerializingActor):
     async def on_assign(
         self,
@@ -39,65 +41,72 @@ class AsyncFuncActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
+        
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
+        
+        async with self.sync:
+            try:
 
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
+                )
 
-            params = await self.add_local_variables(params)
+                params = await self.add_local_variables(params)
 
-            await transport.log_event(
-                kind=AssignationEventKind.ASSIGN,
-                message="Assigned to actor",
-            )
+                await transport.log_event(
+                    kind=AssignationEventKind.ASSIGN,
+                    message="Assigned to actor",
+                )
 
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                returns = await self.assign(**params)
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
+                ):
+                    returns = await self.assign(**params)
 
-            returns = await shrink_outputs(
-                self.definition,
-                returns,
-                structure_registry=self.structure_registry,
-                skip_shrinking=not self.shrink_outputs,
-            )
+                returns = await shrink_outputs(
+                    self.definition,
+                    returns,
+                    structure_registry=self.structure_registry,
+                    skip_shrinking=not self.shrink_outputs,
+                )
 
-            collector.register(assignment, parse_collectable(self.definition, returns))
+                collector.register(assignment, parse_collectable(self.definition, returns))
 
-            await transport.log_event(
-                kind=AssignationEventKind.YIELD,
-                returns=returns,
-            )
+                await transport.log_event(
+                    kind=AssignationEventKind.YIELD,
+                    returns=returns,
+                )
 
-            await transport.log_event(
-                kind=AssignationEventKind.DONE,
-            )
+                await transport.log_event(
+                    kind=AssignationEventKind.DONE,
+                )
 
-        except SerializationError as ex:
-            logger.critical("Assignation error", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.ERROR,
-                message=str(ex),
-            )
+            except SerializationError as ex:
+                logger.critical("Assignation error", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.ERROR,
+                    message=str(ex),
+                )
 
-        except AssertionError as ex:
-            logger.critical("Assignation error", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+            except AssertionError as ex:
+                logger.critical("Assignation error", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-        except Exception as e:
-            logger.critical("Assignation error", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=repr(e),
-            )
+            except Exception as e:
+                logger.critical("Assignation error", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=repr(e),
+                )
 
 
 class AsyncGenActor(SerializingActor):
@@ -107,63 +116,69 @@ class AsyncGenActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
+         
+        async with self.sync:
+            try:
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
+                )
 
-            params = await self.add_local_variables(params)
+                params = await self.add_local_variables(params)
 
-            await transport.log_event(
-                kind=AssignationEventKind.ASSIGN,
-            )
+                await transport.log_event(
+                    kind=AssignationEventKind.ASSIGN,
+                )
 
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                async for returns in self.assign(**params):
-                    returns = await shrink_outputs(
-                        self.definition,
-                        returns,
-                        structure_registry=self.structure_registry,
-                        skip_shrinking=not self.shrink_outputs,
-                    )
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
+                ):
+                    async for returns in self.assign(**params):
+                        returns = await shrink_outputs(
+                            self.definition,
+                            returns,
+                            structure_registry=self.structure_registry,
+                            skip_shrinking=not self.shrink_outputs,
+                        )
 
-                    collector.register(
-                        assignment, parse_collectable(self.definition, returns)
-                    )
+                        collector.register(
+                            assignment, parse_collectable(self.definition, returns)
+                        )
 
-                    await transport.log_event(
-                        kind=AssignationEventKind.YIELD,
-                        returns=returns,
-                    )
+                        await transport.log_event(
+                            kind=AssignationEventKind.YIELD,
+                            returns=returns,
+                        )
 
-            await transport.log_event(kind=AssignationEventKind.DONE)
+                await transport.log_event(kind=AssignationEventKind.DONE)
 
-        except SerializationError as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+            except SerializationError as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-        except AssertionError as ex:
-            await transport.log_event(
-                kind=AssignationEventKind.ERROR,
-                message=str(ex),
-            )
+            except AssertionError as ex:
+                await transport.log_event(
+                    kind=AssignationEventKind.ERROR,
+                    message=str(ex),
+                )
 
-        except Exception as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+            except Exception as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-            raise ex
+                raise ex
 
 
 class FunctionalFuncActor(FunctionalActor, AsyncFuncActor):
@@ -185,52 +200,59 @@ class ThreadedFuncActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
-            logger.info("Assigning Number two")
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
 
-            params = await self.add_local_variables(params)
+        async with self.sync:
 
-            await transport.log_event(
-                kind=AssignationEventKind.ASSIGN,
-            )
-
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                returns = await run_spawned(
-                    self.assign, **params, executor=self.executor, pass_context=True
+            try:
+                logger.info("Assigning Number two")
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
                 )
 
-            returns = await shrink_outputs(
-                self.definition,
-                returns,
-                structure_registry=self.structure_registry,
-                skip_shrinking=not self.shrink_outputs,
-            )
+                params = await self.add_local_variables(params)
 
-            collector.register(assignment, parse_collectable(self.definition, returns))
+                await transport.log_event(
+                    kind=AssignationEventKind.ASSIGN,
+                )
 
-            await transport.log_event(
-                kind=AssignationEventKind.YIELD,
-                returns=returns,
-            )
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
+                ):
+                    returns = await run_spawned(
+                        self.assign, **params, executor=self.executor, pass_context=True
+                    )
 
-            await transport.log_event(
-                kind=AssignationEventKind.DONE,
-            )
+                returns = await shrink_outputs(
+                    self.definition,
+                    returns,
+                    structure_registry=self.structure_registry,
+                    skip_shrinking=not self.shrink_outputs,
+                )
 
-        except Exception as e:
-            logger.error("Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(e),
-            )
+                collector.register(assignment, parse_collectable(self.definition, returns))
+
+                await transport.log_event(
+                    kind=AssignationEventKind.YIELD,
+                    returns=returns,
+                )
+
+                await transport.log_event(
+                    kind=AssignationEventKind.DONE,
+                )
+
+            except Exception as e:
+                logger.error("Error in actor", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(e),
+                )
 
 
 class ThreadedGenActor(SerializingActor):
@@ -242,66 +264,73 @@ class ThreadedGenActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
 
-            params = await self.add_local_variables(params)
 
-            await transport.log_event(
-                kind=AssignationEventKind.ASSIGN,
-            )
+        async with self.sync:
+            try:
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
+                )
 
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                async for returns in iterate_spawned(
-                    self.assign, **params, executor=self.executor, pass_context=True
+                params = await self.add_local_variables(params)
+
+                await transport.log_event(
+                    kind=AssignationEventKind.ASSIGN,
+                )
+
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
                 ):
-                    returns = await shrink_outputs(
-                        self.definition,
-                        returns,
-                        structure_registry=self.structure_registry,
-                        skip_shrinking=not self.shrink_outputs,
-                    )
+                    async for returns in iterate_spawned(
+                        self.assign, **params, executor=self.executor, pass_context=True
+                    ):
+                        returns = await shrink_outputs(
+                            self.definition,
+                            returns,
+                            structure_registry=self.structure_registry,
+                            skip_shrinking=not self.shrink_outputs,
+                        )
 
-                    collector.register(
-                        assignment, parse_collectable(self.definition, returns)
-                    )
+                        collector.register(
+                            assignment, parse_collectable(self.definition, returns)
+                        )
 
-                    await transport.log_event(
-                        kind=AssignationEventKind.YIELD,
-                        returns=returns,
-                    )
+                        await transport.log_event(
+                            kind=AssignationEventKind.YIELD,
+                            returns=returns,
+                        )
 
-            await transport.log_event(kind=AssignationEventKind.DONE)
+                await transport.log_event(kind=AssignationEventKind.DONE)
 
-        except AssertionError as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+            except AssertionError as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-        except SerializationError as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+            except SerializationError as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-        except Exception as e:
-            logging.critical(f"Assignation Error {assignment} {e}", exc_info=True)
-            await transport.log_event(
-                kind=AssignationEventKind.CRITICAL,
-                message=str(e),
-            )
+            except Exception as e:
+                logging.critical(f"Assignation Error {assignment} {e}", exc_info=True)
+                await transport.log_event(
+                    kind=AssignationEventKind.CRITICAL,
+                    message=str(e),
+                )
 
-            raise e
+                raise e
 
 
 class ProcessedGenActor(SerializingActor):
@@ -311,64 +340,72 @@ class ProcessedGenActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
+        
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
 
-            params = await self.add_local_variables(params)
 
-            await transport.change(
-                status=AssignationEventKind.ASSIGN,
-            )
+        async with self.sync:
+            try:
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
+                )
 
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                async for returns in iterate_processed(self.assign, **params):
-                    returns = await shrink_outputs(
-                        self.definition,
-                        returns,
-                        structure_registry=self.structure_registry,
-                        skip_shrinking=not self.shrink_outputs,
-                    )
+                params = await self.add_local_variables(params)
 
-                    collector.register(
-                        assignment, parse_collectable(self.definition, returns)
-                    )
+                await transport.change(
+                    status=AssignationEventKind.ASSIGN,
+                )
 
-                    await self.transport.change(
-                        status=AssignationEventKind.ASSIGN,
-                        returns=returns,
-                    )
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
+                ):
+                    async for returns in iterate_processed(self.assign, **params):
+                        returns = await shrink_outputs(
+                            self.definition,
+                            returns,
+                            structure_registry=self.structure_registry,
+                            skip_shrinking=not self.shrink_outputs,
+                        )
 
-            await transport.change(status=AssignationEventKind.DONE)
+                        collector.register(
+                            assignment, parse_collectable(self.definition, returns)
+                        )
 
-        except AssertionError as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+                        await self.transport.change(
+                            status=AssignationEventKind.ASSIGN,
+                            returns=returns,
+                        )
 
-        except SerializationError as ex:
-            logger.critical("Error in actor", exc_info=True)
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+                await transport.change(status=AssignationEventKind.DONE)
 
-        except Exception as e:
-            logging.critical(f"Assignation Error {assignment} {e}", exc_info=True)
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(e),
-            )
+            except AssertionError as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
 
-            raise e
+            except SerializationError as ex:
+                logger.critical("Error in actor", exc_info=True)
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
+
+            except Exception as e:
+                logging.critical(f"Assignation Error {assignment} {e}", exc_info=True)
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(e),
+                )
+
+                raise e
 
 
 class ProcessedFuncActor(SerializingActor):
@@ -378,61 +415,68 @@ class ProcessedFuncActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        try:
-            logger.info("Assigning Number two")
-            params = await expand_inputs(
-                self.definition,
-                assignment.args,
-                structure_registry=self.structure_registry,
-                skip_expanding=not self.expand_inputs,
-            )
-
-            params = await self.add_local_variables(params)
-
-            await transport.change(
-                status=AssignationEventKind.ASSIGN,
-            )
-
-            async with AssignmentContext(
-                assignment=assignment, transport=transport, passport=self.passport
-            ):
-                returns = await run_processed(
-                    self.assign,
-                    **params,
+        
+        await transport.log_event(
+            kind=AssignationEventKind.QUEUED,
+            message="Queued for running",
+        )
+        
+        async with self.sync:
+            try:
+                logger.info("Assigning Number two")
+                params = await expand_inputs(
+                    self.definition,
+                    assignment.args,
+                    structure_registry=self.structure_registry,
+                    skip_expanding=not self.expand_inputs,
                 )
 
-            returns = await shrink_outputs(
-                self.definition,
-                returns,
-                structure_registry=self.structure_registry,
-                skip_shrinking=not self.shrink_outputs,
-            )
+                params = await self.add_local_variables(params)
 
-            collector.register(assignment, parse_collectable(self.definition, returns))
+                await transport.change(
+                    status=AssignationEventKind.ASSIGN,
+                )
 
-            await transport.change(
-                status=AssignationEventKind.YIELD,
-                returns=returns,
-            )
+                async with AssignmentContext(
+                    assignment=assignment, transport=transport, passport=self.passport
+                ):
+                    returns = await run_processed(
+                        self.assign,
+                        **params,
+                    )
 
-        except SerializationError as ex:
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+                returns = await shrink_outputs(
+                    self.definition,
+                    returns,
+                    structure_registry=self.structure_registry,
+                    skip_shrinking=not self.shrink_outputs,
+                )
 
-        except AssertionError as ex:
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(ex),
-            )
+                collector.register(assignment, parse_collectable(self.definition, returns))
 
-        except Exception as e:
-            logger.error("Error in actor", exc_info=True)
-            await transport.change(
-                status=AssignationEventKind.CRITICAL,
-                message=str(e),
-            )
+                await transport.change(
+                    status=AssignationEventKind.YIELD,
+                    returns=returns,
+                )
+
+            except SerializationError as ex:
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
+
+            except AssertionError as ex:
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(ex),
+                )
+
+            except Exception as e:
+                logger.error("Error in actor", exc_info=True)
+                await transport.change(
+                    status=AssignationEventKind.CRITICAL,
+                    message=str(e),
+                )
 
 
 class FunctionalThreadedFuncActor(FunctionalActor, ThreadedFuncActor):

@@ -81,7 +81,6 @@ class localuse(KoiledModel):
 
     async def on_actor_event(self, message: OutMessage):
         if isinstance(message, ProvisionEvent):
-            print("Actor entered")
             if self._enter_future and not self._enter_future.done():
                 self._enter_future.set_result(None)
                 return

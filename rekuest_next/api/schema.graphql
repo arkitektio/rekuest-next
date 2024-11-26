@@ -836,6 +836,7 @@ type Assignation {
 
 enum AssignationEventKind {
   BOUND
+  QUEUED
   ASSIGN
   PROGRESS
   DISCONNECTED
