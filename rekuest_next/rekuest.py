@@ -48,7 +48,7 @@ class RekuestNext(Composition):
         Run the application.
         """
         return unkoil(self.arun, *args, **kwargs)
-    
+
     def run_detached(self, *args, **kwargs) -> None:
         """
         Run the application detached.

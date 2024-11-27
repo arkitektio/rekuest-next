@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class AgentExtension(Protocol):
+
     async def astart(self):
         """This should be called when the agent starts"""
         ...
@@ -84,9 +85,8 @@ class AgentExtension(Protocol):
         ...
 
 
-
 class BaseAgentExtension(ABC):
-    
+
     @abstractmethod
     async def astart(self):
         """This should be called when the agent starts"""
@@ -101,7 +101,7 @@ class BaseAgentExtension(ABC):
     async def get_name(self) -> str:
         """This should return the name of the extension"""
         raise NotImplementedError("Implement this method")
-    
+
     @abstractmethod
     async def aspawn_actor_from_template(
         self,
@@ -116,7 +116,6 @@ class BaseAgentExtension(ABC):
         The actor should not be started!
         """
         ...
-
 
     @abstractmethod
     async def aretrieve_registry(self) -> DefinitionRegistry:

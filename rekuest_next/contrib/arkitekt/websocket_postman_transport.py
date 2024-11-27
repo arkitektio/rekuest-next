@@ -5,6 +5,7 @@ from herre_next import Herre
 from fakts_next import Fakts
 from pydantic import BaseModel
 
+
 class WebsocketPostmanTransportConfig(BaseModel):
     endpoint_url: str
     instance_id: str = "default"

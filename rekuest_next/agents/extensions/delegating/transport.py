@@ -1,4 +1,3 @@
-
 from .protocol import InMessage, OutMessage
 from typing import TYPE_CHECKING
 
@@ -10,7 +9,6 @@ class ProcessTransport:
 
     def __init__(self, extension: "DelegatingExtension"):
         self.extension = extension
-
 
     async def asend_message(self, message: OutMessage):
         await self.extension.asend_message(message)

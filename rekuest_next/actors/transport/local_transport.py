@@ -22,7 +22,9 @@ class ProxyAssignTransport(KoiledModel):
 
     async def log_event(self, *args, **kwargs):
         await self.on_log(
-            AssignationEvent(id=self.assignment.id, assignation=self.assignment.assignation, **kwargs)
+            AssignationEvent(
+                id=self.assignment.id, assignation=self.assignment.assignation, **kwargs
+            )
         )  # Forwards assignment up
 
     class Config:

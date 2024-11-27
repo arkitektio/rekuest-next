@@ -242,7 +242,6 @@ async def acall_raw(
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     log: bool = False,
-    
 ) -> AsyncGenerator[tuple[Any], None]:
     postman: BasePostman = get_current_postman()
 
@@ -419,35 +418,26 @@ class DirectContext(KoiledModel):
         return self
 
     async def acall(self, *args, **kwargs):
-        return await acall(
-            node=self.node,  *args, **kwargs
-        )
+        return await acall(node=self.node, *args, **kwargs)
 
     async def acall_raw(self, *args, **kwargs):
-        return await acall_raw(
-            node=self.node,  *args, **kwargs
-        )
+        return await acall_raw(node=self.node, *args, **kwargs)
 
     def call(self, *args, **kwargs):
         return unkoil(self.acall, *args, **kwargs)
 
     async def aiterate(self, *args, **kwargs):
-        async for i in aiterate(
-            node=self.node,  *args, **kwargs
-        ):
+        async for i in aiterate(node=self.node, *args, **kwargs):
             yield i
 
     async def aiterate_raw(self, *args, **kwargs):
-        async for i in aiterate_raw(
-            node=self.node,  *args, **kwargs
-        ):
+        async for i in aiterate_raw(node=self.node, *args, **kwargs):
             yield i
 
     def iterate(self, *args, **kwargs):
         return unkoil_gen(self.aiterate, *args, **kwargs)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-
 
         return self
 
@@ -482,8 +472,6 @@ def reserved(
     )
 
 
-
-
 def direct(
     node: Node,
     reference: Optional[str] = None,
@@ -509,18 +497,6 @@ def direct(
         constants=constants,
         assignation_id=assignation_id,
     )
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def templates_for(node: Node) -> list[Template]:

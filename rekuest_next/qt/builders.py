@@ -26,7 +26,7 @@ class QtInLoopBuilder(QtCore.QObject):
         parent=None,
         structure_registry=None,
         definition=None,
-        **actor_kwargs
+        **actor_kwargs,
     ) -> None:
         super().__init__(*args, parent=parent)
         self.coro = QtCoro(
@@ -74,7 +74,7 @@ class QtFutureBuilder(QtCore.QObject):
         parent=None,
         structure_registry=None,
         definition=None,
-        **actor_kwargs
+        **actor_kwargs,
     ) -> None:
         super().__init__(*args, parent=parent)
         self.coro = QtCoro(
@@ -120,7 +120,7 @@ class QtGeneratorBuilder(QtCore.QObject):
         parent=None,
         structure_registry=None,
         definition=None,
-        **actor_kwargs
+        **actor_kwargs,
     ) -> None:
         super().__init__(*args, parent=parent)
         self.yielder = QtYielder(lambda *args, **kwargs: assign(*args, **kwargs))

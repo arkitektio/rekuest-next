@@ -26,10 +26,7 @@ from .structures.default import get_default_structure_registry
 from rekuest_next.structures.hooks.standard import id_shrink
 from rekuest_next.widgets import SearchWidget
 from arkitekt_next.base_models import Requirement
-from arkitekt_next.service_registry import (
-    Params,
-    BaseArkitektService
-)
+from arkitekt_next.service_registry import Params, BaseArkitektService
 from arkitekt_next.base_models import Manifest
 
 
@@ -37,11 +34,10 @@ if TYPE_CHECKING:
     from rekuest_next.agents.extension import AgentExtension
     from rekuest_next.structures.registry import StructureRegistry
 
+
 class ArkitektNextRekuestNext(RekuestNext):
     rath: RekuestNextRath
     agent: BaseAgent
-
-
 
 
 def check_and_import_extensions(
@@ -129,9 +125,7 @@ def build_relative_path(*path: str) -> str:
     return os.path.join(os.path.dirname(__file__), *path)
 
 
-
 class RekuestNextService(BaseArkitektService):
-
 
     def __init__(self):
         self.structure_reg = get_default_structure_registry()
@@ -139,8 +133,10 @@ class RekuestNextService(BaseArkitektService):
 
     def get_service_name(self):
         return "rekuest"
-    
-    def build_service(self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest):
+
+    def build_service(
+        self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
+    ):
         instance_id = params.get("instance_id", "default")
 
         rath = RekuestNextRath(
@@ -182,7 +178,7 @@ class RekuestNextService(BaseArkitektService):
                 instance_id=instance_id,
             ),
         )
-    
+
     def get_requirements(self):
         return [
             Requirement(
@@ -191,18 +187,16 @@ class RekuestNextService(BaseArkitektService):
                 description="An instance of ArkitektNext Rekuest to assign to nodes",
             )
         ]
-    
+
     def get_graphql_schema(self):
         schema_graphql_path = build_relative_path("api", "schema.graphql")
         with open(schema_graphql_path) as f:
             return f.read()
-        
+
     def get_turms_project(self):
         turms_prject = build_relative_path("api", "project.json")
         with open(turms_prject) as f:
             return json.loads(f.read())
-
-
 
 
 def build_services():

@@ -33,7 +33,6 @@ class FunctionalActor(BaseModel):
     assign: Callable[..., Any]
 
 
-
 class AsyncFuncActor(SerializingActor):
     async def on_assign(
         self,
@@ -41,12 +40,12 @@ class AsyncFuncActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        
+
         await transport.log_event(
             kind=AssignationEventKind.QUEUED,
             message="Queued for running",
         )
-        
+
         async with self.sync:
             try:
 
@@ -76,7 +75,9 @@ class AsyncFuncActor(SerializingActor):
                     skip_shrinking=not self.shrink_outputs,
                 )
 
-                collector.register(assignment, parse_collectable(self.definition, returns))
+                collector.register(
+                    assignment, parse_collectable(self.definition, returns)
+                )
 
                 await transport.log_event(
                     kind=AssignationEventKind.YIELD,
@@ -120,7 +121,7 @@ class AsyncGenActor(SerializingActor):
             kind=AssignationEventKind.QUEUED,
             message="Queued for running",
         )
-         
+
         async with self.sync:
             try:
                 params = await expand_inputs(
@@ -236,7 +237,9 @@ class ThreadedFuncActor(SerializingActor):
                     skip_shrinking=not self.shrink_outputs,
                 )
 
-                collector.register(assignment, parse_collectable(self.definition, returns))
+                collector.register(
+                    assignment, parse_collectable(self.definition, returns)
+                )
 
                 await transport.log_event(
                     kind=AssignationEventKind.YIELD,
@@ -268,7 +271,6 @@ class ThreadedGenActor(SerializingActor):
             kind=AssignationEventKind.QUEUED,
             message="Queued for running",
         )
-
 
         async with self.sync:
             try:
@@ -340,12 +342,11 @@ class ProcessedGenActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        
+
         await transport.log_event(
             kind=AssignationEventKind.QUEUED,
             message="Queued for running",
         )
-
 
         async with self.sync:
             try:
@@ -415,12 +416,12 @@ class ProcessedFuncActor(SerializingActor):
         collector: Collector,
         transport: AssignTransport,
     ):
-        
+
         await transport.log_event(
             kind=AssignationEventKind.QUEUED,
             message="Queued for running",
         )
-        
+
         async with self.sync:
             try:
                 logger.info("Assigning Number two")
@@ -452,7 +453,9 @@ class ProcessedFuncActor(SerializingActor):
                     skip_shrinking=not self.shrink_outputs,
                 )
 
-                collector.register(assignment, parse_collectable(self.definition, returns))
+                collector.register(
+                    assignment, parse_collectable(self.definition, returns)
+                )
 
                 await transport.change(
                     status=AssignationEventKind.YIELD,

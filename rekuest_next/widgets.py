@@ -136,9 +136,7 @@ def StateChoiceWidget(
     )
 
 
-def ChoiceWidget(
-    choices: List[ChoiceInput],  **kwargs
-) -> AssignWidgetInput:
+def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
     """A state choice widget.
 
     A state choice widget is a widget that renders a list of choices with the

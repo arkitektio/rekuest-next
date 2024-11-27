@@ -92,7 +92,9 @@ class BaseAgent(KoiledModel):
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, Assign] = Field(default_factory=dict)
-    running_assignments: Dict[str, str] = Field(default_factory=dict, description="Maps assignation to actor id")
+    running_assignments: Dict[str, str] = Field(
+        default_factory=dict, description="Maps assignation to actor id"
+    )
     _inqueue: Contextual[asyncio.Queue] = None
     _errorfuture: Contextual[asyncio.Future] = None
     _contexts: Dict[str, Any] = None
@@ -101,8 +103,7 @@ class BaseAgent(KoiledModel):
     started: bool = False
     running: bool = False
 
-
-    def register_extension(self, name:str, extension: AgentExtension):
+    def register_extension(self, name: str, extension: AgentExtension):
         self.extensions[name] = extension
 
     async def abroadcast(self, message: InMessage):
@@ -311,7 +312,6 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
-
         for extension in self.extensions.values():
             await extension.atear_down()
 
@@ -395,11 +395,9 @@ class BaseAgent(KoiledModel):
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
-
         for extension in self.extensions.values():
             await extension.astart(instance_id)
 
-        
         await self.aregister_definitions(instance_id=instance_id)
 
         self._errorfuture = asyncio.Future()
@@ -467,7 +465,6 @@ class BaseAgent(KoiledModel):
             [queue_task, error_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
-        
 
         if self._errorfuture.done():
             raise self._errorfuture.exception()

@@ -115,9 +115,7 @@ class localuse(KoiledModel):
         try:
             while True:  # Waiting for assignation
                 logger.info("Waiting for update")
-                ass = await asyncio.wait_for(
-                    _ass_queue.get(), timeout=assign_timeout
-                )
+                ass = await asyncio.wait_for(_ass_queue.get(), timeout=assign_timeout)
                 logger.info(f"Local Assign Context: {ass}")
                 if ass.kind == AssignationEventKind.YIELD:
                     return ass.returns
@@ -187,9 +185,7 @@ class localuse(KoiledModel):
         try:
             while True:  # Waiting for assignation
                 logger.info("Waiting for update")
-                ass = await asyncio.wait_for(
-                    _ass_queue.get(), timeout=assign_timeout
-                )
+                ass = await asyncio.wait_for(_ass_queue.get(), timeout=assign_timeout)
                 logger.info(f"Local Assign Context: {ass}")
                 if ass.kind == AssignationEventKind.YIELD:
                     yield ass.returns

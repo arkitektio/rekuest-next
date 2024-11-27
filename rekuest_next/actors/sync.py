@@ -1,8 +1,6 @@
 import asyncio
 
 
-
-
 class SyncGroup:
     def __init__(self, name="None") -> None:
         self.name = name

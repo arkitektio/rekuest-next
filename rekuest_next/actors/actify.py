@@ -122,7 +122,7 @@ def reactify(
         "state_returns": state_returns,
         "context_variables": context_variables,
         "context_returns": context_returns,
-        "sync": sync 
+        "sync": sync,
     }
 
     if is_coroutine:

@@ -74,10 +74,10 @@ class Actor(BaseModel):
     _provision_task: asyncio.Task = PrivateAttr(default=None)
     _status: ProvisionEventKind = PrivateAttr(default=ProvisionEventKind.UNHAPPY)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def validate_sync(cls, values):
-        if values.get('sync') is None:
-            values['sync'] = SyncGroup()
+        if values.get("sync") is None:
+            values["sync"] = SyncGroup()
         return values
 
     async def on_provide(self, passport: Passport):
@@ -168,9 +168,7 @@ class Actor(BaseModel):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(
-                f"Assign task {task} failed with exception {e}", exc_info=True
-            )
+            logger.error(f"Assign task {task} failed with exception {e}", exc_info=True)
         pass
 
     async def is_assignment_still_running(self, message: Union[Assign]):
@@ -183,8 +181,6 @@ class Actor(BaseModel):
 
         if isinstance(message, Assign):
             transport = self.transport.spawn(message)
-
-            
 
             task = asyncio.create_task(
                 self.on_assign(
@@ -319,11 +315,20 @@ class Actor(BaseModel):
 
 class SyncAwareActor(Actor):
 
-
-    async def on_sync_assign(self, assignment: Assign, collector: AssignationCollector, transport: AssignTransport):
+    async def on_sync_assign(
+        self,
+        assignment: Assign,
+        collector: AssignationCollector,
+        transport: AssignTransport,
+    ):
         raise NotImplementedError()
 
-    async def on_assign(self, assignment: Assign, collector: AssignationCollector, transport: AssignTransport):
+    async def on_assign(
+        self,
+        assignment: Assign,
+        collector: AssignationCollector,
+        transport: AssignTransport,
+    ):
         async with self.sync:
             return await self.on_sync_assign(assignment, collector, transport)
 
