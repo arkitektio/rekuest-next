@@ -73,9 +73,8 @@ class DefaultExtension(BaseModel):
 
     async def aregister_schemas(self):
         for name, state_schema in self.state_registry.state_schemas.items():
-            self._state_schemas[name] = await acreate_state_schema(
-                input=CreateStateSchemaInput(stateSchema=state_schema)
-            )
+            self._state_schemas[name] = await acreate_state_schema(state_schema=state_schema)
+            
 
     async def ainit_state(self, state_key: str, value: Any):
         from rekuest_next.api.schema import aset_state, SetStateInput
@@ -91,13 +90,9 @@ class DefaultExtension(BaseModel):
         shrunk_state = await self.state_registry.ashrink_state(
             state_key=state_key, state=value
         )
-        await aset_state(
-            input=SetStateInput(
-                stateSchema=schema.id, value=shrunk_state, instanceId=self._instance_id
-            )
-        )
+        await aset_state(state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id)
 
-        self._current_states[schema.name] = value
+        self._current_states[state_key] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
 
     async def aget_state(self, state_key: str, attribute: Any) -> Any:
@@ -126,11 +121,9 @@ class DefaultExtension(BaseModel):
 
             # Shrink the value to the schema
             await aupdate_state(
-                input=UpdateStateInput(
-                    stateSchema=schema.id,
-                    patches=patch.patch,
-                    instanceId=self._instance_id,
-                )
+                state_schema=schema.id,
+                patches=patch.patch,
+                instance_id=self._instance_id,
             )
 
     async def arun_background(self):
