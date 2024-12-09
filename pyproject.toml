@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rekuest-next"
-version = "0.2.53"
+version = "0.2.54"
 description = "rpc and node backbone"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"

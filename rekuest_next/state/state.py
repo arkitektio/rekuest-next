@@ -43,11 +43,16 @@ def state(
 
 @overload
 def state(
-    name: str,
+    name: Optional[str] = None,
+    local_only: bool = False,
+    registry: Optional[StateRegistry] = None,
+    structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[T], T]: ...
 
 def state(
-    name_or_function: str,
+    *name_or_function: Type[T],
+    local_only: bool = False,
+    name: Optional[str] = None,
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[Type[T]], Type[T]]:
@@ -55,25 +60,31 @@ def state(
     registry = registry or get_current_state_registry()
     structure_registry = structure_reg or get_default_structure_registry()
 
-    def wrapper(cls: Type[T]) -> Type[T]:
-        try:
-            fields(cls)
-        except TypeError:
-            cls = dataclass(cls)
+    if len(name_or_function) == 1:
+        cls = name_or_function[0]
+        print(cls)
+        return state()(cls)
+    
+    if len(name_or_function) == 0:
 
-        setattr(cls, "__rekuest_state__", cls.__name__)
+        def wrapper(cls: Type[T]) -> Type[T]:
+            try:
+                fields(cls)
+            except TypeError:
+                cls = dataclass(cls)
 
-        state_schema = inspect_state_schema(cls, structure_registry)
+            setattr(cls, "__rekuest_state__", cls.__name__)
+            setattr(cls, "__rekuest_state_local__", local_only)
 
-        registry.register_at_name(cls.__name__, state_schema, structure_registry)
 
-        return cls
+            state_schema = inspect_state_schema(cls, structure_registry)
 
-    if isinstance(name_or_function, str):
-        raise ValueError("You need to provide a name for the state")
+            registry.register_at_name(cls.__name__, state_schema, structure_registry)
 
-    else:
-        return wrapper(name_or_function)
+            return cls
+
+
+        return wrapper
 
 
 def prepare_state_variables(function) -> Dict[str, Any]:

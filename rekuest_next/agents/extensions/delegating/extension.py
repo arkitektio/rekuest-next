@@ -233,12 +233,16 @@ class CLIExtension(BaseModel):
         self.definition_registry = None
         logger.info("Tearing down")
         if self._proc:
-            self._proc.terminate()
             try:
-                return_code = await asyncio.wait_for(self._proc.wait(), timeout=1)
-                logger.info(f"Process exited with {return_code}")
-            except asyncio.TimeoutError:
-                logger.warning("Process did not exit in time, killing it")
-                self._proc.kill()
-                return_code = await self._proc.wait()
-                logger.warning(f"Process forcefully exited with {return_code}")
+                self._proc.terminate()
+                try:
+                    return_code = await asyncio.wait_for(self._proc.wait(), timeout=1)
+                    logger.info(f"Process exited with {return_code}")
+                except asyncio.TimeoutError:
+                    logger.warning("Process did not exit in time, killing it")
+                    self._proc.kill()
+                    return_code = await self._proc.wait()
+                    logger.warning(f"Process forcefully exited with {return_code}")
+            except ProcessLookupError as e:
+                logger.warning("Process already exited")
+
