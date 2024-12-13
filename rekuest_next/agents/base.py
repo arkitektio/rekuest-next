@@ -16,6 +16,7 @@ from rekuest_next.actors.transport.types import ActorTransport
 from rekuest_next.actors.types import ActorBuilder, Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.extension import AgentExtension
+from rekuest_next.agents.registry import ExtensionRegistry, get_default_extension_registry
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
     AssignationEventKind,
@@ -56,10 +57,6 @@ from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
 logger = logging.getLogger(__name__)
 
 
-def build_base_extensions():
-    return {
-        "default": DefaultExtension(),
-    }
 
 
 class BaseAgent(KoiledModel):
@@ -85,7 +82,9 @@ class BaseAgent(KoiledModel):
     instance_id: str = "main"
     rath: RekuestNextRath
     transport: AgentTransport
-    extensions: Dict[str, AgentExtension] = Field(default_factory=build_base_extensions)
+    extension_registry: ExtensionRegistry = Field(
+        default_factory=get_default_extension_registry
+    )
     collector: Collector = Field(default_factory=Collector)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
     interface_template_map: Dict[str, Template] = Field(default_factory=dict)
@@ -103,8 +102,6 @@ class BaseAgent(KoiledModel):
     started: bool = False
     running: bool = False
 
-    def register_extension(self, name: str, extension: AgentExtension):
-        self.extensions[name] = extension
 
     async def abroadcast(self, message: InMessage):
         await self._inqueue.put(message)
@@ -312,7 +309,7 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
-        for extension in self.extensions.values():
+        for extension in self.extension_registry.agent_extensions.values():
             await extension.atear_down()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -322,10 +319,10 @@ class BaseAgent(KoiledModel):
     async def adump_registry(self) -> List[Dict[str, Any]]:
         global_list = []
 
-        for extension in self.extensions.values():
+        for extension in self.extension_registry.agent_extensions.values():
             await extension.astart("default")
 
-        for extension_name, extension in self.extensions.items():
+        for extension_name, extension in self.extension_registry.agent_extensions.items():
             definition_registry = await extension.aretrieve_registry()
 
             to_be_created_templates = tuple(
@@ -333,7 +330,7 @@ class BaseAgent(KoiledModel):
             )
             global_list.extend(to_be_created_templates)
 
-        for extension in self.extensions.values():
+        for extension in self.extension_registry.agent_extensions.values():
             await extension.atear_down()
 
         return global_list
@@ -353,10 +350,10 @@ class BaseAgent(KoiledModel):
         x = await aensure_agent(
             instance_id=instance_id,
             name=self.name,
-            extensions=[extension for extension in self.extensions.keys()],
+            extensions=[extension for extension in self.extension_registry.agent_extensions.keys()],
         )
 
-        for extension_name, extension in self.extensions.items():
+        for extension_name, extension in self.extension_registry.agent_extensions.items():
             definition_registry = await extension.aretrieve_registry()
             run_cleanup = await extension.should_cleanup_on_init()
 
@@ -394,7 +391,7 @@ class BaseAgent(KoiledModel):
             )
 
         try:
-            extension = self.extensions[template.extension]
+            extension = self.extension_registry.agent_extensions[template.extension]
 
             actor = await extension.aspawn_actor_from_template(
                 template=template,
@@ -414,7 +411,7 @@ class BaseAgent(KoiledModel):
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
 
-        for extension in self.extensions.values():
+        for extension in self.extension_registry.agent_extensions.values():
             await extension.astart(instance_id)
 
         await self.aregister_definitions(instance_id=instance_id)

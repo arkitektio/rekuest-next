@@ -48,6 +48,9 @@ class DefaultExtension(BaseModel):
     _state_lock: Optional[asyncio.Lock] = None
     _instance_id: Optional[str] = None
 
+    def get_name(self):
+        return "default"
+
     async def astart(self, instance_id):
         """This should be called when the agent starts"""
 

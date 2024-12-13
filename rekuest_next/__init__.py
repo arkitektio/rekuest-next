@@ -12,6 +12,11 @@ from .utils import (
     acall_raw,
 )
 from .structures.model import model
+try:
+    from .arkitekt import KabinetService
+except ImportError:
+    pass
+from .structure import structure_reg
 
 
 __all__ = [
