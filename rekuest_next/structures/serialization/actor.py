@@ -270,7 +270,7 @@ async def ashrink_return(
             return int(value) if value is not None else None
 
         if port.kind == PortKind.FLOAT:
-            assert isinstance(value, float), f"Expected float got {value}"
+            assert isinstance(value, float) or isinstance(value, int), f"Expected float (or int) got {value}"
             return float(value) if value is not None else None
 
         if port.kind == PortKind.DATE:

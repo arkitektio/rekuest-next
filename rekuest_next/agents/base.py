@@ -319,6 +319,25 @@ class BaseAgent(KoiledModel):
         await self.atear_down()
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
+    async def adump_registry(self) -> List[Dict[str, Any]]:
+        global_list = []
+
+        for extension in self.extensions.values():
+            await extension.astart("default")
+
+        for extension_name, extension in self.extensions.items():
+            definition_registry = await extension.aretrieve_registry()
+
+            to_be_created_templates = tuple(
+                x.model_dump() for x in definition_registry.templates.values()
+            )
+            global_list.extend(to_be_created_templates)
+
+        for extension in self.extensions.values():
+            await extension.atear_down()
+
+        return global_list
+
     async def aregister_definitions(self, instance_id: Optional[str] = None):
         """Registers the definitions that are defined in the definition registry
 

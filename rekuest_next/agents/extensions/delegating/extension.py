@@ -245,4 +245,3 @@ class CLIExtension(BaseModel):
                     logger.warning(f"Process forcefully exited with {return_code}")
             except ProcessLookupError as e:
                 logger.warning("Process already exited")
-

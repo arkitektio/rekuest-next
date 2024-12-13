@@ -73,8 +73,9 @@ class DefaultExtension(BaseModel):
 
     async def aregister_schemas(self):
         for name, state_schema in self.state_registry.state_schemas.items():
-            self._state_schemas[name] = await acreate_state_schema(state_schema=state_schema)
-            
+            self._state_schemas[name] = await acreate_state_schema(
+                state_schema=state_schema
+            )
 
     async def ainit_state(self, state_key: str, value: Any):
         from rekuest_next.api.schema import aset_state, SetStateInput
@@ -90,7 +91,10 @@ class DefaultExtension(BaseModel):
         shrunk_state = await self.state_registry.ashrink_state(
             state_key=state_key, state=value
         )
-        await aset_state(state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id)
+        state = await aset_state(
+            state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id
+        )
+        print("State initialized", state)
 
         self._current_states[state_key] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
@@ -108,6 +112,7 @@ class DefaultExtension(BaseModel):
             if not schema.validate(value):
                 raise DefaultExtensionError(f"Value {value} does not match schema {schema}")
             """
+            print(f"Setting state {state_key} attribute {attribute} to {value}")
 
             old_shrunk_state = await self.state_registry.ashrink_state(
                 state_key=state_key, state=self._current_states[state_key]
@@ -120,11 +125,12 @@ class DefaultExtension(BaseModel):
             patch = jsonpatch.make_patch(old_shrunk_state, new_shunk_state)
 
             # Shrink the value to the schema
-            await aupdate_state(
+            state = await aupdate_state(
                 state_schema=schema.id,
                 patches=patch.patch,
                 instance_id=self._instance_id,
             )
+            print("State updated", self._current_states[state_key], state)
 
     async def arun_background(self):
         for name, worker in self.hook_registry.background_worker.items():

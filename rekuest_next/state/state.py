@@ -49,6 +49,7 @@ def state(
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[T], T]: ...
 
+
 def state(
     *name_or_function: Type[T],
     local_only: bool = False,
@@ -62,27 +63,27 @@ def state(
 
     if len(name_or_function) == 1:
         cls = name_or_function[0]
-        print(cls)
         return state()(cls)
-    
+
     if len(name_or_function) == 0:
+        name = name or cls.__name__
+
 
         def wrapper(cls: Type[T]) -> Type[T]:
+            
             try:
                 fields(cls)
             except TypeError:
                 cls = dataclass(cls)
 
-            setattr(cls, "__rekuest_state__", cls.__name__)
+            setattr(cls, "__rekuest_state__" ,name)
             setattr(cls, "__rekuest_state_local__", local_only)
-
 
             state_schema = inspect_state_schema(cls, structure_registry)
 
-            registry.register_at_name(cls.__name__, state_schema, structure_registry)
+            registry.register_at_name(name, state_schema, structure_registry)
 
             return cls
-
 
         return wrapper
 
