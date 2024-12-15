@@ -2,13 +2,8 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
     Optional,
     Type,
-    TypeVar,
-    Protocol,
-    runtime_checkable,
-    TYPE_CHECKING,
 )
 from pydantic import BaseModel
 import inspect
@@ -22,7 +17,6 @@ from rekuest_next.api.schema import (
     AssignWidgetKind,
     ReturnWidgetKind,
 )
-from rekuest_next.structures.types import FullFilledStructure
 from enum import Enum
 
 

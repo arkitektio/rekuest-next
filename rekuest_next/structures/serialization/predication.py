@@ -1,20 +1,9 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
-from rekuest_next.api.schema import Node
-import asyncio
-from rekuest_next.structures.errors import ExpandingError, ShrinkingError
+from typing import Any, Union
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     Port,
     PortKind,
-    DefinitionInput,
-    Definition,
     ChildPort,
-)
-from rekuest_next.structures.errors import (
-    PortShrinkingError,
-    StructureShrinkingError,
-    PortExpandingError,
-    StructureExpandingError,
 )
 import datetime as dt
 

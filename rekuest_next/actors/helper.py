@@ -4,7 +4,6 @@ from rekuest_next.api.schema import AssignationEventKind, LogLevel
 from koil import unkoil
 from rekuest_next.messages import Assign
 from rekuest_next.actors.transport.types import (
-    ActorTransport,
     AssignTransport,
     Passport,
 )

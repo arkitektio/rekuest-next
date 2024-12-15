@@ -4,9 +4,8 @@ from herre_next import Herre
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 from pydantic import Field, BaseModel
 
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict
 
-from pydantic import Field
 
 
 class WebsocketAgentTransportConfig(BaseModel):

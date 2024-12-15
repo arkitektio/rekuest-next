@@ -1,5 +1,4 @@
-from typing import Protocol, Callable, Awaitable, Union
-from pydantic import Field
+from typing import Protocol
 from .errors import (
     DefiniteConnectionFail,
     CorrectableConnectionFail,

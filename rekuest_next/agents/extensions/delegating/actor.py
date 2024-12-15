@@ -5,7 +5,6 @@ from rekuest_next.agents.extensions.delegating.protocol import (
     AssignMessage,
     DoneMessage,
     ErrorMessage,
-    InitMessage,
 )
 from rekuest_next.agents.extensions.delegating.transport import ProcessTransport
 from rekuest_next.api.schema import AssignationEventKind, DefinitionInput

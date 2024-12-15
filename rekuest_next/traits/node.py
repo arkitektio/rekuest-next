@@ -62,7 +62,7 @@ class Reserve(KoiledModel):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        from rekuest_next.api.schema import ReserveInput, UnreserveInput, aunreserve
+        from rekuest_next.api.schema import UnreserveInput, aunreserve
 
         if self._reservation:
             await aunreserve(UnreserveInput(reservation=self._reservation))

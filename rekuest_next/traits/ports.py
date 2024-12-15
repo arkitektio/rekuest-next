@@ -110,7 +110,7 @@ class WidgetInputTrait(BaseModel):
             if self.min is None or self.max is None:
                 raise ValueError(
                     "When specifying a Slider you need to provide an 'max and 'min'"
-                    f" parameter"
+                    " parameter"
                 )
 
             if self.min > self.max:

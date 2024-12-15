@@ -1,6 +1,5 @@
 from typing import Callable, Generic, TypeVar, ParamSpec
 import typing as t
-from fakts_next.grants import remote
 
 P = ParamSpec("P")
 R = TypeVar("R")

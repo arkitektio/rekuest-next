@@ -1,14 +1,5 @@
 import contextvars
-from functools import wraps
-from pydantic import BaseModel, Field
-from typing import Callable, Dict, Optional, Protocol, TypeVar, overload
-import importlib
-import sys
-import os
-import traceback
-import logging
-import pkgutil
-from typing import runtime_checkable
+from typing import Dict
 
 from rekuest_next.agents.extension import AgentExtension
 from rekuest_next.agents.extensions.default import DefaultExtension

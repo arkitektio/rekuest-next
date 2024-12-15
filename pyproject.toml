@@ -7,7 +7,7 @@ license = "CC BY-NC 3.0"
 packages = [{ include = "rekuest_next" }]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 docstring-parser = ">=0.11"
 inflection = ">=0.5.1"
 websockets = ">=12.0"
@@ -64,10 +64,8 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-qt_api = "pyqt5"
 markers = [
     "integration: marks tests that require a running server",
-    "qt: marks tests that require a running qt application",
     "define: marks tests that concern to definining a funcionality",
     "shrink: marks tests that concern to serializing inputs to requests to an actor",
     "expand: marks tests that concern to serializing outputs from answers of an actor",

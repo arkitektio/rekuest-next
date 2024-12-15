@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from rekuest_next.messages import Assign
 from rekuest_next.actors.helper import AssignmentHelper
 from rekuest_next.actors.vars import (

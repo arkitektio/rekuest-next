@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from fieldz import fields, Field
-from typing import List, Dict
+from typing import List
 from .types import FullFilledArg, FullFilledModel
 import inflection
 

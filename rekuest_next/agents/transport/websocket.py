@@ -1,12 +1,10 @@
-from typing import Awaitable, Callable, Dict, Any, List, Optional
+from typing import Awaitable, Callable, Dict
 import websockets
 from rekuest_next.agents.transport.base import AgentTransport
 import asyncio
 import json
 from rekuest_next.agents.transport.errors import (
     AgentTransportException,
-    AssignationListDeniedError,
-    ProvisionListDeniedError,
 )
 from rekuest_next.messages import (
     Assign,
@@ -22,11 +20,9 @@ from rekuest_next.messages import (
 import logging
 from websockets.exceptions import (
     ConnectionClosedError,
-    InvalidStatusCode,
     InvalidHandshake,
 )
 from pydantic import ConfigDict, Field
-from rekuest_next.api.schema import AssignationEventKind, LogLevel, ProvisionEventKind
 import ssl
 import certifi
 from koil.types import ContextBool, Contextual

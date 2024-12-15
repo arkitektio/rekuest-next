@@ -1,9 +1,8 @@
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
-from typing import AsyncIterator, Awaitable, Callable, Optional
+from typing import AsyncIterator
 from rekuest_next.actors.vars import (
     current_assignment,
-    NotWithinAnAssignationError,
 )
 
 
@@ -19,7 +18,7 @@ class SetAssignationLink(ContinuationLink):
         try:
             assignment = current_assignment.get()
             operation.context.headers[self.header_name] = assignment.assignation
-        except LookupError as e:
+        except LookupError:
             pass
 
         async for result in self.next.aexecute(operation, **kwargs):

@@ -1,5 +1,4 @@
 from rekuest_next.structures.default import (
-    PortScope,
     get_default_structure_registry,
     id_shrink,
 )
@@ -14,9 +13,7 @@ from rekuest_next.api.schema import (
     TestCase,
     TestResult,
     AssignationEvent,
-    aget_agent,
     aget_event,
-    aget_template,
     aget_testcase,
     aget_testresult,
     aget_template,

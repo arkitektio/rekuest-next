@@ -1,20 +1,15 @@
 import contextvars
 
-from fieldz import asdict
 from rekuest_next.api.schema import (
-    DefinitionInput,
-    TemplateInput,
     CreateTemplateInput,
     StateSchemaInput,
 )
-from rekuest_next.definition.validate import auto_validate, hash_definition
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 from pydantic import Field
 from koil.composition import KoiledModel
 import json
 from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.structures.default import get_default_structure_registry
 import hashlib
 
 from rekuest_next.structures.serialization.actor import ashrink_return

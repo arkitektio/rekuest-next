@@ -1,18 +1,15 @@
 from dataclasses import dataclass
 from rekuest_next.state.predicate import get_state_name, is_state
-from rekuest_next.structures.model import model
 from typing import Optional, Type, TypeVar, Callable, overload
 from typing import Dict, Any
 import inspect
 from fieldz import fields
 from rekuest_next.structures.registry import (
     StructureRegistry,
-    get_current_structure_registry,
 )
 
 from rekuest_next.state.registry import (
     StateRegistry,
-    get_default_state_registry,
     get_current_state_registry,
 )
 from rekuest_next.api.schema import StateSchemaInput

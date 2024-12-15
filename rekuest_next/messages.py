@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, TypeVar, Literal, Union, Dict
+from typing import Any, Optional, Literal, Union, Dict
 from pydantic import BaseModel
 from rekuest_next.api.schema import (
     AssignationEventKind,

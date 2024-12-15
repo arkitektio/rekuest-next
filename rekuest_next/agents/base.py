@@ -1,8 +1,6 @@
 import asyncio
-import json
 import logging
-import uuid
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
@@ -13,37 +11,24 @@ from rekuest_next.actors.transport.local_transport import (
     ProxyActorTransport,
 )
 from rekuest_next.actors.transport.types import ActorTransport
-from rekuest_next.actors.types import ActorBuilder, Passport
+from rekuest_next.actors.types import Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
-from rekuest_next.agents.extension import AgentExtension
 from rekuest_next.agents.registry import ExtensionRegistry, get_default_extension_registry
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
     AssignationEventKind,
     ProvisionEventKind,
     Template,
-    acreate_template,
     aget_provision,
-    CreateTemplateInput,
     aensure_agent,
-    SetExtensionTemplatesInput,
     aset_extension_templates,
 )
 from rekuest_next.collection.collector import Collector
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_current_definition_registry,
-    get_default_definition_registry,
-)
-from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
-from rekuest_next.definition.validate import auto_validate
 from rekuest_next.messages import (
     Assign,
     InMessage,
-    OutMessage,
     Cancel,
     Interrupt,
-    Message,
     Provide,
     Unprovide,
     AssignationEvent,
@@ -51,7 +36,6 @@ from rekuest_next.messages import (
     ProvisionEvent,
 )
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.agents.extensions.default import DefaultExtension
 from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
 
 logger = logging.getLogger(__name__)
@@ -250,10 +234,10 @@ class BaseAgent(KoiledModel):
                         message=f"Actor was already running {message}",
                     )
                 )
-            except KeyError as e:
+            except KeyError:
                 try:
                     await self.aspawn_actor_from_provision(message)
-                except ProvisionException as e:
+                except ProvisionException:
                     logger.error(
                         f"Error when spawing Actor for {message}", exc_info=True
                     )
@@ -274,7 +258,7 @@ class BaseAgent(KoiledModel):
                     ProvisionEvent(
                         provision=message.provision,
                         kind=ProvisionEventKind.UNHAPPY,
-                        message=f"Actor was sucessfully unprovided",
+                        message="Actor was sucessfully unprovided",
                     )
                 )
                 del self.provision_passport_map[message.provision]
@@ -286,7 +270,7 @@ class BaseAgent(KoiledModel):
                     ProvisionEvent(
                         provision=message.provision,
                         kind=ProvisionEventKind.CRITICAL,
-                        message=f"Received Unprovision for never provisioned provision",
+                        message="Received Unprovision for never provisioned provision",
                     )
                 )
 
@@ -517,7 +501,7 @@ class BaseAgent(KoiledModel):
             await self.astart(instance_id=instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()
-        except asyncio.CancelledError as e:
+        except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
             await self.atear_down()
             raise

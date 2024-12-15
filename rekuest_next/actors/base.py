@@ -1,12 +1,10 @@
 import asyncio
 import logging
-import uuid
 from typing import (
     Any,
     Awaitable,
     Callable,
     Dict,
-    List,
     Optional,
     Protocol,
     Union,
@@ -15,29 +13,22 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
-from koil.types import Contextual
-from rekuest_next.actors.errors import ProvisionDelegateException, UnknownMessageError
+from rekuest_next.actors.errors import UnknownMessageError
 from rekuest_next.actors.transport.local_transport import ProxyActorTransport
 from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
 from rekuest_next.actors.types import Passport
-from rekuest_next.messages import Assign, Cancel, InMessage, OutMessage
+from rekuest_next.messages import Assign, Cancel, OutMessage
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.api.schema import (
     AssignationEventKind,
-    LogLevel,
     ProvisionEventKind,
     Template,
 )
 from rekuest_next.collection.collector import (
-    ActorCollector,
     AssignationCollector,
     Collector,
 )
 from rekuest_next.definition.define import DefinitionInput
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-)
-from rekuest_next.messages import OutMessage
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
@@ -217,11 +208,11 @@ class Actor(BaseModel):
 
                 else:
                     logger.warning(
-                        f"Race Condition: Task was already done before cancellation"
+                        "Race Condition: Task was already done before cancellation"
                     )
                     await assign_transport.log_event(
                         kind=AssignationEventKind.ERROR,
-                        message=f"Race Condition: Task was already done before cancellation",
+                        message="Race Condition: Task was already done before cancellation",
                     )
 
             else:
@@ -240,7 +231,7 @@ class Actor(BaseModel):
                 message = await self._in_queue.get()
                 try:
                     await self.aprocess(message)
-                except Exception as e:
+                except Exception:
                     logger.critical(
                         "Processing unknown message should never happen", exc_info=True
                     )
@@ -266,7 +257,7 @@ class Actor(BaseModel):
 
             await self.unprovide()
 
-        except Exception as e:
+        except Exception:
             logger.critical("Unhandled exception", exc_info=True)
 
             # TODO: Maybe send back an acknoledgement that we are done cancelling.

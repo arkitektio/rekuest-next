@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import wraps
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable
+from typing import Dict, Any, Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field
 import asyncio
 

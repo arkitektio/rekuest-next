@@ -9,11 +9,6 @@ from rekuest_next.structures.registry import (
     StructureRegistry,
 )
 
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_current_definition_registry,
-    get_default_definition_registry,
-)
 from rekuest_next.agents.base import BaseAgent
 from rekuest_next.postmans.base import BasePostman
 from koil import unkoil

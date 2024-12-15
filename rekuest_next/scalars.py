@@ -5,11 +5,8 @@ from graphql import (
     OperationType,
     print_ast,
     print_source_location,
-    print_location,
     GraphQLError,
 )
-from graphql.language.print_location import print_prefixed_lines
-import inspect
 from typing import Dict, Any
 
 from pydantic import GetCoreSchemaHandler

@@ -1,8 +1,8 @@
 from typing import Protocol, runtime_checkable, Callable, Awaitable, Any
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import PortGroupInput, AssignationEventKind
+from rekuest_next.api.schema import PortGroupInput
 from rekuest_next.definition.define import DefinitionInput
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel, Field
 import uuid
 

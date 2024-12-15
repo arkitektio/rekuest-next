@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 from rekuest_next.api.schema import Node
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError

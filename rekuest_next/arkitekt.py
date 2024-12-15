@@ -1,10 +1,5 @@
-import importlib
 import json
 import os
-import pkgutil
-import traceback
-from typing import Any, Dict
-import logging
 from typing import TYPE_CHECKING
 from rath.links.split import SplitLink
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
@@ -20,24 +15,18 @@ from rekuest_next.agents.base import BaseAgent
 from fakts_next import Fakts
 from herre_next import Herre
 from rekuest_next.postmans.graphql import GraphQLPostman
-from rekuest_next.agents.extensions.default import DefaultExtension
 
 from .structures.default import get_default_structure_registry
-from rekuest_next.structures.hooks.standard import id_shrink
-from rekuest_next.widgets import SearchWidget
 from arkitekt_next.base_models import Requirement
 from arkitekt_next.service_registry import Params, BaseArkitektService
 from arkitekt_next.base_models import Manifest
 from arkitekt_next.service_registry import (
-    BaseArkitektService,
-    Params,
     get_default_service_registry,
 )
 
 
 if TYPE_CHECKING:
-    from rekuest_next.agents.extension import AgentExtension
-    from rekuest_next.structures.registry import StructureRegistry
+    pass
 
 
 class ArkitektNextRekuestNext(RekuestNext):

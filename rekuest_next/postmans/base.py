@@ -1,20 +1,15 @@
-from typing import List, Union, Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from pydantic import Field
 
 from rekuest_next.api.schema import (
-    Assignation,
-    BindsInput,
     AssignInput,
-    CancelInput,
-    InterruptInput,
     ReserveInput,
     UnreserveInput,
     Reservation,
     AssignationEvent,
 )
 from koil.composition import KoiledModel
-import asyncio
 
 
 class BasePostman(KoiledModel):

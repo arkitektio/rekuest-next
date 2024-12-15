@@ -4,7 +4,6 @@ from rekuest_next.actors.transport.types import ActorTransport
 from rekuest_next.actors.types import Passport
 from rekuest_next.agents.base import BaseAgent
 from typing import Callable, Awaitable, Optional
-from rekuest_next.agents.extension import BaseAgentExtension
 import asyncio
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.agents.extensions.delegating.actor import CLIActor
@@ -25,7 +24,6 @@ from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 import logging
-import asyncio
 import re
 
 logger = logging.getLogger(__name__)
@@ -120,7 +118,7 @@ class CLIExtension(BaseModel):
                             message = message[:-1]
 
                         print(message)
-                except Exception as e:
+                except Exception:
                     continue
 
         if self.on_init:
@@ -243,5 +241,5 @@ class CLIExtension(BaseModel):
                     self._proc.kill()
                     return_code = await self._proc.wait()
                     logger.warning(f"Process forcefully exited with {return_code}")
-            except ProcessLookupError as e:
+            except ProcessLookupError:
                 logger.warning("Process already exited")

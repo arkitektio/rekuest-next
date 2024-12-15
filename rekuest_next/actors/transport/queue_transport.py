@@ -1,5 +1,4 @@
-from abc import abstractmethod
-from typing import Any, Awaitable, Callable, List, Optional, Union
+from typing import Any, Awaitable, Callable, List, Union
 
 from pydantic import ConfigDict
 
@@ -18,7 +17,6 @@ from rekuest_next.agents.transport.protocols.agent_json import (
     ProvisionMode,
 )
 import logging
-import asyncio
 from rekuest_nextagents.transport.base import AgentTransport
 from rekuest_nextactors.types import Passport, Assignment
 

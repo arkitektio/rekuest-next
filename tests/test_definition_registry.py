@@ -1,6 +1,5 @@
-from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.register import register_structure, register_func
+from rekuest_next.register import register_func
 
 
 def test_register_function(simple_registry):

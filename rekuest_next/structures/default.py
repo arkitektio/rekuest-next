@@ -2,10 +2,8 @@ import importlib
 import os
 import pkgutil
 import traceback
-from typing import Dict
 import logging
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import PortScope
 
 DEFAULT_STRUCTURE_REGISTRY = None
 

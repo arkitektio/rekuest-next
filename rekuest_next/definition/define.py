@@ -1,17 +1,12 @@
 from enum import Enum
 from typing import Callable, List, Tuple, Type, Union
 
-from rekuest_next.agents.context import is_context
-from rekuest_next.definition.guards import cls_is_union
-from rekuest_next.scalars import ValidatorFunction
-from rekuest_next.state.predicate import is_state
 from rekuest_next.structures.model import (
     is_model,
     retrieve_fullfiled_model,
 )
 from rekuest_next.structures.serialization.predication import predicate_port
 from .utils import get_type_hints, is_annotated, is_local_var
-import inflection
 from rekuest_next.api.schema import (
     PortInput,
     ChildPortInput,
@@ -33,10 +28,7 @@ from rekuest_next.structures.registry import (
     StructureRegistry,
 )
 from typing import (
-    Protocol,
-    runtime_checkable,
     Optional,
-    List,
     Any,
     Dict,
     get_origin,
@@ -45,9 +37,17 @@ from typing import (
 import types
 import typing
 
+def is_union_type(cls):
+    # We are dealing with a 3.10 Union (PEP 646)
+    try:
+        return get_origin(cls) is types.UnionType 
+    except AttributeError:
+        return False
+
+
 
 def is_nullable(cls):
-    is_union = get_origin(cls) is types.UnionType or get_origin(cls) is Union
+    is_union = is_union_type(cls) or get_origin(cls) is Union
 
     if is_union:
         for arg in get_args(cls):
@@ -69,7 +69,7 @@ def get_non_nullable_variant(cls):
 
 def is_union(cls):
     return (
-        get_origin(cls) is types.UnionType
+        is_union_type(cls)
         or get_origin(cls) is Union
         and get_args(cls)[1] != type(None)
     )

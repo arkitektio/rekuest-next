@@ -1,8 +1,7 @@
-from typing import AsyncIterator, Awaitable, Callable, Optional
+from typing import AsyncIterator
 
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
-from rath.links.errors import AuthenticationError
 from rath.errors import NotComposedError
 from rekuest_next.actors.vars import get_current_assignation_helper
 
@@ -44,7 +43,7 @@ class ContextLink(ContinuationLink):
 
             operation.context.headers["x-assignation-id"] = str(helper.assignation)
 
-        except Exception as e:
+        except Exception:
             pass
 
         async for result in self.next.aexecute(operation):

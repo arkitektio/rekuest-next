@@ -1,4 +1,3 @@
-import json
 from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
 from rekuest_next.definition.registry import (
@@ -7,8 +6,6 @@ from rekuest_next.definition.registry import (
 )
 from rekuest_next.api.schema import (
     Template,
-    StateSchemaInput,
-    CreateStateSchemaInput,
     acreate_state_schema,
     StateSchema,
 )
@@ -21,7 +18,6 @@ from rekuest_next.state.registry import StateRegistry, get_default_state_registr
 import jsonpatch
 import asyncio
 
-from rekuest_next.state.shrink import ashrink_state
 
 
 class DefaultExtensionError(ExtensionError):
@@ -83,7 +79,7 @@ class DefaultExtension(BaseModel):
             )
 
     async def ainit_state(self, state_key: str, value: Any):
-        from rekuest_next.api.schema import aset_state, SetStateInput
+        from rekuest_next.api.schema import aset_state
 
         schema = self._state_schemas[state_key]
         """
@@ -109,7 +105,7 @@ class DefaultExtension(BaseModel):
             return getattr(self._current_states[state_key], attribute)
 
     async def aset_state(self, state_key: str, attribute: Any, value: Any):
-        from rekuest_next.api.schema import UpdateStateInput, aupdate_state
+        from rekuest_next.api.schema import aupdate_state
 
         async with self._state_lock:
             schema = self._state_schemas[state_key]
@@ -173,7 +169,7 @@ class DefaultExtension(BaseModel):
                 template.interface
             )
 
-        except KeyError as e:
+        except KeyError:
             raise ExtensionError(
                 f"No Actor Builder found for template {template.interface} and no extensions specified"
             )

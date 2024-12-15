@@ -2,7 +2,7 @@ from rekuest_next.actors.vars import (
     get_current_assignation_helper,
 )
 from rekuest_next.api.schema import LogLevel
-from typing import Dict, Any, Optional
+from typing import Optional
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:

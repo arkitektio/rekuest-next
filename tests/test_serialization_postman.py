@@ -2,7 +2,7 @@ import pytest
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.validate import auto_validate
 from rekuest_next.structures.serialization.postman import ashrink_args, aexpand_returns
-from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
+from rekuest_next.structures.serialization.actor import expand_inputs
 from .funcs import (
     plain_basic_function,
     plain_structure_function,

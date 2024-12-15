@@ -1,7 +1,6 @@
 import pytest
-from .structures import SerializableObject, SecondSerializableObject, GlobalObject
+from .structures import SerializableObject, SecondSerializableObject
 from rekuest_next.structures.registry import StructureRegistry, PortScope
-from rekuest_next.register import register_structure
 
 
 async def mock_shrink():

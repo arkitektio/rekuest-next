@@ -1,5 +1,4 @@
 from rekuest_next.structures.registry import (
-    StructureDefinitionError,
     StructureRegistry,
     StructureOverwriteError,
 )

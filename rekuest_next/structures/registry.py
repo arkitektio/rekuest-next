@@ -1,6 +1,4 @@
 import contextvars
-import inspect
-from enum import Enum
 from typing import (
     Any,
     Awaitable,
@@ -9,10 +7,8 @@ from typing import (
     List,
     Optional,
     OrderedDict,
-    Protocol,
     Type,
     TypeVar,
-    runtime_checkable,
 )
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,7 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ChildPortInput,
-    ChoiceInput,
     EffectInput,
     PortInput,
     PortKind,

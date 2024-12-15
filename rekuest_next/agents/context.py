@@ -1,5 +1,3 @@
-from fieldz import fields
-from rekuest_next.structures.model import model
 from typing import Type, TypeVar, Callable
 from typing import Dict, Any, overload
 import inspect

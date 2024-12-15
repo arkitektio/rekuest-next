@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from typing import (
     Any,
@@ -8,7 +7,6 @@ from typing import (
     Optional,
     Protocol,
     Union,
-    runtime_checkable,
 )
 
 from koil import unkoil, unkoil_gen
@@ -26,11 +24,8 @@ from rekuest_next.api.schema import (
     Reservation,
     ReserveInput,
     Template,
-    UnreserveInput,
     afind,
-    atemplates_for,
     areserve,
-    aunreserve,
 )
 from rekuest_next.messages import Assign
 from rekuest_next.postmans.base import BasePostman
@@ -98,7 +93,7 @@ async def acall(
 
     try:
         parent = parent or get_current_assignation_helper().assignation
-    except NotWithinAnAssignationError as e:
+    except NotWithinAnAssignationError:
         parent = None
 
     reference = reference or str(uuid.uuid4())
@@ -391,7 +386,7 @@ class ReservationContext(KoiledModel):
         return unkoil_gen(self.aiterate, *args, **kwargs)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        from rekuest_next.api.schema import ReserveInput, UnreserveInput, aunreserve
+        from rekuest_next.api.schema import UnreserveInput
 
         if self._reservation:
             await aunreserve(UnreserveInput(reservation=self._reservation.id))
