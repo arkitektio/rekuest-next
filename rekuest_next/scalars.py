@@ -12,6 +12,9 @@ from graphql.language.print_location import print_prefixed_lines
 import inspect
 from typing import Dict, Any
 
+from pydantic import GetCoreSchemaHandler
+from pydantic_core import CoreSchema, core_schema
+
 
 NodeHash = str
 InstanceId = str
@@ -37,15 +40,18 @@ class Interface(str):
 
 
 class Identifier(str):
-    @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
 
     @classmethod
-    def validate(cls, v, *info):
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self.validate, handler(str)
+        )
+    
+
+    @classmethod
+    def validate(cls, v):
         if not isinstance(v, str):
             raise TypeError("Identifier must be a string")
         if "@" in v and "/" not in v:
@@ -60,12 +66,14 @@ class Identifier(str):
 
 
 class ValidatorFunction(str):
+
     @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self.validate, handler(str)
+        )
 
     @classmethod
     def validate(cls, v):
@@ -90,12 +98,14 @@ def parse_or_raise(v: str):
 
 
 class SearchQuery(str):
+    
     @classmethod
-    def __get_validators__(cls):
-        # one or more validators may be yielded which will be called in the
-        # order to validate the input, each validator will receive as an input
-        # the value returned from the previous validator
-        yield cls.validate
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self.validate, handler(str)
+        )
 
     @classmethod
     def validate(cls, v, *info):

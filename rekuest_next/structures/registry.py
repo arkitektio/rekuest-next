@@ -15,7 +15,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from rekuest_next.api.schema import (
     AssignWidgetInput,
@@ -96,6 +96,8 @@ class StructureRegistry(BaseModel):
     _fullfilled_structures_map: Dict[Type, FullFilledStructure] = {}
 
     _token: contextvars.Token = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_expander_for_identifier(self, key):
         try:
@@ -399,8 +401,6 @@ class StructureRegistry(BaseModel):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         current_structure_registry.set(None)
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 DEFAULT_STRUCTURE_REGISTRY = None
