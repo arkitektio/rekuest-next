@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from functools import wraps
 from typing import List, Dict, Any, Optional, Protocol, runtime_checkable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 import asyncio
 
 from rekuest_next.agents.context import (
@@ -46,6 +46,8 @@ class HooksRegistry(BaseModel):
 
     _background_tasks: Dict[str, asyncio.Task] = {}
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     def cleanup(self):
         for task in self._background_tasks.values():
             task.cancel()
@@ -81,8 +83,6 @@ class HooksRegistry(BaseModel):
         self.background_worker = {}
         self.startup_hooks = {}
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 default_registry = None

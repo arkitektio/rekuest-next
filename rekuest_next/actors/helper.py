@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from rekuest_next.api.schema import AssignationEventKind, LogLevel
 from koil import unkoil
 from rekuest_next.messages import Assign
@@ -14,6 +14,7 @@ class AssignmentHelper(BaseModel):
     passport: Passport
     assignment: Assign
     transport: AssignTransport
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def alog(self, level: LogLevel, message: str) -> None:
         await self.transport.log_event(kind=AssignationEventKind.LOG, message=message)
@@ -40,5 +41,3 @@ class AssignmentHelper(BaseModel):
         """Returns the governing assignation that cause the chained that lead to this execution"""
         return self.assignment.assignation
 
-    class Config:
-        arbitrary_types_allowed = True

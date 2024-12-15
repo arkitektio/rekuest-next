@@ -1,5 +1,5 @@
 import json
-from pydantic import Field, BaseModel
+from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
 from rekuest_next.definition.registry import (
     DefinitionRegistry,
@@ -47,6 +47,8 @@ class DefaultExtension(BaseModel):
     _background_tasks = {}
     _state_lock: Optional[asyncio.Lock] = None
     _instance_id: Optional[str] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_name(self):
         return "default"
@@ -191,5 +193,3 @@ class DefaultExtension(BaseModel):
     async def atear_down(self):
         await self.astop_background()
 
-    class Config:
-        arbitrary_types_allowed = True

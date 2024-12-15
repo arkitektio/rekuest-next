@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from koil import unkoil
 from koil.composition import KoiledModel
@@ -101,6 +101,7 @@ class BaseAgent(KoiledModel):
 
     started: bool = False
     running: bool = False
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
     async def abroadcast(self, message: InMessage):
@@ -526,6 +527,3 @@ class BaseAgent(KoiledModel):
         self.transport.set_callback(self)
         await self.transport.__aenter__()
         return self
-
-    class Config:
-        arbitrary_types_allowed = True

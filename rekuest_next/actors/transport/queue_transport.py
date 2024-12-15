@@ -1,8 +1,10 @@
 from abc import abstractmethod
 from typing import Any, Awaitable, Callable, List, Optional, Union
 
-from rekuest_nextmessages import Assignation, Unassignation, Provision, Unprovision
-from rekuest_nextapi.schema import (
+from pydantic import ConfigDict
+
+from rekuest_next.messages import Assignation, Unassignation, Provision, Unprovision
+from rekuest_next.api.schema import (
     LogLevelInput,
     ProvisionMode,
     ProvisionStatus,
@@ -10,7 +12,7 @@ from rekuest_nextapi.schema import (
 )
 from koil.composition import KoiledModel
 from typing import Protocol, runtime_checkable
-from rekuest_nextagents.transport.protocols.agent_json import (
+from rekuest_next.agents.transport.protocols.agent_json import (
     AssignationChangedMessage,
     ProvisionChangedMessage,
     ProvisionMode,
@@ -54,6 +56,7 @@ class LocalTransport(KoiledModel):
     """
 
     broadcast: Broadcast
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def connected(self):
@@ -108,13 +111,12 @@ class LocalTransport(KoiledModel):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class AgentActorAssignTransport(KoiledModel):
     actor_transport: "AgentActorTransport"
     assignment: Assignment
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def change_assignation(
         self,
@@ -139,9 +141,6 @@ class AgentActorAssignTransport(KoiledModel):
         await self.actor_transport.agent_transport.log_to_assignation(
             id=self.assignment.assignation, level=level or "DEBUG", message=message
         )
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class AgentActorTransport(KoiledModel):

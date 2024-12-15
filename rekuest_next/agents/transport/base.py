@@ -1,6 +1,8 @@
 from abc import abstractmethod
 from typing import Any, Awaitable, Callable, List, Optional, Union
 
+from pydantic import ConfigDict
+
 from rekuest_next.messages import OutMessage
 
 from koil.composition import KoiledModel
@@ -30,6 +32,7 @@ class AgentTransport(KoiledModel):
     """
 
     _callback: Contextual[TransportCallbacks]
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def connected(self):
@@ -48,5 +51,3 @@ class AgentTransport(KoiledModel):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    class Config:
-        arbitrary_types_allowed = True

@@ -24,6 +24,3 @@ class SetAssignationLink(ContinuationLink):
 
         async for result in self.next.aexecute(operation, **kwargs):
             yield result
-
-    class Config:
-        arbitary_types_allowed = True

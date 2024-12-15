@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, List, Optional, Union
 
 from rekuest_next.messages import OutMessage, ProvisionEvent, AssignationEvent
 from rekuest_next.api.schema import ProvisionEventKind, AssignationEventKind, LogLevel
-
+from pydantic import BaseModel, ConfigDict
 from koil.composition import KoiledModel
 from typing import Protocol, runtime_checkable
 import logging
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class ProxyAssignTransport(KoiledModel):
     assignment: Assign
     on_log: Callable[[OutMessage], Awaitable[None]]
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def log_event(self, *args, **kwargs):
         await self.on_log(
@@ -27,8 +28,6 @@ class ProxyAssignTransport(KoiledModel):
             )
         )  # Forwards assignment up
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ProxyActorTransport(KoiledModel):

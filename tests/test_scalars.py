@@ -7,10 +7,6 @@ import pytest
 class Serializing(pydantic.BaseModel):
     identifier: Identifier
 
-    class Config:
-        arbitrary_types_allowed = True
-
-
 def test_identifier():
     Serializing(identifier="hm/test")
 

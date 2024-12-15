@@ -9,7 +9,7 @@ from rekuest_next.api.schema import (
 from rekuest_next.messages import Assignation, Reservation
 from rekuest_next.postmans.base import BasePostman
 import asyncio
-from pydantic import Field
+from pydantic import ConfigDict, Field
 import logging
 from .transport.base import PostmanTransport
 
@@ -20,6 +20,7 @@ class StatefulPostman(BasePostman):
     transport: PostmanTransport
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
     reservations: Dict[str, Reservation] = Field(default_factory=dict)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     _res_update_queues: Dict[str, asyncio.Queue] = {}
     _ass_update_queues: Dict[str, asyncio.Queue] = {}
@@ -119,6 +120,3 @@ class StatefulPostman(BasePostman):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
-
-    class Config:
-        arbitrary_types_allowed = True

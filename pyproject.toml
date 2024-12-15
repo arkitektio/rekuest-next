@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rekuest-next"
-version = "0.2.59"
+version = "0.2.61"
 description = "rpc and node backbone"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
@@ -11,7 +11,7 @@ python = "^3.8"
 docstring-parser = ">=0.11"
 inflection = ">=0.5.1"
 websockets = ">=12.0"
-pydantic = ">=1.9.0"
+pydantic = ">=2"
 rath = ">=1.0.0"
 fieldz = ">=0.0.2"
 jsonpatch = ">=1.33"

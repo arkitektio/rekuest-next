@@ -49,8 +49,3 @@ class ContextLink(ContinuationLink):
 
         async for result in self.next.aexecute(operation):
             yield result
-
-    class Config:
-        """pydantic configuration for the AuthTokenLink"""
-
-        arbitary_types_allowed = True

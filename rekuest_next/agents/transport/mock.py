@@ -25,7 +25,7 @@ from websockets.exceptions import (
     InvalidStatusCode,
     InvalidHandshake,
 )
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from rekuest_next.api.schema import AssignationEventKind, LogLevel, ProvisionEventKind
 import ssl
 import certifi
@@ -82,6 +82,8 @@ class MockAgentTransport(AgentTransport):
     _send_queue: Contextual[asyncio.Queue] = None
     _connection_task: Contextual[asyncio.Task] = None
     _connected_future: Contextual[asyncio.Future] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def __aenter__(self):
         assert (
@@ -312,5 +314,3 @@ class MockAgentTransport(AgentTransport):
         if self._connection_task:
             await self.adisconnect()
 
-    class Config:
-        arbitrary_types_allowed = True

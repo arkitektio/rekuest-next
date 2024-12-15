@@ -5,7 +5,7 @@ from rekuest_next.api.schema import (
     PortInput,
     PortScope,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import (
     Any,
     Awaitable,
@@ -55,10 +55,8 @@ class FullFilledStructure(BaseModel):
     convert_default: Callable[[Any], str]
     default_widget: Optional[AssignWidgetInput]
     default_returnwidget: Optional[ReturnWidgetInput]
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
 
 
 class FullFilledArg(BaseModel):
