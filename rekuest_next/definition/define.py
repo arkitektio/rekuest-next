@@ -168,10 +168,10 @@ def convert_child_to_childport(
     cls: Type,
     registry: StructureRegistry,
     nullable: bool = False,
-    key: str | None = None,
-    description: str | None = None,
-    assign_widget: AssignWidgetInput | None = None,
-    return_widget: ReturnWidgetInput | None = None,
+    key: Optional[str] = None,
+    description: Optional[str] = None,
+    assign_widget: Optional[AssignWidgetInput] = None,
+    return_widget: Optional[ReturnWidgetInput] = None,
 ) -> Tuple[ChildPortInput, Callable]:
     """Converts a element of a annotation to a child port
 

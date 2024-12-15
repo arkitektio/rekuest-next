@@ -163,7 +163,7 @@ class CLIExtension(BaseModel):
             if message:
                 return message
 
-    async def aget_next_message(self, timeout=None) -> InMessage | None:
+    async def aget_next_message(self, timeout=None) -> Optional[InMessage]:
         try:
             message = await asyncio.wait_for(
                 self._aget_next_message_task(), timeout=timeout
@@ -179,7 +179,7 @@ class CLIExtension(BaseModel):
         transport: ActorTransport,
         agent: BaseAgent,
         collector: Collector,
-    ) -> Actor | None:
+    ) -> Optional[Actor]:
 
         return CLIActor(
             process_transport=ProcessTransport(self),
