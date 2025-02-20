@@ -213,7 +213,7 @@ class BaseAgent(KoiledModel):
             else:
                 logger.warning(
                     "Received unassignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message.provision}"
+                    f"Managed: {self.provision_passport_map} Received: {message}"
                 )
                 await self.transport.log_event(
                     AssignationEvent(
