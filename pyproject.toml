@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "rekuest-next"
-version = "0.2.63"
+version = "0.2.65"
 description = "rpc and node backbone"
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 license = "CC BY-NC 3.0"
 packages = [{ include = "rekuest_next" }]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9"
 docstring-parser = ">=0.11"
 inflection = ">=0.5.1"
 websockets = ">=12.0"

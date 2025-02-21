@@ -314,6 +314,13 @@ class StructureRegistry(BaseModel):
             return self._structure_annotation_map[annotation]
         except KeyError as e:
             raise StructureRegistryError(f"{annotation} is not registered") from e
+        
+        
+    def get_identifier_for_cls(self, cls: Type) -> Identifier:
+        try:
+            return self.get_fullfilled_structure_for_cls(cls).identifier
+        except KeyError as e:
+            raise StructureRegistryError(f"{cls} is not registered") from e
 
     def get_port_for_cls(
         self,
