@@ -328,7 +328,6 @@ class StructureRegistry(BaseModel):
         key: str,
         nullable: bool = False,
         description: Optional[str] = None,
-        groups: List[str] = None,
         effects: Optional[EffectsMap] = None,
         label: Optional[str] = None,
         validators: Optional[List[ValidatorInput]] = None,
@@ -358,7 +357,6 @@ class StructureRegistry(BaseModel):
                 nullable=nullable,
                 effects=effects,
                 description=description,
-                groups=groups,
                 validators=validators,
             )
         except Exception as e:

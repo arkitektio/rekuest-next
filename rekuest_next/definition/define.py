@@ -6,7 +6,7 @@ from rekuest_next.structures.model import (
     retrieve_fullfiled_model,
 )
 from rekuest_next.structures.serialization.predication import predicate_port
-from .utils import get_type_hints, is_annotated, is_local_var
+from .utils import extract_annotations, get_type_hints, is_annotated, is_local_var
 from rekuest_next.api.schema import (
     PortInput,
     ChildPortInput,
@@ -33,6 +33,7 @@ from typing import (
     Dict,
     get_origin,
     get_args,
+    Annotated
 )
 import types
 import typing
@@ -395,7 +396,6 @@ def convert_object_to_port(
     nullable=False,
     validators: Optional[List[ValidatorInput]] = None,
     effects: Optional[List[EffectInput]] = None,
-    groups: Optional[List[str]] = None,
 ) -> PortInput:
     """
     Convert a class to an Port
@@ -413,7 +413,6 @@ def convert_object_to_port(
             label=label,
             effects=effects,
             nullable=nullable,
-            groups=groups,
         )
 
     if is_model(cls):
@@ -443,29 +442,25 @@ def convert_object_to_port(
             returnWidget=return_widget,
             scope=PortScope.GLOBAL,
             key=key,
-            children=children,
+            children=tuple(children),
             label=label,
             default=set_default,
             nullable=nullable,
-            effects=effects,
+            effects=tuple(effects),
             description=description or full_filled_model.description,
-            groups=groups,
-            validators=validators,
+            validators=tuple(validators),
             identifier=full_filled_model.identifier,
         )
 
     if is_annotated(cls):
-        real_type, *args = get_args(cls)
+        real_type, *annotations = get_args(cls)
+        
+        
+        assign_widget, return_widget, validators, effects, default, label, description = extract_annotations(
+            annotations, assign_widget, return_widget, validators, effects, default, label, description
+        )
 
-        for annotation in args:
-            if hasattr(annotation, "get_assign_widget"):
-                assign_widget = annotation.get_assign_widget()
-            if hasattr(annotation, "get_return_widget"):
-                return_widget = annotation.get_return_widget()
-            if hasattr(annotation, "get_effects"):
-                effects = annotation.get_effects()
-            if hasattr(annotation, "get_default"):
-                default = annotation.get_default()
+        
 
         return convert_object_to_port(
             real_type,
@@ -476,7 +471,8 @@ def convert_object_to_port(
             label=label,
             effects=effects,
             nullable=nullable,
-            groups=groups,
+            validators=validators,
+            description=description,
         )
 
     if is_list(cls):
@@ -497,7 +493,6 @@ def convert_object_to_port(
             effects=effects,
             description=description,
             validators=validators,
-            groups=groups,
         )
 
     if is_nullable(cls):
@@ -512,7 +507,6 @@ def convert_object_to_port(
             effects=effects,
             return_widget=return_widget,
             description=description,
-            groups=groups,
             validators=validators,
         )
 
@@ -549,7 +543,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )
 
     if is_dict(cls):
@@ -574,7 +567,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )
 
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
@@ -590,7 +582,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )  # catch bool is subclass of int
 
     if is_int(cls) or (default is not None and isinstance(default, int)):
@@ -606,7 +597,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )
 
     if is_float(cls) or (default is not None and isinstance(default, float)):
@@ -622,7 +612,6 @@ def convert_object_to_port(
             validators=validators,
             effects=effects,
             description=description,
-            groups=groups,
         )
 
     if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
@@ -638,7 +627,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )
 
     if is_str(cls) or (default is not None and isinstance(default, str)):
@@ -654,7 +642,6 @@ def convert_object_to_port(
             effects=effects,
             validators=validators,
             description=description,
-            groups=groups,
         )
 
     if is_structure(cls):
@@ -663,7 +650,6 @@ def convert_object_to_port(
             key,
             nullable=nullable,
             description=description,
-            groups=groups,
             effects=effects,
             label=label,
             default=default,
@@ -699,19 +685,18 @@ def prepare_definition(
     structure_registry: StructureRegistry,
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,
-    groups: Optional[GroupMap] = None,
     effects: Optional[EffectsMap] = None,
-    port_groups: List[PortGroupInput] = None,
+    port_groups: List[PortGroupInput]  | None  = None,
     allow_empty_doc=True,
     collections: List[str] = [],
     interfaces: Optional[List[str]] = None,
-    description: str = None,
+    description: str | None = None,
     stateful: bool = False,
     is_test_for: Optional[List[str]] = None,
     port_label_map: Optional[Dict[str, str]] = None,
     port_description_map: Optional[Dict[str, str]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    name: str = None,
+    name: str | None = None,
     omitfirst=None,
     omitlast=None,
     omitkeys=[],
@@ -748,14 +733,6 @@ def prepare_definition(
     validators = validators or {}
 
     port_groups = port_groups or []
-    port_groups_name = [i.key for i in port_groups]
-    groups = groups or {}
-    for key, grouplist in groups.items():
-        for group in grouplist:
-            if group not in port_groups_name:
-                raise DefinitionError(
-                    f"Error mapping {group} to a group in port groups for port {key}:  Please define a PortGroup for {group}"
-                )
 
     return_widgets = return_widgets or {}
     interfaces = interfaces or []
@@ -823,12 +800,11 @@ def prepare_definition(
             continue
 
         assign_widget = widgets.pop(key, None)
-        port_effects = effects.pop(key, None)
+        port_effects = effects.pop(key, [])
         return_widget = return_widgets.pop(key, None)
-        item_validators = validators.pop(key, None)
+        item_validators = validators.pop(key, [])
         default = value.default if value.default != inspect.Parameter.empty else None
         cls = type_hints.get(key, type(default) if default is not None else None)
-        this_port_groups = groups.get(key, None)
 
         if cls is None:
             raise DefinitionError(
@@ -851,7 +827,6 @@ def prepare_definition(
                     nullable=value.default != inspect.Parameter.empty,
                     description=doc_param_description_map.pop(key, None),
                     label=doc_param_label_map.pop(key, None),
-                    groups=this_port_groups,
                     validators=item_validators,
                 )
             )
@@ -869,7 +844,6 @@ def prepare_definition(
             return_widget = return_widgets.pop(key, None)
             assign_widget = widgets.pop(key, None)
             port_effects = effects.pop(key, None)
-            this_port_groups = groups.pop(key, None)
 
             returns.append(
                 convert_object_to_port(
@@ -881,7 +855,6 @@ def prepare_definition(
                     description=doc_param_description_map.pop(key, None),
                     label=doc_param_label_map.pop(key, None),
                     assign_widget=assign_widget,
-                    groups=this_port_groups,
                 )
             )
 
@@ -890,8 +863,7 @@ def prepare_definition(
             key = f"return{index}"
             return_widget = return_widgets.pop(key, None)
             assign_widget = widgets.pop(key, None)
-            port_effects = effects.pop(key, None)
-            this_port_groups = groups.pop(key, None)
+            port_effects = effects.pop(key, [])
 
             returns.append(
                 convert_object_to_port(
@@ -903,7 +875,6 @@ def prepare_definition(
                     description=doc_param_description_map.pop(key, None),
                     label=doc_param_label_map.pop(key, None),
                     assign_widget=assign_widget,
-                    groups=this_port_groups,
                 )
             )
     else:
@@ -915,8 +886,7 @@ def prepare_definition(
             key = "return0"
             return_widget = return_widgets.pop(key, None)
             assign_widget = widgets.pop(key, None)
-            this_port_groups = groups.pop(key, None)
-            port_effects = effects.pop(key, None)
+            port_effects = effects.pop(key, [])
             returns.append(
                 convert_object_to_port(
                     function_outs_annotation,
@@ -927,7 +897,6 @@ def prepare_definition(
                     description=doc_param_description_map.pop(key, None),
                     label=doc_param_label_map.pop(key, None),
                     return_widget=return_widget,
-                    groups=this_port_groups,
                 )
             )
 

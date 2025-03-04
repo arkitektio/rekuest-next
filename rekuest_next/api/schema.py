@@ -1,34 +1,36 @@
+from rekuest_next.traits.ports import (
+    ValidatorInputTrait,
+    ReturnWidgetInputTrait,
+    DefinitionInputTrait,
+    PortTrait,
+    WidgetInputTrait,
+)
 from rekuest_next.scalars import (
-    SearchQuery,
+    NodeHash,
     Identifier,
     ValidatorFunction,
-    Args,
-    NodeHash,
     InstanceId,
+    SearchQuery,
+    Args,
 )
-from rath.scalars import ID
+from rekuest_next.funcs import subscribe, asubscribe, aexecute, execute
+from pydantic import Field, ConfigDict, BaseModel
 from typing_extensions import Literal
 from typing import (
-    Tuple,
-    AsyncIterator,
-    List,
-    Iterator,
-    Any,
-    Optional,
-    Union,
-    Iterable,
     Annotated,
+    Iterable,
+    List,
+    AsyncIterator,
+    Any,
+    Union,
+    Tuple,
+    Optional,
+    Iterator,
 )
-from rekuest_next.traits.ports import (
-    ReturnWidgetInputTrait,
-    WidgetInputTrait,
-    PortTrait,
-)
-from rekuest_next.rath import RekuestNextRath
-from pydantic import Field, ConfigDict, BaseModel
-from rekuest_next.funcs import aexecute, execute, asubscribe, subscribe
-from datetime import datetime
 from enum import Enum
+from rekuest_next.rath import RekuestNextRath
+from datetime import datetime
+from rath.scalars import ID
 from rekuest_next.traits.node import Reserve
 
 
@@ -64,14 +66,9 @@ class ReturnWidgetKind(str, Enum):
     CUSTOM = "CUSTOM"
 
 
-class LogicalCondition(str, Enum):
-    IS = "IS"
-    IS_NOT = "IS_NOT"
-    IN = "IN"
-
-
 class EffectKind(str, Enum):
     MESSAGE = "MESSAGE"
+    HIDE = "HIDE"
     CUSTOM = "CUSTOM"
 
 
@@ -178,7 +175,7 @@ class TemplateInput(BaseModel):
     )
 
 
-class DefinitionInput(BaseModel):
+class DefinitionInput(DefinitionInputTrait, BaseModel):
     description: Optional[str] = None
     collections: Tuple[str, ...]
     name: str
@@ -197,7 +194,22 @@ class DefinitionInput(BaseModel):
 
 class PortGroupInput(BaseModel):
     key: str
-    hidden: bool
+    title: Optional[str] = None
+    description: Optional[str] = None
+    effects: Optional[Tuple["EffectInput", ...]] = None
+    ports: Optional[Tuple[str, ...]] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class EffectInput(BaseModel):
+    function: ValidatorFunction
+    dependencies: Tuple[str, ...]
+    message: Optional[str] = None
+    kind: EffectKind
+    hook: Optional[str] = None
+    ward: Optional[str] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -212,7 +224,7 @@ class PortInput(PortTrait, BaseModel):
     description: Optional[str] = None
     identifier: Optional[str] = None
     nullable: bool
-    effects: Optional[Tuple["EffectInput", ...]] = None
+    effects: Optional[Tuple[EffectInput, ...]] = None
     default: Optional[Any] = None
     children: Optional[Tuple["ChildPortInput", ...]] = None
     assign_widget: Optional["AssignWidgetInput"] = Field(
@@ -221,36 +233,16 @@ class PortInput(PortTrait, BaseModel):
     return_widget: Optional["ReturnWidgetInput"] = Field(
         alias="returnWidget", default=None
     )
-    groups: Optional[Tuple[str, ...]] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
 
 
-class ValidatorInput(BaseModel):
+class ValidatorInput(ValidatorInputTrait, BaseModel):
     function: ValidatorFunction
     dependencies: Optional[Tuple[str, ...]] = None
     label: Optional[str] = None
     error_message: Optional[str] = Field(alias="errorMessage", default=None)
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class EffectInput(BaseModel):
-    label: str
-    description: Optional[str] = None
-    dependencies: Tuple["EffectDependencyInput", ...]
-    kind: EffectKind
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class EffectDependencyInput(BaseModel):
-    key: str
-    condition: LogicalCondition
-    value: Any
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -293,6 +285,7 @@ class AssignWidgetInput(WidgetInputTrait, BaseModel):
     ward: Optional[str] = None
     fallback: Optional["AssignWidgetInput"] = None
     filters: Optional[Tuple[ChildPortInput, ...]] = None
+    dependencies: Optional[Tuple[str, ...]] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -301,6 +294,7 @@ class AssignWidgetInput(WidgetInputTrait, BaseModel):
 class ChoiceInput(BaseModel):
     value: Any
     label: str
+    image: Optional[str] = None
     description: Optional[str] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -356,7 +350,10 @@ class AssignInput(BaseModel):
     instance_id: InstanceId = Field(alias="instanceId")
     node: Optional[ID] = None
     template: Optional[ID] = None
+    agent: Optional[ID] = None
+    node_hash: Optional[NodeHash] = Field(alias="nodeHash", default=None)
     reservation: Optional[ID] = None
+    interface: Optional[str] = None
     hooks: Optional[Tuple["HookInput", ...]] = None
     args: Args
     reference: Optional[str] = None
@@ -1125,7 +1122,7 @@ class WatchAssignationsSubscription(BaseModel):
         instance_id: InstanceId = Field(alias="instanceId")
 
     class Meta:
-        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  status\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
@@ -1428,8 +1425,7 @@ async def acreate_testcase(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCase
-    """
+        TestCase"""
     return (
         await aexecute(
             Create_testcaseMutation,
@@ -1464,8 +1460,7 @@ def create_testcase(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCase
-    """
+        TestCase"""
     return execute(
         Create_testcaseMutation,
         {
@@ -1500,8 +1495,7 @@ async def acreate_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResult
-    """
+        TestResult"""
     return (
         await aexecute(
             Create_testresultMutation,
@@ -1539,8 +1533,7 @@ def create_testresult(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResult
-    """
+        TestResult"""
     return execute(
         Create_testresultMutation,
         {
@@ -1572,15 +1565,14 @@ async def aset_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        State
-    """
+        State"""
     return (
         await aexecute(
             SetStateMutation,
             {
                 "input": {
-                    "state_schema": state_schema,
-                    "instance_id": instance_id,
+                    "stateSchema": state_schema,
+                    "instanceId": instance_id,
                     "value": value,
                 }
             },
@@ -1605,14 +1597,13 @@ def set_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        State
-    """
+        State"""
     return execute(
         SetStateMutation,
         {
             "input": {
-                "state_schema": state_schema,
-                "instance_id": instance_id,
+                "stateSchema": state_schema,
+                "instanceId": instance_id,
                 "value": value,
             }
         },
@@ -1636,15 +1627,14 @@ async def aupdate_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        State
-    """
+        State"""
     return (
         await aexecute(
             UpdateStateMutation,
             {
                 "input": {
-                    "state_schema": state_schema,
-                    "instance_id": instance_id,
+                    "stateSchema": state_schema,
+                    "instanceId": instance_id,
                     "patches": patches,
                 }
             },
@@ -1669,14 +1659,13 @@ def update_state(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        State
-    """
+        State"""
     return execute(
         UpdateStateMutation,
         {
             "input": {
-                "state_schema": state_schema,
-                "instance_id": instance_id,
+                "stateSchema": state_schema,
+                "instanceId": instance_id,
                 "patches": patches,
             }
         },
@@ -1700,14 +1689,13 @@ async def aensure_agent(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        EnsureAgentMutationEnsureagent
-    """
+        EnsureAgentMutationEnsureagent"""
     return (
         await aexecute(
             EnsureAgentMutation,
             {
                 "input": {
-                    "instance_id": instance_id,
+                    "instanceId": instance_id,
                     "name": name,
                     "extensions": extensions,
                 }
@@ -1733,11 +1721,10 @@ def ensure_agent(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        EnsureAgentMutationEnsureagent
-    """
+        EnsureAgentMutationEnsureagent"""
     return execute(
         EnsureAgentMutation,
-        {"input": {"instance_id": instance_id, "name": name, "extensions": extensions}},
+        {"input": {"instanceId": instance_id, "name": name, "extensions": extensions}},
         rath=rath,
     ).ensure_agent
 
@@ -1774,8 +1761,7 @@ async def acreate_panel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Panel
-    """
+        Panel"""
     return (
         await aexecute(
             CreatePanelMutation,
@@ -1784,14 +1770,14 @@ async def acreate_panel(
                     "name": name,
                     "kind": kind,
                     "state": state,
-                    "state_key": state_key,
+                    "stateKey": state_key,
                     "reservation": reservation,
-                    "instance_id": instance_id,
-                    "state_accessors": state_accessors,
+                    "instanceId": instance_id,
+                    "stateAccessors": state_accessors,
                     "interface": interface,
                     "args": args,
-                    "submit_on_change": submit_on_change,
-                    "submit_on_load": submit_on_load,
+                    "submitOnChange": submit_on_change,
+                    "submitOnLoad": submit_on_load,
                 }
             },
             rath=rath,
@@ -1831,8 +1817,7 @@ def create_panel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Panel
-    """
+        Panel"""
     return execute(
         CreatePanelMutation,
         {
@@ -1840,14 +1825,14 @@ def create_panel(
                 "name": name,
                 "kind": kind,
                 "state": state,
-                "state_key": state_key,
+                "stateKey": state_key,
                 "reservation": reservation,
-                "instance_id": instance_id,
-                "state_accessors": state_accessors,
+                "instanceId": instance_id,
+                "stateAccessors": state_accessors,
                 "interface": interface,
                 "args": args,
-                "submit_on_change": submit_on_change,
-                "submit_on_load": submit_on_load,
+                "submitOnChange": submit_on_change,
+                "submitOnLoad": submit_on_load,
             }
         },
         rath=rath,
@@ -1880,15 +1865,14 @@ async def areserve(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Reservation
-    """
+        Reservation"""
     return (
         await aexecute(
             ReserveMutation,
             {
                 "input": {
-                    "assignation_id": assignation_id,
-                    "instance_id": instance_id,
+                    "assignationId": assignation_id,
+                    "instanceId": instance_id,
                     "node": node,
                     "template": template,
                     "title": title,
@@ -1928,14 +1912,13 @@ def reserve(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Reservation
-    """
+        Reservation"""
     return execute(
         ReserveMutation,
         {
             "input": {
-                "assignation_id": assignation_id,
-                "instance_id": instance_id,
+                "assignationId": assignation_id,
+                "instanceId": instance_id,
                 "node": node,
                 "template": template,
                 "title": title,
@@ -1957,8 +1940,7 @@ async def aunreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) ->
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        str
-    """
+        str"""
     return (
         await aexecute(
             UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
@@ -1975,8 +1957,7 @@ def unreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        str
-    """
+        str"""
     return execute(
         UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
     ).unreserve
@@ -1991,7 +1972,10 @@ async def aassign(
     is_hook: bool,
     node: Optional[ID] = None,
     template: Optional[ID] = None,
+    agent: Optional[ID] = None,
+    node_hash: Optional[NodeHash] = None,
     reservation: Optional[ID] = None,
+    interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
     reference: Optional[str] = None,
     parent: Optional[ID] = None,
@@ -2004,7 +1988,10 @@ async def aassign(
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        agent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        node_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         hooks:  (required) (list)
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -2016,17 +2003,19 @@ async def aassign(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return (
         await aexecute(
             AssignMutation,
             {
                 "input": {
-                    "instance_id": instance_id,
+                    "instanceId": instance_id,
                     "node": node,
                     "template": template,
+                    "agent": agent,
+                    "nodeHash": node_hash,
                     "reservation": reservation,
+                    "interface": interface,
                     "hooks": hooks,
                     "args": args,
                     "reference": reference,
@@ -2034,7 +2023,7 @@ async def aassign(
                     "cached": cached,
                     "log": log,
                     "ephemeral": ephemeral,
-                    "is_hook": is_hook,
+                    "isHook": is_hook,
                 }
             },
             rath=rath,
@@ -2051,7 +2040,10 @@ def assign(
     is_hook: bool,
     node: Optional[ID] = None,
     template: Optional[ID] = None,
+    agent: Optional[ID] = None,
+    node_hash: Optional[NodeHash] = None,
     reservation: Optional[ID] = None,
+    interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
     reference: Optional[str] = None,
     parent: Optional[ID] = None,
@@ -2064,7 +2056,10 @@ def assign(
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        agent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        node_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         hooks:  (required) (list)
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -2076,16 +2071,18 @@ def assign(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return execute(
         AssignMutation,
         {
             "input": {
-                "instance_id": instance_id,
+                "instanceId": instance_id,
                 "node": node,
                 "template": template,
+                "agent": agent,
+                "nodeHash": node_hash,
                 "reservation": reservation,
+                "interface": interface,
                 "hooks": hooks,
                 "args": args,
                 "reference": reference,
@@ -2093,7 +2090,7 @@ def assign(
                 "cached": cached,
                 "log": log,
                 "ephemeral": ephemeral,
-                "is_hook": is_hook,
+                "isHook": is_hook,
             }
         },
         rath=rath,
@@ -2111,8 +2108,7 @@ async def acancel(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return (
         await aexecute(
             CancelMutation, {"input": {"assignation": assignation}}, rath=rath
@@ -2129,8 +2125,7 @@ def cancel(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assignati
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return execute(
         CancelMutation, {"input": {"assignation": assignation}}, rath=rath
     ).cancel
@@ -2147,8 +2142,7 @@ async def ainterrupt(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return (
         await aexecute(
             InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
@@ -2165,8 +2159,7 @@ def interrupt(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assign
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Assignation
-    """
+        Assignation"""
     return execute(
         InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
     ).interrupt
@@ -2188,8 +2181,7 @@ async def acreate_dashboard(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Dashboard
-    """
+        Dashboard"""
     return (
         await aexecute(
             CreateDashboardMutation,
@@ -2215,8 +2207,7 @@ def create_dashboard(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Dashboard
-    """
+        Dashboard"""
     return execute(
         CreateDashboardMutation,
         {"input": {"name": name, "panels": panels, "tree": tree}},
@@ -2235,12 +2226,11 @@ async def acreate_state_schema(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateSchema
-    """
+        StateSchema"""
     return (
         await aexecute(
             CreateStateSchemaMutation,
-            {"input": {"state_schema": state_schema}},
+            {"input": {"stateSchema": state_schema}},
             rath=rath,
         )
     ).create_state_schema
@@ -2257,10 +2247,9 @@ def create_state_schema(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        StateSchema
-    """
+        StateSchema"""
     return execute(
-        CreateStateSchemaMutation, {"input": {"state_schema": state_schema}}, rath=rath
+        CreateStateSchemaMutation, {"input": {"stateSchema": state_schema}}, rath=rath
     ).create_state_schema
 
 
@@ -2280,15 +2269,14 @@ async def acreate_template(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return (
         await aexecute(
             CreateTemplateMutation,
             {
                 "input": {
                     "template": template,
-                    "instance_id": instance_id,
+                    "instanceId": instance_id,
                     "extension": extension,
                 }
             },
@@ -2313,14 +2301,13 @@ def create_template(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return execute(
         CreateTemplateMutation,
         {
             "input": {
                 "template": template,
-                "instance_id": instance_id,
+                "instanceId": instance_id,
                 "extension": extension,
             }
         },
@@ -2334,7 +2321,7 @@ async def aset_extension_templates(
     extension: str,
     run_cleanup: bool,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Template]:
+) -> Tuple[Template, ...]:
     """SetExtensionTemplates
 
 
@@ -2346,17 +2333,16 @@ async def aset_extension_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
-    """
+        List[Template]"""
     return (
         await aexecute(
             SetExtensionTemplatesMutation,
             {
                 "input": {
                     "templates": templates,
-                    "instance_id": instance_id,
+                    "instanceId": instance_id,
                     "extension": extension,
-                    "run_cleanup": run_cleanup,
+                    "runCleanup": run_cleanup,
                 }
             },
             rath=rath,
@@ -2370,7 +2356,7 @@ def set_extension_templates(
     extension: str,
     run_cleanup: bool,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Template]:
+) -> Tuple[Template, ...]:
     """SetExtensionTemplates
 
 
@@ -2382,16 +2368,15 @@ def set_extension_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
-    """
+        List[Template]"""
     return execute(
         SetExtensionTemplatesMutation,
         {
             "input": {
                 "templates": templates,
-                "instance_id": instance_id,
+                "instanceId": instance_id,
                 "extension": extension,
-                "run_cleanup": run_cleanup,
+                "runCleanup": run_cleanup,
             }
         },
         rath=rath,
@@ -2409,8 +2394,7 @@ async def awatch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Reservation
-    """
+        Reservation"""
     async for event in asubscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2428,8 +2412,7 @@ def watch_reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Reservation
-    """
+        Reservation"""
     for event in subscribe(
         WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2447,8 +2430,7 @@ async def awatch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationChangeEvent
-    """
+        AssignationChangeEvent"""
     async for event in asubscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2466,8 +2448,7 @@ def watch_assignations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        AssignationChangeEvent
-    """
+        AssignationChangeEvent"""
     for event in subscribe(
         WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
     ):
@@ -2483,8 +2464,7 @@ async def aget_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestC
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCase
-    """
+        TestCase"""
     return (await aexecute(Get_testcaseQuery, {"id": id}, rath=rath)).test_case
 
 
@@ -2497,8 +2477,7 @@ def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestCase
-    """
+        TestCase"""
     return execute(Get_testcaseQuery, {"id": id}, rath=rath).test_case
 
 
@@ -2511,8 +2490,7 @@ async def aget_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> Tes
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResult
-    """
+        TestResult"""
     return (await aexecute(Get_testresultQuery, {"id": id}, rath=rath)).test_result
 
 
@@ -2525,8 +2503,7 @@ def get_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        TestResult
-    """
+        TestResult"""
     return execute(Get_testresultQuery, {"id": id}, rath=rath).test_result
 
 
@@ -2534,7 +2511,7 @@ async def asearch_testcases(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_testcasesQueryOptions]:
+) -> Tuple[Search_testcasesQueryOptions, ...]:
     """search_testcases
 
 
@@ -2544,8 +2521,7 @@ async def asearch_testcases(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_testcasesQueryTestcases]
-    """
+        List[Search_testcasesQueryTestcases]"""
     return (
         await aexecute(
             Search_testcasesQuery, {"search": search, "values": values}, rath=rath
@@ -2557,7 +2533,7 @@ def search_testcases(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_testcasesQueryOptions]:
+) -> Tuple[Search_testcasesQueryOptions, ...]:
     """search_testcases
 
 
@@ -2567,8 +2543,7 @@ def search_testcases(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_testcasesQueryTestcases]
-    """
+        List[Search_testcasesQueryTestcases]"""
     return execute(
         Search_testcasesQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -2578,7 +2553,7 @@ async def asearch_testresults(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_testresultsQueryOptions]:
+) -> Tuple[Search_testresultsQueryOptions, ...]:
     """search_testresults
 
 
@@ -2588,8 +2563,7 @@ async def asearch_testresults(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_testresultsQueryTestresults]
-    """
+        List[Search_testresultsQueryTestresults]"""
     return (
         await aexecute(
             Search_testresultsQuery, {"search": search, "values": values}, rath=rath
@@ -2601,7 +2575,7 @@ def search_testresults(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_testresultsQueryOptions]:
+) -> Tuple[Search_testresultsQueryOptions, ...]:
     """search_testresults
 
 
@@ -2611,8 +2585,7 @@ def search_testresults(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_testresultsQueryTestresults]
-    """
+        List[Search_testresultsQueryTestresults]"""
     return execute(
         Search_testresultsQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -2627,8 +2600,7 @@ async def aget_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Prov
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Provision
-    """
+        Provision"""
     return (await aexecute(Get_provisionQuery, {"id": id}, rath=rath)).provision
 
 
@@ -2641,14 +2613,13 @@ def get_provision(id: ID, rath: Optional[RekuestNextRath] = None) -> Provision:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Provision
-    """
+        Provision"""
     return execute(Get_provisionQuery, {"id": id}, rath=rath).provision
 
 
 async def aget_me_nodes(
     rath: Optional[RekuestNextRath] = None,
-) -> List[GetMeNodesQueryNodes]:
+) -> Tuple[GetMeNodesQueryNodes, ...]:
     """GetMeNodes
 
 
@@ -2656,12 +2627,13 @@ async def aget_me_nodes(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetMeNodesQueryNodes]
-    """
+        List[GetMeNodesQueryNodes]"""
     return (await aexecute(GetMeNodesQuery, {}, rath=rath)).nodes
 
 
-def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQueryNodes]:
+def get_me_nodes(
+    rath: Optional[RekuestNextRath] = None,
+) -> Tuple[GetMeNodesQueryNodes, ...]:
     """GetMeNodes
 
 
@@ -2669,8 +2641,7 @@ def get_me_nodes(rath: Optional[RekuestNextRath] = None) -> List[GetMeNodesQuery
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetMeNodesQueryNodes]
-    """
+        List[GetMeNodesQueryNodes]"""
     return execute(GetMeNodesQuery, {}, rath=rath).nodes
 
 
@@ -2683,8 +2654,7 @@ async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Agent
-    """
+        Agent"""
     return (await aexecute(GetAgentQuery, {"id": id}, rath=rath)).agent
 
 
@@ -2697,8 +2667,7 @@ def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Agent
-    """
+        Agent"""
     return execute(GetAgentQuery, {"id": id}, rath=rath).agent
 
 
@@ -2711,8 +2680,7 @@ async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Panel
-    """
+        Panel"""
     return (await aexecute(GetPanelQuery, {"id": id}, rath=rath)).panel
 
 
@@ -2725,8 +2693,7 @@ def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Panel
-    """
+        Panel"""
     return execute(GetPanelQuery, {"id": id}, rath=rath).panel
 
 
@@ -2741,8 +2708,7 @@ async def aget_reservation(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_reservationQueryReservation
-    """
+        Get_reservationQueryReservation"""
     return (await aexecute(Get_reservationQuery, {"id": id}, rath=rath)).reservation
 
 
@@ -2757,14 +2723,13 @@ def get_reservation(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Get_reservationQueryReservation
-    """
+        Get_reservationQueryReservation"""
     return execute(Get_reservationQuery, {"id": id}, rath=rath).reservation
 
 
 async def areservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[Reservation]:
+) -> Tuple[Reservation, ...]:
     """reservations
 
 
@@ -2773,8 +2738,7 @@ async def areservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Reservation]
-    """
+        List[Reservation]"""
     return (
         await aexecute(ReservationsQuery, {"instance_id": instance_id}, rath=rath)
     ).reservations
@@ -2782,7 +2746,7 @@ async def areservations(
 
 def reservations(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[Reservation]:
+) -> Tuple[Reservation, ...]:
     """reservations
 
 
@@ -2791,8 +2755,7 @@ def reservations(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Reservation]
-    """
+        List[Reservation]"""
     return execute(
         ReservationsQuery, {"instance_id": instance_id}, rath=rath
     ).reservations
@@ -2800,7 +2763,7 @@ def reservations(
 
 async def arequests(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[Assignation]:
+) -> Tuple[Assignation, ...]:
     """requests
 
 
@@ -2809,8 +2772,7 @@ async def arequests(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Assignation]
-    """
+        List[Assignation]"""
     return (
         await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
     ).assignations
@@ -2818,7 +2780,7 @@ async def arequests(
 
 def requests(
     instance_id: InstanceId, rath: Optional[RekuestNextRath] = None
-) -> List[Assignation]:
+) -> Tuple[Assignation, ...]:
     """requests
 
 
@@ -2827,14 +2789,13 @@ def requests(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Assignation]
-    """
+        List[Assignation]"""
     return execute(RequestsQuery, {"instance_id": instance_id}, rath=rath).assignations
 
 
 async def aget_event(
     id: Optional[ID] = None, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationEvent]:
+) -> Tuple[AssignationEvent, ...]:
     """GetEvent
 
 
@@ -2843,14 +2804,13 @@ async def aget_event(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationEvent]
-    """
+        List[AssignationEvent]"""
     return (await aexecute(GetEventQuery, {"id": id}, rath=rath)).event
 
 
 def get_event(
     id: Optional[ID] = None, rath: Optional[RekuestNextRath] = None
-) -> List[AssignationEvent]:
+) -> Tuple[AssignationEvent, ...]:
     """GetEvent
 
 
@@ -2859,8 +2819,7 @@ def get_event(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[AssignationEvent]
-    """
+        List[AssignationEvent]"""
     return execute(GetEventQuery, {"id": id}, rath=rath).event
 
 
@@ -2873,8 +2832,7 @@ async def aget_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dash
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Dashboard
-    """
+        Dashboard"""
     return (await aexecute(GetDashboardQuery, {"id": id}, rath=rath)).dashboard
 
 
@@ -2887,8 +2845,7 @@ def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Dashboard
-    """
+        Dashboard"""
     return execute(GetDashboardQuery, {"id": id}, rath=rath).dashboard
 
 
@@ -2901,8 +2858,7 @@ async def aget_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Templ
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
 
 
@@ -2915,8 +2871,7 @@ def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return execute(Get_templateQuery, {"id": id}, rath=rath).template
 
 
@@ -2924,7 +2879,7 @@ async def asearch_templates(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_templatesQueryOptions]:
+) -> Tuple[Search_templatesQueryOptions, ...]:
     """search_templates
 
 
@@ -2934,8 +2889,7 @@ async def asearch_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_templatesQueryTemplates]
-    """
+        List[Search_templatesQueryTemplates]"""
     return (
         await aexecute(
             Search_templatesQuery, {"search": search, "values": values}, rath=rath
@@ -2947,7 +2901,7 @@ def search_templates(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_templatesQueryOptions]:
+) -> Tuple[Search_templatesQueryOptions, ...]:
     """search_templates
 
 
@@ -2957,8 +2911,7 @@ def search_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_templatesQueryTemplates]
-    """
+        List[Search_templatesQueryTemplates]"""
     return execute(
         Search_templatesQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -2966,7 +2919,7 @@ def search_templates(
 
 async def atemplates_for(
     hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> List[Template]:
+) -> Tuple[Template, ...]:
     """templates_for
 
 
@@ -2975,14 +2928,13 @@ async def atemplates_for(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
-    """
+        List[Template]"""
     return (await aexecute(Templates_forQuery, {"hash": hash}, rath=rath)).templates
 
 
 def templates_for(
     hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> List[Template]:
+) -> Tuple[Template, ...]:
     """templates_for
 
 
@@ -2991,8 +2943,7 @@ def templates_for(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
-    """
+        List[Template]"""
     return execute(Templates_forQuery, {"hash": hash}, rath=rath).templates
 
 
@@ -3012,8 +2963,7 @@ async def amy_template_at(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return (
         await aexecute(
             MyTemplateAtQuery,
@@ -3039,8 +2989,7 @@ def my_template_at(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
-    """
+        Template"""
     return execute(
         MyTemplateAtQuery,
         {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
@@ -3064,8 +3013,7 @@ async def afind(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Node
-    """
+        Node"""
     return (
         await aexecute(
             FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
@@ -3089,14 +3037,13 @@ def find(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Node
-    """
+        Node"""
     return execute(
         FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
     ).node
 
 
-async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
+async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ...]:
     """retrieveall
 
 
@@ -3104,12 +3051,11 @@ async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Node]
-    """
+        List[Node]"""
     return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
 
 
-def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
+def retrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ...]:
     """retrieveall
 
 
@@ -3117,8 +3063,7 @@ def retrieveall(rath: Optional[RekuestNextRath] = None) -> List[Node]:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Node]
-    """
+        List[Node]"""
     return execute(RetrieveallQuery, {}, rath=rath).nodes
 
 
@@ -3126,7 +3071,7 @@ async def asearch_nodes(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_nodesQueryOptions]:
+) -> Tuple[Search_nodesQueryOptions, ...]:
     """search_nodes
 
 
@@ -3136,8 +3081,7 @@ async def asearch_nodes(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_nodesQueryNodes]
-    """
+        List[Search_nodesQueryNodes]"""
     return (
         await aexecute(
             Search_nodesQuery, {"search": search, "values": values}, rath=rath
@@ -3149,7 +3093,7 @@ def search_nodes(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> List[Search_nodesQueryOptions]:
+) -> Tuple[Search_nodesQueryOptions, ...]:
     """search_nodes
 
 
@@ -3159,8 +3103,7 @@ def search_nodes(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_nodesQueryNodes]
-    """
+        List[Search_nodesQueryNodes]"""
     return execute(
         Search_nodesQuery, {"search": search, "values": values}, rath=rath
     ).options
@@ -3174,7 +3117,7 @@ CreateStateSchemaInput.model_rebuild()
 CreateTemplateInput.model_rebuild()
 DefinitionInput.model_rebuild()
 DependencyInput.model_rebuild()
-EffectInput.model_rebuild()
+PortGroupInput.model_rebuild()
 PortInput.model_rebuild()
 TemplateInput.model_rebuild()
 UIChildInput.model_rebuild()

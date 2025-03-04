@@ -1,4 +1,7 @@
+import logging
 from rekuest_next.agents.context import is_context
+from rekuest_next.api.schema import AssignWidgetInput, EffectInput, ReturnWidgetInput, ValidatorInput
+from rekuest_next.definition.errors import DefinitionError
 from rekuest_next.state.predicate import is_state
 
 
@@ -41,3 +44,65 @@ except ImportError:
 
 def is_local_var(type):
     return is_context(type) or is_state(type)
+
+
+
+def extract_annotations(annotations, assign_widget, return_widget, validators, effects, default, label, description):
+
+    str_annotation_count = 0
+    
+    for annotation in annotations:
+        if isinstance(annotation, AssignWidgetInput):
+            if assign_widget:
+                raise DefinitionError(
+                    f"Multiple AssignWidgets found"
+                )
+            assign_widget = annotation
+        elif isinstance(annotation, ReturnWidgetInput):
+            if return_widget:
+                raise DefinitionError(
+                    f"Multiple ReturnWidgets found"
+                )
+            return_widget = annotation
+        elif isinstance(annotation, ValidatorInput):
+            validators.append(annotation)
+        elif isinstance(annotation, EffectInput):
+            effects.append(annotation)
+        
+        elif hasattr(annotation, "get_assign_widget"):
+            if assign_widget:
+                raise DefinitionError(
+                    f"Multiple AssignWidgets found"
+                )
+            assign_widget = annotation.get_assign_widget()
+        elif hasattr(annotation, "get_return_widget"):
+            if return_widget:
+                raise DefinitionError(
+                    f"Multiple ReturnWidgets found"
+                )
+            return_widget = annotation.get_return_widget()
+        elif hasattr(annotation, "get_effects"):
+            effects += annotation.get_effects()
+        elif hasattr(annotation, "get_default"):
+            if default:
+                raise DefinitionError(
+                    f"Multiple Defaults found"
+                )
+            
+            default = annotation.get_default()
+        elif hasattr(annotation, "get_validators"):
+            validators += annotation.get_validators()
+        elif isinstance(annotation, str):
+            if str_annotation_count > 0:
+                description = annotation
+            else:
+                label = annotation
+                
+            str_annotation_count += 1
+            
+            
+        else:
+            logging.warning(f"Unrecognized annotation {annotation}")
+            
+            
+    return assign_widget, return_widget, validators, effects, default, label, description

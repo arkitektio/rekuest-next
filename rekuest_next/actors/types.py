@@ -39,7 +39,6 @@ class Actifier(Protocol):
         function: Callable,
         structure_registry: StructureRegistry,
         port_groups: Optional[List[PortGroupInput]] = None,
-        groups: Optional[Dict[str, List[str]]] = None,
         is_test_for: Optional[List[str]] = None,
         **kwargs,
     ) -> Tuple[DefinitionInput, ActorBuilder]: ...

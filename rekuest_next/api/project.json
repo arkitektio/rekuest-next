@@ -89,6 +89,12 @@
                 ],
                 "ReturnWidgetInput": [
                     "rekuest_next.traits.ports.ReturnWidgetInputTrait"
+                ],
+                "ValidatorInput": [
+                    "rekuest_next.traits.ports.ValidatorInputTrait"
+                ],
+                "DefinitionInput": [
+                    "rekuest_next.traits.ports.DefinitionInputTrait"
                 ]
             },
             "additional_config": {},

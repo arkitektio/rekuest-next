@@ -11,6 +11,7 @@ from typing import Dict, Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
+import re
 
 
 NodeHash = str
@@ -24,6 +25,15 @@ Args = Dict[str, Any]
 
 
 class Interface(str):
+    
+    @classmethod
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self.validate, handler(str)
+        )
+    
     @classmethod
     def validate(cls, v):
         if not isinstance(v, str):
@@ -76,8 +86,24 @@ class ValidatorFunction(str):
     def validate(cls, v):
         if not isinstance(v, str):
             raise TypeError("ValidatorFunction must be a string")
+        
+        if not (v.startswith("(") or ("=>" not in v)):
+            raise ValueError("ValidatorFunction must be an arrow function or block function")
+        
+        args_match = re.match(r'\((.*?)\)', v)
+        if args_match:
+            args = [arg.strip() for arg in args_match.group(1).split(',') if arg.strip()]
+            if not args:
+                raise ValueError("Function must have at least one argument")
 
         return v
+    
+    
+    def retrieve_args(self):
+        args_match = re.match(r'\((.*?)\)', self)
+        if args_match:
+            return [arg.strip() for arg in args_match.group(1).split(',') if arg.strip()]
+        return []
 
     def __repr__(self):
         return f"ValidatorFunction({repr(self)})"

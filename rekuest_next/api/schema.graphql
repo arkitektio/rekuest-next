@@ -37,6 +37,7 @@ type ChoiceAssignWidget implements AssignWidget {
 type Choice {
   label: String!
   value: String!
+  image: String
   description: String
 }
 
@@ -46,6 +47,7 @@ type SearchAssignWidget implements AssignWidget {
   query: String!
   ward: String!
   filters: [ChildPort!]
+  dependencies: [String!]
 }
 
 type ChildPort {
@@ -131,37 +133,32 @@ type CustomAssignWidget implements AssignWidget {
 }
 
 type CustomEffect implements Effect {
-  dependencies: [EffectDependency!]!
+  dependencies: [String!]!
   kind: EffectKind!
+  function: ValidatorFunction!
   hook: String!
   ward: String!
 }
 
 interface Effect {
-  dependencies: [EffectDependency!]!
+  dependencies: [String!]!
   kind: EffectKind!
-}
-
-type EffectDependency {
-  condition: LogicalCondition!
-  key: String!
-  value: String!
-}
-
-enum LogicalCondition {
-  IS
-  IS_NOT
-  IN
+  function: ValidatorFunction!
 }
 
 enum EffectKind {
   MESSAGE
+  HIDE
   CUSTOM
 }
 
+"\n    The `Validator` scalar represents a javascript function that should execute on the client side (inside a shadow realm)\n      to validate a value (or a set of values) before it is sent to the server.  The function has two parameters (value, otherValues) and should return a string if the value is invalid and undefined if the value is valid.\n        The otherValues parameter is an object with the other values in the form {fieldName: value}."
+scalar ValidatorFunction
+
 type MessageEffect implements Effect {
-  dependencies: [EffectDependency!]!
+  dependencies: [String!]!
   kind: EffectKind!
+  function: ValidatorFunction!
   message: String!
 }
 
@@ -220,7 +217,7 @@ type Query {
   states: [State!]!
   panels: [Panel!]!
   stateSchemas: [StateSchema!]!
-  node(id: ID = null, reservation: ID = null, assignation: ID = null, template: ID = null, hash: NodeHash = null): Node!
+  node(id: ID = null, reservation: ID = null, assignation: ID = null, template: ID = null, agent: ID = null, interface: String = null, hash: NodeHash = null): Node!
   assignations(instanceId: InstanceId = null): [Assignation!]!
   event(id: ID = null): [AssignationEvent!]!
   templateAt(agent: ID!, extension: String = null, interface: String = null, nodeHash: String = null): Template!
@@ -367,6 +364,7 @@ input AgentFilter {
   hasTemplates: [String!]
   hasStates: [String!]
   pinned: Boolean
+  distinct: Boolean
   AND: AgentFilter
   OR: AgentFilter
 }
@@ -830,6 +828,11 @@ type Assignation {
 
   """The provision that this assignation was assigned to"""
   provision: Provision
+
+  """
+  If true, this assignation will be deleted after the assignation is completed
+  """
+  ephemeral: Boolean!
   events: [AssignationEvent!]!
   arg(key: String!): Args
 }
@@ -880,7 +883,6 @@ type Port {
   children: [ChildPort!]
   assignWidget: AssignWidget
   returnWidget: ReturnWidget
-  groups: [String!]
   validators: [Validator!]
 }
 
@@ -891,12 +893,12 @@ type Validator {
   errorMessage: String
 }
 
-"\n    The `Validator` scalar represents a javascript function that should execute on the client side (inside a shadow realm)\n      to validate a value (or a set of values) before it is sent to the server.  The function has two parameters (value, otherValues) and should return a string if the value is invalid and undefined if the value is valid.\n        The otherValues parameter is an object with the other values in the form {fieldName: value}."
-scalar ValidatorFunction
-
 type PortGroup {
   key: String!
-  hidden: Boolean!
+  title: String
+  description: String
+  effects: [Effect!]
+  ports: [String!]!
 }
 
 input DependencyFilter {
@@ -1024,7 +1026,19 @@ input DefinitionInput {
 
 input PortGroupInput {
   key: String!
-  hidden: Boolean!
+  title: String
+  description: String
+  effects: [EffectInput!] = []
+  ports: [String!] = []
+}
+
+input EffectInput {
+  function: ValidatorFunction!
+  dependencies: [String!]! = []
+  message: String = null
+  kind: EffectKind!
+  hook: String = null
+  ward: String = null
 }
 
 input PortInput {
@@ -1041,7 +1055,6 @@ input PortInput {
   children: [ChildPortInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
-  groups: [String!] = null
 }
 
 input ValidatorInput {
@@ -1049,19 +1062,6 @@ input ValidatorInput {
   dependencies: [String!] = []
   label: String = null
   errorMessage: String = null
-}
-
-input EffectInput {
-  label: String!
-  description: String
-  dependencies: [EffectDependencyInput!]!
-  kind: EffectKind!
-}
-
-input EffectDependencyInput {
-  key: String!
-  condition: LogicalCondition!
-  value: AnyDefault!
 }
 
 input ChildPortInput {
@@ -1094,6 +1094,7 @@ input AssignWidgetInput {
   ward: String = null
   fallback: AssignWidgetInput = null
   filters: [ChildPortInput!] = null
+  dependencies: [String!] = null
 }
 
 """
@@ -1104,6 +1105,7 @@ scalar SearchQuery
 input ChoiceInput {
   value: AnyDefault!
   label: String!
+  image: String = null
   description: String = null
 }
 
@@ -1154,7 +1156,10 @@ input AssignInput {
   instanceId: InstanceId!
   node: ID = null
   template: ID = null
+  agent: ID = null
+  nodeHash: NodeHash = null
   reservation: ID = null
+  interface: String = null
   hooks: [HookInput!] = null
   args: Args!
   reference: String = null

@@ -2,7 +2,7 @@ from typing import Callable
 from pydantic import BaseModel, field_validator, model_validator
 import uuid
 import random
-
+import re
 
 class PortTrait(BaseModel):
     """
@@ -144,3 +144,57 @@ class ReturnWidgetInputTrait(BaseModel):
                 )
 
         return self
+
+
+
+
+class ValidatorInputTrait(BaseModel):
+    
+    @model_validator(mode="after")
+    def validate_widgetkind_nested(cls, self):
+        from rekuest_next.api.schema import ReturnWidgetKind
+        
+        
+        
+        args_match = re.match(r'\((.*?)\)', self.function)
+        if args_match:
+            args = [arg.strip() for arg in args_match.group(1).split(',') if arg.strip()]
+            if not args:
+                raise ValueError("Function must have at least one argument")
+
+            if len(args) - 1 is not len(self.dependencies):
+                raise ValueError( f"The number of arguments in the function must match the number of dependencies, plus one for the input value. Found {len(args)} arguments and {len(self.dependencies)} dependencies")
+        else:
+            raise ValueError("Function must have at least one argument")
+
+        return self
+    
+    
+    
+    
+class DefinitionInputTrait(BaseModel):
+    
+    
+    
+    @model_validator(mode="after")
+    def validate_validators(cls, self):
+        
+        all_arg_keys = []
+    
+        
+        for port in self.args:
+            all_arg_keys.append(port.key)
+            
+            
+        for port in self.args:
+            if port.validators:
+                for validator in port.validators:
+                    for dep in validator.dependencies:
+                        if dep not in all_arg_keys:
+                            raise ValueError(f"Dependency '{dep}' for '{validator.function}' at port '{port.key} not found in args. Please make sure the dependency is in the args")
+                        
+                        
+                        
+        return self
+        
+        
