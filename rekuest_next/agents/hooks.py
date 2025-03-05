@@ -1,9 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import wraps
 from typing import Dict, Any, Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field
 import asyncio
 
+from koil.helpers import run_spawned
 from rekuest_next.agents.context import (
     get_context_name,
     is_context,
@@ -147,6 +149,37 @@ class WrappedBackgroundTask(BackgroundTask):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return await self.func(**kwargs)
+    
+    
+class WrappedThreadedBackgroundTask(BackgroundTask):
+    def __init__(self, func):
+        self.func = func
+        # check if has context argument
+        arguments = inspect.signature(func).parameters
+
+        self.state_variables, self.state_returns = prepare_state_variables(func)
+
+        self.context_variables, self.context_returns = prepare_context_variables(func)
+        self.thread_pool = ThreadPoolExecutor(1)
+
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]):
+        kwargs = {}
+        for key, value in self.context_variables.items():
+            try:
+                kwargs[key] = contexts[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(
+                    f"Context requirements not met: {e}"
+                ) from e
+
+        for key, value in self.state_variables.items():
+            try:
+                kwargs[key] = proxies[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        return await run_spawned(self.func, **kwargs, executor=self.thread_pool, pass_context=True)
+
 
 
 def get_default_hook_registry() -> HooksRegistry:
@@ -170,13 +203,15 @@ def background(
         raise ValueError("You can only register one function at a time.")
     if len(func) == 1:
         function = func[0]
-        assert asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-            function
-        ), "Background tasks be (currently) async"
-
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
-        registry.register_background(name, WrappedBackgroundTask(function))
+        if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
+            function
+        ):
+            registry.register_background(name, WrappedBackgroundTask(function))
+        else:
+            registry.register_background(name, WrappedThreadedBackgroundTask(function))
+            
 
         return function
 
@@ -184,10 +219,7 @@ def background(
 
         def real_decorator(function):
             nonlocal registry, name
-            assert asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-                function
-            ), "Background tasks be (currently) async"
-
+            
             # Simple bypass for now
             @wraps(function)
             def wrapped_function(*args, **kwargs):
@@ -195,7 +227,13 @@ def background(
 
             name = name or function.__name__
             registry = registry or get_default_hook_registry()
-            registry.register_background(name, WrappedBackgroundTask(function))
+            if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
+            function
+            ):
+                registry.register_background(name, WrappedBackgroundTask(function))
+            else:
+                registry.register_background(name, WrappedThreadedBackgroundTask(function))
+            
 
             return wrapped_function
 
