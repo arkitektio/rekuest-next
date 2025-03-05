@@ -442,13 +442,13 @@ def convert_object_to_port(
             returnWidget=return_widget,
             scope=PortScope.GLOBAL,
             key=key,
-            children=tuple(children),
+            children=children,
             label=label,
             default=set_default,
             nullable=nullable,
-            effects=tuple(effects),
+            effects=effects ,
             description=description or full_filled_model.description,
-            validators=tuple(validators),
+            validators=validators,
             identifier=full_filled_model.identifier,
         )
 

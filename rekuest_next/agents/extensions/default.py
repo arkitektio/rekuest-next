@@ -48,6 +48,9 @@ class DefaultExtension(BaseModel):
 
     def get_name(self):
         return "default"
+    
+    def get_definition_registry(self):
+        return self.definition_registry
 
     async def astart(self, instance_id):
         """This should be called when the agent starts"""
@@ -68,7 +71,7 @@ class DefaultExtension(BaseModel):
 
         await self.arun_background()
 
-    async def should_cleanup_on_init(self) -> bool:
+    def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its templates?"""
         return True
 

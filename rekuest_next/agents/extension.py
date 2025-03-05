@@ -17,13 +17,22 @@ class AgentExtension(Protocol):
         """This should be called when the agent starts"""
         ...
 
-    async def should_cleanup_on_init(self) -> bool:
+    def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its templates?"""
         ...
 
-    async def get_name(self) -> str:
+    def get_name(self) -> str:
         """This should return the name of the extension"""
-        raise NotImplementedError("Implement this method")
+        ...
+    
+    def get_definition_registry(self) -> DefinitionRegistry:
+        """This should register the definitions for the agent.
+
+        This is called when the agent is started, for each extensions. Extensions
+        should register their definitions here and merge them with the agent's
+        definition registry.
+        """
+        ...
 
     async def aspawn_actor_from_template(
         self,
@@ -42,7 +51,7 @@ class AgentExtension(Protocol):
         """
         ...
 
-    async def aretrieve_registry(
+    def get_definition_registry(
         self,
     ) -> DefinitionRegistry:
         """This should register the definitions for the agent.
@@ -98,7 +107,7 @@ class BaseAgentExtension(ABC):
         ...
 
     @abstractmethod
-    async def get_name(self) -> str:
+    def get_name(self) -> str:
         """This should return the name of the extension"""
         raise NotImplementedError("Implement this method")
 
@@ -118,7 +127,7 @@ class BaseAgentExtension(ABC):
         ...
 
     @abstractmethod
-    async def aretrieve_registry(self) -> DefinitionRegistry:
+    def get_definition_registry(self) -> DefinitionRegistry:
         """This should register the definitions for the agent.
 
         This is called when the agent is started, for each extensions. Extensions
