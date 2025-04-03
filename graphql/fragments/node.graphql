@@ -27,3 +27,10 @@ fragment Node on Node {
   id
   ...Definition
 }
+
+fragment PrimaryNode on Node {
+  name
+  id
+  hash
+  description
+}

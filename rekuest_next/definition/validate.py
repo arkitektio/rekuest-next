@@ -17,7 +17,18 @@ def auto_validate(defintion: DefinitionInput) -> Definition:
     """
 
     hm = defintion.model_dump(by_alias=True)
-
+    
+    # Get rid of the widgets (th)
+    for arg in hm["args"]:
+        arg["assignWidget"] = None
+        arg["returnWidget"] = None
+        
+    for re in hm["returns"]:
+        re["assignWidget"] = None
+        re["returnWidget"] = None
+        
+        
+    print(hm)
     # Caveat: The following fields are not necessary for the actor
     # definition and are by default set to rekuest_next instances (i.e GraphQL Objects)
     # in the definition. As such we set them to empty lists here

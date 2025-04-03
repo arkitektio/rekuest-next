@@ -19,3 +19,26 @@ query search_nodes($search: String, $values: [ID!]) {
     value: id
   }
 }
+
+query PrimaryNodes(
+  $pagination: OffsetPaginationInput
+  $identifier: String
+  $order: NodeOrder
+  $search: String
+) {
+  nodes(
+    order: $order
+    pagination: $pagination
+    filters: {
+      demands: [
+        {
+          kind: ARGS
+          matches: [{ at: 0, kind: STRUCTURE, identifier: $identifier }]
+        }
+      ]
+      search: $search
+    }
+  ) {
+    ...PrimaryNode
+  }
+}

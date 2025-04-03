@@ -1,0 +1,5 @@
+mutation CreateShortcut($input: CreateShortcutInput!) {
+  createShortcut(input: $input) {
+    ...Shortcut
+  }
+}

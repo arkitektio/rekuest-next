@@ -212,6 +212,8 @@ type Query {
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
   reservations(instanceId: InstanceId = null): [Reservation!]!
   myreservations(instanceId: InstanceId = null): [Reservation!]!
+  shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
+  toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
   provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
   dashboards: [Dashboard!]!
   states: [State!]!
@@ -226,6 +228,8 @@ type Query {
   state(id: ID!): State!
   panel(id: ID!): Panel!
   stateSchema(id: ID!): StateSchema!
+  toolbox(id: ID!): Toolbox!
+  shortcut(id: ID!): Shortcut!
   hardwareRecord(id: ID!): HardwareRecord!
   agent(id: ID!): Agent!
   dashboard(id: ID!): Dashboard!
@@ -364,6 +368,7 @@ input AgentFilter {
   hasTemplates: [String!]
   hasStates: [String!]
   pinned: Boolean
+  search: String
   distinct: Boolean
   AND: AgentFilter
   OR: AgentFilter
@@ -931,6 +936,51 @@ type HistoricalState {
   archivedAt: DateTime!
 }
 
+type Shortcut {
+  id: ID!
+  name: String!
+  description: String
+  node: Node!
+  template: Template
+  toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
+  savedArgs: AnyDefault!
+  allowQuick: Boolean!
+  useReturns: Boolean!
+  args: [Port!]!
+  returns: [Port!]!
+}
+
+type Toolbox {
+  id: ID!
+  name: String!
+  description: String!
+  shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
+}
+
+input ShortcutFilter {
+  search: String
+  ids: [ID!]
+  demands: [PortDemandInput!]
+  AND: ShortcutFilter
+  OR: ShortcutFilter
+}
+
+input ShortcutOrder {
+  name: Ordering
+}
+
+input ToolboxFilter {
+  search: String
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: ToolboxFilter
+  OR: ToolboxFilter
+}
+
+input ToolboxOrder {
+  name: Ordering
+}
+
 type Dashboard {
   id: ID!
   name: String
@@ -990,6 +1040,8 @@ type Mutation {
   archiveState(input: ArchiveStateInput!): StateSchema!
   pinAgent(input: PinInput!): Agent!
   pinTemplate(input: PinInput!): Template!
+  createShortcut(input: CreateShortcutInput!): Shortcut!
+  createToolbox(input: CreateToolboxInput!): Toolbox!
   reinit(input: ReInitInput!): String!
   unprovide(input: UnProvideInput!): ID!
   deleteAgent(input: DeleteAgentInput!): ID!
@@ -1193,7 +1245,6 @@ input ProvideInput {
 }
 
 input ReserveInput {
-  assignationId: String = null
   instanceId: InstanceId!
   node: ID = null
   template: ID = null
@@ -1318,6 +1369,22 @@ input ArchiveStateInput {
 input PinInput {
   id: ID!
   pin: Boolean!
+}
+
+input CreateShortcutInput {
+  toolbox: ID = null
+  name: String!
+  description: String = null
+  node: ID!
+  template: ID = null
+  args: Args!
+  allowQuick: Boolean! = false
+  useReturns: Boolean! = false
+}
+
+input CreateToolboxInput {
+  name: String!
+  description: String!
 }
 
 input ReInitInput {
