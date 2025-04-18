@@ -1,6 +1,5 @@
 fragment Reservation on Reservation {
   id
-  status
   node {
     id
     hash

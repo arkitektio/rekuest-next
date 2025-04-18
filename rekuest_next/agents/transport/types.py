@@ -4,13 +4,13 @@ from .errors import (
     CorrectableConnectionFail,
     AgentConnectionFail,
 )
-from rekuest_next.messages import InMessage
+from rekuest_next.messages import ToAgentMessage
 
 
 class TransportCallbacks(Protocol):
     async def abroadcast(
         self,
-        message: InMessage,
+        message: ToAgentMessage,
     ) -> None: ...
 
     async def on_agent_error(self: AgentConnectionFail) -> None: ...

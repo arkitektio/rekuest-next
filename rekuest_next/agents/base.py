@@ -17,24 +17,12 @@ from rekuest_next.agents.registry import ExtensionRegistry, get_default_extensio
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
     AssignationEventKind,
-    ProvisionEventKind,
     Template,
-    aget_provision,
     aensure_agent,
     aset_extension_templates,
 )
 from rekuest_next.collection.collector import Collector
-from rekuest_next.messages import (
-    Assign,
-    InMessage,
-    Cancel,
-    Interrupt,
-    Provide,
-    Unprovide,
-    AssignationEvent,
-    AssignInquiry,
-    ProvisionEvent,
-)
+from rekuest_next import messages
 from rekuest_next.rath import RekuestNextRath
 from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
 
@@ -69,12 +57,11 @@ class BaseAgent(KoiledModel):
     extension_registry: ExtensionRegistry = Field(
         default_factory=get_default_extension_registry
     )
-    collector: Collector = Field(default_factory=Collector)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
     interface_template_map: Dict[str, Template] = Field(default_factory=dict)
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
-    managed_assignments: Dict[str, Assign] = Field(default_factory=dict)
+    managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps assignation to actor id"
     )
@@ -88,7 +75,7 @@ class BaseAgent(KoiledModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-    async def abroadcast(self, message: InMessage):
+    async def abroadcast(self, message: messages.ToAgentMessage) -> None:
         await self._inqueue.put(message)
 
     async def on_agent_error(self, exception) -> None:
@@ -108,171 +95,81 @@ class BaseAgent(KoiledModel):
         return True
         ...
 
-    async def process(self, message: InMessage):
+    async def process(self, message: messages.ToAgentMessage) -> None:
         logger.info(f"Agent received {message}")
 
-        if isinstance(message, Assign):
-            if message.provision in self.provision_passport_map:
-                passport = self.provision_passport_map[message.provision]
-                actor = self.managed_actors[passport.id]
-
-                # Converting assignation to Assignment
-                message = Assign(
-                    assignation=message.assignation,
-                    args=message.args,
-                    user=message.user,
-                    context={},
-                )
-
+        if isinstance(message, messages.Assign):
+            if message.actor_id in self.managed_actors:
+                actor = self.managed_actors[message.actor_id]
                 self.managed_assignments[message.assignation] = message
-                self.running_assignments[message.assignation] = passport.id
                 await actor.apass(message)
             else:
-                logger.warning(
-                    "Received assignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message.provision}"
-                )
-                await self.transport.log_event(
-                    AssignationEvent(
-                        assignation=message.assignation,
-                        kind=AssignationEventKind.CRITICAL,
-                        message="Actor was no longer running or not managed",
+                try:
+                    
+                    actor = await self.aspawn_actor_from_assign(
+                        message 
                     )
-                )
+                    
+                    await actor.apass(message)
+                    
+                    
+                except Exception as e:
+                   await self.transport.asend(
+                        messages.CriticalEvent(
+                            assignation=message.assignation,
+                            error=f"Not able to create actor through extensions {str(e)}",
+                        )
+                    )
+                   raise e
+               
 
-        elif isinstance(message, Interrupt):
+        elif isinstance(message, (messages.Cancel, messages.Step, messages.Collect)):
             if message.assignation in self.managed_assignments:
-                passport = self.provision_passport_map[message.provision]
-                actor = self.managed_actors[passport.id]
                 assignment = self.managed_assignments[message.assignation]
-
-                # Converting unassignation to unassignment
-                unass = Cancel(assignation=message.assignation, id=assignment.id)
-
-                await actor.apass(unass)
+                actor = self.managed_actors[assignment.actor_id]
+                await actor.apass(message)
             else:
                 logger.warning(
                     "Received unassignation for a provision that is not running"
                     f"Managed: {self.provision_passport_map} Received: {message.provision}"
                 )
-                await self.transport.log_event(
-                    AssignationEvent(
+                await self.transport.asend(
+                   messages.CriticalEvent(
                         assignation=message.assignation,
-                        kind=AssignationEventKind.CRITICAL,
-                        message="Actor could not be interupted because it was no longer running or not managed",
-                    )
+                        error="Actors is no longer running and not managed. Probablry there was a restart",
+                   )
                 )
 
-        elif isinstance(message, AssignInquiry):
+        elif isinstance(message, messages.AssignInquiry):
             if message.assignation in self.managed_assignments:
-                passport = self.provision_passport_map[message.provision]
-                actor = self.managed_actors[passport.id]
                 assignment = self.managed_assignments[message.assignation]
+                actor = self.managed_actors[assignment.actor_id]
 
                 # Checking status
                 status = await actor.is_assignment_still_running(assignment)
                 if status:
-                    await self.transport.log_event(
-                        AssignationEvent(
+                    await self.transport.asend(
+                        messages.ProgressEvent(
                             assignation=message.assignation,
-                            kind=AssignationEventKind.PROGRESS,
                             message="Actor is still running",
                         )
                     )
                 else:
-                    await self.transport.log_event(
-                        AssignationEvent(
+                    await self.transport.asend(
+                        messages.CriticalEvent(
                             assignation=message.assignation,
-                            kind=AssignationEventKind.CRITICAL,
-                            message="After disconnect actor was no longer running (app was however still running)",
+                            error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                         )
                     )
             else:
-                await self.transport.log_event(
-                    AssignationEvent(
+                await self.transport.asend(
+                     messages.CriticalEvent(
                         assignation=message.assignation,
-                        kind=AssignationEventKind.CRITICAL,
-                        message="After disconnect actor was no longer managed (probably the app was restarted)",
+                        error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
                 )
 
-        elif isinstance(message, Cancel):
-            if message.assignation in self.running_assignments:
-                actor_id = self.running_assignments[message.assignation]
-                actor = self.managed_actors[actor_id]
-                assignment = self.managed_assignments[message.assignation]
-
-                # Converting unassignation to unassignment
-                unass = Cancel(
-                    assignation=message.assignation,
-                    id=assignment.id,
-                    context={},
-                )
-
-                await actor.apass(unass)
-            else:
-                logger.warning(
-                    "Received unassignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message}"
-                )
-                await self.transport.log_event(
-                    AssignationEvent(
-                        assignation=message.assignation,
-                        kind=AssignationEventKind.CRITICAL,
-                        message="Actor could not be canceled because it was no longer running or not managed",
-                    )
-                )
-
-        elif isinstance(message, Provide):
-            # TODO: Check if the provision is already running
-            try:
-                status = await self.acheck_status_for_provision(message)
-                await self.transport.log_event(
-                    ProvisionEvent(
-                        provision=message.provision,
-                        kind=ProvisionEventKind.ACTIVE,
-                        message=f"Actor was already running {message}",
-                    )
-                )
-            except KeyError:
-                try:
-                    await self.aspawn_actor_from_provision(message)
-                except ProvisionException:
-                    logger.error(
-                        f"Error when spawing Actor for {message}", exc_info=True
-                    )
-                    await self.transport.log_event(
-                        ProvisionEvent(
-                            provision=message.provision,
-                            kind=ProvisionEventKind.CRITICAL,
-                            message=f"Error when spawing Actor for {message}",
-                        )
-                    )
-
-        elif isinstance(message, Unprovide):
-            if message.provision in self.provision_passport_map:
-                passport = self.provision_passport_map[message.provision]
-                actor = self.managed_actors[passport.id]
-                await actor.acancel()
-                await self.transport.log_event(
-                    ProvisionEvent(
-                        provision=message.provision,
-                        kind=ProvisionEventKind.UNHAPPY,
-                        message="Actor was sucessfully unprovided",
-                    )
-                )
-                del self.provision_passport_map[message.provision]
-                del self.managed_actors[passport.id]
-                logger.info("Actor stopped")
-
-            else:
-                await self.transport.log_event(
-                    ProvisionEvent(
-                        provision=message.provision,
-                        kind=ProvisionEventKind.CRITICAL,
-                        message="Received Unprovision for never provisioned provision",
-                    )
-                )
+        
 
         else:
             raise AgentException(f"Unknown message type {type(message)}")
@@ -321,26 +218,21 @@ class BaseAgent(KoiledModel):
         )
 
         for extension_name, extension in self.extension_registry.agent_extensions.items():
-            definition_registry = extension.get_definition_registry()
-            run_cleanup = extension.should_cleanup_on_init()
-
-            to_be_created_templates = tuple(definition_registry.templates.values())
+            to_be_created_templates = await extension.aget_templates()
 
             created_templates = await aset_extension_templates(
                 templates=to_be_created_templates,
-                run_cleanup=run_cleanup,
+                run_cleanup=extension.cleanup,
                 instance_id=instance_id,
                 extension=extension_name,
             )
+            
+            
 
             for template in created_templates:
                 self.interface_template_map[template.interface] = template
                 self.template_interface_map[template.id] = template
 
-    async def acheck_status_for_provision(self, provide: Provide) -> ProvisionEventKind:
-        passport = self.provision_passport_map[provide.provision]
-        actor = self.managed_actors[passport.id]
-        return await actor.aget_status()
 
     async def afind_local_template_for_nodehash(
         self, nodehash: str
@@ -348,32 +240,14 @@ class BaseAgent(KoiledModel):
         for template in self.interface_template_map.values():
             if template.node.hash == nodehash:
                 return template
+            
+            
+    async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
+        """Sends a message to the actor. This is used for sending messages to the
+        agent from the actor. The agent will then send the message to the transport.
+        """
+        await self.transport.asend(message)
 
-    async def abuild_actor_for_template(
-        self, template: Template, passport: Passport, transport: ActorTransport
-    ) -> Actor:
-        if not template.extension:
-            raise ProvisionException(
-                "No extension specified. This should not happen with the current implementation"
-            )
-
-        try:
-            extension = self.extension_registry.agent_extensions[template.extension]
-
-            actor = await extension.aspawn_actor_from_template(
-                template=template,
-                passport=passport,
-                transport=transport,
-                agent=self,
-                collector=self.collector,
-            )
-        except Exception as e:
-            raise ProvisionException("Error spawning actor from extension") from e
-
-        if not actor:
-            raise ProvisionException("No extensions managed to spawn an actor")
-
-        return actor
 
     async def astart(self, instance_id: Optional[str] = None):
         instance_id = self.instance_id
@@ -386,55 +260,23 @@ class BaseAgent(KoiledModel):
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id)
 
-    async def on_assign_change(self, assignment: Assign, *args, **kwargs):
-        await self.transport.change_assignation(assignment.assignation, *args, **kwargs)
 
-    async def on_assign_log(self, assignment: Assign, *args, **kwargs):
-        await self.transport.log_to_assignation(assignment.assignation, *args, **kwargs)
-
-    async def on_actor_change(self, passport: Passport, *args, **kwargs):
-        await self.transport.change_provision(passport.provision, *args, **kwargs)
-
-    async def on_actor_log(self, passport: Passport, *args, **kwargs):
-        await self.transport.log_to_provision(passport.provision, *args, **kwargs)
-
-    async def aspawn_actor_from_provision(self, provide_message: Provide) -> Actor:
+    async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps template"""
 
-        if provide_message.provision in self.provision_passport_map:
-            logger.warning("Received provision for a provision that is already running")
-            return
 
-        try:
-            provision = await aget_provision(
-                provide_message.provision,
-                rath=self.rath,
+        if assign.extension not in self.extension_registry.agent_extensions:
+            raise ProvisionException(
+                f"Extension {assign.extension} not found in agent {self.name}"
             )
-
-        except Exception as e:
-            print(e)
-            logger.error(
-                f"Error when getting provision for {provide_message}", exc_info=True
-            )
-            return
-
-        passport = Passport(provision=provision.id, instance_id=self.instance_id)
-
-        transport = ProxyActorTransport(
-            passport=passport,
-            on_log_event=self.transport.log_event,
-        )
-
-        actor = await self.abuild_actor_for_template(
-            provision.template, passport, transport
-        )
+        extension = self.extension_registry.agent_extensions[assign.extension]
+        
+        actor = await extension.aspawn_actor_for_interface(self, assign.interface)
 
         await actor.arun()  # TODO: Maybe move this outside?
-        self.managed_actors[actor.passport.id] = actor
-        self.provision_passport_map[int(provision.id)] = (
-            actor.passport
-        )  # TODO: This should be a passport
+        self.managed_actors[assign.actor_id] = actor
+        self.managed_assignments[assign.assignation] = assign
 
         return actor
 

@@ -1,15 +1,18 @@
 import contextvars
-from rekuest_next.actors.helper import AssignmentHelper
 from rekuest_next.actors.errors import (
     NotWithinAnAssignationError,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rekuest_next.actors.helper import AssignmentHelper
 
 
 current_assignment = contextvars.ContextVar("current_assignment")
 current_assignation_helper = contextvars.ContextVar("assignment_helper")
 
 
-def get_current_assignation_helper() -> AssignmentHelper:
+def get_current_assignation_helper() -> "AssignmentHelper":
     try:
         return current_assignation_helper.get()
     except LookupError as e:

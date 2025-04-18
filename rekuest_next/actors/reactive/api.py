@@ -46,3 +46,26 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
 
     helper = get_current_assignation_helper()
     await helper.aprogress(int(percentage), message=message)
+
+
+
+async def abreakpoint() -> None:
+    """Progress
+
+    Args:
+        percentage (int): Percentage to progress to
+    """
+
+    helper = get_current_assignation_helper()
+    await helper.abreakpoint()
+    
+    
+def breakpoint() -> None:
+    """Progress
+
+    Args:
+        percentage (int): Percentage to progress to
+    """
+
+    helper = get_current_assignation_helper()
+    helper.breakpoint()

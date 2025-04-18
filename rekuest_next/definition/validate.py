@@ -28,7 +28,6 @@ def auto_validate(defintion: DefinitionInput) -> Definition:
         re["returnWidget"] = None
         
         
-    print(hm)
     # Caveat: The following fields are not necessary for the actor
     # definition and are by default set to rekuest_next instances (i.e GraphQL Objects)
     # in the definition. As such we set them to empty lists here

@@ -391,7 +391,6 @@ def test(
             if is_inside_assignation():
                 raise NotImplementedError("You cannot run tests inside an assignation.")
 
-            print(__template)
 
             return func(*args, **kwargs)
 

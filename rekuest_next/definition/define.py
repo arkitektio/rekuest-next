@@ -41,7 +41,7 @@ import typing
 def is_union_type(cls):
     # We are dealing with a 3.10 Union (PEP 646)
     try:
-        return get_origin(cls) is types.UnionType 
+        return get_origin(cls) in (tuple, typing.Tuple, types.UnionType)
     except AttributeError:
         return False
 
@@ -70,14 +70,12 @@ def get_non_nullable_variant(cls):
 
 def is_union(cls):
     return (
-        is_union_type(cls)
-        or get_origin(cls) is Union
+        (is_union_type(cls)
+        or get_origin(cls) is Union)
         and get_args(cls)[1] != type(None)
     )
 
 
-def is_tuple(cls):
-    return get_origin(cls) in (tuple, typing.Tuple)
 
 
 def is_list(cls):
@@ -709,16 +707,14 @@ def prepare_definition(
 
     Define a callable (async function, sync function, async generator, async
     generator) in the context of arkitekt and
-    return its definition(input).
-
-    Attention this definition is not yet registered in the
-    arkitekt registry. This is done by the create_template function ( which will
-    validate he definition with your local arkitekt instance
-    and raise an error if the definition is not compatible with your arkitekt version)
-
+    return its definition (as an input that can be send to the arkitekt service,
+    to register the callable as a function)
 
     Args:
-        function (): The function you want to define
+        function (Callable): The function you want to define
+        structure_registry (StructureRegistry): The structure registry that should be checked against and new parameters registered within
+        widgets (Dict[str, WidgetInput], optional): The widgets to use for function parameters. If none or key not present the default widget will be used.
+        return_widgets ()
     """
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
@@ -858,7 +854,8 @@ def prepare_definition(
                 )
             )
 
-    elif is_tuple(function_outs_annotation):
+    elif is_union(function_outs_annotation):
+        
         for index, cls in enumerate(get_args(function_outs_annotation)):
             key = f"return{index}"
             return_widget = return_widgets.pop(key, None)
@@ -882,7 +879,7 @@ def prepare_definition(
         if function_outs_annotation is None:
             pass
 
-        elif function_outs_annotation.__name__ != "_empty":  # Is it not empty
+        elif getattr(function_outs_annotation, "__name__", "false") != "_empty":  # Is it not empty
             key = "return0"
             return_widget = return_widgets.pop(key, None)
             assign_widget = widgets.pop(key, None)

@@ -1,6 +1,6 @@
 from typing import Awaitable, Callable
 
-from rekuest_next.messages import OutMessage, ProvisionEvent, AssignationEvent
+from rekuest_next.messages import FromAgentMessage
 from pydantic import ConfigDict
 from koil.composition import KoiledModel
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ProxyAssignTransport(KoiledModel):
     assignment: Assign
-    on_log: Callable[[OutMessage], Awaitable[None]]
+    on_log: Callable[[FromAgentMessage], Awaitable[None]]
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def log_event(self, *args, **kwargs):
@@ -27,7 +27,7 @@ class ProxyAssignTransport(KoiledModel):
 
 class ProxyActorTransport(KoiledModel):
     passport: Passport
-    on_log_event: Callable[[OutMessage], Awaitable[None]]
+    on_log_event: Callable[[FromAgentMessage], Awaitable[None]]
 
     async def log_event(self, **kwargs):
         await self.on_log_event(

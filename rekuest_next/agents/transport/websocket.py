@@ -6,17 +6,7 @@ import json
 from rekuest_next.agents.transport.errors import (
     AgentTransportException,
 )
-from rekuest_next.messages import (
-    Assign,
-    OutMessage,
-    Provide,
-    Unprovide,
-    Cancel,
-    Init,
-    Interrupt,
-    MessageType,
-    Message,
-)
+from rekuest_next import messages
 import logging
 from websockets.exceptions import (
     ConnectionClosedError,
@@ -33,6 +23,12 @@ from .errors import (
     AgentIsAlreadyBusy,
     AgentWasBlocked,
 )
+from pydantic import BaseModel, Field
+
+
+class InMessagePayload(BaseModel):
+    message: messages.ToAgentMessage
+
 
 logger = logging.getLogger(__name__)
 
@@ -131,13 +127,10 @@ class WebsocketAgentTransport(AgentTransport):
                     logger.info("Agent on Websockets connected")
 
                     await client.send(
-                        json.dumps(
-                            {
-                                "type": "INITIAL",
-                                "token": token,
-                                "instance_id": instance_id,
-                            }
-                        )
+                            messages.Register(
+                                token=token,
+                                instance_id=instance_id,
+                            ).json()
                     )
 
                     send_task = asyncio.create_task(self.sending(client))
@@ -223,7 +216,6 @@ class WebsocketAgentTransport(AgentTransport):
         try:
             while True:
                 message = await self._send_queue.get()
-                logger.info(f">>>> {message}")
                 await client.send(message)
                 self._send_queue.task_done()
         except asyncio.CancelledError:
@@ -239,46 +231,27 @@ class WebsocketAgentTransport(AgentTransport):
             logger.info("Receiving Task sucessfully Cancelled")
 
     async def receive(self, message):
-        json_dict = json.loads(message)
-        logger.debug(f"<<<< {message}")
-        if "type" in json_dict:
-            type = json_dict["type"]
+        try:
+            payload = InMessagePayload(message=json.loads(message))
+            logger.debug(f"<<<< {payload}")
 
-            if type == MessageType.HEARTBEAT:
-                await self._send_queue.put(json.dumps({"type": "HEARTBEAT"}))
+            if  isinstance(payload.message, messages.Heartbeat):
+                await self.asend(messages.HeartbeatEvent())
 
-            # State Layer
-            if type == MessageType.INIT:
-                initial_message = Init(**json_dict)
+            elif isinstance(payload.message, messages.Init):
 
                 if not self._connected_future.done():
                     self._connected_future.set_result(True)
 
-                for i in initial_message.provisions:
+                for i in payload.message.inquiries:
                     await self.abroadcast(i)
+                    
+            else:
+                await self.abroadcast(payload.message)
+        except Exception as e:
+            logger.error("Error while processing message", exc_info=True)
 
-                for i in initial_message.inquiries:
-                    await self.abroadcast(i)
-
-            if type == MessageType.ASSIGN:
-                await self.abroadcast(Assign(**json_dict))
-
-            if type == MessageType.CANCEL:
-                await self.abroadcast(Cancel(**json_dict))
-
-            if type == MessageType.UNPROVIDE:
-                await self.abroadcast(Unprovide(**json_dict))
-
-            if type == MessageType.PROVIDE:
-                await self.abroadcast(Provide(**json_dict))
-
-            if type == MessageType.INTERRUPT:
-                await self.abroadcast(Interrupt(**json_dict))
-
-        else:
-            logger.error(f"Unexpected messsage: {json_dict}")
-
-    async def awaitaction(self, action: Message):
+    async def awaitaction(self, action: messages.ToAgentMessage):
         assert self._connected, "Should be connected"
         if action.id in self._futures:
             raise ValueError("Action already has a future")
@@ -288,11 +261,11 @@ class WebsocketAgentTransport(AgentTransport):
         await self._send_queue.put(action.json())
         return await future
 
-    async def delayaction(self, action: Message):
+    async def delayaction(self, action: messages.ToAgentMessage):
         assert self._connected, "Should be connected"
         await self._send_queue.put(action.json())
 
-    async def log_event(self, event: OutMessage):
+    async def asend(self, event: messages.ToAgentMessage):
         await self.delayaction(event)
 
     async def adisconnect(self):

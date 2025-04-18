@@ -6,18 +6,22 @@ from rekuest_next.definition.registry import (
 )
 from rekuest_next.api.schema import (
     Template,
+    TemplateInput,
     acreate_state_schema,
     StateSchema,
 )
 from rekuest_next.actors.base import Actor, Passport, ActorTransport
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from rekuest_next.agents.errors import ExtensionError
 from rekuest_next.state.proxies import StateProxy
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
 import jsonpatch
 import asyncio
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 
 class DefaultExtensionError(ExtensionError):
@@ -30,12 +34,14 @@ if TYPE_CHECKING:
 
 class DefaultExtension(BaseModel):
     definition_registry: DefinitionRegistry = Field(
-        default_factory=get_default_definition_registry
+        default_factory=get_default_definition_registry,
+        description="A global registry of all registered function/actors for this extension and all its dependencies. Think @register"
     )
-    state_registry: StateRegistry = Field(default_factory=get_default_state_registry)
-    hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry)
+    state_registry: StateRegistry = Field(default_factory=get_default_state_registry, description="A global registry of all registered states for this extension. Think @state")
+    hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry, description="The hooks registry for this extension. Think @startup and @background")
     proxies: Dict[str, StateProxy] = Field(default_factory=dict)
     contexts: Dict[str, Any] = Field(default_factory=dict)
+    cleanup: bool = True
 
     _current_states = {}
     _shrunk_states = {}
@@ -49,8 +55,9 @@ class DefaultExtension(BaseModel):
     def get_name(self):
         return "default"
     
-    def get_definition_registry(self):
-        return self.definition_registry
+    async def aget_templates(self) -> List[TemplateInput]:
+        return self.definition_registry.templates.values()
+    
 
     async def astart(self, instance_id):
         """This should be called when the agent starts"""
@@ -98,7 +105,6 @@ class DefaultExtension(BaseModel):
         state = await aset_state(
             state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id
         )
-        print("State initialized", state)
 
         self._current_states[state_key] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
@@ -116,7 +122,7 @@ class DefaultExtension(BaseModel):
             if not schema.validate(value):
                 raise DefaultExtensionError(f"Value {value} does not match schema {schema}")
             """
-            print(f"Setting state {state_key} attribute {attribute} to {value}")
+            logger.debug(f"Setting state {state_key} attribute {attribute} to {value}")
 
             old_shrunk_state = await self.state_registry.ashrink_state(
                 state_key=state_key, state=self._current_states[state_key]
@@ -156,31 +162,25 @@ class DefaultExtension(BaseModel):
         except asyncio.CancelledError:
             pass
 
-    async def aspawn_actor_from_template(
+    async def aspawn_actor_for_interface(
         self,
-        template: Template,
-        passport: Passport,
-        transport: ActorTransport,
-        collector: "Collector",
         agent: "BaseAgent",
+        interface: str,
     ) -> Optional[Actor]:
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps template"""
 
         try:
             actor_builder = self.definition_registry.get_builder_for_interface(
-                template.interface
+                interface
             )
 
         except KeyError:
             raise ExtensionError(
-                f"No Actor Builder found for template {template.interface} and no extensions specified"
+                f"No Actor Builder found for interface {interface} and no extensions specified"
             )
 
         return actor_builder(
-            passport=passport,
-            transport=transport,
-            collector=collector,
             agent=agent,
             contexts=self.contexts,
             proxies=self.proxies,

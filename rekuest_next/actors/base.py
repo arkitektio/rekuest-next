@@ -10,6 +10,7 @@ from typing import (
     Union,
     runtime_checkable,
 )
+import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
@@ -17,20 +18,22 @@ from rekuest_next.actors.errors import UnknownMessageError
 from rekuest_next.actors.transport.local_transport import ProxyActorTransport
 from rekuest_next.actors.transport.types import ActorTransport, AssignTransport
 from rekuest_next.actors.types import Passport
-from rekuest_next.messages import Assign, Cancel, OutMessage
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.api.schema import (
     AssignationEventKind,
-    ProvisionEventKind,
     Template,
 )
 from rekuest_next.collection.collector import (
     AssignationCollector,
     Collector,
 )
+from rekuest_next import messages
 from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.structures.registry import (
-    StructureRegistry,
+    StructureRegistry
+)
+from rekuest_next.structures.default import (
+    get_default_structure_registry
 )
 from rekuest_next.actors.sync import SyncGroup
 
@@ -39,47 +42,125 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class Agent(Protocol):
-    async def abuild_actor_for_template(
-        self, template: Template, passport: Passport, transport: ActorTransport
-    ) -> "Actor": ...
+    
+    
+    async def asend(self, actor: "Actor", message: messages.Assign) -> None: 
+        ...
+    
 
-    async def afind_local_template_for_nodehash(
-        self, nodehash: str
-    ) -> Optional[Template]: ...
+
+
 
 
 class Actor(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    passport: Passport
-    transport: ActorTransport
-    collector: Collector
     agent: Agent
-    supervisor: Optional["Actor"] = None
-    managed_actors: Dict[str, "Actor"] = Field(default_factory=dict)
-    running_assignments: Dict[str, Assign] = Field(default_factory=dict)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    collector: Collector = Field(default_factory=Collector)
+    running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
 
     _in_queue: Optional[asyncio.Queue] = PrivateAttr(default=None)
     _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
     _running_transports: Dict[str, AssignTransport] = PrivateAttr(default_factory=dict)
     _provision_task: asyncio.Task = PrivateAttr(default=None)
-    _status: ProvisionEventKind = PrivateAttr(default=ProvisionEventKind.UNHAPPY)
+    _break_futures: Dict[str, asyncio.Future] = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="before")
     def validate_sync(cls, values):
+        """ A default syncgroup will be created if none is set"""
         if values.get("sync") is None:
             values["sync"] = SyncGroup()
         return values
+    
+    
+    async def on_resume(self, resume: messages.Resume):
+        """ A function that is called once the actor is resumed from a paused state.
+        This can be used to re-initialize the actor after a pause.
+        
+        Args:
+            resume (Resume): The resume message containing the information about the
+                actor that was resumed.
+        """
+        if resume.assignation in self._break_futures:
+            self._break_futures[resume.assignation].set_result(None)
+            del self._break_futures[resume.assignation]
+        else:
+            logger.warning(
+                f"Actor {self.id} was resumed but no break future was found for {resume.assignation}"
+            )
+        
+    
+    
+    async def asend(
+        self,
+        message: messages.FromAgentMessage,
+    ):
+        """ A function to send a message to the agent. This is used to send messages
+        to the agent from the actor.
+        
+        Args:
+            transport (AssignTransport): The transport to use to send the message
+            message (ToAgentMessage): The message to send
+        """
+        await self.agent.asend(self, message=message)
+    
+    
+    async def on_pause(self, pause: messages.Pause):
+        
+        """ A function that is called once the actor is paused. This can be used to
+        clean up resources or stop any ongoing tasks.
+        
+        Args:
+            pause (Pause): The pause message containing the information about the
+                actor that was paused.
+        """
+        if pause.assignation in self._break_futures:
+            logger.warning(
+                f"Actor {self.id} was paused but a break future was already set for {pause.assignation}"
+            )
+            return
+        
+        self._break_futures[pause.assignation] = asyncio.Future()
+        
+    
+    
+    async def on_step(self, step: messages.Step):
+        """ A function that is called once the actor is asked to do a step,
+        normally this should handle a resume following an immediate resume.
+        
+        Args:
+            pause (Pause): The pause message containing the information about the
+                actor that was stepped.
+        """
+        return None
 
-    async def on_provide(self, passport: Passport):
+    async def on_provide(self):
+        """A function that is called once the actor is registered on the agent and we are
+        getting in the provide loop. Here we can do some initialisation of the actor
+        like start persisting database queries 
+        
+        Imaging this as the enter function of the async context manager
+        
+        Args:
+            passport (Passport): The passport of the actor (provides some information on
+                the actor like a unique local id for the actor)
+        """
         return None
 
     async def on_unprovide(self):
+        """ A function that is called once the actor is unregistered from the agent and we are
+        getting out of the provide loop. Here we can do some finalisation of the actor
+        like stop persisting database queries.
+        
+        Imagin this as the exit function of an async context manager.
+        
+        """
         return None
 
     async def on_assign(
         self,
-        assignment: Assign,
+        assignment: messages.Assign,
         collector: AssignationCollector,
         transport: AssignTransport,
     ):
@@ -90,7 +171,7 @@ class Actor(BaseModel):
     async def aget_status(self):
         return self._status
 
-    async def apass(self, message: Union[Assign, Cancel]):
+    async def apass(self, message: messages.FromAgentMessage):
         assert self._in_queue, "Actor is currently not listening"
         await self._in_queue.put(message)
 
@@ -101,14 +182,7 @@ class Actor(BaseModel):
 
     async def acancel(self):
         # Cancel Mnaged actors
-        logger.info(f"Cancelling Actor {self.passport.id}")
-        if self.managed_actors:
-            logger.info("Cancelling Actors")
-            for actor in self.managed_actors.values():
-                logger.info(
-                    f"Cancelling managed actor with passport {actor.passport.id}"
-                )
-                await actor.acancel()
+        logger.info(f"Cancelling Actor {self.id}")
 
         if not self._provision_task or self._provision_task.done():
             # Race condition
@@ -119,38 +193,20 @@ class Actor(BaseModel):
         try:
             await self._provision_task
         except asyncio.CancelledError:
-            logger.info(f"Actor {self.passport.id} was cancelled")
+            logger.info(f"Actor {self} was cancelled")
+            
 
-    async def provide(self):
-        try:
-            logging.info(f"Providing {self.passport}")
-            await self.on_provide(self.passport)
-            await self.transport.log_event(
-                kind=ProvisionEventKind.ACTIVE,
-                message=f"Wonderfully provided {self.passport}",
+    async def abreak(self, assignation: str) -> bool:
+        """Wait for the actor to be resumed or cancelled"""
+        if assignation in self._break_futures:
+            await self._break_futures[assignation]
+            return True
+        else:
+            logger.warning(
+                f"Currently no break future for {assignation} was found. Wasn't paused"
             )
-
-        except Exception as e:
-            logging.critical(f"Providing Error {self.passport} {e}", exc_info=True)
-            await self.transport.log_event(
-                kind=ProvisionEventKind.DENIED,
-                message=f"Providing {self.passport}",
-            )
-
-    async def unprovide(self):
-        try:
-            await self.on_unprovide()
-            await self.transport.log_event(
-                kind=ProvisionEventKind.UNHAPPY,
-                message=f"Providing {self.passport}",
-            )
-
-        except Exception as e:
-            logging.critical(f"Unproviding Error {self.passport} {e}", exc_info=True)
-            await self.transport.log_event(
-                kind=ProvisionEventKind.CRITICAL,
-                message=f"Unproviding Error {self.passport} {e}",
-            )
+            return False
+    
 
     def assign_task_done(self, task):
         logger.info(f"Assign task is done: {task}")
@@ -162,34 +218,28 @@ class Actor(BaseModel):
             logger.error(f"Assign task {task} failed with exception {e}", exc_info=True)
         pass
 
-    async def is_assignment_still_running(self, message: Union[Assign]):
-        if message.id in self._running_asyncio_tasks:
+    async def is_assignment_still_running(self, id: str) -> bool:
+        if id in self._running_asyncio_tasks:
             return True
         return False
 
-    async def aprocess(self, message: Union[Assign, Cancel]):
-        logger.info(f"Actor for {self.passport}: Received {message}")
+    async def aprocess(self, message: messages.ToAgentMessage):
+        logger.info(f"Actor for {self.id}: Received {message}")
 
-        if isinstance(message, Assign):
-            transport = self.transport.spawn(message)
+        if isinstance(message, messages.Assign):
 
             task = asyncio.create_task(
                 self.on_assign(
                     message,
-                    collector=self.collector,
-                    transport=transport,
                 )
             )
 
             task.add_done_callback(self.assign_task_done)
-
-            self._running_transports[message.id] = transport
             self._running_asyncio_tasks[message.id] = task
 
-        elif isinstance(message, Cancel):
-            if message.id in self._running_asyncio_tasks:
-                task = self._running_asyncio_tasks[message.id]
-                assign_transport = self._running_transports[message.id]
+        elif isinstance(message, messages.Cancel):
+            if message.assignation in self._running_asyncio_tasks:
+                task = self._running_asyncio_tasks[message.assignation]
 
                 if not task.done():
                     task.cancel()
@@ -197,23 +247,20 @@ class Actor(BaseModel):
                         await task
                     except asyncio.CancelledError:
                         logger.info(
-                            f"Task {assign_transport.assignment} was cancelled through arkitekt. Setting Cancelled"
+                            f"Task {message.assignation} was cancelled through arkitekt. Setting Cancelled"
                         )
-                        await assign_transport.log_event(
-                            kind=AssignationEventKind.CANCELLED,
-                            message="Cancelled remotely",
-                        )
+                        await self.agent.asend(self, message=messages.CancelledEvent(assignation=message.assignation))
+                       
                         del self._running_asyncio_tasks[message.id]
                         del self._running_transports[message.id]
+                        await self.agent.asend(self, message=messages.CancelledEvent(assignation=message.assignation))
 
                 else:
                     logger.warning(
                         "Race Condition: Task was already done before cancellation"
                     )
-                    await assign_transport.log_event(
-                        kind=AssignationEventKind.ERROR,
-                        message="Race Condition: Task was already done before cancellation",
-                    )
+                    await self.agent.asend(self, message=messages.CancelledEvent(assignation=message.assignation))
+                
 
             else:
                 logger.error(
@@ -224,8 +271,7 @@ class Actor(BaseModel):
 
     async def alisten(self):
         try:
-            await self.provide()
-            logger.info(f"Actor for {self.passport}: Is now active")
+            logger.info(f"Actor {self.id} Is now active")
 
             while True:
                 message = await self._in_queue.get()
@@ -241,21 +287,21 @@ class Actor(BaseModel):
 
             [i.cancel() for i in self._running_asyncio_tasks.values()]
 
-            for task, assign_transport in zip(
-                self._running_asyncio_tasks.values(), self._running_transports.values()
-            ):
+            for key, task in self._running_asyncio_tasks.items():
                 try:
                     await task
                 except asyncio.CancelledError:
                     logger.info(
-                        f"Task {assign_transport.assignment} was cancelled through applicaction. Setting Critical"
+                        f"Task {key} was cancelled through applicaction. Setting Critical"
                     )
-                    await assign_transport.log_event(
-                        kind=AssignationEventKind.CRITICAL,
-                        message="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
+                    await self.agent.asend(
+                        self, 
+                        messages.CriticalEvent(
+                            assignation=key,
+                            error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
+                        )
                     )
 
-            await self.unprovide()
 
         except Exception:
             logger.critical("Unhandled exception", exc_info=True)
@@ -275,58 +321,16 @@ class Actor(BaseModel):
     async def __aenter__(self):
         return self
 
-    async def aspawn_actor(
-        self,
-        template: Template,
-        on_log_event: Callable[[OutMessage], Awaitable[None]],
-    ) -> "SerializingActor":
-        """Spawns an Actor managed by thisfrom the definition of the given interface"""
-
-        passport = Passport(
-            provision=self.passport.provision,
-            parent=self.passport.id,
-            instance_id=self.passport.instance_id,
-        )
-
-        transport = ProxyActorTransport(passport=passport, on_log_event=on_log_event)
-
-        actor = await self.agent.abuild_actor_for_template(
-            template,
-            passport,
-            transport,
-        )
-
-        self.managed_actors[actor.passport.id] = actor
-        return actor
 
     async def __aexit__(self, exc_type, exc, tb):
         if self._provision_task and not self._provision_task.done():
             await self.acancel()
 
 
-class SyncAwareActor(Actor):
-
-    async def on_sync_assign(
-        self,
-        assignment: Assign,
-        collector: AssignationCollector,
-        transport: AssignTransport,
-    ):
-        raise NotImplementedError()
-
-    async def on_assign(
-        self,
-        assignment: Assign,
-        collector: AssignationCollector,
-        transport: AssignTransport,
-    ):
-        async with self.sync:
-            return await self.on_sync_assign(assignment, collector, transport)
-
 
 class SerializingActor(Actor):
-    definition: DefinitionInput
-    structure_registry: StructureRegistry
+    definition: DefinitionInput = Field(description="The definition of the actor, describing what arguents and return values it provides")
+    structure_registry: StructureRegistry = Field(default=get_default_structure_registry(), description="The structure regsistry to use for this actor")
     expand_inputs: bool = True
     shrink_outputs: bool = True
     state_variables: Dict[str, Any] = Field(default_factory=dict)

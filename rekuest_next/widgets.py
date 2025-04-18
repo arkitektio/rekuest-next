@@ -121,14 +121,13 @@ def ChoiceReturnWidget(choices: List[ChoiceInput], **kwargs) -> ReturnWidgetInpu
 
 
 def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
-    """A state choice widget.
+    """A choice widget.
 
-    A state choice widget is a widget that renders a list of choices with the
+    A choice widget is a widget that renders a list of choices with the
     value of the choice being highlighted.
 
     Args:
-        stateChoices (str): The state key that contains the choices
-        followValue (str): The state key that the value should be followed
+        choices (list[ChoiceInput]): The choices
 
     Returns:
         AssignWidgetInput: The widget input

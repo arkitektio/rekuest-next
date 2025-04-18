@@ -1,4 +1,4 @@
-from typing import runtime_checkable, Protocol, Optional
+from typing import List, runtime_checkable, Protocol, Optional
 from rekuest_next.api.schema import Template
 from rekuest_next.actors.base import Actor, Passport, ActorTransport
 from typing import TYPE_CHECKING
@@ -8,18 +8,17 @@ from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
+    from rekuest_next.api.schema import TemplateInput
 
 
 @runtime_checkable
 class AgentExtension(Protocol):
+    cleanup: bool = False
 
     async def astart(self):
         """This should be called when the agent starts"""
         ...
 
-    def should_cleanup_on_init(self) -> bool:
-        """Should the extension cleanup its templates?"""
-        ...
 
     def get_name(self) -> str:
         """This should return the name of the extension"""
@@ -31,16 +30,15 @@ class AgentExtension(Protocol):
         This is called when the agent is started, for each extensions. Extensions
         should register their definitions here and merge them with the agent's
         definition registry.
+        
+        Dynamic 
         """
         ...
 
     async def aspawn_actor_from_template(
         self,
-        template: Template,
-        passport: Passport,
-        transport: ActorTransport,
         agent: "BaseAgent",
-        collector: "Collector",
+        interface: str,
     ) -> Optional[Actor]:
         """This should create an actor from a template and return it.
 
@@ -51,9 +49,9 @@ class AgentExtension(Protocol):
         """
         ...
 
-    def get_definition_registry(
-        self,
-    ) -> DefinitionRegistry:
+    async def aget_templates(
+        self, 
+    ) -> List["TemplateInput"]:
         """This should register the definitions for the agent.
 
         This is called when the agent is started, for each extensions. Extensions
@@ -95,15 +93,11 @@ class AgentExtension(Protocol):
 
 
 class BaseAgentExtension(ABC):
+    cleanup: bool = False
 
     @abstractmethod
     async def astart(self):
         """This should be called when the agent starts"""
-        ...
-
-    @abstractmethod
-    async def should_cleanup_on_init(self) -> bool:
-        """Should the extension cleanup its templates?"""
         ...
 
     @abstractmethod
@@ -112,13 +106,10 @@ class BaseAgentExtension(ABC):
         raise NotImplementedError("Implement this method")
 
     @abstractmethod
-    async def aspawn_actor_from_template(
+    async def aspawn_actor_for_interface(
         self,
-        template: Template,
-        passport: Passport,
-        transport: ActorTransport,
         agent: "BaseAgent",
-        collector: "Collector",
+        interface: str,
     ) -> Optional[Actor]:
         """This should create an actor from a template and return it.
 
@@ -127,7 +118,7 @@ class BaseAgentExtension(ABC):
         ...
 
     @abstractmethod
-    def get_definition_registry(self) -> DefinitionRegistry:
+    async def aget_templates(self) -> List["TemplateInput"]:
         """This should register the definitions for the agent.
 
         This is called when the agent is started, for each extensions. Extensions

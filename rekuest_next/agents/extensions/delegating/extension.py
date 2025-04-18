@@ -117,7 +117,6 @@ class CLIExtension(BaseModel):
                         if message.endswith("\n"):
                             message = message[:-1]
 
-                        print(message)
                 except Exception:
                     continue
 

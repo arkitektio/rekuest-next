@@ -5,8 +5,7 @@ from typing import (
     Dict,
     List,
 )
-from rekuest_next.messages import Assign, OutMessage, Cancel
-from rekuest_next.messages import AssignationEvent, ProvisionEvent
+from rekuest_next.messages import Assign
 from koil.composition import KoiledModel
 import asyncio
 import logging
@@ -38,31 +37,9 @@ class localuse(KoiledModel):
     assignation_id: Optional[str] = None
 
     _managed_actor: Optional[Actor] = None
-    _assign_queues: Optional[Dict[str, asyncio.Queue[OutMessage]]] = None
+    _assign_queues: Optional[Dict[str, asyncio.Queue]] = None
 
-    async def __aenter__(self) -> "localuse":
-        self._assign_queues = {}
-        self._enter_future = asyncio.Future()
-        self._updates_queue = asyncio.Queue[AssignationEvent]()
 
-        self._managed_actor = await self.supervisor.aspawn_actor(
-            self.template,
-            on_log_event=self.on_actor_event,
-        )
-
-        await self._managed_actor.arun()
-        await self._enter_future
-
-    async def on_actor_event(self, message: OutMessage):
-        if isinstance(message, ProvisionEvent):
-            if self._enter_future and not self._enter_future.done():
-                self._enter_future.set_result(None)
-                return
-
-        if message.id in self._assign_queues:
-            await self._assign_queues[message.id].put(message)
-        else:
-            logger.error(f"Unexpected message: {message}")
 
     async def acall_raw(
         self,
@@ -82,7 +59,6 @@ class localuse(KoiledModel):
             reference=reference,
         )
 
-        _ass_queue = asyncio.Queue[OutMessage]()
         self._assign_queues[assignment.id] = _ass_queue
 
         await self._managed_actor.apass(assignment)
@@ -142,11 +118,10 @@ class localuse(KoiledModel):
         assign_timeout: Optional[float] = None,
         timeout_is_recoverable: bool = False,
     ):
-        print("Starting to iterate?")
         assignment = Assign(
             assignation=parent.assignation if parent else None,
             parent=parent.assignation if parent else None,
-            mother=parent.mother if parent else None,
+            root=parent.root if parent else None,
             args=kwargs,
             user=parent.user if parent else None,
             reference=reference,

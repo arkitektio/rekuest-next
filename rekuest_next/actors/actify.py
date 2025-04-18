@@ -8,8 +8,6 @@ from rekuest_next.actors.base import Passport
 from rekuest_next.actors.functional import (
     FunctionalFuncActor,
     FunctionalGenActor,
-    FunctionalProcessedFuncActor,
-    FunctionalProcessedGenActor,
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
 )
@@ -131,14 +129,6 @@ def reactify(
     elif (is_function or is_method) and not in_process:
         return definition, higher_order_builder(
             FunctionalThreadedFuncActor, **actor_attributes
-        )
-    elif is_generatorfunction and in_process:
-        return definition, higher_order_builder(
-            FunctionalProcessedGenActor, **actor_attributes
-        )
-    elif (is_function or is_method) and in_process:
-        return definition, higher_order_builder(
-            FunctionalProcessedFuncActor, **actor_attributes
         )
     else:
         raise NotImplementedError("No way of converting this to a function")

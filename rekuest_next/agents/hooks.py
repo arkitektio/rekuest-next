@@ -43,6 +43,16 @@ class StartupHook(Protocol):
 
 
 class HooksRegistry(BaseModel):
+    """ Hook Registry
+    
+    Hooks are functions that are run when the default extension starts up.
+    They can setup the state variables and contexts that are used by the agent.
+    They are run in the order they are registered.
+    
+    """
+    
+    
+    
     background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 

@@ -73,6 +73,7 @@ class GraphQLPostman(BasePostman):
 
         except asyncio.CancelledError as e:
             unassignation = await acancel(assignation=assignation.id)
+            # TODO: Wait for cancellation to succeed
             del self._ass_update_queues[assign.reference]
             raise e
 

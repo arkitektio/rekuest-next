@@ -13,8 +13,9 @@ from .utils import (
 )
 from .structures.model import model
 try:
-    from .arkitekt import KabinetService
-except ImportError:
+    from .arkitekt import ArkitektNextRekuestNext
+except ImportError as e: 
+    raise e
     pass
 from .structure import structure_reg
 

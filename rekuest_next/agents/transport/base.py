@@ -2,7 +2,7 @@ from abc import abstractmethod
 
 from pydantic import ConfigDict
 
-from rekuest_next.messages import OutMessage
+from rekuest_next.messages import FromAgentMessage
 
 from koil.composition import KoiledModel
 from koil.types import Contextual
@@ -38,7 +38,7 @@ class AgentTransport(KoiledModel):
         return NotImplementedError("Implement this method")
 
     @abstractmethod
-    async def log_event(self, event: OutMessage):
+    async def asend(self, message: FromAgentMessage):
         raise NotImplementedError("This is an abstract Base Class")
 
     def set_callback(self, callback: TransportCallbacks):

@@ -60,11 +60,9 @@ def state(
 
     if len(name_or_function) == 1:
         cls = name_or_function[0]
-        return state()(cls)
+        return state(name=cls.__name__)(cls)
 
     if len(name_or_function) == 0:
-        name = name or cls.__name__
-
 
         def wrapper(cls: Type[T]) -> Type[T]:
             

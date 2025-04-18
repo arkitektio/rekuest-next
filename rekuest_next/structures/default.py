@@ -9,11 +9,11 @@ DEFAULT_STRUCTURE_REGISTRY = None
 
 
 async def id_shrink(object: object) -> str:
+    
     try:
         return object.id
     except AttributeError:
         raise Exception(f"Object {object} does not have an id attribute")
-
 
 def check_and_import_structures(
     structur_reg: "StructureRegistry",

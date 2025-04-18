@@ -1,19 +1,6 @@
 query get_reservation($id: ID!) {
   reservation(id: $id) {
-    id
-    provisions {
-      id
-      status
-    }
-    title
-    status
-    id
-    reference
-    node {
-      id
-      kind
-      name
-    }
+    ...Reservation
   }
 }
 

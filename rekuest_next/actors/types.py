@@ -9,8 +9,6 @@ import uuid
 
 class Passport(BaseModel):
     instance_id: str
-    provision: int
-    parent: Optional[str] = None
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 

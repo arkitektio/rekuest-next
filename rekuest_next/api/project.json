@@ -50,6 +50,7 @@
                 "include_fields": [],
                 "convert_list_to_tuple": true
             },
+            "create_catchall": true,
             "options": {
                 "enabled": true,
                 "extra": "forbid",

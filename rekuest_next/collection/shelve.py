@@ -7,7 +7,7 @@ current_shelve = contextvars.ContextVar("current_shelve", default=None)
 GLOBAL_SHELVE = None
 
 
-def get_default_definition_registry():
+def get_default_shelve():
     global GLOBAL_SHELVE
     if GLOBAL_SHELVE is None:
         GLOBAL_SHELVE = Shelve()
@@ -15,7 +15,7 @@ def get_default_definition_registry():
 
 
 def get_current_shelve(allow_global=True):
-    return current_shelve.get(get_default_definition_registry())
+    return current_shelve.get(get_default_shelve())
 
 
 class Shelve(BaseModel):

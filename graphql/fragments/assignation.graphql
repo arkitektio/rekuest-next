@@ -5,11 +5,14 @@ fragment Assignation on Assignation {
     id
   }
   id
-  status
+  latestEventKind
   events {
     id
     returns
     level
+  }
+  instructs {
+    id
   }
   reference
   updatedAt

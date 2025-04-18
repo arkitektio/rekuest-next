@@ -59,10 +59,31 @@ def build_async_model_expander(cls: Type):
 
 
 class StructureRegistry(BaseModel):
+    """ A registry for structures.
+    
+    Structure registries are used to provide a mapping from "identifier" to python
+    classes and vice versa.
+    
+    When an actors receives a request from the arkitekt server with a specific
+    id Y and identifier X, it will look up the structure registry for the identifier X
+    and use the corresponding python class to deserialize the data.
+    
+    The structure registry is also used to provide a mapping from python classes to identifiers
+    
+    """
+    
+    
+    
     copy_from_default: bool = False
     allow_overwrites: bool = True
     allow_auto_register: bool = True
-    cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
+    cls_to_identifier: Callable[[Type], Identifier] = Field(default=cls_to_identifier, description="A function that converts class names to identifiers. This is used to register classes in the structure registry. The default is to use the module name and class name as identifier.")
+    registry_hooks: OrderedDict[str, RegistryHook] = Field(
+        default_factory=get_default_hooks, description="""If the structure registry is challenged, 
+        with a new structure (i.e a python Object that is not yet registered, it will try to find a hook 
+        that is able to register this structure. If no hook is found, it will raise an error.
+        The default hooks are the enum and the dataclass hook. You can add your own hooks by adding them to this list."""
+    )
 
     identifier_structure_map: Dict[str, Type] = Field(
         default_factory=dict, exclude=True
@@ -85,9 +106,7 @@ class StructureRegistry(BaseModel):
     _structure_default_returnwidget_map: Dict[Type, ReturnWidgetInput] = {}
     _structure_annotation_map: Dict[Type, Type] = {}
 
-    registry_hooks: OrderedDict[str, RegistryHook] = Field(
-        default_factory=get_default_hooks
-    )
+    
     _fullfilled_structures_map: Dict[Type, FullFilledStructure] = {}
 
     _token: contextvars.Token = None

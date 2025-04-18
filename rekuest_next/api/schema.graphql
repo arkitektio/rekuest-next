@@ -214,7 +214,6 @@ type Query {
   myreservations(instanceId: InstanceId = null): [Reservation!]!
   shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
   toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
-  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
   dashboards: [Dashboard!]!
   states: [State!]!
   panels: [Panel!]!
@@ -238,7 +237,6 @@ type Query {
   testResult(id: ID!): TestResult!
   reservation(id: ID!): Reservation!
   template(id: ID!): Template!
-  provision(id: ID!): Provision!
   assignation(id: ID!): Assignation!
 }
 
@@ -332,7 +330,6 @@ type Agent {
   status: AgentStatus!
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
   templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
-  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
   lastSeen: DateTime
   connected: Boolean!
   extensions: [String!]!
@@ -400,7 +397,6 @@ type Template {
   node: Node!
   params: AnyDefault!
   dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
-  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
   dependencyGraph: DependencyGraph!
   name: String!
   pinned: Boolean!
@@ -550,121 +546,22 @@ type Reservation {
   waiter: Waiter!
   title: String
   node: Node!
-  status: ReservationEventKind!
   updatedAt: DateTime!
   reference: String!
-  provisions(filters: ProvisionFilter, pagination: OffsetPaginationInput): [Provision!]!
+  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
   binds: Binds
   causingDependency: Dependency
-  causingProvision: Provision
   strategy: ReservationStrategy!
   viable: Boolean!
   happy: Boolean!
   template: Template
   dependencyGraph: DependencyGraph!
-  events: [ReservationEvent!]!
 }
 
 type Waiter {
   id: ID!
   instanceId: InstanceId!
   registry: Registry!
-}
-
-enum ReservationEventKind {
-  PENDING
-  CREATE
-  RESCHEDULE
-  DELETED
-  CHANGE
-  ACTIVE
-  INACTIVE
-  UNCONNECTED
-  ENDED
-  UNHAPPY
-  HAPPY
-  LOG
-}
-
-type Provision {
-  id: ID!
-  name: String!
-  agent: Agent!
-  template: Template!
-  status: ProvisionEventKind!
-  causedReservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]!
-  provided: Boolean!
-  active: Boolean!
-  dependenciesMet: Boolean!
-}
-
-enum ProvisionEventKind {
-  CHANGE
-  UNHAPPY
-  PENDING
-  CRITICAL
-  DENIED
-  ACTIVE
-  REFUSED
-  INACTIVE
-  CANCELING
-  DISCONNECTED
-  RECONNECTING
-  ERROR
-  ENDED
-  CANCELLED
-  BOUND
-  PROVIDING
-  LOG
-}
-
-input ReservationFilter {
-  waiter: WaiterFilter
-  ids: [ID!]
-  status: [ReservationStatus!]
-  AND: ReservationFilter
-  OR: ReservationFilter
-}
-
-input WaiterFilter {
-  instanceId: InstanceId!
-  ids: [ID!]
-  AND: WaiterFilter
-  OR: WaiterFilter
-}
-
-enum ReservationStatus {
-  ACTIVE
-  INACTIVE
-  UNHAPPY
-  HAPPY
-  UNCONNECTED
-  ENDED
-}
-
-input ProvisionFilter {
-  agent: AgentFilter
-  ids: [ID!]
-  status: [ProvisionStatus!]
-  AND: ProvisionFilter
-  OR: ProvisionFilter
-}
-
-enum ProvisionStatus {
-  DENIED
-  PENDING
-  BOUND
-  PROVIDING
-  ACTIVE
-  REFUSED
-  INACTIVE
-  CANCELING
-  DISCONNECTED
-  RECONNECTING
-  ERROR
-  CRITICAL
-  ENDED
-  CANCELLED
 }
 
 type Binds {
@@ -745,20 +642,28 @@ type ImplementationEdge {
   linked: Boolean!
 }
 
-type ReservationEvent {
-  id: ID!
-  reservation: Reservation!
-  kind: ReservationEventKind!
-  level: LogLevel
-  createdAt: DateTime!
+input ReservationFilter {
+  waiter: WaiterFilter
+  ids: [ID!]
+  status: [ReservationStatus!]
+  AND: ReservationFilter
+  OR: ReservationFilter
 }
 
-enum LogLevel {
-  DEBUG
-  INFO
-  ERROR
-  WARN
-  CRITICAL
+input WaiterFilter {
+  instanceId: InstanceId!
+  ids: [ID!]
+  AND: WaiterFilter
+  OR: WaiterFilter
+}
+
+enum ReservationStatus {
+  ACTIVE
+  INACTIVE
+  UNHAPPY
+  HAPPY
+  UNCONNECTED
+  ENDED
 }
 
 type TestCase {
@@ -797,14 +702,13 @@ input TestCaseFilter {
 
 type Assignation {
   id: ID!
-  name: String!
   reference: String
   args: AnyDefault!
 
   """
-  A mother assignation is the root assignation that caused this assignation to be created. This mother is always created by intent (e.g a user action). If null, this assignation is the mother
+  A root assignation is the root assignation that caused this assignation to be created. This mother is always created by intent (e.g a user action). If null, this assignation is the mother
   """
-  mother: Assignation
+  root: Assignation
 
   """
   A parent assignation is the next assignation in the chain of assignations that caused this assignation to be created. Parents can be created by intent or by the system. If null, this assignation is the parent
@@ -819,11 +723,14 @@ type Assignation {
   """The node that this assignation is assigned to"""
   node: Node!
 
-  """If set, this assignation was directly assigned to a template"""
-  template: Template
+  """The template that this assignation is assigned to"""
+  template: Template!
 
   """The status of this assignation"""
-  status: AssignationEventKind!
+  latestEventKind: AssignationEventKind!
+
+  """The latest instruct that was sent to this assignation"""
+  latestInstructKind: AssignationInstructKind!
   statusMessage: String
 
   """The Waiter that this assignation was created by"""
@@ -831,14 +738,12 @@ type Assignation {
   createdAt: DateTime!
   updatedAt: DateTime!
 
-  """The provision that this assignation was assigned to"""
-  provision: Provision
-
   """
   If true, this assignation will be deleted after the assignation is completed
   """
   ephemeral: Boolean!
   events: [AssignationEvent!]!
+  instructs: [AssignationInstruct!]!
   arg(key: String!): Args
 }
 
@@ -859,6 +764,15 @@ enum AssignationEventKind {
   CRITICAL
 }
 
+enum AssignationInstructKind {
+  ASSIGN
+  CANCEL
+  STEP
+  RESUME
+  PAUSE
+  INTERRUPT
+}
+
 type AssignationEvent {
   id: ID!
   name: String!
@@ -870,6 +784,21 @@ type AssignationEvent {
   progress: Int
   createdAt: DateTime!
   reference: String!
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  ERROR
+  WARN
+  CRITICAL
+}
+
+type AssignationInstruct {
+  id: ID!
+  assignation: Assignation!
+  kind: AssignationInstructKind!
+  createdAt: DateTime!
 }
 
 """The `Args` scalar type represents a Dictionary of arguments"""
@@ -961,6 +890,7 @@ input ShortcutFilter {
   search: String
   ids: [ID!]
   demands: [PortDemandInput!]
+  toolbox: ID
   AND: ShortcutFilter
   OR: ShortcutFilter
 }
@@ -1015,13 +945,20 @@ type Mutation {
   ack(input: AckInput!): Assignation!
   assign(input: AssignInput!): Assignation!
   cancel(input: CancelInput!): Assignation!
-  interrupt(input: InterruptInput!): Assignation!
 
-  """Provide a provision"""
-  provide(input: ProvideInput!): Provision!
+  """Step a assignation"""
+  step(input: StepInput!): Assignation!
+
+  """Pause a assignation"""
+  pause(input: PauseInput!): Assignation!
+
+  """Resume a assignation"""
+  resume(input: ResumeInput!): Assignation!
+
+  """Collect data from a assignation"""
+  collect(input: CollectInput!): Assignation!
+  interrupt(input: InterruptInput!): Assignation!
   reserve(input: ReserveInput!): Reservation!
-  link(input: LinkInput!): Provision!
-  unlink(input: UnlinkInput!): Provision!
   unreserve(input: UnreserveInput!): String!
 
   """Delete a template"""
@@ -1029,8 +966,6 @@ type Mutation {
   ensureAgent(input: AgentInput!): Agent!
   createTestCase(input: CreateTestCaseInput!): TestCase!
   createTestResult(input: CreateTestResultInput!): TestResult!
-  activate(input: ActivateInput!): Provision!
-  deactivate(input: DeActivateInput!): Provision!
   createHardwareRecord(input: CreateHardwareRecordInput!): HardwareRecord!
   createDashboard(input: CreateDashboardInput!): Dashboard!
   createStateSchema(input: CreateStateSchemaInput!): StateSchema!
@@ -1041,9 +976,9 @@ type Mutation {
   pinAgent(input: PinInput!): Agent!
   pinTemplate(input: PinInput!): Template!
   createShortcut(input: CreateShortcutInput!): Shortcut!
+  deleteShortcut(input: DeleteShortcutInput!): String!
   createToolbox(input: CreateToolboxInput!): Toolbox!
   reinit(input: ReInitInput!): String!
-  unprovide(input: UnProvideInput!): ID!
   deleteAgent(input: DeleteAgentInput!): ID!
 }
 
@@ -1214,7 +1149,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = null
+  reference: String = "02cb9876-87c4-4067-98a0-50c0259d4617"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1236,32 +1171,35 @@ input CancelInput {
   assignation: ID!
 }
 
+input StepInput {
+  assignation: ID!
+}
+
+input PauseInput {
+  assignation: ID!
+}
+
+input ResumeInput {
+  assignation: ID!
+}
+
+input CollectInput {
+  assignation: ID!
+}
+
 input InterruptInput {
   assignation: ID!
 }
 
-input ProvideInput {
-  provision: ID!
-}
-
 input ReserveInput {
-  instanceId: InstanceId!
+  reference: String = "1a505f0c-d151-495d-a7c5-92ed28895bb6"
+  instanceId: InstanceId! = "default"
   node: ID = null
   template: ID = null
   title: String = null
   hash: NodeHash = null
-  reference: String = null
   binds: BindsInput = null
-}
-
-input LinkInput {
-  provision: ID!
-  reservation: ID!
-}
-
-input UnlinkInput {
-  provision: ID!
-  reservation: ID!
+  assignationId: ID = null
 }
 
 input UnreserveInput {
@@ -1291,14 +1229,6 @@ input CreateTestResultInput {
   template: ID!
   passed: Boolean!
   result: String = null
-}
-
-input ActivateInput {
-  provision: ID!
-}
-
-input DeActivateInput {
-  provision: ID!
 }
 
 input CreateHardwareRecordInput {
@@ -1382,6 +1312,10 @@ input CreateShortcutInput {
   useReturns: Boolean! = false
 }
 
+input DeleteShortcutInput {
+  id: ID!
+}
+
 input CreateToolboxInput {
   name: String!
   description: String!
@@ -1389,10 +1323,6 @@ input CreateToolboxInput {
 
 input ReInitInput {
   agent: ID = null
-}
-
-input UnProvideInput {
-  provision: ID!
 }
 
 input DeleteAgentInput {
@@ -1404,8 +1334,6 @@ type Subscription {
   assignations(instanceId: InstanceId!): AssignationChangeEvent!
   reservations(instanceId: InstanceId!): Reservation!
   assignationEvents(instanceId: InstanceId!): AssignationEvent!
-  reservationEvents(instanceId: InstanceId!): ReservationEvent!
-  provisionEvents(instanceId: InstanceId!): ProvisionEvent!
   templateChange(template: ID!): Template!
   templates(agent: ID!): TemplateUpdate!
   stateUpdateEvents(stateId: ID!): State!
@@ -1414,14 +1342,6 @@ type Subscription {
 type AssignationChangeEvent {
   event: AssignationEvent
   create: Assignation
-}
-
-type ProvisionEvent {
-  id: ID!
-  provision: Provision!
-  kind: ProvisionEventKind!
-  level: LogLevel
-  createdAt: DateTime!
 }
 
 type TemplateUpdate {
