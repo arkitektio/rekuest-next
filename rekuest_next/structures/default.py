@@ -3,9 +3,14 @@ import os
 import pkgutil
 import traceback
 import logging
+from typing import Type
 from rekuest_next.structures.registry import StructureRegistry
 
 DEFAULT_STRUCTURE_REGISTRY = None
+
+
+def build_instance_predicate(cls: Type):
+    return lambda x: isinstance(x, cls)
 
 
 async def id_shrink(object: object) -> str:

@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from fieldz import fields, Field
-from typing import List
+from typing import Any, List
 from .types import FullFilledArg, FullFilledModel
 import inflection
 
 
-def model(cls):
+def model(cls: Any) -> Any:
     """Mark a class as a model. This is used to
     identify the model in the rekuest_next system."""
 
@@ -24,20 +24,21 @@ def model(cls):
     return cls
 
 
-def is_model(cls):
+def is_model(cls: Any) -> bool:
     """Check if a class is a model."""
 
     return getattr(cls, "__rekuest_model__", False)
 
 
-def retrieve_args_for_model(cls) -> List[FullFilledArg]:
+def retrieve_args_for_model(cls: Any) -> List[FullFilledArg]:
+    """Retrieve the arguments for a model."""
     children_clses = fields(cls)
 
     args = []
     for field in children_clses:
         args.append(
             FullFilledArg(
-                cls=field.type,
+                cls=field.annotated_type or field.type,
                 default=field.default if field.default != Field.MISSING else None,
                 key=field.name,
                 description=field.description,
@@ -46,7 +47,8 @@ def retrieve_args_for_model(cls) -> List[FullFilledArg]:
     return args
 
 
-def retrieve_fullfiled_model(cls) -> FullFilledModel:
+def retrieve_fullfiled_model(cls: Any) -> FullFilledModel:
+    """Retrieve the fullfilled model for a class."""
     return FullFilledModel(
         identifier=cls.__rekuest_model__,
         description=cls.__doc__,

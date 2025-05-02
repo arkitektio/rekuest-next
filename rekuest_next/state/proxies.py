@@ -1,18 +1,22 @@
-from typing import Protocol, Any
+from typing import Dict, Protocol, Any
 import asyncio
 
 from koil import unkoil
 
 
 class ProxyHolder(Protocol):
+    """A protocol for the proxy holder that is used to get and set states."""
 
-    async def aget_state(self, state_key: str, attribute: str): ...
+    async def aget_state(self, state_key: str, attribute: str) -> Dict[str, Any]:
+        """Get the state of the actor. This method will get the state of the"""
+        ...
 
-    async def aset_state(self, state_key: str, attribute: str, value: Any): ...
+    async def aset_state(self, state_key: str, attribute: str, value: Dict[str, Any]) -> None:
+        """Set the state of the actor. This method will set the state of the"""
+        ...
 
 
 class AGetProperty:
-
     def __init__(self, proxy_holder, state_key, attribute):
         self.state_key = state_key
         self.attribute = attribute
@@ -26,7 +30,6 @@ class AGetProperty:
 
 
 class StateProxy:
-
     def __init__(self, proxy_holder: ProxyHolder, state_key: str):
         self.proxy_holder = proxy_holder
         self.state_key = state_key

@@ -1,17 +1,23 @@
+"""Actifier
+
+This module contains the actify function, which is used to convert a function
+into an actor.
+"""
+
 import inspect
-from typing import Dict, List, Optional, Tuple
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.state.state import prepare_state_variables
 from rekuest_next.api.schema import ValidatorInput
-from rekuest_next.actors.base import Passport
 from rekuest_next.actors.functional import (
+    SerializingActor,
     FunctionalFuncActor,
     FunctionalGenActor,
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
 )
-from rekuest_next.actors.types import ActorBuilder
+from rekuest_next.actors.types import Actor, ActorBuilder
 from rekuest_next.api.schema import (
     DefinitionInput,
     EffectInput,
@@ -23,17 +29,7 @@ from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.actors.sync import SyncGroup
 
 
-async def async_none_provide(prov: Passport):
-    """Do nothing on provide"""
-    return None
-
-
-async def async_none_unprovide():
-    """Do nothing on unprovide"""
-    return None
-
-
-def higher_order_builder(builder, **params):
+def higher_order_builder(builder: ActorBuilder, **params: Dict[str, object]) -> ActorBuilder:
     """Higher order builder for actors#
 
     This is a higher order builder for actors. It takes a Actor class and
@@ -41,7 +37,7 @@ def higher_order_builder(builder, **params):
     constructor. Akin to a partial function.
     """
 
-    def inside_builder(**kwargs):
+    def inside_builder(**kwargs: Dict[str, object]) -> Actor:
         return builder(
             **kwargs,
             **params,
@@ -51,13 +47,13 @@ def higher_order_builder(builder, **params):
 
 
 def reactify(
-    function,
+    function: Callable,
     structure_registry: StructureRegistry,
-    bypass_shrink=False,
-    bypass_expand=False,
-    on_provide=None,
-    on_unprovide=None,
-    stateful=False,
+    bypass_shrink: bool = False,
+    bypass_expand: bool = False,
+    on_provide: Optional[Callable[[SerializingActor], Awaitable[None]]] = None,
+    on_unprovide: Optional[Callable[[SerializingActor], Awaitable[None]]] = None,
+    stateful: bool = False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] = None,
     effects: Dict[str, EffectInput] = None,
@@ -67,7 +63,7 @@ def reactify(
     interfaces: List[str] = [],
     in_process: bool = False,
     sync: Optional[SyncGroup] = None,
-    **params,
+    **params: Dict[str, object],
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Reactify a function
 
@@ -107,8 +103,8 @@ def reactify(
         "assign": function,
         "expand_inputs": not bypass_expand,
         "shrink_outputs": not bypass_shrink,
-        "on_provide": on_provide if on_provide else async_none_provide,
-        "on_unprovide": on_unprovide if on_unprovide else async_none_unprovide,
+        "on_provide": on_provide,
+        "on_unprovide": on_unprovide,
         "structure_registry": structure_registry,
         "definition": definition,
         "state_variables": state_variables,
@@ -123,12 +119,8 @@ def reactify(
     elif is_asyncgen:
         return definition, higher_order_builder(FunctionalGenActor, **actor_attributes)
     elif is_generatorfunction and not in_process:
-        return definition, higher_order_builder(
-            FunctionalThreadedGenActor, **actor_attributes
-        )
+        return definition, higher_order_builder(FunctionalThreadedGenActor, **actor_attributes)
     elif (is_function or is_method) and not in_process:
-        return definition, higher_order_builder(
-            FunctionalThreadedFuncActor, **actor_attributes
-        )
+        return definition, higher_order_builder(FunctionalThreadedFuncActor, **actor_attributes)
     else:
         raise NotImplementedError("No way of converting this to a function")

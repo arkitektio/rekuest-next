@@ -1,9 +1,10 @@
-from rekuest_next.api.schema import PortInput, PortKind, ChildPortInput, PortScope
+from rekuest_next.api.schema import PortInput, PortKind, PortScope
 from pydantic import ValidationError
 import pytest
 
 
-def test_argport_input_errors():
+def test_argport_input_errors() -> None:
+    """Test invalid PortInput instances"""
     with pytest.raises(ValidationError):
         # kind is required and only accepts PortKind
         PortInput(kind="lala")
@@ -25,7 +26,8 @@ def test_argport_input_errors():
         PortInput(kind=PortKind.LIST, key="search", nullable=False)
 
 
-def test_argport():
+def test_argport() -> None:
+    """Test valid PortInput instances"""
     PortInput(kind=PortKind.BOOL, key="search", nullable=False, scope=PortScope.GLOBAL)
     PortInput(kind=PortKind.STRING, key="search", nullable=False, scope=PortScope.GLOBAL)
 
@@ -39,7 +41,7 @@ def test_argport():
 
     PortInput(
         kind=PortKind.LIST,
-        children=[ChildPortInput(key="0", kind=PortKind.BOOL, nullable=False, scope=PortScope.GLOBAL)],
+        children=[PortInput(key="0", kind=PortKind.BOOL, nullable=False, scope=PortScope.GLOBAL)],
         scope=PortScope.GLOBAL,
         nullable=False,
         key="search",

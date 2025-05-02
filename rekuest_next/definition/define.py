@@ -1,15 +1,13 @@
 from enum import Enum
-from typing import Callable, List, Tuple, Type, Union
+from typing import Callable, List, Union, get_type_hints
 
 from rekuest_next.structures.model import (
     is_model,
     retrieve_fullfiled_model,
 )
-from rekuest_next.structures.serialization.predication import predicate_port
-from .utils import extract_annotations, get_type_hints, is_annotated, is_local_var
+from .utils import extract_annotations, is_local_var
 from rekuest_next.api.schema import (
     PortInput,
-    ChildPortInput,
     DefinitionInput,
     NodeKind,
     PortKind,
@@ -27,24 +25,29 @@ import datetime as dt
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
-from typing import (
-    Optional,
-    Any,
-    Dict,
-    get_origin,
-    get_args,
-    Annotated
-)
+from typing import Optional, Any, Dict, get_origin, get_args, Annotated
 import types
 import typing
 
-def is_union_type(cls):
-    # We are dealing with a 3.10 Union (PEP 646)
-    try:
-        return get_origin(cls) in (tuple, typing.Tuple, types.UnionType)
-    except AttributeError:
-        return False
 
+def is_annotated(obj: Any) -> bool:
+    """Checks if a hint is an Annotated type
+
+    Args:
+        hint (Any): The typehint to check
+        annot_type (_type_, optional): _description_. Defaults to annot_type.
+
+    Returns:
+        bool: _description_
+    """
+    return get_origin(obj) is Annotated
+
+
+def is_union_type(cls):
+    """Check if a class is a union"""
+    # We are dealing with a 3.10 Union (PEP 646)
+
+    return get_origin(cls) in (typing.Union, types.UnionType)
 
 
 def is_nullable(cls):
@@ -58,6 +61,16 @@ def is_nullable(cls):
     return False
 
 
+def get_non_nullable(cls):
+    args = get_args(cls)
+
+    non_nullable_args = [arg for arg in args if arg != type(None)]
+    if len(non_nullable_args) == 1:
+        return non_nullable_args[0]
+    else:
+        return Union.__getitem__(tuple(non_nullable_args))
+
+
 def get_non_nullable_variant(cls):
     non_nullable_args = [arg for arg in get_args(cls) if arg != type(None)]
     if len(non_nullable_args) == 1:
@@ -69,13 +82,22 @@ def get_non_nullable_variant(cls):
 
 
 def is_union(cls):
-    return (
-        (is_union_type(cls)
-        or get_origin(cls) is Union)
-        and get_args(cls)[1] != type(None)
-    )
+    print(cls)
+    return is_union_type(cls) and all(i != type(None) for i in get_args(cls))
 
 
+def is_tuple(cls):
+    """Check if a class is a tuple
+
+    if cls.__module__ == "typing":
+        if hasattr(cls, "_name"):
+            # We are dealing with a Typing Var?
+            if cls._name == "Tuple":
+
+    Returns:
+        _type_: _description_
+    """
+    return get_origin(cls) in (tuple, typing.Tuple)
 
 
 def is_list(cls):
@@ -132,13 +154,10 @@ def is_float(cls):
 
 
 def is_generator_type(cls):
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            if cls._name == "Generator":
-                return True
-            if cls._name == "AsyncGenerator":
-                return True
-    return False
+    if get_origin(cls) == types.GeneratorType:
+        return True
+    else:
+        return False
 
 
 def is_int(cls):
@@ -163,225 +182,6 @@ def is_structure(cls):
     return True
 
 
-def convert_child_to_childport(
-    cls: Type,
-    registry: StructureRegistry,
-    nullable: bool = False,
-    key: Optional[str] = None,
-    description: Optional[str] = None,
-    assign_widget: Optional[AssignWidgetInput] = None,
-    return_widget: Optional[ReturnWidgetInput] = None,
-) -> Tuple[ChildPortInput, Callable]:
-    """Converts a element of a annotation to a child port
-
-    Args:
-        cls (Type): The type (class or annotation) of the elemtn
-        registry (StructureRegistry): The structure registry to use
-        nullable (bool, optional): Is this type optional (recursive parameter).
-            Defaults to False.
-        is_return (bool, optional): Is this a return type?. Defaults to False.
-        annotations (List[AnnotationInput], optional): The annotations for this element.
-            Defaults to None.
-
-    Returns:
-        Tuple[ChildPortInput, WidgetInput, Callable]: The child port, the widget and the
-         converter for the default
-    """
-    if is_model(cls):
-        children = []
-        convertermap = {}
-
-        full_filled_model = retrieve_fullfiled_model(cls)
-
-        registry.register_as_model(cls, full_filled_model.identifier)
-
-        for arg in full_filled_model.args:
-            child, converter = convert_child_to_childport(
-                arg.cls,
-                registry,
-                nullable=False,
-                key=arg.key,
-                description=arg.description,
-            )
-            children.append(child)
-            convertermap[arg.key] = converter
-
-        return (
-            ChildPortInput(
-                kind=PortKind.MODEL,
-                children=children,
-                scope=PortScope.GLOBAL,
-                identifier=full_filled_model.identifier,
-                nullable=nullable,
-                key=key,
-                description=full_filled_model.description,
-            ),
-            lambda default: default.model_dump(),
-        )
-
-    if is_annotated(cls):
-        real_type, *args = get_args(cls)
-
-        for annotation in args:
-            if hasattr(annotation, "get_assign_widget"):
-                assign_widget = annotation.get_assign_widget()
-            if hasattr(annotation, "get_return_widget"):
-                return_widget = annotation.get_return_widget()
-
-        return convert_child_to_childport(
-            real_type,
-            registry,
-            nullable=nullable,
-            key=key,
-            assign_widget=assign_widget,
-            return_widget=return_widget,
-        )
-
-    if is_nullable(cls):
-        non_nullable = get_non_nullable_variant(cls)
-        return convert_child_to_childport(
-            non_nullable,
-            registry,
-            nullable=True,
-            key=key,
-            assign_widget=assign_widget,
-            return_widget=return_widget,
-        )
-
-    if is_union(cls):
-        variants = get_non_null_variants(cls)
-        children = []
-        converters = []
-        for index, arg in enumerate(variants):
-            child, converter = convert_child_to_childport(
-                arg, registry, nullable=False, key="variant_" + str(index)
-            )
-            converters.append(converter)
-            children.append(child)
-
-        return ChildPortInput(
-            kind=PortKind.UNION,
-            scope=PortScope.GLOBAL,
-            key=key,
-            children=children,
-            nullable=nullable,
-            description=description,
-        )
-
-    if is_list(cls):
-        value_cls = get_list_value_cls(cls)
-        child, nested_converter = convert_child_to_childport(
-            value_cls, registry, nullable=False, key="..."
-        )
-
-        return (
-            ChildPortInput(
-                kind=PortKind.LIST,
-                children=[child],
-                scope=PortScope.GLOBAL,
-                nullable=nullable,
-                key=key,
-                description=description,
-            ),
-            lambda default: (
-                [nested_converter(ndefault) for ndefault in default]
-                if default
-                else None
-            ),
-        )
-
-    if is_dict(cls):
-        value_cls = get_dict_value_cls(cls)
-        child, nested_converter = convert_child_to_childport(
-            value_cls, registry, nullable=False, key="..."
-        )
-        return (
-            ChildPortInput(
-                kind=PortKind.DICT,
-                children=[child],
-                scope=PortScope.GLOBAL,
-                nullable=nullable,
-                key=key,
-                description=description,
-            ),
-            lambda default: (
-                {key: item in nested_converter(item) for key, item in default.items()}
-                if default
-                else None
-            ),
-        )
-
-    if is_bool(cls):
-        return (
-            ChildPortInput(
-                kind=PortKind.BOOL,
-                nullable=nullable,
-                scope=PortScope.GLOBAL,
-                key=key,
-                description=description,
-            ),
-            bool,
-        )
-
-    if is_float(cls):
-        return (
-            ChildPortInput(
-                kind=PortKind.FLOAT,
-                nullable=nullable,
-                scope=PortScope.GLOBAL,
-                key=key,
-                description=description,
-            ),
-            float,
-        )
-
-    if is_int(cls):
-        return (
-            ChildPortInput(
-                kind=PortKind.INT,
-                nullable=nullable,
-                scope=PortScope.GLOBAL,
-                key=key,
-                description=description,
-            ),
-            int,
-        )
-
-    if is_datetime(cls):
-        return (
-            ChildPortInput(
-                kind=PortKind.DATE,
-                nullable=nullable,
-                scope=PortScope.GLOBAL,
-                key=key,
-                description=description,
-            ),
-            lambda x: x.isoformat(),
-        )
-
-    if is_str(cls):
-        return (
-            ChildPortInput(
-                kind=PortKind.STRING,
-                nullable=nullable,
-                scope=PortScope.GLOBAL,
-                key=key,
-                description=description,
-            ),
-            str,
-        )
-
-    if is_structure(cls):
-        return registry.get_child_port_and_default_converter_for_cls(
-            cls,
-            nullable=nullable,
-            key=key,
-            description=description,
-        )
-
-    raise NotImplementedError(f"Could not convert {cls} to a child port")
-
-
 def convert_object_to_port(
     cls,
     key,
@@ -398,6 +198,10 @@ def convert_object_to_port(
     """
     Convert a class to an Port
     """
+    if validators is None:
+        validators = []
+    if effects is None:
+        effects = []
 
     if is_generator_type(cls):
         real_type = cls.__args__[0]
@@ -423,16 +227,15 @@ def convert_object_to_port(
         registry.register_as_model(cls, full_filled_model.identifier)
 
         for arg in full_filled_model.args:
-            child, converter = convert_child_to_childport(
-                arg.cls,
-                registry,
+            child = convert_object_to_port(
+                cls=arg.cls,
+                registry=registry,
                 nullable=False,
                 key=arg.key,
+                default=arg.default,
                 description=arg.description,
             )
             children.append(child)
-            if arg.default:
-                set_default[arg.key] = converter(arg.default)
 
         return PortInput(
             kind=PortKind.MODEL,
@@ -444,7 +247,7 @@ def convert_object_to_port(
             label=label,
             default=set_default,
             nullable=nullable,
-            effects=effects ,
+            effects=effects,
             description=description or full_filled_model.description,
             validators=validators,
             identifier=full_filled_model.identifier,
@@ -452,13 +255,19 @@ def convert_object_to_port(
 
     if is_annotated(cls):
         real_type, *annotations = get_args(cls)
-        
-        
-        assign_widget, return_widget, validators, effects, default, label, description = extract_annotations(
-            annotations, assign_widget, return_widget, validators, effects, default, label, description
-        )
 
-        
+        assign_widget, return_widget, validators, effects, default, label, description = (
+            extract_annotations(
+                annotations,
+                assign_widget,
+                return_widget,
+                validators,
+                effects,
+                default,
+                label,
+                description,
+            )
+        )
 
         return convert_object_to_port(
             real_type,
@@ -475,9 +284,7 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child, converter = convert_child_to_childport(
-            value_cls, registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -486,7 +293,7 @@ def convert_object_to_port(
             key=key,
             children=[child],
             label=label,
-            default=[converter(item) for item in default] if default else None,
+            default=default if default else None,
             nullable=nullable,
             effects=effects,
             description=description,
@@ -495,9 +302,9 @@ def convert_object_to_port(
 
     if is_nullable(cls):
         return convert_object_to_port(
-            cls.__args__[0],
-            key,
-            registry,
+            cls=cls.__args__[0],
+            key=key,
+            registry=registry,
             default=default,
             nullable=True,
             assign_widget=assign_widget,
@@ -511,22 +318,11 @@ def convert_object_to_port(
     if is_union(cls):
         variants = get_non_null_variants(cls)
         children = []
-        converters = []
         for index, arg in enumerate(variants):
-            child, converter = convert_child_to_childport(
-                arg, registry, nullable=False, key="variant_" + str(index)
+            child = convert_object_to_port(
+                cls=arg, registry=registry, nullable=False, key=str(index)
             )
-            converters.append(converter)
             children.append(child)
-
-        set_default = None
-        if default:
-            # We need to find the correct converter according
-            # to the default value (checking the predicate)
-            for index, child in enumerate(children):
-                if predicate_port(child, default, registry):
-                    set_default = converters[index](default)
-                    break
 
         return PortInput(
             kind=PortKind.UNION,
@@ -536,7 +332,7 @@ def convert_object_to_port(
             key=key,
             children=children,
             label=label,
-            default=set_default,
+            default=default,
             nullable=nullable,
             effects=effects,
             validators=validators,
@@ -545,9 +341,7 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child, converter = convert_child_to_childport(
-            value_cls, registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -556,11 +350,7 @@ def convert_object_to_port(
             key=key,
             children=[child],
             label=label,
-            default=(
-                {key: converter(item) for key, item in default.items()}
-                if default
-                else None
-            ),
+            default=default,
             nullable=nullable,
             effects=effects,
             validators=validators,
@@ -684,7 +474,7 @@ def prepare_definition(
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,
     effects: Optional[EffectsMap] = None,
-    port_groups: List[PortGroupInput]  | None  = None,
+    port_groups: List[PortGroupInput] | None = None,
     allow_empty_doc=True,
     collections: List[str] = [],
     interfaces: Optional[List[str]] = None,
@@ -719,9 +509,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -759,9 +547,7 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
 
     if docstring.many_returns:
@@ -828,8 +614,7 @@ def prepare_definition(
             )
         except Exception as e:
             raise DefinitionError(
-                f"Could not convert Argument of function {function.__name__} to"
-                f" ArgPort: {value}"
+                f"Could not convert Argument of function {function.__name__} to ArgPort: {value}"
             ) from e
 
     function_outs_annotation = sig.return_annotation
@@ -854,48 +639,48 @@ def prepare_definition(
                 )
             )
 
-    elif is_union(function_outs_annotation):
-        
-        for index, cls in enumerate(get_args(function_outs_annotation)):
-            key = f"return{index}"
-            return_widget = return_widgets.pop(key, None)
-            assign_widget = widgets.pop(key, None)
-            port_effects = effects.pop(key, [])
-
-            returns.append(
-                convert_object_to_port(
-                    cls,
-                    key,
-                    structure_registry,
-                    return_widget=return_widget,
-                    effects=port_effects,
-                    description=doc_param_description_map.pop(key, None),
-                    label=doc_param_label_map.pop(key, None),
-                    assign_widget=assign_widget,
-                )
-            )
     else:
         # We are dealing with a non tuple return
         if function_outs_annotation is None:
             pass
 
         elif getattr(function_outs_annotation, "__name__", "false") != "_empty":  # Is it not empty
-            key = "return0"
-            return_widget = return_widgets.pop(key, None)
-            assign_widget = widgets.pop(key, None)
-            port_effects = effects.pop(key, [])
-            returns.append(
-                convert_object_to_port(
-                    function_outs_annotation,
-                    "return0",
-                    structure_registry,
-                    assign_widget=assign_widget,
-                    effects=port_effects,
-                    description=doc_param_description_map.pop(key, None),
-                    label=doc_param_label_map.pop(key, None),
-                    return_widget=return_widget,
+            if is_tuple(function_outs_annotation):
+                for index, cls in enumerate(get_args(function_outs_annotation)):
+                    key = f"return{index}"
+                    return_widget = return_widgets.pop(key, None)
+                    assign_widget = widgets.pop(key, None)
+                    port_effects = effects.pop(key, [])
+
+                    returns.append(
+                        convert_object_to_port(
+                            cls,
+                            key,
+                            structure_registry,
+                            return_widget=return_widget,
+                            effects=port_effects,
+                            description=doc_param_description_map.pop(key, None),
+                            label=doc_param_label_map.pop(key, None),
+                            assign_widget=assign_widget,
+                        )
+                    )
+            else:
+                key = "return0"
+                return_widget = return_widgets.pop(key, None)
+                assign_widget = widgets.pop(key, None)
+                port_effects = effects.pop(key, [])
+                returns.append(
+                    convert_object_to_port(
+                        function_outs_annotation,
+                        "return0",
+                        structure_registry,
+                        assign_widget=assign_widget,
+                        effects=port_effects,
+                        description=doc_param_description_map.pop(key, None),
+                        label=doc_param_label_map.pop(key, None),
+                        return_widget=return_widget,
+                    )
                 )
-            )
 
     node_name = None
     # Documentation Parsing

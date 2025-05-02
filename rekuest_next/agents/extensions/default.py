@@ -5,12 +5,11 @@ from rekuest_next.definition.registry import (
     get_default_definition_registry,
 )
 from rekuest_next.api.schema import (
-    Template,
     TemplateInput,
     acreate_state_schema,
     StateSchema,
 )
-from rekuest_next.actors.base import Actor, Passport, ActorTransport
+from rekuest_next.actors.base import Actor
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from rekuest_next.agents.errors import ExtensionError
@@ -33,12 +32,25 @@ if TYPE_CHECKING:
 
 
 class DefaultExtension(BaseModel):
+    """The default extension.
+
+    The default extension is an extensions that encapsulates
+    every registered function.
+
+    """
+
     definition_registry: DefinitionRegistry = Field(
         default_factory=get_default_definition_registry,
-        description="A global registry of all registered function/actors for this extension and all its dependencies. Think @register"
+        description="A global registry of all registered function/actors for this extension and all its dependencies. Think @register",
     )
-    state_registry: StateRegistry = Field(default_factory=get_default_state_registry, description="A global registry of all registered states for this extension. Think @state")
-    hook_registry: HooksRegistry = Field(default_factory=get_default_hook_registry, description="The hooks registry for this extension. Think @startup and @background")
+    state_registry: StateRegistry = Field(
+        default_factory=get_default_state_registry,
+        description="A global registry of all registered states for this extension. Think @state",
+    )
+    hook_registry: HooksRegistry = Field(
+        default_factory=get_default_hook_registry,
+        description="The hooks registry for this extension. Think @startup and @background",
+    )
     proxies: Dict[str, StateProxy] = Field(default_factory=dict)
     contexts: Dict[str, Any] = Field(default_factory=dict)
     cleanup: bool = True
@@ -52,14 +64,23 @@ class DefaultExtension(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def get_name(self):
+    def get_name(self) -> str:
+        """Get the name of the extension. This is used to identify the extension
+        in the registry."""
         return "default"
-    
-    async def aget_templates(self) -> List[TemplateInput]:
-        return self.definition_registry.templates.values()
-    
 
-    async def astart(self, instance_id):
+    async def aget_templates(self) -> List[TemplateInput]:
+        """Get the templates for this extension. This
+        will be called when the agent starts and will
+        be used to register the templates on the rekuest server
+
+        the templates in the registry.
+        Returns:
+            List[TemplateInput]: The templates for this extension.
+        """
+        return self.definition_registry.templates.values()
+
+    async def astart(self, instance_id: str) -> None:
         """This should be called when the agent starts"""
 
         await self.aregister_schemas()
@@ -82,13 +103,14 @@ class DefaultExtension(BaseModel):
         """Should the extension cleanup its templates?"""
         return True
 
-    async def aregister_schemas(self):
+    async def aregister_schemas(self) -> None:
+        """Register the schemas for this extension. This will be called when
+        the agent starts and will be used to register the schemas on the
+        rekuest server."""
         for name, state_schema in self.state_registry.state_schemas.items():
-            self._state_schemas[name] = await acreate_state_schema(
-                state_schema=state_schema
-            )
+            self._state_schemas[name] = await acreate_state_schema(state_schema=state_schema)
 
-    async def ainit_state(self, state_key: str, value: Any):
+    async def ainit_state(self, state_key: str, value: Any) -> None:
         from rekuest_next.api.schema import aset_state
 
         schema = self._state_schemas[state_key]
@@ -99,9 +121,7 @@ class DefaultExtension(BaseModel):
 
         # Shrink the value to the schema
 
-        shrunk_state = await self.state_registry.ashrink_state(
-            state_key=state_key, state=value
-        )
+        shrunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=value)
         state = await aset_state(
             state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id
         )
@@ -142,11 +162,9 @@ class DefaultExtension(BaseModel):
             )
             print("State updated", self._current_states[state_key], state)
 
-    async def arun_background(self):
+    async def arun_background(self) -> None:
         for name, worker in self.hook_registry.background_worker.items():
-            task = asyncio.create_task(
-                worker.arun(contexts=self.contexts, proxies=self.proxies)
-            )
+            task = asyncio.create_task(worker.arun(contexts=self.contexts, proxies=self.proxies))
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
@@ -156,9 +174,7 @@ class DefaultExtension(BaseModel):
             task.cancel()
 
         try:
-            await asyncio.gather(
-                *self._background_tasks.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
         except asyncio.CancelledError:
             pass
 
@@ -171,9 +187,7 @@ class DefaultExtension(BaseModel):
         spawining protocol within an actor. But maps template"""
 
         try:
-            actor_builder = self.definition_registry.get_builder_for_interface(
-                interface
-            )
+            actor_builder = self.definition_registry.get_builder_for_interface(interface)
 
         except KeyError:
             raise ExtensionError(
@@ -186,9 +200,5 @@ class DefaultExtension(BaseModel):
             proxies=self.proxies,
         )
 
-    async def aretrieve_registry(self):
-        return self.definition_registry
-
     async def atear_down(self):
         await self.astop_background()
-

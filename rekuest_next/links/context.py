@@ -1,3 +1,11 @@
+"""ContextLink is a link that adds an assignation token to the context of a graphql operation.
+
+Its used to give some correlation information to every operation that is executed within
+the context of an assignation.
+
+
+"""
+
 from typing import AsyncIterator
 
 from rath.links.base import ContinuationLink
@@ -16,9 +24,7 @@ class ContextLink(ContinuationLink):
     store the token and pass it to the token_loader function.
     """
 
-    async def aexecute(
-        self, operation: Operation, retry: int = 0
-    ) -> AsyncIterator[GraphQLResult]:
+    async def aexecute(self, operation: Operation, retry: int = 0) -> AsyncIterator[GraphQLResult]:
         """Executes and forwards an operation to the next link.
 
         This method will add the authentication token to the context of the operation,

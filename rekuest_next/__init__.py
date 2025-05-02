@@ -12,10 +12,10 @@ from .utils import (
     acall_raw,
 )
 from .structures.model import model
+
 try:
     from .arkitekt import ArkitektNextRekuestNext
-except ImportError as e: 
-    raise e
+except ImportError:
     pass
 from .structure import structure_reg
 

@@ -4,6 +4,7 @@ from rekuest_next.structures.registry import (
 )
 from rekuest_next.register import register_structure
 import pytest
+from rekuest_next.structures.hooks.errors import HookError
 
 
 def test_structure_registration():
@@ -24,11 +25,8 @@ def test_structure_registration():
 
     assert "test" in registry._identifier_shrinker_map, "Registration fails"
     assert "test" in registry._identifier_expander_map, "Registration of expand failed"
-    assert (
-        SerializableObject.aexpand == registry._identifier_expander_map["test"]
-    ), "Is not the same instance"
 
-    with pytest.raises(StructureOverwriteError):
+    with pytest.raises(HookError):
 
         @register_structure(identifier="test", registry=registry)
         class SerializableObject:

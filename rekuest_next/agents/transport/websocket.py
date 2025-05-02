@@ -23,7 +23,7 @@ from .errors import (
     AgentIsAlreadyBusy,
     AgentWasBlocked,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class InMessagePayload(BaseModel):
@@ -78,9 +78,9 @@ class WebsocketAgentTransport(AgentTransport):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def __aenter__(self):
-        assert (
-            self._callback is not None
-        ), "Callback not set. Use set callback first to set it"
+        assert self._callback is not None, (
+            "Callback not set. Use set callback first to set it"
+        )
         self._futures = {}
 
         self._send_queue = asyncio.Queue()
@@ -127,10 +127,10 @@ class WebsocketAgentTransport(AgentTransport):
                     logger.info("Agent on Websockets connected")
 
                     await client.send(
-                            messages.Register(
-                                token=token,
-                                instance_id=instance_id,
-                            ).json()
+                        messages.Register(
+                            token=token,
+                            instance_id=instance_id,
+                        ).json()
                     )
 
                     send_task = asyncio.create_task(self.sending(client))
@@ -224,6 +224,7 @@ class WebsocketAgentTransport(AgentTransport):
     async def receiving(self, client):
         try:
             async for message in client:
+                print(f"Received message {message}")
                 logger.info(f"Receiving message {message}")
                 await self.receive(message)
 
@@ -235,20 +236,20 @@ class WebsocketAgentTransport(AgentTransport):
             payload = InMessagePayload(message=json.loads(message))
             logger.debug(f"<<<< {payload}")
 
-            if  isinstance(payload.message, messages.Heartbeat):
+            if isinstance(payload.message, messages.Heartbeat):
                 await self.asend(messages.HeartbeatEvent())
 
             elif isinstance(payload.message, messages.Init):
-
+                print("Init message received", payload.message)
                 if not self._connected_future.done():
                     self._connected_future.set_result(True)
 
                 for i in payload.message.inquiries:
                     await self.abroadcast(i)
-                    
+
             else:
                 await self.abroadcast(payload.message)
-        except Exception as e:
+        except Exception:
             logger.error("Error while processing message", exc_info=True)
 
     async def awaitaction(self, action: messages.ToAgentMessage):

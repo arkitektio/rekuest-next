@@ -1,5 +1,5 @@
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import Actifier
+from rekuest_next.actors.types import Actifier, ActorBuilder, OnUnprovide, OnProvide
 from rekuest_next.actors.vars import is_inside_assignation
 from rekuest_next.definition.validate import hash_definition
 from rekuest_next.structures.registry import (
@@ -14,6 +14,7 @@ from rekuest_next.definition.registry import (
 )
 from rekuest_next.api.schema import (
     AssignWidgetInput,
+    DefinitionInput,
     DependencyInput,
     PortGroupInput,
     PortScope,
@@ -29,6 +30,7 @@ from typing import (
     Optional,
     Awaitable,
     Any,
+    Tuple,
     TypeVar,
     overload,
 )
@@ -38,7 +40,7 @@ from functools import wraps
 
 
 def register_func(
-    function_or_actor,
+    function_or_actor: Callable,
     structure_registry: StructureRegistry,
     definition_registry: DefinitionRegistry,
     interface: str = None,
@@ -54,13 +56,13 @@ def register_func(
     widgets: Dict[str, AssignWidgetInput] = None,
     effects: Dict[str, List[EffectInput]] = None,
     interfaces: List[str] = [],
-    on_provide=None,
-    on_unprovide=None,
+    on_provide: OnProvide = None,
+    on_unprovide: OnUnprovide = None,
     dynamic: bool = False,
     in_process: bool = False,
     sync: Optional[SyncGroup] = None,
-    **actifier_params,
-):
+    **actifier_params: Dict[str, object],
+) -> Tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the definition registry
 
     Register a function or actor with the definition registry. This will
@@ -100,6 +102,7 @@ def register_func(
         stateful=stateful,
         port_groups=port_groups,
         effects=effects,
+        sync=sync,
         validators=validators,
         interfaces=interfaces,
         in_process=in_process,
@@ -144,15 +147,15 @@ def register(
     effects: Dict[str, List[EffectInput]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide=None,
-    on_unprovide=None,
+    on_provide: OnProvide = None,
+    on_unprovide: OnUnprovide = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: StructureRegistry = None,
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
-    **actifier_params,
+    **actifier_params: Dict[str, object],
 ) -> Callable[[T], T]: ...
 
 
@@ -177,7 +180,7 @@ def register(
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
-    **actifier_params,
+    **actifier_params: Dict[str, object],
 ):
     """Register a function or actor to the default definition registry.
 
@@ -247,10 +250,10 @@ def register(
 
     else:
 
-        def real_decorator(function_or_actor):
+        def real_decorator(function_or_actor: T) -> T:
             # Simple bypass for now
             @wraps(function_or_actor)
-            def wrapped_function(*args, **kwargs):
+            def wrapped_function(*args, **kwargs):  # noqa: ANN202, ANN003, ANN002
                 return function_or_actor(*args, **kwargs)
 
             definition, actor_builder = register_func(
@@ -289,10 +292,9 @@ def register(
 T = TypeVar("T")
 
 
-def register_structure(
-    *cls,
+def register_global(
+    *cls: T,
     identifier: str = None,
-    scope: PortScope = PortScope.LOCAL,
     aexpand: Callable[
         [
             str,
@@ -305,18 +307,12 @@ def register_structure(
         ],
         Awaitable[str],
     ] = None,
-    acollect: Callable[
-        [
-            str,
-        ],
-        Awaitable[Any],
-    ] = None,
     convert_default: Callable[[Any], str] = None,
     default_widget: AssignWidgetInput = None,
     default_returnwidget: ReturnWidgetInput = None,
     registry: StructureRegistry = None,
-    **kwargs,
-):
+    **kwargs: Dict[str, Any],
+) -> T:
     """Register a structure to the default structure registry.
 
     Args:
@@ -333,10 +329,9 @@ def register_structure(
         sregistry.register_as_structure(
             function_or_actor,
             identifier=identifier,
-            scope=scope,
-            ashrink=ashrink,
-            aexpand=aexpand,
-            acollect=acollect,
+            scope=PortScope.GLOBAL,
+            ashrink=ashrink or getattr(function_or_actor, "ashrink", None),
+            aexpand=aexpand or getattr(function_or_actor, "aexpand", None),
             convert_default=convert_default,
             default_widget=default_widget,
             default_returnwidget=default_returnwidget,
@@ -347,7 +342,7 @@ def register_structure(
 
     else:
 
-        def real_decorator(cls):
+        def real_decorator(cls):  # noqa: ANN202, ANN001
             # Simple bypass for now
 
             sregistry = registry or get_default_structure_registry()
@@ -355,10 +350,9 @@ def register_structure(
             sregistry.register_as_structure(
                 cls,
                 identifier=identifier,
-                scope=scope,
-                ashrink=ashrink,
-                aexpand=aexpand,
-                acollect=acollect,
+                scope=PortScope.GLOBAL,
+                ashrink=ashrink or getattr(function_or_actor, "ashrink", None),
+                aexpand=aexpand or getattr(function_or_actor, "aexpand", None),
                 convert_default=convert_default,
                 default_widget=default_widget,
                 default_returnwidget=default_returnwidget,
@@ -370,9 +364,7 @@ def register_structure(
         return real_decorator
 
 
-def test(
-    tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None
-):
+def test(tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None):
     """Register a test for a function or actor
 
     It should check if the function or actor expects templates as an input,
@@ -385,18 +377,16 @@ def test(
     """
 
     def registered_function(func):
-
         @wraps(func)
         def wrapped_function(*args, __template, **kwargs):
             if is_inside_assignation():
                 raise NotImplementedError("You cannot run tests inside an assignation.")
 
-
             return func(*args, **kwargs)
 
-        assert hasattr(
-            tested_node, "__definition_hash__"
-        ), "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
+        assert hasattr(tested_node, "__definition_hash__"), (
+            "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
+        )
 
         register(
             func,
@@ -409,9 +399,7 @@ def test(
     return registered_function
 
 
-def benchmark(
-    tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None
-):
+def benchmark(tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None):
     """Register a test for a function or actor
 
     It should check if the function or actor expects templates as an input,
@@ -424,7 +412,6 @@ def benchmark(
     """
 
     def registered_function(func):
-
         @wraps(func)
         def wrapped_function(*args, **kwargs):
             if is_inside_assignation():
@@ -432,9 +419,9 @@ def benchmark(
 
             return func(*args, **kwargs)
 
-        assert hasattr(
-            tested_node, "__definition_hash__"
-        ), "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
+        assert hasattr(tested_node, "__definition_hash__"), (
+            "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
+        )
 
         register(
             func,

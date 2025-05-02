@@ -1,3 +1,5 @@
+"""The exceptions for the Postman module."""
+
 from rekuest_next.errors import RekuestError
 
 

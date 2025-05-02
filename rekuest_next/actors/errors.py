@@ -1,3 +1,5 @@
+"""Exceptions for the actors module."""
+
 from rekuest_next.errors import RekuestError
 
 

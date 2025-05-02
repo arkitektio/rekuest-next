@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from rekuest_next.api.schema import (
     AssignWidgetInput,
-    ChildPortInput,
     EffectInput,
     PortInput,
     PortKind,
@@ -58,31 +57,33 @@ def build_async_model_expander(cls: Type):
     return expander
 
 
+def build_instance_predicate(cls: Type):
+    return lambda x: isinstance(x, cls)
+
+
 class StructureRegistry(BaseModel):
-    """ A registry for structures.
-    
+    """A registry for structures.
+
     Structure registries are used to provide a mapping from "identifier" to python
     classes and vice versa.
-    
+
     When an actors receives a request from the arkitekt server with a specific
     id Y and identifier X, it will look up the structure registry for the identifier X
     and use the corresponding python class to deserialize the data.
-    
+
     The structure registry is also used to provide a mapping from python classes to identifiers
-    
+
     """
-    
-    
-    
+
     copy_from_default: bool = False
     allow_overwrites: bool = True
     allow_auto_register: bool = True
-    cls_to_identifier: Callable[[Type], Identifier] = Field(default=cls_to_identifier, description="A function that converts class names to identifiers. This is used to register classes in the structure registry. The default is to use the module name and class name as identifier.")
     registry_hooks: OrderedDict[str, RegistryHook] = Field(
-        default_factory=get_default_hooks, description="""If the structure registry is challenged, 
+        default_factory=get_default_hooks,
+        description="""If the structure registry is challenged, 
         with a new structure (i.e a python Object that is not yet registered, it will try to find a hook 
         that is able to register this structure. If no hook is found, it will raise an error.
-        The default hooks are the enum and the dataclass hook. You can add your own hooks by adding them to this list."""
+        The default hooks are the enum and the dataclass hook. You can add your own hooks by adding them to this list.""",
     )
 
     identifier_structure_map: Dict[str, Type] = Field(
@@ -106,7 +107,6 @@ class StructureRegistry(BaseModel):
     _structure_default_returnwidget_map: Dict[Type, ReturnWidgetInput] = {}
     _structure_annotation_map: Dict[Type, Type] = {}
 
-    
     _fullfilled_structures_map: Dict[Type, FullFilledStructure] = {}
 
     _token: contextvars.Token = None
@@ -119,53 +119,47 @@ class StructureRegistry(BaseModel):
         except KeyError as e:
             raise StructureRegistryError(f"Expander for {key} is not registered") from e
 
-    def get_collector_for_identifier(self, key):
-        try:
-            return self._identifier_collecter_map[key]
-        except KeyError as e:
-            raise StructureRegistryError(
-                f"Collector for {key} is not registered"
-            ) from e
-
     def get_shrinker_for_identifier(self, key):
         try:
             return self._identifier_shrinker_map[key]
         except KeyError as e:
             raise StructureRegistryError(f"Shrinker for {key} is not registered") from e
 
-    def register_expander(self, key, expander):
-        self._identifier_expander_map[key] = expander
-
-    def get_widget_input(self, cls) -> Optional[AssignWidgetInput]:
-        return self._structure_default_widget_map.get(cls, None)
-
-    def get_returnwidget_input(self, cls) -> Optional[ReturnWidgetInput]:
-        return self._structure_default_returnwidget_map.get(cls, None)
-
     def get_predicator_for_identifier(
         self, identifier: str
     ) -> Optional[Callable[[Any], bool]]:
         return self._identifier_predicate_map[identifier]
+    
+    
+    def auto_register(self, cls: Type) -> FullFilledStructure:
+        """Auto register a class. This is used for classes that are not registered yet."""
+        for key, hook in self.registry_hooks.items():
+            try:
+                if hook.is_applicable(cls):
+                    try:
+                        fullfilled_structure = hook.apply(cls)
+                        self.fullfill_registration(fullfilled_structure)
+                        return fullfilled_structure
+                    except HookError as e:
+                        raise StructureDefinitionError(
+                            f"Hook {key} failed to apply to {cls}"
+                        ) from e
+            except Exception as e:
+                raise StructureDefinitionError(
+                    f"Hook {key} does not correctly implement its interface. Please contact the developer of this hook."
+                ) from e
+                
+        raise StructureDefinitionError(
+            f"No hook was able to register {cls}. Please make sure to register this type beforehand or set allow_auto_register to True"
+        )
+    
 
     def get_identifier_for_structure(self, cls):
         try:
             return self._structure_identifier_map[cls]
         except KeyError as e:
-            if self.allow_auto_register:
-                try:
-                    self.register_as_structure(cls)
-                    return self._structure_identifier_map[cls]
-                except StructureDefinitionError as e:
-                    raise StructureDefinitionError(
-                        f"{cls} was not registered and could not be registered"
-                        " automatically"
-                    ) from e
-            else:
-                raise StructureRegistryError(
-                    f"{cls} is not registered and allow_auto_register is set to False."
-                    " Please make sure to register this type beforehand or set"
-                    " allow_auto_register to True"
-                ) from e
+            raise StructureRegistryError(f"Identifier for {cls} is not registered") from e
+
 
     def get_port_scope_for_identifier(self, identifier: str):
         return self.identifier_port_scope_map[identifier]
@@ -176,8 +170,7 @@ class StructureRegistry(BaseModel):
         except KeyError as e:
             if self.allow_auto_register:
                 try:
-                    self.register_as_structure(cls)
-                    return self._structure_convert_default_map[cls]
+                    return self.auto_register[cls]
                 except StructureDefinitionError as e:
                     raise StructureDefinitionError(
                         f"{cls} was not registered and not be no default converter"
@@ -201,64 +194,38 @@ class StructureRegistry(BaseModel):
     def register_as_structure(
         self,
         cls: Type,
-        identifier: str = None,
+        identifier: str,
         scope: PortScope = PortScope.LOCAL,
         aexpand: Callable[
             [
                 str,
             ],
             Awaitable[Any],
-        ] = None,
+        ] | None = None,
         ashrink: Callable[
             [
-                any,
+                Any,
             ],
             Awaitable[str],
-        ] = None,
-        acollect: Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ] = None,
-        predicate: Callable[[Any], bool] = None,
-        convert_default: Callable[[Any], str] = None,
+        ] | None = None,
+        predicate: Callable[[Any], bool] | None = None,
+        convert_default: Callable[[Any], str] | None    = None,
         default_widget: Optional[AssignWidgetInput] = None,
         default_returnwidget: Optional[ReturnWidgetInput] = None,
     ):
-        fullfilled_structure = None
-        for key, hook in self.registry_hooks.items():
-            try:
-                if hook.is_applicable(cls):
-                    try:
-                        fullfilled_structure = hook.apply(
-                            cls,
-                            identifier=identifier,
-                            scope=scope,
-                            aexpand=aexpand,
-                            ashrink=ashrink,
-                            acollect=acollect,
-                            predicate=predicate,
-                            convert_default=convert_default,
-                            default_widget=default_widget,
-                            default_returnwidget=default_returnwidget,
-                        )
-                        break  # we found a hook that applies
-                    except HookError as e:
-                        raise StructureDefinitionError(
-                            f"Hook {key} failed to apply to {cls}"
-                        ) from e
-            except Exception as e:
-                raise StructureDefinitionError(
-                    f"Hook {key} does not correctly implement its interface. Please contact the developer of this hook."
-                ) from e
-
-        if fullfilled_structure is None:
-            raise StructureDefinitionError(
-                f"No hook was able to apply to {cls}. Please check your hooks {self.registry_hooks}"
-            )
-
-        self.fullfill_registration(fullfilled_structure)
+        fs = FullFilledStructure(
+            cls=cls,
+            identifier=identifier,
+            scope=scope,
+            aexpand=aexpand,
+            ashrink=ashrink,
+            convert_default=convert_default,
+            predicate=predicate or build_instance_predicate(cls),
+            default_widget=default_widget,
+            default_returnwidget=default_returnwidget,
+            
+        )
+        self.fullfill_registration(fs)
 
     def get_fullfilled_structure_for_cls(self, cls: Type) -> FullFilledStructure:
         try:
@@ -266,8 +233,7 @@ class StructureRegistry(BaseModel):
         except KeyError:
             if self.allow_auto_register:
                 try:
-                    self.register_as_structure(cls)
-                    return self._fullfilled_structures_map[cls]
+                    return self.auto_register(cls)
                 except StructureDefinitionError as e:
                     raise StructureDefinitionError(
                         f"{cls} was not registered and could not be registered"
@@ -295,9 +261,6 @@ class StructureRegistry(BaseModel):
 
         self._identifier_expander_map[fullfilled_structure.identifier] = (
             fullfilled_structure.aexpand
-        )
-        self._identifier_collecter_map[fullfilled_structure.identifier] = (
-            fullfilled_structure.acollect
         )
         self._identifier_shrinker_map[fullfilled_structure.identifier] = (
             fullfilled_structure.ashrink
@@ -328,32 +291,28 @@ class StructureRegistry(BaseModel):
 
         self._fullfilled_structures_map[fullfilled_structure.cls] = fullfilled_structure
 
-    def get_converter_for_annotation(self, annotation):
-        try:
-            return self._structure_annotation_map[annotation]
-        except KeyError as e:
-            raise StructureRegistryError(f"{annotation} is not registered") from e
-        
-        
-    def get_identifier_for_cls(self, cls: Type) -> Identifier:
-        try:
-            return self.get_fullfilled_structure_for_cls(cls).identifier
-        except KeyError as e:
-            raise StructureRegistryError(f"{cls} is not registered") from e
-
     def get_port_for_cls(
         self,
         cls: Type,
         key: str,
         nullable: bool = False,
         description: Optional[str] = None,
-        effects: Optional[EffectsMap] = None,
+        effects: Optional[list[EffectInput]] = None,
         label: Optional[str] = None,
         validators: Optional[List[ValidatorInput]] = None,
         default: Any = None,
         assign_widget: Optional[AssignWidgetInput] = None,
         return_widget: Optional[ReturnWidgetInput] = None,
     ) -> PortInput:
+        """ Create a port for a given class
+        
+        This will use the structure registry to find the correct
+        structure for the given class. It will then create a port
+        for this class. You can pass overwrites if the port
+        should not be created with the default values.
+        """
+        
+        
         structure = self.get_fullfilled_structure_for_cls(cls)
 
         identifier = structure.identifier
@@ -372,46 +331,16 @@ class StructureRegistry(BaseModel):
                 returnWidget=return_widget,
                 key=key,
                 label=label,
-                default=default_converter(default) if default else None,
+                default=default_converter(default) if (default and default_converter) else None,
                 nullable=nullable,
-                effects=effects,
+                effects=effects or [],
                 description=description,
-                validators=validators,
+                validators=validators or [],
             )
         except Exception as e:
             raise StructureRegistryError(
                 f"Could not create port for {cls} with fullfilled structure {structure}"
             ) from e
-
-    def get_child_port_and_default_converter_for_cls(
-        self,
-        cls: Type,
-        key: str,
-        nullable: bool = False,
-        description: Optional[str] = None,
-        assign_widget: Optional[AssignWidgetInput] = None,
-        return_widget: Optional[ReturnWidgetInput] = None,
-    ) -> PortInput:
-        identifier = self.get_identifier_for_structure(cls)
-        scope = self.get_port_scope_for_identifier(identifier)
-        identifier = self.get_identifier_for_structure(cls)
-        default_converter = self.get_default_converter_for_structure(cls)
-        assign_widget = assign_widget or self.get_widget_input(cls)
-        return_widget = return_widget or self.get_returnwidget_input(cls)
-
-        return (
-            ChildPortInput(
-                key=key,
-                kind=PortKind.STRUCTURE,
-                identifier=identifier,
-                scope=scope,
-                nullable=nullable,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
-                description=description,
-            ),
-            default_converter,
-        )
 
     async def __aenter__(self):
         current_structure_registry.set(self)
@@ -421,8 +350,7 @@ class StructureRegistry(BaseModel):
         current_structure_registry.set(None)
 
 
-
-DEFAULT_STRUCTURE_REGISTRY = None
+DEFAULT_STRUCTURE_REGISTRY: StructureRegistry | None = None
 
 
 def get_current_structure_registry(allow_default=True) -> StructureRegistry:

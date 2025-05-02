@@ -1,3 +1,4 @@
+from types import TracebackType
 from pydantic import Field
 from rath import rath
 import contextvars
@@ -9,33 +10,48 @@ from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 from rath.links.retry import RetryLink
 
-current_rekuest_next_rath = contextvars.ContextVar(
-    "current_rekuest_next_rath", default=None
-)
+current_rekuest_next_rath = contextvars.ContextVar("current_rekuest_next_rath", default=None)
 
 
 class RekuestNextLinkComposition(TypedComposedLink):
-    shrink: ShrinkingLink = Field(default_factory=ShrinkingLink)
-    dicting: DictingLink = Field(default_factory=DictingLink)
-    auth: AuthTokenLink
-    retry: RetryLink = Field(default_factory=RetryLink)
-    split: SplitLink
+    """A composition of links for Rekuest Next."""
 
-    def _repr_html_inline_(self):
-        return f"<table><tr><td>auth</td><td>{self.auth.maximum_refresh_attempts}</td></tr></table>"
+    shrink: ShrinkingLink = Field(
+        default_factory=ShrinkingLink, description="Shrinks potential structures in the request."
+    )
+    dicting: DictingLink = Field(
+        default_factory=DictingLink, description="Dicts the request and response."
+    )
+    auth: AuthTokenLink
+    retry: RetryLink = Field(
+        default_factory=RetryLink, description="Retries the request if it fails."
+    )
+    split: SplitLink
 
 
 class RekuestNextRath(rath.Rath):
+    """A Rath client for Rekuest Next.
+
+    This class is a wrapper around the Rath client and provides
+    a default composition of links for Rekuest Next, that allows
+    for authentication, retrying, and shrinking of requests.
+
+    """
+
     link: RekuestNextLinkComposition = Field(default_factory=RekuestNextLinkComposition)
 
     async def __aenter__(self):
+        """Set the current Rekuest Next Rath client in the context variable."""
         await super().__aenter__()
         current_rekuest_next_rath.set(self)
         return self
 
-    def _repr_html_inline_(self):
-        return f"<table><tr><td>link</td><td>{self.link._repr_html_inline_()}</td></tr></table>"
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Unset the current Rekuest Next Rath client in the context variable."""
         await super().__aexit__(exc_type, exc_val, exc_tb)
         current_rekuest_next_rath.set(None)

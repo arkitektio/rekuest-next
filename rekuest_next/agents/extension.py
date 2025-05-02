@@ -1,9 +1,6 @@
 from typing import List, runtime_checkable, Protocol, Optional
-from rekuest_next.api.schema import Template
-from rekuest_next.actors.base import Actor, Passport, ActorTransport
+from rekuest_next.actors.base import Actor
 from typing import TYPE_CHECKING
-from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.collection.collector import Collector
 from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
@@ -19,23 +16,22 @@ class AgentExtension(Protocol):
         """This should be called when the agent starts"""
         ...
 
-
     def get_name(self) -> str:
-        """This should return the name of the extension"""
-        ...
-    
-    def get_definition_registry(self) -> DefinitionRegistry:
-        """This should register the definitions for the agent.
+        """Get the name of the extension. This is used to identify the extension
+        in the registry."""
+        return "default"
 
-        This is called when the agent is started, for each extensions. Extensions
-        should register their definitions here and merge them with the agent's
-        definition registry.
-        
-        Dynamic 
+    async def aget_templates(self) -> List["TemplateInput"]:
+        """Get the templates for this extension. This
+        will be called when the agent starts and will
+        be used to register the templates on the rekuest server
+
+        the templates in the registry.
+        Returns:
+            List[TemplateInput]: The templates for this extension.
         """
-        ...
 
-    async def aspawn_actor_from_template(
+    async def aspawn_actor_for_interface(
         self,
         agent: "BaseAgent",
         interface: str,
@@ -45,44 +41,6 @@ class AgentExtension(Protocol):
         The actor should not be started!
 
         TODO: This should be asserted
-
-        """
-        ...
-
-    async def aget_templates(
-        self, 
-    ) -> List["TemplateInput"]:
-        """This should register the definitions for the agent.
-
-        This is called when the agent is started, for each extensions. Extensions
-        should register their definitions here and merge them with the agent's
-        definition registry.
-
-
-        Basic usage:
-
-        ```python
-
-        definition, actorBuilder = reactify(...)
-
-        definition_registry.register_at_interface(
-            "deploy_graph",
-            definition=definition,
-            structure_registry=self.structure_registry,
-            actorBuilder=actorBuilder,
-        )
-
-        ```
-
-        Merge Usage:
-
-        ```python
-
-        self.definition_registry = DefinitionRegistry()
-
-        agent_definition_registry.merge_with(self.definition_registry)
-
-
 
         """
         ...

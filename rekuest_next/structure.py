@@ -2,7 +2,7 @@ from rekuest_next.structures.default import (
     get_default_structure_registry,
     id_shrink,
 )
-from rekuest_next.structures.hooks.standard import id_shrink
+from rekuest_next.structures.hooks.local_structure import id_shrink
 from rekuest_next.api.schema import (
     Template,
     Node,

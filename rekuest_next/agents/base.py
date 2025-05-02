@@ -1,34 +1,38 @@
+"""Base agent class
+
+This is the base class for all agents. It provides the basic functionality
+for managing the lifecycle of the actors that are spawned from it.
+
+"""
+
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+import uuid
 
 from pydantic import ConfigDict, Field
 
 from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next.actors.base import Actor
-from rekuest_next.actors.transport.local_transport import (
-    ProxyActorTransport,
-)
-from rekuest_next.actors.transport.types import ActorTransport
 from rekuest_next.actors.types import Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
-from rekuest_next.agents.registry import ExtensionRegistry, get_default_extension_registry
+from rekuest_next.agents.registry import (
+    ExtensionRegistry,
+    get_default_extension_registry,
+)
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
-    AssignationEventKind,
     Template,
+    Agent,
     aensure_agent,
     aset_extension_templates,
 )
-from rekuest_next.collection.collector import Collector
 from rekuest_next import messages
 from rekuest_next.rath import RekuestNextRath
 from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
 
 logger = logging.getLogger(__name__)
-
-
 
 
 class BaseAgent(KoiledModel):
@@ -50,9 +54,19 @@ class BaseAgent(KoiledModel):
 
     """
 
-    name: str
-    instance_id: str = "main"
-    rath: RekuestNextRath
+    rath: RekuestNextRath = Field(
+        description="The graph client that is used to make queries to when connecting to the rekuest server.",
+    )
+
+    name: str = Field(
+        default="BaseAgent",
+        description="The name of the agent. This is used to identify the agent in the system.",
+    )
+    instance_id: str = Field(
+        default="default",
+        description="The instance id of the agent. This is used to identify the agent in the system.",
+    )
+    shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
     extension_registry: ExtensionRegistry = Field(
         default_factory=get_default_extension_registry
@@ -69,33 +83,86 @@ class BaseAgent(KoiledModel):
     _errorfuture: Contextual[asyncio.Future] = None
     _contexts: Dict[str, Any] = None
     _states: Dict[str, Any] = None
-
+    _agent: Contextual[Agent] = None
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    async def aput_on_shelve(self, value: Any) -> str:
+        """Get the shelve for the agent. This is used to get the shelve
+        for the agent and all the actors that are spawned from it.
+        """
+        key = self._agent.id + ":" + str(uuid.uuid4())
+        self.shelve[key] = value
+        print("Shelve", key)
+        return key
+
+    async def aget_from_shelve(self, key: str) -> Any:
+        """Get a value from the shelve. This is used to get values from the
+        shelve for the agent and all the actors that are spawned from it.
+        """
+        assert ":" in key, "Key must be a shelve key"
+        assert key.startswith(self._agent.id), "Key must be a shelve key"
+        assert key in self.shelve, "Key must be a shelve key"
+        return self.shelve[key]
+
+    async def acollect(self, key: str) -> None:
+        """Collect a value from the shelve. This is used to collect values from the
+        shelve for the agent and all the actors that are spawned from it.
+        """
+        del self.shelve[key]
 
     async def abroadcast(self, message: messages.ToAgentMessage) -> None:
+        """Broadcasts a message from a transport
+        to the agent which then delegates it to agents
+
+        This is an async funciton that puts the message on the agent
+        queue. The agent will then process the message and send it to the
+        actors.
+        """
+
         await self._inqueue.put(message)
 
-    async def on_agent_error(self, exception) -> None:
+    async def on_agent_error(self, exception: Exception) -> None:
+        """Called when an error occurs in the agent. This
+        can be used to handle errors that occur in the agent
+        """
         if self._errorfuture is None or self._errorfuture.done():
             return
         self._errorfuture.set_exception(exception)
         ...
 
     async def on_definite_error(self, error: DefiniteConnectionFail) -> None:
+        """Async function that is called when a definite error occurs in the agent.
+
+        This can be used to handle errors that occur in the agent
+        and that are not correctable. This is used to handle errors that occur
+        when the transport is not able to connect to the server anymore and
+        the agent is not able to recover from it.
+
+        Args:
+            error (DefiniteConnectionFail): The error that occurred.
+        """
         if self._errorfuture is None or self._errorfuture.done():
             return
         self._errorfuture.set_exception(error)
         ...
 
     async def on_correctable_error(self, error: CorrectableConnectionFail) -> bool:
+        """Async function that is called when a correctable error occurs in the transport.
+        This can be used to handle errors that occur in the transport and that
+        can be corrected. An agent can decide to allow the correction of the error
+        or not.
+        """
         # Always correctable
         return True
         ...
 
     async def process(self, message: messages.ToAgentMessage) -> None:
+        """Processes a message from the transport. This is used to process
+        messages that are sent to the agent from the transport. The agent will
+        then send the message to the actors.
+        """
         logger.info(f"Agent received {message}")
 
         if isinstance(message, messages.Assign):
@@ -105,25 +172,28 @@ class BaseAgent(KoiledModel):
                 await actor.apass(message)
             else:
                 try:
-                    
-                    actor = await self.aspawn_actor_from_assign(
-                        message 
-                    )
-                    
+                    actor = await self.aspawn_actor_from_assign(message)
+
                     await actor.apass(message)
-                    
-                    
+
                 except Exception as e:
-                   await self.transport.asend(
+                    await self.transport.asend(
                         messages.CriticalEvent(
                             assignation=message.assignation,
                             error=f"Not able to create actor through extensions {str(e)}",
                         )
                     )
-                   raise e
-               
+                    raise e
 
-        elif isinstance(message, (messages.Cancel, messages.Step, messages.Collect)):
+        elif isinstance(
+            message,
+            (
+                messages.Cancel,
+                messages.Step,
+                messages.Pause,
+                messages.Resume,
+            ),
+        ):
             if message.assignation in self.managed_assignments:
                 assignment = self.managed_assignments[message.assignation]
                 actor = self.managed_actors[assignment.actor_id]
@@ -134,11 +204,19 @@ class BaseAgent(KoiledModel):
                     f"Managed: {self.provision_passport_map} Received: {message.provision}"
                 )
                 await self.transport.asend(
-                   messages.CriticalEvent(
+                    messages.CriticalEvent(
                         assignation=message.assignation,
                         error="Actors is no longer running and not managed. Probablry there was a restart",
-                   )
+                    )
                 )
+
+        elif isinstance(message, messages.Collect):
+            print("Collecting")
+            for key in message.drawers:
+                if key in self.shelve:
+                    del self.shelve[key]
+                else:
+                    print("Key not in shelve")
 
         elif isinstance(message, messages.AssignInquiry):
             if message.assignation in self.managed_assignments:
@@ -163,18 +241,23 @@ class BaseAgent(KoiledModel):
                     )
             else:
                 await self.transport.asend(
-                     messages.CriticalEvent(
+                    messages.CriticalEvent(
                         assignation=message.assignation,
                         error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
                 )
 
-        
+        elif isinstance(message, messages.Collect):
+            await self.shelve.adelete(message.assignation)
 
         else:
             raise AgentException(f"Unknown message type {type(message)}")
 
-    async def atear_down(self):
+    async def atear_down(self) -> None:
+        """Tears down the agent. This is used to tear down the agent
+        and all the actors that are spawned from it.
+        """
+
         cancelations = [actor.acancel() for actor in self.managed_actors.values()]
         # just stopping the actor, not cancelling the provision..
 
@@ -194,30 +277,46 @@ class BaseAgent(KoiledModel):
         for extension in self.extension_registry.agent_extensions.values():
             await extension.atear_down()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[type],
+    ) -> None:
+        """Exit the agent.
+
+        This method is called when the agent is exited. It is responsible for
+        tearing down the agent and all the actors that are spawned from it.
+
+        Args:
+            exc_type (Optional[type]): The type of the exception
+            exc_val (Optional[Exception]): The exception value
+            exc_tb (Optional[type]): The traceback
+
+        """
         await self.atear_down()
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
-
-    async def aregister_definitions(self, instance_id: Optional[str] = None):
-        """Registers the definitions that are defined in the definition registry
+    async def aregister_definitions(self, instance_id: Optional[str] = None) -> None:
+        """Register all templates that are handled by extensiosn
 
         This method is called by the agent when it starts and it is responsible for
-        registering the definitions that are defined in the definition registry. This
-        is done by sending the definitions to arkitekt and then storing the templates
-        that are returned by arkitekt in the agent's internal data structures.
-
-        You can implement this method in your agent subclass if you want define preregistration
-        logic (like registering definitions in the definition registry).
+        registering the tempaltes that are defined in the extensions.
         """
 
-        x = await aensure_agent(
+        self._agent = await aensure_agent(
             instance_id=instance_id,
             name=self.name,
-            extensions=[extension.get_name() for extension in self.extension_registry.agent_extensions.values()],
+            extensions=[
+                extension.get_name()
+                for extension in self.extension_registry.agent_extensions.values()
+            ],
         )
 
-        for extension_name, extension in self.extension_registry.agent_extensions.items():
+        for (
+            extension_name,
+            extension,
+        ) in self.extension_registry.agent_extensions.items():
             to_be_created_templates = await extension.aget_templates()
 
             created_templates = await aset_extension_templates(
@@ -226,13 +325,10 @@ class BaseAgent(KoiledModel):
                 instance_id=instance_id,
                 extension=extension_name,
             )
-            
-            
 
             for template in created_templates:
                 self.interface_template_map[template.interface] = template
                 self.template_interface_map[template.id] = template
-
 
     async def afind_local_template_for_nodehash(
         self, nodehash: str
@@ -240,16 +336,18 @@ class BaseAgent(KoiledModel):
         for template in self.interface_template_map.values():
             if template.node.hash == nodehash:
                 return template
-            
-            
+
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
         await self.transport.asend(message)
 
-
     async def astart(self, instance_id: Optional[str] = None):
+        """Starts the agent. This is used to start the agent and all the actors
+        that are spawned from it. The agent will then start the transport and
+        start listening for messages from the transport.
+        """
         instance_id = self.instance_id
 
         for extension in self.extension_registry.agent_extensions.values():
@@ -260,18 +358,16 @@ class BaseAgent(KoiledModel):
         self._errorfuture = asyncio.Future()
         await self.transport.aconnect(instance_id)
 
-
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps template"""
-
 
         if assign.extension not in self.extension_registry.agent_extensions:
             raise ProvisionException(
                 f"Extension {assign.extension} not found in agent {self.name}"
             )
         extension = self.extension_registry.agent_extensions[assign.extension]
-        
+
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
 
         await actor.arun()  # TODO: Maybe move this outside?
@@ -280,7 +376,8 @@ class BaseAgent(KoiledModel):
 
         return actor
 
-    async def await_errorfuture(self):
+    async def await_errorfuture(self) -> Exception:
+        """Waits for the error future to be set. This is used to wait for"""
         return await self._errorfuture
 
     async def astep(self):
@@ -296,28 +393,29 @@ class BaseAgent(KoiledModel):
         else:
             await self.process(await done.pop())
 
-    def step(self, *args, **kwargs):
-        return unkoil(self.astep, *args, **kwargs)
-
-    def start(self, *args, **kwargs):
-        return unkoil(self.astart, *args, **kwargs)
-
-    def provide(self, *args, **kwargs):
-        return unkoil(self.aprovide, *args, **kwargs)
+    def provide(self, instance_id: Optional[str] = None) -> None:
+        """Provides the agent. This starts the agents and
+        connected the transport."""
+        return unkoil(self.aprovide, instance_id=instance_id)
 
     async def aloop(self):
+        """Async loop that runs the agent. This is used to run the agent"""
         try:
             while True:
                 self.running = True
                 await self.astep()
         except asyncio.CancelledError:
-            logger.info(
-                "Provisioning task cancelled. We are running" f" {self.transport}"
-            )
+            logger.info(f"Provisioning task cancelled. We are running {self.transport}")
             self.running = False
             raise
 
-    async def aprovide(self, instance_id: Optional[str] = None):
+    async def aprovide(self, instance_id: Optional[str] = None) -> None:
+        """Provides the agent.
+
+        This starts the agents and connectes to the transport.
+        It also starts the agent and starts listening for messages from the transport.
+
+        """
         try:
             logger.info(
                 f"Launching provisioning task. We are running {self.transport.instance_id}"
@@ -330,7 +428,13 @@ class BaseAgent(KoiledModel):
             await self.atear_down()
             raise
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> None:
+        """Enter the agent context manager. This is used to enter the agent
+
+        context manager and start the agent. The agent will then start the
+        transport and start listening for messages from the transport.
+        """
+
         self._inqueue = asyncio.Queue()
         self.transport.set_callback(self)
         await self.transport.__aenter__()

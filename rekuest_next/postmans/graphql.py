@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class GraphQLPostman(BasePostman):
+    """A GraphQL Postman
+
+    This postman is used to send messages to the GraphQL server via a graphql
+    transport.
+
+    This graphql postman
+
+    """
+
     rath: RekuestNextRath
     instance_id: str
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
@@ -34,7 +43,8 @@ class GraphQLPostman(BasePostman):
     _watching: bool = None
     _lock: asyncio.Lock = None
 
-    async def aconnect(self):
+    async def aconnect(self) -> None:
+        """A"""
         await super().aconnect()
         data = {}  # await self.transport.alist_assignations()
         self.assignations = {ass.assignation: ass for ass in data}
@@ -50,9 +60,7 @@ class GraphQLPostman(BasePostman):
         except Exception as e:
             raise PostmanException("Cannot Unreserve") from e
 
-    async def aassign(
-        self, assign: AssignInput
-    ) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         async with self._lock:
             if not self._watching:
                 await self.start_watching()
@@ -85,9 +93,7 @@ class GraphQLPostman(BasePostman):
 
     async def watch_assignations(self):
         try:
-            async for assignation in awatch_assignations(
-                self.instance_id, rath=self.rath
-            ):
+            async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)

@@ -1,3 +1,6 @@
+"""This module contains the exceptions used in the Agent."""
+
+
 class AgentException(Exception):
     """
     Base class for all exceptions raised by the Agent.

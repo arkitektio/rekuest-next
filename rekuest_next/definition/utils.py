@@ -4,42 +4,41 @@ from rekuest_next.api.schema import AssignWidgetInput, EffectInput, ReturnWidget
 from rekuest_next.definition.errors import DefinitionError
 from rekuest_next.state.predicate import is_state
 
+parsers = []
 
 try:
-    from typing import Annotated, get_type_hints, Any, get_origin
+    from annotated_types import Predicate, Le, Gt, Len
+    
+    def extract_annotated_types(annotations, assign_widget, return_widget, validators, effects, default, label, description):
+        
+        for annotation in annotations:
+            if isinstance(annotation, Gt):
+                validators.append(
+                    ValidatorInput(
+                        function=f"(x) => x > {annotation.gt}",
+                        label=f"Must be greater than {annotation.gt}",
+                        errorMessage=f"Must be greater than {annotation.gt}",
+                    )
+                )
+            if isinstance(annotation, Len):
+                validators.append(
+                    ValidatorInput(
+                        function=f"(x) => x.length > {annotation.max_length} && x.length < {annotation.min_length}",
+                        label=f"Must have length inbetween {annotation.max_length} and {annotation.min_length}",
+                        errorMessage=f"Must have length inbetween {annotation.max_length} and {annotation.min_length}",
+                    )
+                )
+                
+            
+        return assign_widget, return_widget, validators, effects, default, label, description
 
-    annot_type = type(Annotated[int, "spam"])
-
-    def is_annotated(obj: Any) -> bool:
-        """Checks if a hint is an Annotated type
-
-        Args:
-            hint (Any): The typehint to check
-            annot_type (_type_, optional): _description_. Defaults to annot_type.
-
-        Returns:
-            bool: _description_
-        """
-        return get_origin(obj) is Annotated
+    parsers.append(
+        extract_annotated_types
+    )
 
 except ImportError:
-    Annotated = None
-    from typing import get_type_hints as _get_type_hints, Any
+    pass
 
-    def get_type_hints(obj: Any, include_extras=False, **kwargs):
-        return _get_type_hints(obj, **kwargs)
-
-    def is_annotated(obj: Any) -> bool:
-        """Checks if a hint is an Annotated type
-
-        Args:
-            hint (Any): The typehint to check
-            annot_type (_type_, optional): _description_. Defaults to annot_type.
-
-        Returns:
-            bool: _description_
-        """
-        return False
 
 
 def is_local_var(type):
@@ -47,7 +46,7 @@ def is_local_var(type):
 
 
 
-def extract_annotations(annotations, assign_widget, return_widget, validators, effects, default, label, description):
+def extract_basic_annotations(annotations, assign_widget, return_widget, validators, effects, default, label, description):
 
     str_annotation_count = 0
     
@@ -55,13 +54,13 @@ def extract_annotations(annotations, assign_widget, return_widget, validators, e
         if isinstance(annotation, AssignWidgetInput):
             if assign_widget:
                 raise DefinitionError(
-                    f"Multiple AssignWidgets found"
+                    "Multiple AssignWidgets found"
                 )
             assign_widget = annotation
         elif isinstance(annotation, ReturnWidgetInput):
             if return_widget:
                 raise DefinitionError(
-                    f"Multiple ReturnWidgets found"
+                    "Multiple ReturnWidgets found"
                 )
             return_widget = annotation
         elif isinstance(annotation, ValidatorInput):
@@ -72,13 +71,13 @@ def extract_annotations(annotations, assign_widget, return_widget, validators, e
         elif hasattr(annotation, "get_assign_widget"):
             if assign_widget:
                 raise DefinitionError(
-                    f"Multiple AssignWidgets found"
+                    "Multiple AssignWidgets found"
                 )
             assign_widget = annotation.get_assign_widget()
         elif hasattr(annotation, "get_return_widget"):
             if return_widget:
                 raise DefinitionError(
-                    f"Multiple ReturnWidgets found"
+                    "Multiple ReturnWidgets found"
                 )
             return_widget = annotation.get_return_widget()
         elif hasattr(annotation, "get_effects"):
@@ -86,7 +85,7 @@ def extract_annotations(annotations, assign_widget, return_widget, validators, e
         elif hasattr(annotation, "get_default"):
             if default:
                 raise DefinitionError(
-                    f"Multiple Defaults found"
+                    "Multiple Defaults found"
                 )
             
             default = annotation.get_default()
@@ -105,4 +104,28 @@ def extract_annotations(annotations, assign_widget, return_widget, validators, e
             logging.warning(f"Unrecognized annotation {annotation}")
             
             
+    return assign_widget, return_widget, validators, effects, default, label, description
+
+
+parsers.append(
+    extract_basic_annotations
+)
+
+
+def extract_annotations(annotations, assign_widget, return_widget, validators, effects, default, label, description):
+    
+    
+    for parser in parsers:
+       
+        assign_widget, return_widget, validators, effects, default, label, description = parser(
+            annotations,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+            default,
+            label,
+            description
+        )
+        
     return assign_widget, return_widget, validators, effects, default, label, description

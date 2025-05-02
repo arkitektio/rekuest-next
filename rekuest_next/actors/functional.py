@@ -1,50 +1,63 @@
+"""Functional actors for rekuest_next"""
+
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable
+from typing import Any, AsyncGenerator, Callable, Dict, Self
 from koil.helpers import iterate_spawned, run_spawned
 from pydantic import BaseModel, Field
 from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
-from rekuest_next.api.schema import AssignationEventKind
 from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
 from rekuest_next.actors.helper import AssignmentHelper
-
-from rekuest_next.collection.collector import Collector
-from rekuest_next.actors.transport.types import AssignTransport
 from rekuest_next.structures.parse_collectables import parse_collectable
 from rekuest_next.structures.errors import SerializationError
 from rekuest_next import messages
+
 logger = logging.getLogger(__name__)
 
 
-async def async_none_provide():
+async def async_none_provide(self: "SerializingActor") -> None:
     """Do nothing on provide"""
     return None
 
 
-async def async_none_unprovide():
+async def async_none_unprovide() -> None:
     """Do nothing on unprovide"""
     return None
 
 
 class FunctionalActor(BaseModel):
+    """The based class for all composable functional"
+
+    Functional actors are actors that are based on a function, that
+    can be passed on to the actor.
+    """
+
     assign: Callable[..., Any]
 
 
 class AsyncFuncActor(SerializingActor):
-    
-    async def assign(self, **kwargs):
+    """The base class for all async functional actors
+
+    Async functional actors are actors that are based on a function, that
+    can be passed on to the actor.
+    """
+
+    async def assign(self: Self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
         """This method should be implemented by the actor"""
         raise NotImplementedError("This method should be implemented by the actor")
-    
-    async def _assign_func(self, **kwargs):
+
+    async def _assign_func(self: Self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
+        """This is a wrapper for the assign function to be used in the actor
+        It should allow to inject some additional logic to the assign function"""
         returns = await self.assign(**kwargs)
         return returns
-    
+
     async def on_assign(
-        self,
+        self: Self,
         assignment: Assign,
-    ):
+    ) -> None:
+        """This method is called when the actor is assigned to a task"""
 
         await self.asend(
             message=messages.ProgressEvent(
@@ -56,7 +69,6 @@ class AsyncFuncActor(SerializingActor):
 
         async with self.sync:
             try:
-                
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
@@ -69,6 +81,7 @@ class AsyncFuncActor(SerializingActor):
                     self.definition,
                     assignment.args,
                     structure_registry=self.structure_registry,
+                    shelver=self.agent,
                     skip_expanding=not self.expand_inputs,
                 )
 
@@ -82,20 +95,15 @@ class AsyncFuncActor(SerializingActor):
                     )
                 )
 
-                async with AssignmentHelper(
-                    assignment=assignment, actor=self
-                ):
+                async with AssignmentHelper(assignment=assignment, actor=self):
                     returns = await self._assign_func(**params)
 
                 returns = await shrink_outputs(
                     self.definition,
                     returns,
                     structure_registry=self.structure_registry,
+                    shelver=self.agent,
                     skip_shrinking=not self.shrink_outputs,
-                )
-
-                self.collector.register(
-                    assignment, parse_collectable(self.definition, returns)
                 )
 
                 await self.asend(
@@ -128,7 +136,7 @@ class AsyncFuncActor(SerializingActor):
                         error=str(ex),
                     )
                 )
-                
+
             except Exception as ex:
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
@@ -140,23 +148,23 @@ class AsyncFuncActor(SerializingActor):
 
 
 class AsyncGenActor(SerializingActor):
-    
-    async def assign(self, **kwargs):
+    """The base class for all async generator functional actors"""
+
+    async def assign(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
         """This method should be implemented by the actor"""
         raise NotImplementedError("This method should be implemented by the actor")
-    
-    
-    async def _yield_func(self, **kwargs):
+
+    async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
         async for returns in self.assign(**kwargs):
             yield returns
-    
-    
+
     async def on_assign(
-        self,
+        self: Self,
         assignment: Assign,
-    ):
+    ) -> None:
+        """This method is called when the actor is assigned to a task"""
         await self.asend(
-                    message=messages.ProgressEvent(
+            message=messages.ProgressEvent(
                 assignation=assignment.assignation,
                 percentage=0,
                 messages="Queued for running",
@@ -169,12 +177,12 @@ class AsyncGenActor(SerializingActor):
                     self.definition,
                     assignment.args,
                     structure_registry=self.structure_registry,
+                    shelver=self.agent,
                     skip_expanding=not self.expand_inputs,
                 )
 
                 params = await self.add_local_variables(params)
-                
-                
+
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
@@ -184,18 +192,16 @@ class AsyncGenActor(SerializingActor):
                 )
 
                 async with AssignmentHelper(
-                    assignment=assignment, actor=self,
+                    assignment=assignment,
+                    actor=self,
                 ):
                     async for returns in self._yield_func(**params):
                         returns = await shrink_outputs(
                             self.definition,
                             returns,
                             structure_registry=self.structure_registry,
+                            shelver=self.agent,
                             skip_shrinking=not self.shrink_outputs,
-                        )
-
-                        self.collector.register(
-                            assignment, parse_collectable(self.definition, returns)
                         )
 
                         await self.asend(
@@ -213,7 +219,6 @@ class AsyncGenActor(SerializingActor):
                     )
                 )
 
-            
             except SerializationError as ex:
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
@@ -231,7 +236,7 @@ class AsyncGenActor(SerializingActor):
                         error=str(ex),
                     )
                 )
-                
+
             except Exception as ex:
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
@@ -243,51 +248,53 @@ class AsyncGenActor(SerializingActor):
 
 
 class FunctionalFuncActor(FunctionalActor, AsyncFuncActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
+    """A functional actor that is composable with
+    a function"""
 
 
 class FunctionalGenActor(FunctionalActor, AsyncGenActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
+    """A functional stream actor that is composable with
+    a function"""
 
 
 class ThreadedFuncActor(AsyncFuncActor):
+    """A functional actrot that runs assignmed in a thread pool"""
+
     executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(1))
-    
-    
-    async def _assign_func(self, **kwargs):
+
+    async def _assign_func(self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
+        """This is a wrapper for the assign function to be used in the actor
+        It should allow to inject some additional logic to the assign function"""
+        # run the function in a thread pool
         returns = await run_spawned(
             self.assign, **kwargs, executor=self.executor, pass_context=True
         )
         return returns
 
 
-
 class ThreadedGenActor(AsyncGenActor):
+    """A functional stream actor that runs assigned in a thread pool"""
+
     executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(4))
 
-    async def _yield_func(self, **kwargs):
+    async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
         async for returns in iterate_spawned(
             self.assign, **kwargs, executor=self.executor, pass_context=True
         ):
             yield returns
 
 
-
 class FunctionalThreadedFuncActor(FunctionalActor, ThreadedFuncActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
+    """A composable functional actor that runs assigned in a thread pool"""
 
 
 class FunctionalThreadedGenActor(FunctionalActor, ThreadedGenActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
+    """A composable functional stream actor that runs assigned in a thread pool"""
+
 
 class FunctionalAsyncFuncActor(FunctionalActor, AsyncFuncActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
-        
+    """A composable funcitonal actor that is async"""
+
+
 class FunctionalAsyncGenActor(FunctionalActor, AsyncGenActor):
-    async def progress(self, value, percentage):
-        await self._progress(value, percentage)
+    """A composable functional stream actor that is async"""

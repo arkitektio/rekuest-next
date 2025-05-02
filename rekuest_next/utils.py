@@ -11,12 +11,13 @@ from typing import (
 
 from koil import unkoil, unkoil_gen
 from koil.composition.base import KoiledModel
-
+from rekuest_next.actors.context import useUser, useAssignation
 from rekuest_next.actors.vars import (
     get_current_assignation_helper,
     NotWithinAnAssignationError,
 )
 from rekuest_next.api.schema import (
+    AssignationEvent,
     AssignationEventKind,
     AssignInput,
     HookInput,
@@ -25,7 +26,6 @@ from rekuest_next.api.schema import (
     ReserveInput,
     Template,
     afind,
-    find,
     areserve,
 )
 from rekuest_next.messages import Assign
@@ -41,16 +41,6 @@ def ensure_return_as_list(value: Any) -> list:
     if isinstance(value, tuple):
         return value
     return [value]
-
-
-def useUser() -> str:
-    """Use the current User
-
-    Returns:
-        User: The current User
-    """
-    helper = get_current_assignation_helper()
-    return helper.assignation.user
 
 
 class IDBearer(Protocol):
@@ -149,7 +139,7 @@ async def aiterate(
     instance_id = postman.instance_id
 
     try:
-        parent = parent or get_current_assignation_helper().assignation
+        parent = parent or useAssignation()
     except:
         parent = None
 
@@ -195,11 +185,6 @@ async def aiterate_raw(
 
     instance_id = postman.instance_id
 
-    try:
-        parent = parent or get_current_assignation_helper().assignation
-    except:
-        parent = None
-
     reference = reference or str(uuid.uuid4())
 
     x = AssignInput(
@@ -216,7 +201,6 @@ async def aiterate_raw(
         isHook=False,
         ephemeral=False,
     )
-   
 
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
@@ -239,7 +223,7 @@ async def acall_raw(
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     log: bool = False,
-) -> AsyncGenerator[tuple[Any], None]:
+) -> AsyncGenerator[AssignationEvent, None]:
     postman: BasePostman = get_current_postman()
 
     instance_id = postman.instance_id
@@ -435,7 +419,6 @@ class DirectContext(KoiledModel):
         return unkoil_gen(self.aiterate, *args, **kwargs)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-
         return self
 
     def __enter__(self) -> "ReservationContext":

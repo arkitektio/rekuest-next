@@ -1,23 +1,28 @@
-fragment ChildPortNested on ChildPort {
+fragment ChildPortNested on Port {
   key
   kind
+  scope
   children {
     identifier
+    scope
     nullable
     kind
   }
   identifier
   nullable
+  default
 }
 
-fragment ChildPort on ChildPort {
+fragment ChildPort on Port {
   key
   kind
+  scope
   identifier
   children {
     ...ChildPortNested
   }
   nullable
+  default
 }
 
 fragment CustomEffect on CustomEffect {
@@ -118,6 +123,7 @@ fragment Port on Port {
   __typename
   key
   label
+  scope
   nullable
   description
   default

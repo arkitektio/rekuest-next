@@ -3,7 +3,8 @@ from pydantic import ValidationError
 import pytest
 
 
-def test_search_widget_error_on_wrong_graphql():
+def test_search_widget_error_on_wrong_graphql() -> None:
+    """Test the search widget error when the GraphQL query is wrong"""
     with pytest.raises(ValidationError):
         SearchWidget(query="hallo", ward="mikro")
 
@@ -26,17 +27,18 @@ def test_search_widget_error_on_wrong_graphql():
         )
 
 
-def test_search_widget():
+def test_search_widget() -> None:
+    """Test if it correctly generates a search widget"""
     SearchWidget(
         query=(
-            "query search($search: String, $values: [ID]){ options: karl { value: x"
-            " label: y}} "
+            "query search($search: String, $values: [ID]){ options: karl { value: x label: y}} "
         ),
         ward="mikro",
     )
 
 
-def test_slider_widget_error():
+def test_slider_widget_error() -> None:
+    """Test the slider widget error handling"""
     with pytest.raises(ValidationError):
         SliderWidget(min=1, max=0)
 
@@ -44,7 +46,8 @@ def test_slider_widget_error():
         SliderWidget(min=0)
 
 
-def test_slider_widget():
+def test_slider_widget() -> None:
+    """Test the slider widget"""
     SliderWidget(
         min=0,
         max=100,

@@ -1,8 +1,11 @@
 import asyncio
 import sys
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, Generator, List, Tuple, Optional, Union
 from .structures import SecondObject, SecondSerializableObject, SerializableObject
 from annotated_types import Le, Predicate, Gt, Len
+from rekuest_next.structures.model import model
+from rekuest_next.api.schema import AssignWidgetInput, AssignWidgetKind
+
 
 if sys.version_info < (3, 9):
     from typing_extensions import Annotated
@@ -58,7 +61,7 @@ def plain_structure_function(
 
 
 def union_structure_function(
-    rep: Union[SerializableObject, SecondSerializableObject]
+    rep: Union[SerializableObject, SecondSerializableObject],
 ) -> Union[SerializableObject, SecondSerializableObject]:
     """Karl
 
@@ -146,9 +149,27 @@ def annotated_nested_structure_function(
     return "tested"
 
 
+def annotated_nested_structure_function(
+    rep: Annotated[str, Predicate(str.islower)],
+    number: Dict[str, Annotated[List[SecondSerializableObject], Len(3)]] = None,
+) -> str:
+    """Annotated Karl
+
+    Karl takes a a representation and does magic stuff
+
+    Args:
+        rep (str): Nougat
+        name (str, optional): Bugat
+
+    Returns:
+        Representation: The Returned Representation
+    """
+    return "tested"
+
+
 def nested_structure_generator(
     rep: List[SecondObject], name: Dict[str, SecondObject] = None
-) -> Tuple[str, Dict[str, SecondObject]]:
+) -> Generator[Tuple[str, Dict[str, SecondObject]], None, None]:
     """Structured Karl
 
     Naoinaoainao
@@ -166,7 +187,7 @@ def nested_structure_generator(
 
 async def nested_structure_asyncgenerator(
     rep: List[SecondObject], name: Dict[str, SecondObject] = None
-) -> Tuple[str, Dict[str, SecondObject]]:
+) -> Tuple[str, Dict[str, SecondObject]]:  # type: ignore
     """function_with_side_register_async
 
     Naoinaoainao
@@ -182,3 +203,24 @@ async def nested_structure_asyncgenerator(
     while True:
         await asyncio.sleep(0.2)
         yield "tested", {"peter": SecondObject(6)}
+
+
+@model
+class Karl:
+    int: Annotated[int, Gt(3)]
+    strucutre: Annotated[SecondObject, AssignWidgetInput(kind=AssignWidgetKind.CUSTOM)]
+
+
+async def nested_model_with_annotations(karls: List[Karl]) -> List[Karl]:
+    """Karl
+
+    Karl takes a a representation and does magic stuff
+
+    Args:
+        karls (List[Karl]): Nougat
+        name (str, optional): Bugat
+
+    Returns:
+        Representation: The Returned Representation
+    """
+    return "tested"

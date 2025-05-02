@@ -1,3 +1,5 @@
+"""Errors related to definition handling"""
+
 from rekuest_next.errors import RekuestError
 
 

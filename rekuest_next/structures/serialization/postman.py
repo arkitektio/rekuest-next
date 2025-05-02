@@ -1,13 +1,11 @@
 from typing import Any, Dict, List, Tuple, Union
-from rekuest_next.api.schema import Node
+from rekuest_next.api.schema import Node, PortScope
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     Port,
     PortKind,
-    DefinitionInput,
-    Definition,
     ChildPort,
 )
 from rekuest_next.structures.errors import (
@@ -16,13 +14,17 @@ from rekuest_next.structures.errors import (
     PortExpandingError,
     StructureExpandingError,
 )
+from rekuest_next.actors.types import Shelver
 from .predication import predicate_port
 import datetime as dt
 
 
 async def ashrink_arg(
-    port: Union[Port, ChildPort], value: Any, structure_registry=None
-) -> Any:
+    port: Union[Port, ChildPort],
+    value: Union[str, int, float, dict, list, None, Any],
+    structure_registry: StructureRegistry,
+    shelver: Shelver,
+) -> Union[str, int, float, dict, list, None]:
     """Expand a value through a port
 
     Args:
@@ -37,13 +39,13 @@ async def ashrink_arg(
             if port.nullable:
                 return None
             else:
-                raise ValueError(
-                    "{port} is not nullable (optional) but your provided None"
-                )
+                raise ValueError("{port} is not nullable (optional) but your provided None")
 
         if port.kind == PortKind.DICT:
             return {
-                key: await ashrink_arg(port.children[0], value, structure_registry)
+                key: await ashrink_arg(
+                    port.children[0], value, structure_registry=structure_registry, shelver=shelver
+                )
                 for key, value in value.items()
             }
 
@@ -51,7 +53,10 @@ async def ashrink_arg(
             return await asyncio.gather(
                 *[
                     ashrink_arg(
-                        port.children[0], item, structure_registry=structure_registry
+                        port.children[0],
+                        item,
+                        structure_registry=structure_registry,
+                        shelver=shelver,
                     )
                     for item in value
                 ]
@@ -65,7 +70,7 @@ async def ashrink_arg(
                 if predicate_port(x, value, structure_registry):
                     return {
                         "use": index,
-                        "value": await ashrink_arg(x, value, structure_registry),
+                        "value": await ashrink_arg(x, value, structure_registry, shelver=shelver),
                     }
 
             raise ShrinkingError(
@@ -76,11 +81,11 @@ async def ashrink_arg(
             return value.isoformat() if value is not None else None
 
         if port.kind == PortKind.STRUCTURE:
+            if port.scope == PortScope.LOCAL:
+                return await shelver.aput_on_shelve(value)
             # We always convert structures returns to strings
             try:
-                shrinker = structure_registry.get_shrinker_for_identifier(
-                    port.identifier
-                )
+                shrinker = structure_registry.get_shrinker_for_identifier(port.identifier)
             except KeyError:
                 raise StructureShrinkingError(
                     f"Couldn't find shrinker for {port.identifier}"
@@ -102,9 +107,7 @@ async def ashrink_arg(
         raise NotImplementedError(f"Should be implemented by subclass {port}")
 
     except Exception as e:
-        raise PortShrinkingError(
-            f"Couldn't shrink value {value} with port {port}"
-        ) from e
+        raise PortShrinkingError(f"Couldn't shrink value {value} with port {port}") from e
 
 
 async def ashrink_args(
@@ -112,7 +115,8 @@ async def ashrink_args(
     args: List[Any],
     kwargs: Dict[str, Any],
     structure_registry: StructureRegistry,
-) -> Dict[str, Any]:
+    shelver: Shelver,
+) -> Dict[str, Union[str, int, float, dict, list, None]]:
     """Shrinks args and kwargs
 
     Shrinks the inputs according to the Node Definition
@@ -152,7 +156,9 @@ async def ashrink_args(
                     ) from e
 
         try:
-            shrunk_arg = await ashrink_arg(port, arg, structure_registry)
+            shrunk_arg = await ashrink_arg(
+                port, arg, structure_registry=structure_registry, shelver=shelver
+            )
             shrinked_kwargs[port.key] = shrunk_arg
         except Exception as e:
             raise ShrinkingError(f"Couldn't shrink arg {arg} with port {port}") from e
@@ -162,9 +168,10 @@ async def ashrink_args(
 
 async def aexpand_return(
     port: Union[Port, ChildPort],
-    value: Any,
-    structure_registry=None,
-) -> Any:
+    value: Union[str, int, float, dict, list, None],
+    structure_registry: StructureRegistry,
+    shelver: Shelver,
+) -> Union[str, int, float, dict, list, None, Any]:
     """Expand a value through a port
 
     Args:
@@ -178,20 +185,22 @@ async def aexpand_return(
         if port.nullable:
             return None
         else:
-            raise PortExpandingError(
-                f"{port} is not nullable (optional) but your provided None"
-            )
+            raise PortExpandingError(f"{port} is not nullable (optional) but your provided None")
 
     if port.kind == PortKind.DICT:
         return {
-            key: await aexpand_return(port.child, value, structure_registry)
+            key: await aexpand_return(
+                port.children[0], value, structure_registry=structure_registry, shelver=shelver
+            )
             for key, value in value.items()
         }
 
     if port.kind == PortKind.LIST:
         return await asyncio.gather(
             *[
-                aexpand_return(port.child, item, structure_registry=structure_registry)
+                aexpand_return(
+                    port.children[0], item, structure_registry=structure_registry, shelver=shelver
+                )
                 for item in value
             ]
         )
@@ -202,7 +211,7 @@ async def aexpand_return(
         index = value["use"]
         true_value = value["value"]
         return await aexpand_return(
-            port.variants[index], true_value, structure_registry=structure_registry
+            port.children[index], true_value, structure_registry=structure_registry, shelver=shelver
         )
 
     if port.kind == PortKind.INT:
@@ -215,17 +224,16 @@ async def aexpand_return(
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
 
     if port.kind == PortKind.STRUCTURE:
+        if port.scope == PortScope.LOCAL:
+            return await shelver.aget_from_shelve(value)
+
         if not (isinstance(value, str) or isinstance(value, int)):
-            raise PortExpandingError(
-                f"Expected value to be a string or int, but got {type(value)}"
-            )
+            raise PortExpandingError(f"Expected value to be a string or int, but got {type(value)}")
 
         try:
             expander = structure_registry.get_expander_for_identifier(port.identifier)
         except KeyError:
-            raise StructureExpandingError(
-                f"Couldn't find expander for {port.identifier}"
-            ) from None
+            raise StructureExpandingError(f"Couldn't find expander for {port.identifier}") from None
 
         try:
             return await expander(value)
@@ -245,8 +253,9 @@ async def aexpand_return(
 
 async def aexpand_returns(
     node: Node,
-    returns: Dict[str, Any],
+    returns: Dict[str, Union[str, int, float, dict, list, None]],
     structure_registry: StructureRegistry,
+    shelver: Shelver,
 ) -> Tuple[Any]:
     """Expands Returns
 
@@ -278,7 +287,7 @@ async def aexpand_returns(
         else:
             try:
                 expanded_return = await aexpand_return(
-                    port, returns[port.key], structure_registry
+                    port, returns[port.key], structure_registry=structure_registry, shelver=shelver
                 )
             except Exception as e:
                 raise ExpandingError(
@@ -288,73 +297,3 @@ async def aexpand_returns(
         expanded_returns.append(expanded_return)
 
     return expanded_return
-
-
-def serialize_inputs(
-    definition: Union[Definition, DefinitionInput],
-    kwargs: Dict[str, Any],
-) -> Tuple[Any]:
-    """Shrinks args and kwargs
-
-    Shrinks the inputs according to the Node Definition
-
-    Args:
-        node (Node): The Node
-
-    Raises:
-        ShrinkingError: If args are not Shrinkable
-        ShrinkingError: If kwargs are not Shrinkable
-
-    Returns:
-        Tuple[List[Any], Dict[str, Any]]: Parsed Args as a List, Parsed Kwargs as a dict
-    """
-
-    args_list = []
-
-    # Extract to Argslist
-
-    for port in definition.args:
-        value = kwargs.pop(port.key, None)
-        if value is None and not port.nullable:
-            raise ShrinkingError(
-                f"Couldn't find value for nonnunllable port {port.key}"
-            )
-        args_list.append(value)
-
-    shrinked_args = args_list
-
-    return tuple(shrinked_args)
-
-
-def deserialize_outputs(
-    definition: Union[Definition, DefinitionInput],
-    returns: List[Any],
-) -> Dict[str, Any]:
-    """Expands Returns
-
-    Expands the Returns according to the Node definition
-
-
-    Args:
-        node (Node): Node definition
-        returns (List[any]): The returns
-
-    Raises:
-        ExpandingError: if they are not expandable
-
-    Returns:
-        Dcit[str, Any]: The Expanded Returns
-    """
-    assert returns is not None, "Returns can't be empty"
-    if len(definition.returns) != len(returns):
-        raise ExpandingError(
-            f"Missmatch in Return Length. Node requires {len(definition.returns)} returns,"
-            f" but got {len(returns)}"
-        )
-
-    values = {}
-
-    for port, value in zip(definition.returns, returns):
-        values[port.key] = value
-
-    return values

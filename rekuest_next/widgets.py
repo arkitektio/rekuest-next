@@ -3,16 +3,10 @@ from rekuest_next.api.schema import (
     ReturnWidgetInput,
     ChoiceInput,
     AssignWidgetKind,
-    ValidatorFunction,
-    ValidatorInput,
-    EffectInput,
-    EffectKind,
-    ValidatorInput,
-    PortGroupInput,
     ReturnWidgetKind,
 )
 from rekuest_next.scalars import SearchQuery
-from typing import List, Optional
+from typing import List
 
 
 def SliderWidget(min: int = None, max: int = None, **kwargs) -> AssignWidgetInput:
@@ -28,8 +22,11 @@ def SliderWidget(min: int = None, max: int = None, **kwargs) -> AssignWidgetInpu
     return AssignWidgetInput(kind=AssignWidgetKind.SLIDER, min=min, max=max, **kwargs)
 
 
-def SearchWidget(query: SearchQuery, ward: str, **kwargs) -> AssignWidgetInput:
-    """Generte a search widget.
+def SearchWidget(
+    query: SearchQuery, ward: str, dependencies: list[str] = None, **kwargs
+) -> AssignWidgetInput:
+    (
+        """Generte a search widget.
 
     A search widget is a widget that allows the user to search for a specifc
     structure utilizing a GraphQL query and running it on a ward (a frontend 
@@ -42,9 +39,11 @@ def SearchWidget(query: SearchQuery, ward: str, **kwargs) -> AssignWidgetInput:
 
     Returns:
         WidgetInput: _description_
-    """ """P"""
+    """
+        """P"""
+    )
     return AssignWidgetInput(
-        kind=AssignWidgetKind.SEARCH, query=query, ward=ward, **kwargs
+        kind=AssignWidgetKind.SEARCH, query=query, ward=ward, dependencies=dependencies, **kwargs
     )
 
 
@@ -57,9 +56,7 @@ def StringWidget(as_paragraph: bool = False, **kwargs) -> AssignWidgetInput:
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(
-        kind=AssignWidgetKind.STRING, asParagraph=as_paragraph, **kwargs
-    )
+    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=as_paragraph, **kwargs)
 
 
 def ParagraphWidget(**kwargs) -> AssignWidgetInput:
@@ -90,7 +87,8 @@ def CustomWidget(hook: str, **kwargs) -> AssignWidgetInput:
 
 
 def CustomReturnWidget(hook: str, **kwargs) -> ReturnWidgetInput:
-    """A custom return widget.
+    (
+        """A custom return widget.
 
     A custom return widget is a widget that is rendered by a frontend registered hook
     that is passed the input value.
@@ -100,7 +98,9 @@ def CustomReturnWidget(hook: str, **kwargs) -> ReturnWidgetInput:
 
     Returns:
         ReturnWidgetInput: _description_
-    """ """"""
+    """
+        """"""
+    )
     return ReturnWidgetInput(kind=ReturnWidgetKind.CUSTOM, hook=hook, **kwargs)
 
 
@@ -117,7 +117,6 @@ def ChoiceReturnWidget(choices: List[ChoiceInput], **kwargs) -> ReturnWidgetInpu
         ReturnWidgetInput: _description_
     """
     return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=choices, **kwargs)
-
 
 
 def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
@@ -137,4 +136,3 @@ def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
         choices=choices,
         **kwargs,
     )
-

@@ -1,12 +1,12 @@
 import inspect
-from typing import Any, Tuple, get_args, get_origin
+from typing import Any, Callable, Tuple, get_args, get_origin
 from qtpy import QtCore
 from koil.qt import QtCoro, QtGenerator, QtFuture, QtYielder
 from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
 from qtpy import QtWidgets
-from rekuest_next.definition.registry import ActorBuilder
 from rekuest_next.definition.define import prepare_definition, DefinitionInput
 from rekuest_next.actors.types import ActorBuilder
+from rekuest_next.structures.registry import StructureRegistry
 
 
 class QtInLoopBuilder(QtCore.QObject):
@@ -21,7 +21,7 @@ class QtInLoopBuilder(QtCore.QObject):
 
     def __init__(
         self,
-        assign=None,
+        assign: Callable = None,
         *args,
         parent=None,
         structure_registry=None,
@@ -29,9 +29,7 @@ class QtInLoopBuilder(QtCore.QObject):
         **actor_kwargs,
     ) -> None:
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(
-            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True
-        )
+        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True)
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -77,9 +75,7 @@ class QtFutureBuilder(QtCore.QObject):
         **actor_kwargs,
     ) -> None:
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(
-            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False
-        )
+        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False)
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -148,7 +144,10 @@ class QtGeneratorBuilder(QtCore.QObject):
 
 
 def qtinloopactifier(
-    function, structure_registry, parent: QtWidgets.QWidget = None, **kwargs
+    function: Callable,
+    structure_registry: StructureRegistry,
+    parent: QtWidgets.QWidget = None,
+    **kwargs: dict,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Qt Actifier
 
@@ -167,9 +166,7 @@ def qtinloopactifier(
     )
 
     def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(
-            *args, **kwargs
-        )  # build an actor for this inloop instance
+        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
 
     return definition, builder
 
@@ -220,15 +217,13 @@ def qtwithfutureactifier(
     )
 
     def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(
-            *args, **kwargs
-        )  # build an actor for this inloop instance
+        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
 
     return definition, builder
 
 
 def qtwithgeneratoractifier(
-    function, structure_registry, parent: QtWidgets.QWidget = None, **kwargs
+    function, structure_registry: StructureRegistry, parent: QtWidgets.QWidget = None, **kwargs
 ) -> ActorBuilder:
     """Qt Actifier
 
@@ -248,9 +243,7 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError(
-            "The function needs to have a QtGenerator as its first parameter"
-        )
+        raise ValueError("The function needs to have a QtGenerator as its first parameter")
 
     return_params = get_args(first)
 
@@ -275,8 +268,6 @@ def qtwithgeneratoractifier(
     )
 
     def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(
-            *args, **kwargs
-        )  # build an actor for this inloop instance
+        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
 
     return definition, builder

@@ -1,3 +1,5 @@
+"""Tries to convert an enum to a structure"""
+
 from typing import (
     Any,
     Awaitable,
@@ -52,7 +54,6 @@ class EnumHook(BaseModel):
 
     def is_applicable(self, cls: Type) -> bool:
         """Given a class, return True if this hook is applicable to it"""
-
         if inspect.isclass(cls):
             if issubclass(cls, Enum):
                 return True
@@ -60,65 +61,36 @@ class EnumHook(BaseModel):
 
     def apply(
         self,
-        cls: Type,
-        identifier: str = None,
-        scope: PortScope = PortScope.LOCAL,
-        aexpand: Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ] = None,
-        ashrink: Callable[
-            [
-                any,
-            ],
-            Awaitable[str],
-        ] = None,
-        acollect: Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ] = None,
-        predicate: Callable[[Any], bool] = None,
-        convert_default: Callable[[Any], str] = None,
-        default_widget: Optional[AssignWidgetInput] = None,
-        default_returnwidget: Optional[ReturnWidgetInput] = None,
+        cls: Type
     ) -> FullFilledStructure:
-        identifier = identifier or self.cls_to_identifier(cls)
-        shrink, expand = build_enum_shrink_expand(cls)
-        ashrink = ashrink or shrink
-        aexpand = aexpand or expand
-        acollect = acollect or void_acollect
-        predicate = predicate or build_instance_predicate(cls)
+        identifier = self.cls_to_identifier(cls)
+        ashrink, aexpand = build_enum_shrink_expand(cls)
+        predicate = build_instance_predicate(cls)
         scope = PortScope.GLOBAL
 
-        default_widget = default_widget or AssignWidgetInput(
+        default_widget = AssignWidgetInput(
             kind=AssignWidgetKind.CHOICE,
-            choices=[
+            choices=tuple([
                 ChoiceInput(label=key, value=key, description=value.__doc__)
                 for key, value in cls.__members__.items()
-            ],
+            ])
         )
-        default_returnwidget = default_returnwidget or ReturnWidgetInput(
+        default_returnwidget = ReturnWidgetInput(
             kind=ReturnWidgetKind.CHOICE,
-            choices=[
+            choices=tuple([
                 ChoiceInput(label=key, value=key, description=value.__doc__)
                 for key, value in cls.__members__.items()
-            ],
+            ])
         )
 
         return FullFilledStructure(
-            fullfilled_by="EnumHook",
             cls=cls,
             identifier=identifier,
             scope=scope,
             aexpand=aexpand,
             ashrink=ashrink,
-            acollect=acollect,
             predicate=predicate,
-            convert_default=convert_default or enum_converter,
+            convert_default=enum_converter,
             default_widget=default_widget,
             default_returnwidget=default_returnwidget,
         )

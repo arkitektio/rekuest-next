@@ -1,21 +1,33 @@
-[tool.poetry]
+[project]
 name = "rekuest-next"
-version = "0.3.0"
+version = "0.3.1"
 description = "rpc and node backbone"
-authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
-license = "CC BY-NC 3.0"
-packages = [{ include = "rekuest_next" }]
+authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
+requires-python = ">=3.9, <4.0"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "docstring-parser>=0.11",
+    "inflection>=0.5.1",
+    "websockets>=12.0",
+    "pydantic>=2",
+    "rath>=1.0.0",
+    "fieldz>=0.0.2",
+    "jsonpatch>=1.33",
+    "koil>=1.0.2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9"
-docstring-parser = ">=0.11"
-inflection = ">=0.5.1"
-websockets = ">=12.0"
-pydantic = ">=2"
-rath = ">=1.0.0"
-fieldz = ">=0.0.2"
-jsonpatch = ">=1.33"
-koil = ">=1.0.2"
+[dependency-groups]
+dev = [
+    "testcontainers==3.7.0",
+    "autoflake>=1.7.7,<2",
+    "pytest>=7.2.0,<8",
+    "pytest-asyncio>=0.20.2,<0.21",
+    "aiohttp>=3.8.3,<4",
+    "black>=23.1.0,<24",
+    "pytest-cov>=4.0.0,<5",
+    "pytest-aiohttp>=1.0.4,<2",
+    "ruff>=0.0.254,<0.0.255",
+]
 
 [tool.ruff]
 extend-select = ["ANN", "D1"]
@@ -47,21 +59,15 @@ exclude = [
 # Same as Black.
 line-length = 100
 
-[tool.poetry.group.dev.dependencies]
-testcontainers = "3.7.0"
-autoflake = "^1.7.7"
-pytest = "^7.2.0"
-pytest-asyncio = "^0.20.2"
-aiohttp = "^3.8.3"
-black = "^23.1.0"
-pytest-cov = "^4.0.0"
-pytest-aiohttp = "^1.0.4"
-ruff = "^0.0.254"
+[tool.hatch.build.targets.sdist]
+include = ["rekuest_next"]
 
+[tool.hatch.build.targets.wheel]
+include = ["rekuest_next"]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 markers = [
@@ -72,6 +78,7 @@ markers = [
     "actor: marks tests that concern actors",
 ]
 
+testpaths = ["tests"]
 
 [[tool.pydoc-markdown.loaders]]
 type = "python"
@@ -80,3 +87,9 @@ search_path = ["arkitekt"]
 [tool.pydoc-markdown.renderer]
 type = "docusaurus"
 docs_base_path = "website/docs"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest-asyncio>=0.26.0",
+    "pytest>=8.3.5",
+]

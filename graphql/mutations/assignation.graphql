@@ -15,3 +15,8 @@ mutation interrupt($input: InterruptInput!) {
     ...Assignation
   }
 }
+
+
+mutation collect($input: CollectInput!) {
+  collect(input: $input) 
+}

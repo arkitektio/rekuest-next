@@ -5,7 +5,7 @@ from rekuest_next.api.schema import (
     PortInput,
     PortScope,
 )
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from typing import (
     Any,
     Awaitable,
@@ -24,34 +24,47 @@ class PortBuilder(Protocol):
 
 
 class FullFilledStructure(BaseModel):
-    fullfilled_by: str
     cls: Type
     identifier: str
     scope: PortScope
-    aexpand: Callable[
-        [
-            str,
-        ],
-        Awaitable[Any],
-    ]
-    ashrink: Callable[
-        [
-            any,
-        ],
-        Awaitable[str],
-    ]
-    acollect: Callable[
-        [
-            str,
-        ],
-        Awaitable[Any],
-    ]
+    aexpand: (
+        Callable[
+            [
+                str,
+            ],
+            Awaitable[Any],
+        ]
+        | None
+    )
+    ashrink: (
+        Callable[
+            [
+                any,
+            ],
+            Awaitable[str],
+        ]
+        | None
+    )
     predicate: Callable[[Any], bool]
-    convert_default: Callable[[Any], str]
+    convert_default: Callable[[Any], str] | None
     default_widget: Optional[AssignWidgetInput]
     default_returnwidget: Optional[ReturnWidgetInput]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
+    @model_validator(mode="after")
+    def validate_cls(cls, value, info) -> "FullFilledStructure":
+        if value.aexpand is None and value.scope == PortScope.GLOBAL:
+            raise ValueError(
+                f"You need to pass 'expand' method or {cls.cls} needs to implement a"
+                " aexpand method if it wants to become a GLOBAL structure"
+            )
+        if value.ashrink is None and value.scope == PortScope.GLOBAL:
+            raise ValueError(
+                f"You need to pass 'ashrink' method or {cls.cls} needs to implement a"
+                " ashrink method if it wants to become a GLOBAL structure"
+            )
+
+        return value
 
 
 class FullFilledArg(BaseModel):

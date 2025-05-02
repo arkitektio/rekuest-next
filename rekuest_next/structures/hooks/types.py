@@ -43,12 +43,6 @@ class RegistryHook(Protocol):
             ],
             Awaitable[str],
         ] = None,
-        acollect: Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ] = None,
         predicate: Callable[[Any], bool] = None,
         convert_default: Callable[[Any], str] = None,
         default_widget: Optional[AssignWidgetInput] = None,
