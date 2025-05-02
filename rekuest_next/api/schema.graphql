@@ -1095,6 +1095,9 @@ input DefinitionInput {
   Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev node. If the definition is not a dev definition, it cannot be used to create a dev node
   """
   isDev: Boolean! = false
+
+  """The logo of the definition. This is used to display the logo in the UI"""
+  logo: String = null
 }
 
 """
@@ -1245,7 +1248,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "5abdf89f-a25c-4167-a985-6c51bff51087"
+  reference: String = "fc024349-3d2c-4071-8d69-60d60604529b"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1296,7 +1299,7 @@ input InterruptInput {
 
 """The input for reserving a node."""
 input ReserveInput {
-  reference: String = "95f2cac7-21d0-4440-b0e3-85787a8d49a6"
+  reference: String = "58096569-e797-4066-a1b4-4b5500d3511e"
   instanceId: InstanceId! = "default"
   node: ID = null
   template: ID = null

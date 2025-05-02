@@ -121,7 +121,6 @@ def register_func(
             logo=logo,
             dynamic=dynamic,
         ),
-        structure_registry,
         actor_builder,
     )
 
@@ -394,7 +393,9 @@ def register_global(
 
 
 def test(
-    tested_node: Union[str, Callable], name: Optional[str] = None, description: Optional[str] = None
+    tested_node: Union[str, Callable],
+    name: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> T:
     """Register a test for a function or actor
 

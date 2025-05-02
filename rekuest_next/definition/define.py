@@ -137,7 +137,11 @@ def is_float(cls: Any) -> bool:  # noqa: ANN401
 
 def is_generator_type(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a generator type"""
-    if get_origin(cls) in (types.GeneratorType, typing.Generator, types.AsyncGeneratorType):
+    if get_origin(cls) in (
+        types.GeneratorType,
+        typing.Generator,
+        types.AsyncGeneratorType,
+    ):
         return True
     else:
         return False
@@ -242,17 +246,23 @@ def convert_object_to_port(
     if is_annotated(cls):
         real_type, *annotations = get_args(cls)
 
-        assign_widget, return_widget, validators, effects, default, label, description = (
-            extract_annotations(
-                annotations,
-                assign_widget,
-                return_widget,
-                validators,
-                effects,
-                default,
-                label,
-                description,
-            )
+        (
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+            default,
+            label,
+            description,
+        ) = extract_annotations(
+            annotations,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+            default,
+            label,
+            description,
         )
 
         return convert_object_to_port(
@@ -270,7 +280,9 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -327,7 +339,9 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -480,6 +494,7 @@ def prepare_definition(
     name: str | None = None,
     omitfirst: int | None = None,
     omitlast: int | None = None,
+    logo: str | None = None,
     omitkeys: list[str] = None,
     return_annotations: Optional[List[Any]] = None,
     allow_dev: bool = True,
@@ -501,7 +516,9 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
+        function
+    )
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -540,7 +557,9 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
+    doc_param_description_map = {
+        param.arg_name: param.description for param in docstring.params
+    }
     doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
 
     if docstring.many_returns:
@@ -722,6 +741,7 @@ def prepare_definition(
             "interfaces": interfaces,
             "portGroups": port_groups,
             "isDev": is_dev,
+            "logo": logo,
             "stateful": stateful,
             "isTestFor": is_test_for or [],
         }
