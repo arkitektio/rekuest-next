@@ -3,14 +3,15 @@ from pydantic import Field
 from koil.helpers import unkoil_task
 from rekuest_next.api.schema import Template
 from rekuest_next.postmans.graphql import GraphQLPostman
+from rekuest_next.agents.base import BaseAgent
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
 
-from rekuest_next.agents.base import BaseAgent
-from rekuest_next.postmans.base import BasePostman
+from rekuest_next.actors.types import Agent
+from rekuest_next.postmans.types import Postman
 from koil import unkoil
 from koil.composition import Composition
 from koil.decorators import koilable
@@ -19,42 +20,33 @@ from rekuest_next.register import register
 
 @koilable(fieldname="koil", add_connectors=True)
 class RekuestNext(Composition):
+    """The main rekuest next client class"""
+
     rath: RekuestNextRath = Field(default_factory=RekuestNextRath)
-    structure_registry: StructureRegistry = Field(
-        default_factory=get_default_structure_registry
-    )
-    agent: BaseAgent = Field(default_factory=BaseAgent)
-    postman: BasePostman = Field(default_factory=GraphQLPostman)
+    agent: Agent = Field(default_factory=BaseAgent)
+    postman: Postman = Field(default_factory=GraphQLPostman)
 
-    registered_templates: Dict[str, Template] = Field(default_factory=dict)
-
-    def register(self, *args, **kwargs) -> None:
+    def register(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         """
         Register a new function
         """
 
-        return register(
-            *args,
-            **kwargs,
-        )
+        return register(*args, **kwargs)
 
-    def run(self, *args, **kwargs) -> None:
+    def run(self, instance_id: str | None = None) -> None:
         """
         Run the application.
         """
-        return unkoil(self.arun, *args, **kwargs)
+        return unkoil(self.arun, instance_id=instance_id)
 
-    def run_detached(self, *args, **kwargs) -> None:
+    def run_detached(self, instance_id: str | None = None) -> None:
         """
         Run the application detached.
         """
-        return unkoil_task(self.arun, *args, **kwargs)
+        return unkoil_task(self.arun, instance_id=instance_id)
 
-    async def arun(self) -> None:
+    async def arun(self, instance_id: str | None = None) -> None:
         """
         Run the application.
         """
-        await self.agent.aprovide()
-
-    def _repr_html_inline_(self):
-        return f"<table><tr><td>rath</td><td>{self.rath._repr_html_inline_()}</td></tr></table>"
+        await self.agent.aprovide(instance_id=instance_id)

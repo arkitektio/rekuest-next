@@ -6,10 +6,8 @@ from typing import (
     Any,
     Dict,
     Optional,
-    Protocol,
     Self,
     Type,
-    runtime_checkable,
 )
 import uuid
 
@@ -48,9 +46,7 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
-    )
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
@@ -213,9 +209,7 @@ class Actor(BaseModel):
             await self._break_futures[assignation]
             return True
         else:
-            logger.warning(
-                f"Currently no break future for {assignation} was found. Wasn't paused"
-            )
+            logger.warning(f"Currently no break future for {assignation} was found. Wasn't paused")
             return False
 
     def assign_task_done(self: Self, task: asyncio.Task) -> None:
@@ -283,29 +277,21 @@ class Actor(BaseModel):
                         )
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(
-                                assignation=message.assignation
-                            ),
+                            message=messages.CancelledEvent(assignation=message.assignation),
                         )
 
                         del self._running_asyncio_tasks[message.id]
                         del self._running_transports[message.id]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(
-                                assignation=message.assignation
-                            ),
+                            message=messages.CancelledEvent(assignation=message.assignation),
                         )
 
                 else:
-                    logger.warning(
-                        "Race Condition: Task was already done before cancellation"
-                    )
+                    logger.warning("Race Condition: Task was already done before cancellation")
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(
-                            assignation=message.assignation
-                        ),
+                        message=messages.CancelledEvent(assignation=message.assignation),
                     )
 
             else:
@@ -334,9 +320,7 @@ class Actor(BaseModel):
                 try:
                     await self.aprocess(message)
                 except Exception:
-                    logger.critical(
-                        "Processing unknown message should never happen", exc_info=True
-                    )
+                    logger.critical("Processing unknown message should never happen", exc_info=True)
 
         except asyncio.CancelledError:
             logger.info("Doing Whatever needs to be done to cancel!")
@@ -347,9 +331,7 @@ class Actor(BaseModel):
                 try:
                     await task
                 except asyncio.CancelledError:
-                    logger.info(
-                        f"Task {key} was cancelled through applicaction. Setting Critical"
-                    )
+                    logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
                     await self.agent.asend(
                         self,
                         messages.CriticalEvent(

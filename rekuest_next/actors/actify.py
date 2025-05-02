@@ -8,7 +8,7 @@ import inspect
 from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from rekuest_next.agents.context import prepare_context_variables
-from rekuest_next.state.state import prepare_state_variables
+from rekuest_next.state.decorator import prepare_state_variables
 from rekuest_next.api.schema import ValidatorInput
 from rekuest_next.actors.functional import (
     SerializingActor,
@@ -29,7 +29,9 @@ from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.actors.sync import SyncGroup
 
 
-def higher_order_builder(builder: ActorBuilder, **params: Dict[str, object]) -> ActorBuilder:
+def higher_order_builder(
+    builder: ActorBuilder, **params: Dict[str, object]
+) -> ActorBuilder:
     """Higher order builder for actors#
 
     This is a higher order builder for actors. It takes a Actor class and
@@ -119,8 +121,12 @@ def reactify(
     elif is_asyncgen:
         return definition, higher_order_builder(FunctionalGenActor, **actor_attributes)
     elif is_generatorfunction and not in_process:
-        return definition, higher_order_builder(FunctionalThreadedGenActor, **actor_attributes)
+        return definition, higher_order_builder(
+            FunctionalThreadedGenActor, **actor_attributes
+        )
     elif (is_function or is_method) and not in_process:
-        return definition, higher_order_builder(FunctionalThreadedFuncActor, **actor_attributes)
+        return definition, higher_order_builder(
+            FunctionalThreadedFuncActor, **actor_attributes
+        )
     else:
         raise NotImplementedError("No way of converting this to a function")

@@ -5,21 +5,20 @@ from rekuest_next.api.schema import (
     aassign,
     awatch_assignations,
     acancel,
-    aunreserve,
     AssignInput,
 )
-from rekuest_next.postmans.base import BasePostman
 import asyncio
 from pydantic import Field
 import logging
 from .errors import PostmanException
 from .vars import current_postman
 from rekuest_next.rath import RekuestNextRath
+from koil.composition import KoiledModel
 
 logger = logging.getLogger(__name__)
 
 
-class GraphQLPostman(BasePostman):
+class GraphQLPostman(KoiledModel):
     """A GraphQL Postman
 
     This postman is used to send messages to the GraphQL server via a graphql
@@ -30,13 +29,12 @@ class GraphQLPostman(BasePostman):
     """
 
     rath: RekuestNextRath
-    instance_id: str
+    connected: bool = Field(default=False)
+    instance_id: str = Field(description="The instance_id of the waiter")
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
 
     _ass_update_queues: Dict[str, asyncio.Queue] = {}
-
     _ass_update_queue: asyncio.Queue = None
-
     _watch_assraces_task: asyncio.Task = None
     _watch_assignations_task: asyncio.Task = None
 
@@ -49,18 +47,10 @@ class GraphQLPostman(BasePostman):
         data = {}  # await self.transport.alist_assignations()
         self.assignations = {ass.assignation: ass for ass in data}
 
-    async def aunreserve(self, reservation_id: str):
-        async with self._lock:
-            if not self._watching:
-                await self.start_watching()
-
-        try:
-            unreservation = await aunreserve(reservation_id)
-            self.reservations[unreservation.id] = unreservation
-        except Exception as e:
-            raise PostmanException("Cannot Unreserve") from e
-
-    async def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(
+        self, assign: AssignInput
+    ) -> AsyncGenerator[AssignationEvent, None]:
+        """Assign a"""
         async with self._lock:
             if not self._watching:
                 await self.start_watching()
@@ -80,7 +70,7 @@ class GraphQLPostman(BasePostman):
                 queue.task_done()
 
         except asyncio.CancelledError as e:
-            unassignation = await acancel(assignation=assignation.id)
+            await acancel(assignation=assignation.id)
             # TODO: Wait for cancellation to succeed
             del self._ass_update_queues[assign.reference]
             raise e
@@ -93,7 +83,9 @@ class GraphQLPostman(BasePostman):
 
     async def watch_assignations(self):
         try:
-            async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
+            async for assignation in awatch_assignations(
+                self.instance_id, rath=self.rath
+            ):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)

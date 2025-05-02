@@ -1,4 +1,6 @@
-from typing import Generic, TypeVar
+"""Additional type hinting classes for Rekuest, that can be used to annotate port groups"""
+
+from typing import TypeVar
 
 T = TypeVar("T")
 

@@ -1,43 +1,30 @@
+"""Global Structure Hook"""
+
 from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Optional,
     Type,
 )
 from pydantic import BaseModel
 from rekuest_next.structures.types import FullFilledStructure
 from rekuest_next.api.schema import (
     PortScope,
-    AssignWidgetInput,
-    ReturnWidgetInput,
-    Identifier,
 )
+from rekuest_next.structures.utils import build_instance_predicate
 from .errors import HookError
 
 
-async def id_shrink(self):
+async def id_shrink(self: BaseModel) -> str:
+    """Convert a structure with an id to a string repesentaiton by using the id"""
     return self.id
 
 
-def identity_default_converter(x):
+def identity_default_converter(x: str) -> str:
+    """Convert a value to its string representation."""
     return x
 
 
-def cls_to_identifier(cls: Type) -> Identifier:
-    try:
-        return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
-    except AttributeError:
-        raise HookError(
-            f"Cannot convert {cls} to identifier. The class needs to have a __module__ and __name__ attribute."
-        )
+class GlobalStructureHookError(HookError):
+    """Base class for all standard hook errors."""
 
-
-def build_instance_predicate(cls: Type):
-    return lambda x: isinstance(x, cls)
-
-
-class StandardHookError(HookError):
     pass
 
 
@@ -70,7 +57,7 @@ class GlobalStructureHook(BaseModel):
         if hasattr(cls, "get_identifier"):
             identifier = cls.get_identifier()
         else:
-            identifier = self.cls_to_identifier(cls)
+            raise GlobalStructureHookError(f"Class {cls} does not have a get_identifier method")
 
         if hasattr(cls, "get_default_widget"):
             default_widget = cls.get_default_widget()
@@ -90,7 +77,7 @@ class GlobalStructureHook(BaseModel):
         aexpand = getattr(cls, "aexpand")
 
         if not hasattr(cls, "ashrink"):
-            raise StandardHookError(
+            raise GlobalStructureHookError(
                 f"You need to pass 'ashrink' method or {cls} needs to implement a"
                 " ashrink method if it wants to become a GLOBAL structure"
             )

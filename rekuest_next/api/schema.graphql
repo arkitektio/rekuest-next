@@ -19,6 +19,7 @@ interface AssignWidget {
   followValue: String
 }
 
+"""The kind of assign widget."""
 enum AssignWidgetKind {
   SEARCH
   CHOICE
@@ -66,11 +67,13 @@ type Port {
   validators: [Validator!]
 }
 
+"""The kind of port"""
 enum PortScope {
   GLOBAL
   LOCAL
 }
 
+"""The kind of port."""
 enum PortKind {
   INT
   STRING
@@ -95,6 +98,7 @@ interface Effect {
   function: ValidatorFunction!
 }
 
+"""The kind of effect."""
 enum EffectKind {
   MESSAGE
   HIDE
@@ -113,6 +117,7 @@ interface ReturnWidget {
   kind: ReturnWidgetKind!
 }
 
+"""The kind of return widget."""
 enum ReturnWidgetKind {
   CHOICE
   CUSTOM
@@ -448,6 +453,7 @@ type Node {
   pinned: Boolean!
 }
 
+"""The kind of node."""
 enum NodeKind {
   FUNCTION
   GENERATOR
@@ -1239,7 +1245,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "fd2feb03-9af5-4088-b6f9-4ae86cef9f50"
+  reference: String = "5abdf89f-a25c-4167-a985-6c51bff51087"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1290,7 +1296,7 @@ input InterruptInput {
 
 """The input for reserving a node."""
 input ReserveInput {
-  reference: String = "236d8ab7-6eee-4f50-8da4-ba2c47638a62"
+  reference: String = "95f2cac7-21d0-4440-b0e3-85787a8d49a6"
   instanceId: InstanceId! = "default"
   node: ID = null
   template: ID = null

@@ -1,3 +1,5 @@
+"""Test the serialization of enums with partial functions"""
+
 import pytest
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.validate import auto_validate

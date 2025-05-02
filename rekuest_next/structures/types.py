@@ -2,49 +2,74 @@ from typing import Protocol, Optional, List
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
-    PortInput,
     PortScope,
 )
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator, ValidationInfo
 from typing import (
     Any,
     Awaitable,
     Callable,
     Type,
+    runtime_checkable,
 )
 
 
-class PortBuilder(Protocol):
-    def __call__(
-        self,
-        cls: type,
-        assign_widget: Optional[AssignWidgetInput],
-        return_widget: Optional[ReturnWidgetInput],
-    ) -> PortInput: ...
+@runtime_checkable
+class Shrinker(Protocol):
+    """A callable that takes a value and returns a string representation of it that
+    can be serialized to json."""
+
+    def __call__(self, value: Any) -> Awaitable[str]:
+        """Convert a value to a string representation."""
+
+        ...
+
+
+@runtime_checkable
+class Predicator(Protocol):
+    """A callable that takes a value and returns True if the value is of the
+    correct type for the structure."""
+
+    def __call__(self, value: Any) -> bool:
+        """Check if the value is of the correct type for the structure."""
+
+        ...
+
+
+@runtime_checkable
+class DefaultConverter(Protocol):
+    """A callable that takes a value and returns a string representation of it
+    that can be serialized to json."""
+
+    def __call__(self, value: Any) -> str:
+        """Convert a value to a string representation."""
+        ...
+
+
+@runtime_checkable
+class Expander(Protocol):
+    """A callable that takes a string and returns the original value,
+    which can be deserialized from json."""
+
+    def __call__(self, value: str) -> Awaitable[Any]:
+        """Convert a string representation back to the original value."""
+
+        ...
 
 
 class FullFilledStructure(BaseModel):
+    """A structure that can be registered to the structure registry
+    and containts all the information needed to serialize and deserialize
+    the structure. If dealing with a structure that is cglobal, aexpand and
+    ashrink need to be passed. If dealing with a structure that is local,
+    aexpand and ashrink can be None.
+    """
+
     cls: Type
     identifier: str
     scope: PortScope
-    aexpand: (
-        Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ]
-        | None
-    )
-    ashrink: (
-        Callable[
-            [
-                any,
-            ],
-            Awaitable[str],
-        ]
-        | None
-    )
+    aexpand: Expander | None
+    ashrink: Shrinker | None
     predicate: Callable[[Any], bool]
     convert_default: Callable[[Any], str] | None
     default_widget: Optional[AssignWidgetInput]
@@ -52,7 +77,10 @@ class FullFilledStructure(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     @model_validator(mode="after")
-    def validate_cls(cls, value, info) -> "FullFilledStructure":
+    def validate_cls(
+        cls, value: "FullFilledStructure", info: ValidationInfo
+    ) -> "FullFilledStructure":
+        """Validate the class to make sure it has the required methods if it is a global structure."""
         if value.aexpand is None and value.scope == PortScope.GLOBAL:
             raise ValueError(
                 f"You need to pass 'expand' method or {cls.cls} needs to implement a"
@@ -68,6 +96,8 @@ class FullFilledStructure(BaseModel):
 
 
 class FullFilledArg(BaseModel):
+    """A fullfiled argument of a model that can be used to serialize and deserialize"""
+
     key: str
     default: Optional[Any]
     cls: Any
@@ -75,6 +105,8 @@ class FullFilledArg(BaseModel):
 
 
 class FullFilledModel(BaseModel):
+    """A fullfiled model that can be used to serialize and deserialize"""
+
     identifier: str
     description: Optional[str]
     args: List[FullFilledArg]

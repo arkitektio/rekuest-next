@@ -7,14 +7,15 @@ from rekuest_next.actors.vars import (
 
 
 class SetAssignationLink(ContinuationLink):
+    """SetAssignationLink"""
+
     header_name: str = "x-assignation-id"
 
-    async def aconnect(self):
+    async def aconnect(self) -> None:
+        """Connect the link"""
         pass
 
-    async def aexecute(
-        self, operation: Operation, **kwargs
-    ) -> AsyncIterator[GraphQLResult]:
+    async def aexecute(self, operation: Operation, **kwargs) -> AsyncIterator[GraphQLResult]:
         try:
             assignment = current_assignment.get()
             operation.context.headers[self.header_name] = assignment.assignation

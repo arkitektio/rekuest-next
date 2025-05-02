@@ -1,3 +1,5 @@
+"""Some basic helpers to create common widgets."""
+
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
@@ -9,7 +11,7 @@ from rekuest_next.scalars import SearchQuery
 from typing import List
 
 
-def SliderWidget(min: int = None, max: int = None, **kwargs) -> AssignWidgetInput:
+def SliderWidget(min: int = None, max: int = None, step: int = None) -> AssignWidgetInput:
     """Generate a slider widget.
 
     Args:
@@ -19,11 +21,11 @@ def SliderWidget(min: int = None, max: int = None, **kwargs) -> AssignWidgetInpu
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.SLIDER, min=min, max=max, **kwargs)
+    return AssignWidgetInput(kind=AssignWidgetKind.SLIDER, min=min, max=max, step=step)
 
 
 def SearchWidget(
-    query: SearchQuery, ward: str, dependencies: list[str] = None, **kwargs
+    query: SearchQuery, ward: str, dependencies: list[str] = None
 ) -> AssignWidgetInput:
     (
         """Generte a search widget.
@@ -43,11 +45,11 @@ def SearchWidget(
         """P"""
     )
     return AssignWidgetInput(
-        kind=AssignWidgetKind.SEARCH, query=query, ward=ward, dependencies=dependencies, **kwargs
+        kind=AssignWidgetKind.SEARCH, query=query, ward=ward, dependencies=dependencies
     )
 
 
-def StringWidget(as_paragraph: bool = False, **kwargs) -> AssignWidgetInput:
+def StringWidget(as_paragraph: bool = False) -> AssignWidgetInput:
     """Generate a string widget.
 
     Args:
@@ -56,10 +58,10 @@ def StringWidget(as_paragraph: bool = False, **kwargs) -> AssignWidgetInput:
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=as_paragraph, **kwargs)
+    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=as_paragraph)
 
 
-def ParagraphWidget(**kwargs) -> AssignWidgetInput:
+def ParagraphWidget() -> AssignWidgetInput:
     """Generate a string widget.
 
     Args:
@@ -68,10 +70,10 @@ def ParagraphWidget(**kwargs) -> AssignWidgetInput:
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=True, **kwargs)
+    return AssignWidgetInput(kind=AssignWidgetKind.STRING, asParagraph=True)
 
 
-def CustomWidget(hook: str, **kwargs) -> AssignWidgetInput:
+def CustomWidget(hook: str, ward: str) -> AssignWidgetInput:
     """Generate a custom widget.
 
     A custom widget is a widget that is rendered by a frontend registered hook
@@ -83,28 +85,26 @@ def CustomWidget(hook: str, **kwargs) -> AssignWidgetInput:
     Returns:
         WidgetInput: _description_
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.CUSTOM, hook=hook, **kwargs)
+    return AssignWidgetInput(kind=AssignWidgetKind.CUSTOM, hook=hook, ward=ward)
 
 
-def CustomReturnWidget(hook: str, **kwargs) -> ReturnWidgetInput:
-    (
-        """A custom return widget.
+def CustomReturnWidget(hook: str, ward: str) -> ReturnWidgetInput:
+    """A custom return widget.
 
     A custom return widget is a widget that is rendered by a frontend registered hook
     that is passed the input value.
 
     Args:
         hook (str): The hool
+        ward (str): The ward key
 
     Returns:
-        ReturnWidgetInput: _description_
+        ReturnWidgetInput: The widget input
     """
-        """"""
-    )
-    return ReturnWidgetInput(kind=ReturnWidgetKind.CUSTOM, hook=hook, **kwargs)
+    return ReturnWidgetInput(kind=ReturnWidgetKind.CUSTOM, hook=hook, ward=ward)
 
 
-def ChoiceReturnWidget(choices: List[ChoiceInput], **kwargs) -> ReturnWidgetInput:
+def ChoiceReturnWidget(choices: List[ChoiceInput]) -> ReturnWidgetInput:
     """A choice return widget.
 
     A choice return widget is a widget that renderes a list of choices with the
@@ -116,10 +116,10 @@ def ChoiceReturnWidget(choices: List[ChoiceInput], **kwargs) -> ReturnWidgetInpu
     Returns:
         ReturnWidgetInput: _description_
     """
-    return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=choices, **kwargs)
+    return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=choices)
 
 
-def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
+def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
     """A choice widget.
 
     A choice widget is a widget that renders a list of choices with the
@@ -131,8 +131,4 @@ def ChoiceWidget(choices: List[ChoiceInput], **kwargs) -> AssignWidgetInput:
     Returns:
         AssignWidgetInput: The widget input
     """
-    return AssignWidgetInput(
-        kind=AssignWidgetKind.CHOICE,
-        choices=choices,
-        **kwargs,
-    )
+    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=choices)

@@ -1,14 +1,15 @@
+"""Some configuration for pytest"""
+
 import pytest
-from .structures import SerializableObject, SecondSerializableObject
-from rekuest_next.structures.registry import StructureRegistry, PortScope
-
-
-async def mock_shrink() -> None:
-    return
+from rekuest_next.structures.registry import StructureRegistry
 
 
 class MockShelver:
-    def __init__(self):
+    """A mock shelver that stores values in memory. This is used to test the
+    shelver functionality without using a real shelver."""
+
+    def __init__(self) -> None:
+        """Initialize the mock shelver."""
         self.shelve = {}
 
     async def aput_on_shelve(self, value: object) -> str:

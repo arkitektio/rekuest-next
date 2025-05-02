@@ -1,3 +1,5 @@
+"""Hook errors module."""
+
 from rekuest_next.structures.errors import StructureRegistryError
 
 

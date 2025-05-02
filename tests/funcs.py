@@ -1,3 +1,5 @@
+"""Functions for testing"""
+
 import asyncio
 import sys
 from typing import Dict, Generator, List, Tuple, Optional, Union
@@ -149,24 +151,6 @@ def annotated_nested_structure_function(
     return "tested"
 
 
-def annotated_nested_structure_function(
-    rep: Annotated[str, Predicate(str.islower)],
-    number: Dict[str, Annotated[List[SecondSerializableObject], Len(3)]] = None,
-) -> str:
-    """Annotated Karl
-
-    Karl takes a a representation and does magic stuff
-
-    Args:
-        rep (str): Nougat
-        name (str, optional): Bugat
-
-    Returns:
-        Representation: The Returned Representation
-    """
-    return "tested"
-
-
 def nested_structure_generator(
     rep: List[SecondObject], name: Dict[str, SecondObject] = None
 ) -> Generator[Tuple[str, Dict[str, SecondObject]], None, None]:
@@ -207,6 +191,8 @@ async def nested_structure_asyncgenerator(
 
 @model
 class Karl:
+    """Karl"""
+
     int: Annotated[int, Gt(3)]
     strucutre: Annotated[SecondObject, AssignWidgetInput(kind=AssignWidgetKind.CUSTOM)]
 

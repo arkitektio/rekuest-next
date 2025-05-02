@@ -1,3 +1,5 @@
+"""This file contains the structures used in the tests."""
+
 from pydantic.main import BaseModel
 
 
@@ -7,14 +9,17 @@ class SerializableObject(BaseModel):
     number: int
 
     @classmethod
-    def get_identifier(cls):
+    def get_identifier(cls) -> str:
+        """Get the identifier of the object."""
         return "mock/serializable"
 
-    async def ashrink(self):
+    async def ashrink(self) -> str:
+        """Shrink the object to its id."""
         return self.number
 
     @classmethod
-    async def aexpand(cls, value):
+    async def aexpand(cls, value: str) -> "SerializableObject":
+        """Expand the object from its id."""
         return cls(number=value)
 
 
@@ -27,18 +32,22 @@ class GlobalObject(BaseModel):
 class SecondSerializableObject:
     """Another SerializableObject that has a id"""
 
-    def __init__(self, id) -> None:
+    def __init__(self, id: str) -> None:
+        """Initialize the object with an id."""
         self.id = id
 
     @classmethod
-    def get_identifier(cls):
+    def get_identifier(cls) -> str:
+        """Get the identifier of the object."""
         return "mock/secondserializable"
 
-    async def ashrink(self):
+    async def ashrink(self) -> str:
+        """Shrink the object to its id."""
         return self.id
 
     @classmethod
-    async def aexpand(cls, value):
+    async def aexpand(cls, value: str) -> "SecondSerializableObject":
+        """Expand the object from its id."""
         return cls(id=value)
 
 
@@ -50,13 +59,16 @@ class IdentifiableSerializableObject(BaseModel):
 
     @classmethod
     def get_identifier(cls) -> str:
+        """Get the identifier of the object."""
         return "mock/identifiable"
 
     async def ashrink(self) -> str:
+        """Shrink the object to its id."""
         return self.number
 
     @classmethod
-    async def aexpand(cls, shrinked_value) -> "IdentifiableSerializableObject":
+    async def aexpand(cls, shrinked_value: str) -> "IdentifiableSerializableObject":
+        """Expand the object from its id."""
         return cls(number=shrinked_value)
 
 
@@ -65,16 +77,24 @@ class SecondObject:
 
     pass
 
-    def __init__(self, id) -> None:
+    def __init__(self, id: str) -> None:  # noqa: D107
+        """Initialize the object with an id.
+
+        Args:
+            id (str): The id of the object.
+        """
         self.id = id
 
     @classmethod
-    def get_identifier(cls):
+    def get_identifier(cls) -> str:
+        """Get the identifier of the object."""
         return "mock/secondobject"
 
-    async def ashrink(self):
+    async def ashrink(self) -> str:
+        """Shrink the object to its id."""
         return self.id
 
     @classmethod
-    async def aexpand(cls, value):
+    async def aexpand(cls, value: str) -> "SecondObject":
+        """Expand the object from its id."""
         return cls(id=value)

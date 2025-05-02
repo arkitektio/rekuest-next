@@ -38,9 +38,11 @@ class RekuestNextRath(rath.Rath):
 
     """
 
-    link: RekuestNextLinkComposition = Field(default_factory=RekuestNextLinkComposition)
+    link: RekuestNextLinkComposition = Field(
+        default_factory=RekuestNextLinkComposition, description="Link composition for Rekuest Next."
+    )
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "RekuestNextRath":
         """Set the current Rekuest Next Rath client in the context variable."""
         await super().__aenter__()
         current_rekuest_next_rath.set(self)

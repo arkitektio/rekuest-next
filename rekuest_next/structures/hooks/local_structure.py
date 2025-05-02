@@ -6,10 +6,9 @@ from pydantic import BaseModel
 from rekuest_next.structures.types import FullFilledStructure
 from rekuest_next.api.schema import (
     PortScope,
-    AssignWidgetInput,
-    ReturnWidgetInput,
     Identifier,
 )
+from rekuest_next.structures.utils import build_instance_predicate
 from .errors import HookError
 
 
@@ -30,23 +29,21 @@ def cls_to_identifier(cls: Type) -> Identifier:
         )
 
 
-def build_instance_predicate(cls: Type):
-    return lambda x: isinstance(x, cls)
+class LocalStructureHookError(HookError):
+    """Base class for all local structure hook errors."""
 
-
-class StandardHookError(HookError):
     pass
 
 
 class LocalStructureHook(BaseModel):
-    cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
-    """The Standard Hook is a hook that can be registered to the structure registry.
+    """The Local Structure Hook is a hook that can be registered to the structure registry.
 
-    It will register all local structures in a shelve and will use the shelve to
-    expand and shrink the structures. All global structures will net to defined aexpand and
-    ashrink using the methods defined in the structure.
+    It will register all types as local structures (that will be put into a local shelve
+    instread of shrinking and expanding them) .
 
     """
+
+    cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
 
     def is_applicable(self, cls: Type) -> bool:
         """Given a class, return True if this hook is applicable to it"""
@@ -57,6 +54,7 @@ class LocalStructureHook(BaseModel):
         self,
         cls: Type,
     ) -> FullFilledStructure:
+        """Apply the hook to the class and return a FullFilledStructure."""
         if hasattr(cls, "get_identifier"):
             identifier = cls.get_identifier()
         else:

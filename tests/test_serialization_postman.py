@@ -1,3 +1,5 @@
+"""Testing the serialization and deserialization of structures on the postman level."""
+
 import pytest
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.validate import auto_validate
@@ -18,7 +20,10 @@ from rekuest_next.structures.registry import StructureRegistry
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrinking_nullable(simple_registry: StructureRegistry, mock_shelver: Shelver):
+async def test_shrinking_nullable(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """Test if we can shrink a nullable input."""
     functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
 
     definition = auto_validate(functional_definition)
@@ -36,7 +41,9 @@ async def test_shrinking_nullable(simple_registry: StructureRegistry, mock_shelv
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver: Shelver):
+async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+    """Test if we can shrink a basic input."""
+
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
     )
@@ -55,7 +62,10 @@ async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver:
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_rountdrip_structure(simple_registry, mock_shelver):
+async def test_rountdrip_structure(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """Test if we can shrink a structure input."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
     )
@@ -75,7 +85,8 @@ async def test_rountdrip_structure(simple_registry, mock_shelver):
 
 
 @pytest.mark.asyncio
-async def test_shrink_union(simple_registry, mock_shelver):
+async def test_shrink_union(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+    """Test if we can shrink a union input."""
     functional_definition = prepare_definition(
         union_structure_function, structure_registry=simple_registry
     )
@@ -95,7 +106,8 @@ async def test_shrink_union(simple_registry, mock_shelver):
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_roundtrip(simple_registry, mock_shelver):
+async def test_roundtrip(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+    """Test if we can shrink a structure input and expand it back."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
     )
@@ -121,7 +133,10 @@ async def test_roundtrip(simple_registry, mock_shelver):
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrinking_structure_error(simple_registry, mock_shelver):
+async def test_shrinking_structure_error(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """Test if we can shrink a structure input with an error."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
     )
@@ -140,7 +155,10 @@ async def test_shrinking_structure_error(simple_registry, mock_shelver):
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrinking_nested_structure(simple_registry, mock_shelver):
+async def test_shrinking_nested_structure(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """Test if we can shrink a nested structure input."""
     functional_definition = prepare_definition(
         nested_structure_function, structure_registry=simple_registry
     )
@@ -159,7 +177,8 @@ async def test_shrinking_nested_structure(simple_registry, mock_shelver):
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_basic(simple_registry, mock_shelver):
+async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+    """Test if we can expand a basic input."""
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
     )
@@ -176,7 +195,10 @@ async def test_expand_basic(simple_registry, mock_shelver):
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_nested_structure_error(simple_registry, mock_shelver):
+async def test_expand_nested_structure_error(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """Test if we can expand a nested structure input with an error."""
     functional_definition = prepare_definition(
         nested_structure_function, structure_registry=simple_registry
     )

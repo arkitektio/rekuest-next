@@ -1,9 +1,9 @@
-from rekuest_next.actors.types import Shelver
+"""General Tests for defininin actions"""
+
 from rekuest_next.api.schema import DefinitionInput, PortKind
 import pytest
-from .structures import SecondSerializableObject, SerializableObject
 from rekuest_next.definition.define import prepare_definition
-from rekuest_next.structures.registry import StructureRegistry, PortScope
+from rekuest_next.structures.registry import StructureRegistry
 from .funcs import (
     plain_basic_function,
     plain_structure_function,
@@ -15,36 +15,29 @@ from .funcs import (
     null_function,
     nested_model_with_annotations,
 )
-from rekuest_next.definition.validate import auto_validate
-from rekuest_next.structures.serialization.postman import ashrink_args
-
-
-@pytest.fixture
-def simple_registry():
-    reg = StructureRegistry()
-    reg.register_as_structure(SerializableObject, "SerializableObject", scope=PortScope.LOCAL)
-    reg.register_as_structure(
-        SecondSerializableObject, "SecondSerializableObject", scope=PortScope.LOCAL
-    )
-
-    return reg
 
 
 @pytest.mark.define
-def assert_definition_hash(simple_registry):
+def assert_definition_hash(simple_registry: StructureRegistry) -> None:
+    """Test if the hases of to equal definitions are the same."""
+    """Test if the hases of to equal definitions are the same."""
     functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
     function_two_definition = prepare_definition(null_function, structure_registry=simple_registry)
 
-    assert hash(functional_definition) == hash(function_two_definition)
-
-    x = {}
-    x[functional_definition] = "test"
-
-    assert x[function_two_definition] == "test"
+    assert hash(functional_definition) == hash(function_two_definition), "Hashes are not equal"
 
 
 @pytest.mark.define
-def test_define_null(simple_registry):
+def test_if_usable_as_hash(simple_registry: StructureRegistry) -> None:
+    """Test if the function is usable as a hash."""
+    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
+    x = {}
+    x[functional_definition] = "test"
+
+
+@pytest.mark.define
+def test_define_null(simple_registry: StructureRegistry) -> None:
+    """Test if the function is correctly registered in the registry."""
     functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
     assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
     assert functional_definition.name == "Karl", "Doesnt conform to standard Naming Scheme"
@@ -52,7 +45,8 @@ def test_define_null(simple_registry):
 
 
 @pytest.mark.define
-def test_define_basic(simple_registry):
+def test_define_basic(simple_registry: StructureRegistry) -> None:
+    """Test if a basic function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
     )
@@ -61,17 +55,19 @@ def test_define_basic(simple_registry):
 
 
 @pytest.mark.define
-def test_define_structure(simple_registry):
+def test_define_structure(simple_registry: StructureRegistry) -> None:
+    """Test if a structure function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
     )
     assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
     assert functional_definition.name == "Karl", "Doesnt conform to standard Naming Scheme"
-    assert functional_definition.args[0].identifier == "SerializableObject"
+    assert functional_definition.args[0].identifier == "mock/serializable"
 
 
 @pytest.mark.define
-def test_nested_model_with_annotations(simple_registry):
+def test_nested_model_with_annotations(simple_registry: StructureRegistry) -> None:
+    """Test if a structure function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         nested_model_with_annotations, structure_registry=simple_registry
     )
@@ -90,7 +86,8 @@ def test_nested_model_with_annotations(simple_registry):
 
 
 @pytest.mark.define
-def test_define_union_structure(simple_registry):
+def test_define_union_structure(simple_registry: StructureRegistry) -> None:
+    """Test if a structure function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         union_structure_function, structure_registry=simple_registry
     )
@@ -104,7 +101,8 @@ def test_define_union_structure(simple_registry):
 
 
 @pytest.mark.define
-def test_define_nested_basic_function(simple_registry):
+def test_define_nested_basic_function(simple_registry: StructureRegistry) -> None:
+    """Test if a nested basic function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         nested_basic_function, structure_registry=simple_registry
     )
@@ -129,7 +127,8 @@ def test_define_nested_basic_function(simple_registry):
 
 
 @pytest.mark.define
-def test_define_nested_structure_function(simple_registry):
+def test_define_nested_structure_function(simple_registry: StructureRegistry) -> None:
+    """Test if a nested function with structures is correctly registered in the registry."""
     functional_definition = prepare_definition(
         nested_structure_function, structure_registry=simple_registry
     )
@@ -143,7 +142,7 @@ def test_define_nested_structure_function(simple_registry):
     assert functional_definition.args[0].children[0].kind == PortKind.STRUCTURE, (
         "Child of List is not of type IntArgPort"
     )
-    assert functional_definition.args[0].children[0].identifier == "SerializableObject", (
+    assert functional_definition.args[0].children[0].identifier == "mock/serializable", (
         "Child of List is not of type IntArgPort"
     )
     assert functional_definition.args[0].children[0].kind == PortKind.STRUCTURE, (
@@ -153,11 +152,12 @@ def test_define_nested_structure_function(simple_registry):
     assert functional_definition.returns[0].kind == PortKind.STRING
     assert functional_definition.returns[1].kind == PortKind.DICT
     assert functional_definition.returns[1].children[0].kind == PortKind.STRUCTURE
-    assert functional_definition.returns[1].children[0].identifier == "SecondSerializableObject"
+    assert functional_definition.returns[1].children[0].identifier == "mock/secondserializable"
 
 
 @pytest.mark.define
-def test_define_annotated_basic_function(simple_registry):
+def test_define_annotated_basic_function(simple_registry: StructureRegistry) -> None:
+    """Test if a basic annotated function is correctly registered in the registry."""
     functional_definition = prepare_definition(
         annotated_basic_function, structure_registry=simple_registry
     )
@@ -168,7 +168,8 @@ def test_define_annotated_basic_function(simple_registry):
 
 
 @pytest.mark.define
-def test_define_annotated_nested_function(simple_registry):
+def test_define_annotated_nested_function(simple_registry: StructureRegistry) -> None:
+    """Test if a annotated and nested function correctly registered in the registry."""
     functional_definition = prepare_definition(
         annotated_nested_structure_function, structure_registry=simple_registry
     )
@@ -176,23 +177,3 @@ def test_define_annotated_nested_function(simple_registry):
     assert functional_definition.name == "Annotated Karl", (
         "Doesnt conform to standard Naming Scheme"
     )
-
-
-@pytest.fixture
-def arkitekt_rath():
-    return MockRequestRath()
-
-
-@pytest.mark.define
-@pytest.mark.asyncio
-async def test_shrinking(simple_registry: StructureRegistry, mock_shelver: Shelver):
-    functional_definition = prepare_definition(
-        plain_basic_function, structure_registry=simple_registry
-    )
-
-    definition = auto_validate(functional_definition)
-
-    args = await ashrink_args(
-        definition, ("hallo", "zz"), {}, structure_registry=simple_registry, shelver=mock_shelver
-    )
-    assert args == {"name": "zz", "rep": "hallo"}

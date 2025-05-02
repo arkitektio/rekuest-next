@@ -1,3 +1,5 @@
+"""Test the widgets for rekuest_next"""
+
 from rekuest_next.widgets import SearchWidget, SliderWidget
 from pydantic import ValidationError
 import pytest

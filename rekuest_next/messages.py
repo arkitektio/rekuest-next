@@ -1,3 +1,5 @@
+"""Messages that are used to communicate between the rekuest backend and the agent"""
+
 from typing import Any, Optional, Literal, Union, Dict
 from pydantic import BaseModel
 from enum import Enum
@@ -83,9 +85,7 @@ class Assign(Message):
         default=None, description="The arguments that was sendend"
     )
     message: Optional[str] = None
-    user: Optional[str] = Field(
-        default=None, description="The assining user that was sendend"
-    )
+    user: Optional[str] = Field(default=None, description="The assining user that was sendend")
     app: Optional[str] = Field(default=None, description="The assinging app")
 
     @property
@@ -330,9 +330,7 @@ class HeartbeatEvent(Message):
     heartbeat events, but only reply to them.
     """
 
-    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
-        FromAgentMessageType.HEARTBEAT_ANSWER
-    )
+    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = FromAgentMessageType.HEARTBEAT_ANSWER
 
 
 class AssignInquiry(BaseModel):
@@ -376,9 +374,7 @@ class Init(Message):
     inquiries: list[AssignInquiry] = []
 
 
-ToAgentMessage = Union[
-    Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect
-]
+ToAgentMessage = Union[Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect]
 FromAgentMessage = Union[
     CriticalEvent,
     LogEvent,

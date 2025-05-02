@@ -1,18 +1,24 @@
+"""Test annotation for rekuest_next library."""
+
 from enum import Enum
 import pytest
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.api.schema import ChoiceInput, ValidatorInput, EffectInput, EffectKind
+from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.widgets import ChoiceWidget
 from typing import Annotated
 
 
 class Service(str, Enum):
+    """Enum for services."""
+
     KABINET = "Kabinet"
     ELEKTRO = "Elektro"
 
 
 @pytest.mark.define
-def test_annotation_good(simple_registry):
+def test_annotation_good(simple_registry: StructureRegistry) -> None:
+    """Test if the annotation is correctly integrated in the definition."""
     Services = Annotated[
         list[str],
         ChoiceWidget(
@@ -50,7 +56,7 @@ def test_annotation_good(simple_registry):
         ),
     ]
 
-    def func(services: Services) -> str:
+    def func(services: Services) -> str:  # type: ignore
         return services
 
     functional_definition = prepare_definition(func, structure_registry=simple_registry)
@@ -63,7 +69,8 @@ def test_annotation_good(simple_registry):
 
 
 @pytest.mark.define
-def test_validator_func():
+def test_validator_func() -> None:
+    """Thes if the validator function is correct."""
     ValidatorInput(
         function="(services) => services.length > 0",
         errorMessage="You must select at least one service to install",
@@ -72,7 +79,8 @@ def test_validator_func():
 
 
 @pytest.mark.define
-def test_validator_func():
+def test_validator_func_wrong_deps() -> None:
+    """Test if value errors are raised when the function is not correct."""
     with pytest.raises(ValueError):
         ValidatorInput(
             function="(services, x) => services.length > 0",
@@ -89,7 +97,8 @@ def test_validator_func():
 
 
 @pytest.mark.define
-def test_validator_should_alert_if_not_in_keys(simple_registry):
+def test_validator_should_alert_if_not_in_keys(simple_registry: StructureRegistry) -> None:
+    """Test if value errors are raised when the dependces are not in the definition"""
     TheStr = Annotated[
         str,
         ValidatorInput(
@@ -99,15 +108,16 @@ def test_validator_should_alert_if_not_in_keys(simple_registry):
         ),
     ]
 
-    def func(name: TheStr) -> str:
+    def func(name: TheStr) -> str:  # type: ignore
         return name
 
     with pytest.raises(ValueError):
-        functional_definition = prepare_definition(func, structure_registry=simple_registry)
+        prepare_definition(func, structure_registry=simple_registry)
 
 
 @pytest.mark.define
-def test_effect_integration(simple_registry):
+def test_effect_integration(simple_registry: StructureRegistry) -> None:
+    """Test if the effect is correctly integrated in the definition."""
     TheStr = Annotated[
         str,
         EffectInput(
@@ -117,7 +127,7 @@ def test_effect_integration(simple_registry):
         ),
     ]
 
-    def func(name: TheStr, other_key: bool) -> str:
+    def func(name: TheStr, other_key: bool) -> str:  # type: ignore
         return name
 
-    functional_definition = prepare_definition(func, structure_registry=simple_registry)
+    prepare_definition(func, structure_registry=simple_registry)

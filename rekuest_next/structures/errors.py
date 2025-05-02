@@ -1,3 +1,5 @@
+"""Base class for all structure errors."""
+
 from rekuest_next.errors import RekuestError
 
 

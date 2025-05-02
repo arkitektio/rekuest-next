@@ -1,4 +1,3 @@
-import asyncio
 from typing import Protocol, Self, runtime_checkable, Callable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.structures.registry import StructureRegistry

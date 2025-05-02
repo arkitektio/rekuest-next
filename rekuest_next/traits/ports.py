@@ -1,4 +1,4 @@
-from typing import Callable, TYPE_CHECKING, Any
+from typing import Callable, TYPE_CHECKING, Any, Union
 from pydantic import BaseModel, field_validator, model_validator
 import uuid
 import random
@@ -7,7 +7,6 @@ import re
 if TYPE_CHECKING:
     from rekuest_next.api.schema import (
         PortInput,
-        PortGroupInput,
         DefinitionInput,
         ValidatorInput,
         ReturnWidgetInput,
@@ -67,7 +66,7 @@ class PortTrait(BaseModel):
         int_generator: Callable = lambda: random.randint(0, 100),
         float_generator: Callable = lambda: random.random(),
         string_generator: Callable = lambda: str("sss"),
-    ):
+    ) -> Union[int, str, bool, dict, list, None]:
         """
         Mocks some serialized data for this port
         """

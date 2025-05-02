@@ -4,7 +4,6 @@ from rekuest_next.api.schema import (
     Port,
     PortInput,
     PortKind,
-    ChildPort,
 )
 import datetime as dt
 

@@ -1,3 +1,5 @@
+"""Serialization and deserialization function for actors"""
+
 from typing import Any, Dict, List
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
@@ -24,7 +26,7 @@ async def aexpand_arg(
     value: Union[str, int, float, dict, list],
     structure_registry: StructureRegistry,
     shelver: Shelver,
-) -> Any:
+) -> Any:  # noqa: ANN401
     """Expand a value through a port
 
     Args:
@@ -55,10 +57,8 @@ async def aexpand_arg(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
                 " dicts with children"
             ) from None
-            
-            
-        expanding_port = port.children[0]
 
+        expanding_port = port.children[0]
 
         if not isinstance(value, dict):
             raise ExpandingError(
@@ -78,7 +78,7 @@ async def aexpand_arg(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
                 " unions with children"
             ) from None
-        
+
         if not isinstance(value, dict):
             raise ExpandingError(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. We only"
@@ -97,9 +97,7 @@ async def aexpand_arg(
                 f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
                 " lists with children"
             ) from None
-        
-        
-        
+
         expanding_port = port.children[0]
 
         if not isinstance(value, list):
@@ -133,9 +131,7 @@ async def aexpand_arg(
                     f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
                     " models with identifiers"
                 ) from None
-            
-            
-            
+
             expanded_args = await asyncio.gather(
                 *[
                     aexpand_arg(
@@ -237,11 +233,16 @@ async def expand_inputs(
 
 async def ashrink_return(
     port: Union[PortInput],
-    value: Any,
+    value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry,
     shelver: Shelver,
 ) -> Union[str, int, float, dict, list, None]:
-    """Expand a value through a port
+    """Shrink a value through a port
+
+    This function is used to shrink a value to a smaller json serializable value
+    with the help of the port definition and the structure registry, where potential
+    shrinkers for funtions are registered.
+
 
     Args:
         port (ArgPort): Port to expand to
@@ -370,6 +371,18 @@ async def shrink_outputs(
     shelver: Shelver,
     skip_shrinking: bool = False,
 ) -> Dict[str, Union[str, int, float, dict, list, None]]:
+    """Shrink the output of a function
+
+    Args:
+        definition (DefinitionInput): The function definition
+        returns (List[Any]): The return values of the function
+        structure_registry (StructureRegistry): The structure registry
+        shelver (Shelver): The shelver
+        skip_shrinking (bool): If True, skip shrinking
+
+    Returns:
+        Dict[str, Union[str, int, float, dict, list, None]]: The shrunk values
+    """
     node = definition
 
     if returns is None:

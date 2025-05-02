@@ -154,7 +154,7 @@ def is_float(cls):
 
 
 def is_generator_type(cls):
-    if get_origin(cls) == types.GeneratorType:
+    if get_origin(cls) in (types.GeneratorType, typing.Generator, types.AsyncGeneratorType):
         return True
     else:
         return False
@@ -644,7 +644,13 @@ def prepare_definition(
         if function_outs_annotation is None:
             pass
 
-        elif getattr(function_outs_annotation, "__name__", "false") != "_empty":  # Is it not empty
+        elif function_outs_annotation == inspect.Signature.empty:
+            pass
+
+        else:
+            if is_generator_type(function_outs_annotation):
+                function_outs_annotation = get_args(function_outs_annotation)[0]
+
             if is_tuple(function_outs_annotation):
                 for index, cls in enumerate(get_args(function_outs_annotation)):
                     key = f"return{index}"

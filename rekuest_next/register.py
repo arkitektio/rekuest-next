@@ -32,6 +32,7 @@ from typing import (
     Any,
     Tuple,
     TypeVar,
+    Union,
     overload,
 )
 import inflection
@@ -131,7 +132,9 @@ T = TypeVar("T")
 @overload
 def register(
     function_or_actor: T,
-) -> T: ...
+) -> T:
+    """Register a function or actor to the default definition registry."""
+    ...
 
 
 @overload
@@ -156,7 +159,25 @@ def register(
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
     **actifier_params: Dict[str, object],
-) -> Callable[[T], T]: ...
+) -> Callable[[T], T]:
+    """Register a function or actor to the default definition registry.
+
+    You can use this decorator to register a function or actor to the default
+    definition registry. There is also a function version of this decorator,
+    which is more convenient to use.
+
+    Example:
+        >>> @register
+        >>> def hello_world(string: str):
+
+        >>> @register(interface="hello_world")
+        >>> def hello_world(string: str):
+
+
+
+    """
+
+    ...
 
 
 def register(
@@ -215,7 +236,7 @@ def register(
         function_or_actor = func[0]
 
         @wraps(function_or_actor)
-        def wrapped_function(*args, **kwargs):
+        def wrapped_function(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
             return function_or_actor(*args, **kwargs)
 
         definition, actor_builder = register_func(
@@ -313,7 +334,13 @@ def register_global(
     registry: StructureRegistry = None,
     **kwargs: Dict[str, Any],
 ) -> T:
-    """Register a structure to the default structure registry.
+    """Register a global structure to the default structure registry.
+
+    This will register the structure with the given identifier and
+    the given shrink and expand functions. The identifier will be
+    used to identify the structure in the registry. The shrink and
+    expand functions will be used to shrink and expand the structure
+    when it is passed to and from an actor.
 
     Args:
         cls (Structure): The structure class
@@ -351,8 +378,8 @@ def register_global(
                 cls,
                 identifier=identifier,
                 scope=PortScope.GLOBAL,
-                ashrink=ashrink or getattr(function_or_actor, "ashrink", None),
-                aexpand=aexpand or getattr(function_or_actor, "aexpand", None),
+                ashrink=ashrink or getattr(cls, "ashrink", None),
+                aexpand=aexpand or getattr(cls, "aexpand", None),
                 convert_default=convert_default,
                 default_widget=default_widget,
                 default_returnwidget=default_returnwidget,
@@ -364,7 +391,9 @@ def register_global(
         return real_decorator
 
 
-def test(tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None):
+def test(
+    tested_node: Union[str, Callable], name: Optional[str] = None, description: Optional[str] = None
+) -> T:
     """Register a test for a function or actor
 
     It should check if the function or actor expects templates as an input,
@@ -379,41 +408,6 @@ def test(tested_node: Callable, name: Optional[str] = None, description: Optiona
     def registered_function(func):
         @wraps(func)
         def wrapped_function(*args, __template, **kwargs):
-            if is_inside_assignation():
-                raise NotImplementedError("You cannot run tests inside an assignation.")
-
-            return func(*args, **kwargs)
-
-        assert hasattr(tested_node, "__definition_hash__"), (
-            "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
-        )
-
-        register(
-            func,
-            is_test_for=[tested_node.__definition_hash__],
-            interface=name or func.__name__,
-        )
-
-        return wrapped_function
-
-    return registered_function
-
-
-def benchmark(tested_node: Callable, name: Optional[str] = None, description: Optional[str] = None):
-    """Register a test for a function or actor
-
-    It should check if the function or actor expects templates as an input,
-    and if so register the test for that template.
-
-    Args:
-        for (Callable): The function or actor to test
-        name (Optional[str], optional): The name of the test. Defaults to None.
-        description (Optional[str], optional): The description of the test. Defaults to None.
-    """
-
-    def registered_function(func):
-        @wraps(func)
-        def wrapped_function(*args, **kwargs):
             if is_inside_assignation():
                 raise NotImplementedError("You cannot run tests inside an assignation.")
 

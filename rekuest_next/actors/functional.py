@@ -9,7 +9,6 @@ from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
 from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
 from rekuest_next.actors.helper import AssignmentHelper
-from rekuest_next.structures.parse_collectables import parse_collectable
 from rekuest_next.structures.errors import SerializationError
 from rekuest_next import messages
 

@@ -1,0 +1,274 @@
+"""General utils for rekuest_next"""
+
+import uuid
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    List,
+    Optional,
+    Union,
+)
+
+from koil import unkoil, unkoil_gen
+from rekuest_next.actors.context import useAssignation
+from rekuest_next.actors.vars import (
+    NotWithinAnAssignationError,
+)
+from rekuest_next.api.schema import (
+    AssignationEvent,
+    AssignationEventKind,
+    AssignInput,
+    HookInput,
+    Node,
+    Reservation,
+    Template,
+)
+from rekuest_next.messages import Assign
+from rekuest_next.postmans.types import Postman
+from rekuest_next.postmans.vars import get_current_postman
+from rekuest_next.structures.registry import (
+    StructureRegistry,
+    get_current_structure_registry,
+)
+from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
+
+
+def ensure_return_as_list(value: Any) -> list:
+    if not value:
+        return []
+    if isinstance(value, tuple):
+        return value
+    return [value]
+
+
+async def acall_raw(
+    kwargs: Dict[str, Any] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    parent: Optional[Assign] = None,
+    reservation: Optional[Reservation] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    assign_timeout: Optional[int] = None,
+    timeout_is_recoverable: bool = False,
+    log: bool = False,
+    postman: Optional[Postman] = None,
+) -> AsyncGenerator[AssignationEvent, None]:
+    postman: Postman = postman or get_current_postman()
+
+    try:
+        parent = useAssignation()
+    except NotWithinAnAssignationError:
+        # If we are not within an assignation, we can set the parent to None
+        parent = None
+
+    reference = reference or str(uuid.uuid4())
+
+    x = AssignInput(
+        instanceId=postman.instance_id,
+        node=node,
+        template=template,
+        reservation=reservation,  # type: ignore
+        args=kwargs,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+        isHook=False,
+        ephemeral=False,
+    )
+
+    returns = None
+
+    async for i in postman.aassign(x):
+        if i.kind == AssignationEventKind.YIELD:
+            returns = i.returns
+
+        if i.kind == AssignationEventKind.DONE:
+            return returns
+
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise Exception(i.message)
+
+
+async def aiterate_raw(
+    kwargs: Dict[str, Any] = None,
+    node: Optional[Node] = None,
+    template: Optional[Template] = None,
+    parent: Optional[Assign] = None,
+    reservation: Optional[Reservation] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    assign_timeout: Optional[int] = None,
+    timeout_is_recoverable: bool = False,
+    log: bool = False,
+    postman: Optional[Postman] = None,
+) -> AsyncGenerator[AssignationEvent, None]:
+    """Async generator that yields the results of the assignation"""
+    postman: Postman = postman or get_current_postman()
+
+    try:
+        parent = useAssignation()
+    except NotWithinAnAssignationError:
+        # If we are not within an assignation, we can set the parent to None
+        parent = None
+
+    reference = reference or str(uuid.uuid4())
+
+    x = AssignInput(
+        instanceId=postman.instance_id,
+        node=node,
+        template=template,
+        reservation=reservation,  # type: ignore
+        args=kwargs,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+        isHook=False,
+        ephemeral=False,
+    )
+
+    async for i in postman.aassign(x):
+        if i.kind == AssignationEventKind.YIELD:
+            yield i.returns
+
+        if i.kind == AssignationEventKind.DONE:
+            return
+
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise Exception(i.message)
+
+
+async def acall(
+    node_template_res: Union[Node, Template, Reservation] = None,
+    *args,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: bool = None,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    postman: Optional[Postman] = None,
+    **kwargs,
+) -> tuple[Any]:
+    node = None
+    template = None
+    reservation = None
+
+    if isinstance(node_template_res, Template):
+        # If the node is a template, we need to find the node
+        node = node_template_res.node
+        template = node_template_res
+
+    elif isinstance(node_template_res, Reservation):
+        # If the node is a reservation, we need to find the node
+        node = node_template_res.node
+        reservation = node_template_res
+
+    elif isinstance(node_template_res, Node):
+        # If the node is a node, we need to find the node
+        node = node_template_res
+    else:
+        # If the node is not a node, we need to find the node
+        raise ValueError("node_template_res must be a Node, Template or Reservation")
+
+    structure_registry = get_current_structure_registry()
+
+    shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
+
+    returns = await acall_raw(
+        kwargs=shrinked_args,
+        node=node,
+        template=template,
+        reservation=reservation,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+        postman=postman,
+    )
+
+    return await aexpand_returns(node, returns, structure_registry=structure_registry)
+
+
+async def aiterate(
+    node_template_res: Union[Node, Template, Reservation] = None,
+    *args,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: bool = None,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    **kwargs,
+) -> AsyncGenerator[tuple[Any], None]:
+    node = None
+    template = None
+    reservation = None
+
+    if isinstance(node_template_res, Template):
+        # If the node is a template, we need to find the node
+        node = node_template_res.node
+        template = node_template_res
+
+    elif isinstance(node_template_res, Reservation):
+        # If the node is a reservation, we need to find the node
+        node = node_template_res.node
+        reservation = node_template_res
+
+    elif isinstance(node_template_res, Node):
+        # If the node is a node, we need to find the node
+        node = node_template_res
+    else:
+        # If the node is not a node, we need to find the node
+        raise ValueError("node_template_res must be a Node, Template or Reservation")
+
+    structure_registry = get_current_structure_registry()
+
+    shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
+
+    async for i in await aiterate_raw(
+        kwargs=shrinked_args,
+        node=node,
+        template=template,
+        reservation=reservation,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        log=log,
+    ):
+        yield aexpand_returns(node, i, structure_registry=structure_registry)
+
+
+def call(
+    *args,
+    **kwargs,
+) -> tuple[Any]:
+    return unkoil(
+        acall,
+        *args,
+        **kwargs,
+    )
+
+
+def iterate(
+    *args,
+    **kwargs,
+) -> tuple[Any]:
+    return unkoil_gen(
+        aiterate,
+        *args,
+        **kwargs,
+    )
+
+
+def call_raw(*args, **kwargs):
+    return unkoil(acall_raw, *args, **kwargs)

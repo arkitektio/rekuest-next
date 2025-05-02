@@ -1,3 +1,5 @@
+"""This module contains the custom scalars for the rekuest_next library."""
+
 from graphql import (
     DocumentNode,
     parse,
@@ -121,6 +123,7 @@ class ValidatorFunction(str):
 def parse_or_raise(v: str) -> DocumentNode:
     """Parse a string to a graphql DocumentNode. If it fails, raise a ValueError
     with the error message and the source location of the error.
+
     Args:
         v (str): The string to parse.
     Raises:
@@ -131,8 +134,8 @@ def parse_or_raise(v: str) -> DocumentNode:
     except GraphQLError as e:
         x = repr(e)
         x += "\n" + v + "\n"
-        for l in e.locations:
-            x += "\n" + print_source_location(e.source, l)
+        for loc in e.locations:
+            x += "\n" + print_source_location(e.source, loc)
         raise ValueError("Could not parse to graphql: \n" + x)
 
 
@@ -158,7 +161,7 @@ class SearchQuery(str):
     @classmethod
     def __get_pydantic_core_schema__(  # noqa: D105
         self,
-        source_type: Any,
+        source_type: Any,  # noqa: ANN401
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the search query"""

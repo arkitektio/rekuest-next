@@ -1,8 +1,9 @@
+"""Default structures for Rekuest Next"""
+
 from rekuest_next.structures.default import (
     get_default_structure_registry,
     id_shrink,
 )
-from rekuest_next.structures.hooks.local_structure import id_shrink
 from rekuest_next.api.schema import (
     Template,
     Node,
@@ -29,9 +30,7 @@ structure_reg.register_as_structure(
     scope=PortScope.GLOBAL,
     aexpand=aget_template,
     ashrink=id_shrink,
-    default_widget=SearchWidget(
-        query=Search_templatesQuery.Meta.document, ward="rekuest"
-    ),
+    default_widget=SearchWidget(query=Search_templatesQuery.Meta.document, ward="rekuest"),
 )
 
 structure_reg.register_as_structure(
@@ -40,9 +39,7 @@ structure_reg.register_as_structure(
     scope=PortScope.GLOBAL,
     aexpand=afind,
     ashrink=id_shrink,
-    default_widget=SearchWidget(
-        query=Search_nodesQuery.Meta.document, ward="rekuest"
-    ),
+    default_widget=SearchWidget(query=Search_nodesQuery.Meta.document, ward="rekuest"),
 )
 
 structure_reg.register_as_structure(
@@ -51,9 +48,7 @@ structure_reg.register_as_structure(
     scope=PortScope.GLOBAL,
     aexpand=aget_testcase,
     ashrink=id_shrink,
-    default_widget=SearchWidget(
-        query=Search_testcasesQuery.Meta.document, ward="rekuest"
-    ),
+    default_widget=SearchWidget(query=Search_testcasesQuery.Meta.document, ward="rekuest"),
 )
 
 structure_reg.register_as_structure(
@@ -62,9 +57,7 @@ structure_reg.register_as_structure(
     scope=PortScope.GLOBAL,
     aexpand=aget_testresult,
     ashrink=id_shrink,
-    default_widget=SearchWidget(
-        query=Search_testresultsQuery.Meta.document, ward="rekuest"
-    ),
+    default_widget=SearchWidget(query=Search_testresultsQuery.Meta.document, ward="rekuest"),
 )
 
 structure_reg.register_as_structure(

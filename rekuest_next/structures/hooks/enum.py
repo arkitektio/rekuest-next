@@ -1,10 +1,7 @@
 """Tries to convert an enum to a structure"""
 
 from typing import (
-    Any,
-    Awaitable,
     Callable,
-    Optional,
     Type,
 )
 from pydantic import BaseModel
@@ -20,35 +17,46 @@ from rekuest_next.api.schema import (
     ReturnWidgetKind,
 )
 from enum import Enum
+from rekuest_next.structures.utils import build_instance_predicate
 
 
-def build_enum_shrink_expand(cls: Type[Enum]):
-    async def shrink(s):
+def build_enum_shrink_expand(cls: Type[Enum]) -> tuple[Callable, Callable]:
+    """Builds the shrink and expand functions for an enum class."""
+
+    async def shrink(s: Enum) -> str:
+        """Convert an enum value to its string representation."""
         return s.name
 
-    async def expand(v):
+    async def expand(v: str) -> Enum:
+        """Convert a string representation back to the enum value."""
         return cls.__members__[v]
 
     return shrink, expand
 
 
-def cls_to_identifier(cls: Type) -> Identifier:
+def cls_to_identifier(cls: Type[Enum]) -> Identifier:
+    """Convert a enum class to an identifier string."""
     return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
 
 
-def build_instance_predicate(cls: Type):
-    return lambda x: isinstance(x, cls)
-
-
-def enum_converter(x):
+def enum_converter(x: Enum) -> str:
+    """Convert an enum value to its string representation."""
     return x.name
 
 
-async def void_acollect(id: str):
-    return None
-
-
 class EnumHook(BaseModel):
+    """A hook that can be registered to automatically convert enums to structures
+    and vice versa.
+
+    Enums will be converted to a structure with a default
+    choices widget and a default choices return widget. The shrink and expand
+    functions will be generated automatically. The identifier will be generated
+    automatically from the class name and module name. The scope will be set to
+    global. The predicate will be generated automatically from the class name.
+
+
+    """
+
     cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
     """A hook that can be registered to the structure registry"""
 
@@ -59,10 +67,8 @@ class EnumHook(BaseModel):
                 return True
         return False
 
-    def apply(
-        self,
-        cls: Type
-    ) -> FullFilledStructure:
+    def apply(self, cls: Type) -> FullFilledStructure:
+        """Apply the hook to the class and return a FullFilledStructure"""
         identifier = self.cls_to_identifier(cls)
         ashrink, aexpand = build_enum_shrink_expand(cls)
         predicate = build_instance_predicate(cls)
@@ -70,17 +76,21 @@ class EnumHook(BaseModel):
 
         default_widget = AssignWidgetInput(
             kind=AssignWidgetKind.CHOICE,
-            choices=tuple([
-                ChoiceInput(label=key, value=key, description=value.__doc__)
-                for key, value in cls.__members__.items()
-            ])
+            choices=tuple(
+                [
+                    ChoiceInput(label=key, value=key, description=value.__doc__)
+                    for key, value in cls.__members__.items()
+                ]
+            ),
         )
         default_returnwidget = ReturnWidgetInput(
             kind=ReturnWidgetKind.CHOICE,
-            choices=tuple([
-                ChoiceInput(label=key, value=key, description=value.__doc__)
-                for key, value in cls.__members__.items()
-            ])
+            choices=tuple(
+                [
+                    ChoiceInput(label=key, value=key, description=value.__doc__)
+                    for key, value in cls.__members__.items()
+                ]
+            ),
         )
 
         return FullFilledStructure(

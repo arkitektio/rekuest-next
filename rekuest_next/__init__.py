@@ -1,10 +1,11 @@
-__version__ = "0.1.1"
+"""This module provides the main interface for the Rekuest library.
+It includes the main classes and functions for creating and managing
+Rekuest instances, as well as utility functions for working with
+Rekuest objects.
+"""
 
-from .utils import (
+from .remote import (
     acall,
-    afind,
-    areserve,
-    reserved,
     call,
     aiterate,
     iterate,
@@ -12,27 +13,26 @@ from .utils import (
     acall_raw,
 )
 from .structures.model import model
+from .state.decorator import state
 
 try:
     from .arkitekt import ArkitektNextRekuestNext
-except ImportError:
+except ImportError as e:
     pass
 from .structure import structure_reg
 
 
 __all__ = [
     "acall",
-    "afind",
+    "state",
     "areserve",
     "reserved",
     "call",
-    "find",
-    "reserve",
     "structur_reg",
     "imported",
     "iterate",
+    "ArkitektNextRekuestNext",
     "aiterate",
     "model",
-    "call_raw",
     "acall_raw",
 ]

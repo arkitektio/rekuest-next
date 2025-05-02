@@ -12,8 +12,8 @@ from rekuest_next.agents.context import (
     prepare_context_variables,
 )
 from rekuest_next.state.predicate import get_state_name, is_state
-from rekuest_next.state.state import prepare_state_variables
-from rekuest_next.utils import ensure_return_as_list
+from rekuest_next.state.decorator import prepare_state_variables
+from rekuest_next.remote import ensure_return_as_list
 from .errors import StartupHookError, StateRequirementsNotMet
 import inspect
 
@@ -43,16 +43,14 @@ class StartupHook(Protocol):
 
 
 class HooksRegistry(BaseModel):
-    """ Hook Registry
-    
+    """Hook Registry
+
     Hooks are functions that are run when the default extension starts up.
     They can setup the state variables and contexts that are used by the agent.
     They are run in the order they are registered.
-    
+
     """
-    
-    
-    
+
     background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 
@@ -94,7 +92,6 @@ class HooksRegistry(BaseModel):
     def reset(self):
         self.background_worker = {}
         self.startup_hooks = {}
-
 
 
 default_registry = None
@@ -159,8 +156,8 @@ class WrappedBackgroundTask(BackgroundTask):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return await self.func(**kwargs)
-    
-    
+
+
 class WrappedThreadedBackgroundTask(BackgroundTask):
     def __init__(self, func):
         self.func = func
@@ -188,8 +185,9 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        return await run_spawned(self.func, **kwargs, executor=self.thread_pool, pass_context=True)
-
+        return await run_spawned(
+            self.func, **kwargs, executor=self.thread_pool, pass_context=True
+        )
 
 
 def get_default_hook_registry() -> HooksRegistry:
@@ -221,7 +219,6 @@ def background(
             registry.register_background(name, WrappedBackgroundTask(function))
         else:
             registry.register_background(name, WrappedThreadedBackgroundTask(function))
-            
 
         return function
 
@@ -229,7 +226,7 @@ def background(
 
         def real_decorator(function):
             nonlocal registry, name
-            
+
             # Simple bypass for now
             @wraps(function)
             def wrapped_function(*args, **kwargs):
@@ -238,12 +235,13 @@ def background(
             name = name or function.__name__
             registry = registry or get_default_hook_registry()
             if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-            function
+                function
             ):
                 registry.register_background(name, WrappedBackgroundTask(function))
             else:
-                registry.register_background(name, WrappedThreadedBackgroundTask(function))
-            
+                registry.register_background(
+                    name, WrappedThreadedBackgroundTask(function)
+                )
 
             return wrapped_function
 
@@ -266,9 +264,9 @@ def startup(
         raise ValueError("You can only register one function at a time.")
     if len(func) == 1:
         function = func[0]
-        assert asyncio.iscoroutinefunction(
-            function
-        ), "Startup hooks must be (currently) async"
+        assert asyncio.iscoroutinefunction(function), (
+            "Startup hooks must be (currently) async"
+        )
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
 
@@ -280,9 +278,9 @@ def startup(
 
         def real_decorator(function):
             nonlocal registry, name
-            assert asyncio.iscoroutinefunction(
-                function
-            ), "Startup hooks must be (currently) async"
+            assert asyncio.iscoroutinefunction(function), (
+                "Startup hooks must be (currently) async"
+            )
 
             # Simple bypass for now
             @wraps(function)

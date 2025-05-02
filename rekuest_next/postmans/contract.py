@@ -5,6 +5,9 @@ from rekuest_next.messages import Assign
 
 @runtime_checkable
 class RPCContract(Protocol):
+    """An RPC contract is a protocol that defines how
+    to call a function or generator in a blocking or non-blocking way.
+    """
 
     async def __aenter__(self) -> "RPCContract": ...
 

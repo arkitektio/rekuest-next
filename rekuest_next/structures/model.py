@@ -1,11 +1,17 @@
+"""This module contains the model decorator that can
+be used to mark a class as a model."""
+
 from dataclasses import dataclass
 from fieldz import fields, Field
-from typing import Any, List
+from typing import List, TypeVar
 from .types import FullFilledArg, FullFilledModel
 import inflection
 
 
-def model(cls: Any) -> Any:
+T = TypeVar("T", bound=object)
+
+
+def model(cls: T) -> T:
     """Mark a class as a model. This is used to
     identify the model in the rekuest_next system."""
 
@@ -24,13 +30,13 @@ def model(cls: Any) -> Any:
     return cls
 
 
-def is_model(cls: Any) -> bool:
+def is_model(cls: T) -> bool:
     """Check if a class is a model."""
 
     return getattr(cls, "__rekuest_model__", False)
 
 
-def retrieve_args_for_model(cls: Any) -> List[FullFilledArg]:
+def retrieve_args_for_model(cls: T) -> List[FullFilledArg]:
     """Retrieve the arguments for a model."""
     children_clses = fields(cls)
 
@@ -47,7 +53,7 @@ def retrieve_args_for_model(cls: Any) -> List[FullFilledArg]:
     return args
 
 
-def retrieve_fullfiled_model(cls: Any) -> FullFilledModel:
+def retrieve_fullfiled_model(cls: T) -> FullFilledModel:
     """Retrieve the fullfilled model for a class."""
     return FullFilledModel(
         identifier=cls.__rekuest_model__,

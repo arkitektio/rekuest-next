@@ -1,3 +1,6 @@
+""" """
+
+from rekuest_next.state.decorators import OnProvide, OnUnprovide
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.definition.validate import hash_definition
 from rekuest_next.state.state import prepare_state_variables
@@ -52,19 +55,19 @@ def define(
     effects: Dict[str, List[EffectInput]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide=None,
-    on_unprovide=None,
+    on_provide: OnProvide | None = None,
+    on_unprovide: OnUnprovide | None = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: StructureRegistry = None,
     definition_registry: DefinitionRegistry = None,
     in_process: bool = False,
     dynamic: bool = False,
-    **actifier_params,
+    **actifier_params: Dict[str, str],
 ) -> Callable[[T], T]: ...
 
 
 def define_func(
-    function_or_actor,
+    function_or_actor: T,
     structure_registry: StructureRegistry,
     definition_registry: DefinitionRegistry,
     interface: str = None,
@@ -77,7 +80,7 @@ def define_func(
     widgets: Dict[str, AssignWidgetInput] = None,
     effects: Dict[str, List[EffectInput]] = None,
     interfaces: List[str] = [],
-    **definition_params,
+    **definition_params: Dict[str, str],
 ):
     """Register a function or actor with the definition registry
 
