@@ -1,3 +1,5 @@
+"""Traits for nodes , so that we can use them as reservable context"""
+
 from typing import Dict, Any
 from koil.composition.base import KoiledModel
 

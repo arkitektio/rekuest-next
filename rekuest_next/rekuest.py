@@ -1,14 +1,10 @@
-from typing import Dict
+"""The base client for rekuest next"""
+
 from pydantic import Field
 from koil.helpers import unkoil_task
-from rekuest_next.api.schema import Template
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.agents.base import BaseAgent
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.structures.default import get_default_structure_registry
-from rekuest_next.structures.registry import (
-    StructureRegistry,
-)
 
 from rekuest_next.actors.types import Agent
 from rekuest_next.postmans.types import Postman

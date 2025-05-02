@@ -1,7 +1,9 @@
+"""Register a function or actor with the definition registry"""
+
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import Actifier, ActorBuilder, OnUnprovide, OnProvide
 from rekuest_next.actors.vars import is_inside_assignation
-from rekuest_next.definition.validate import hash_definition
+from rekuest_next.definition.hash import hash_definition
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
@@ -405,9 +407,9 @@ def test(
         description (Optional[str], optional): The description of the test. Defaults to None.
     """
 
-    def registered_function(func):
+    def registered_function(func: Callable) -> T:
         @wraps(func)
-        def wrapped_function(*args, __template, **kwargs):
+        def wrapped_function(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
             if is_inside_assignation():
                 raise NotImplementedError("You cannot run tests inside an assignation.")
 

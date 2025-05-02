@@ -1,3 +1,5 @@
+"""The base graphql client for rekuest next"""
+
 from types import TracebackType
 from pydantic import Field
 from rath import rath

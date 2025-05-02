@@ -1,3 +1,5 @@
+"""General types for Hooks in Rekuest Next"""
+
 from typing import (
     Any,
     Awaitable,

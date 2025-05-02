@@ -1,9 +1,6 @@
 """Default structures for Rekuest Next"""
 
-from rekuest_next.structures.default import (
-    get_default_structure_registry,
-    id_shrink,
-)
+from rekuest_next.structures.default import get_default_structure_registry, id_shrink
 from rekuest_next.api.schema import (
     Template,
     Node,

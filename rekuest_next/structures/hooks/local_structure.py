@@ -1,3 +1,5 @@
+"""Local Structure Hook"""
+
 from typing import (
     Callable,
     Type,
@@ -12,15 +14,18 @@ from rekuest_next.structures.utils import build_instance_predicate
 from .errors import HookError
 
 
-async def id_shrink(self):
+async def id_shrink(self: BaseModel) -> str:
+    """Convert a structure with an id to a string representation by using the id."""
     return self.id
 
 
-def identity_default_converter(x):
+def identity_default_converter(x: str) -> str:
+    """Convert a value to its string representation."""
     return x
 
 
 def cls_to_identifier(cls: Type) -> Identifier:
+    """Convert a class to an identifier."""
     try:
         return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
     except AttributeError:

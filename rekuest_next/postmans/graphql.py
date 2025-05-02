@@ -1,3 +1,5 @@
+"""A GraphQL postman"""
+
 from typing import AsyncGenerator, Dict
 from rekuest_next.api.schema import (
     AssignationEvent,
@@ -47,9 +49,7 @@ class GraphQLPostman(KoiledModel):
         data = {}  # await self.transport.alist_assignations()
         self.assignations = {ass.assignation: ass for ass in data}
 
-    async def aassign(
-        self, assign: AssignInput
-    ) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         """Assign a"""
         async with self._lock:
             if not self._watching:
@@ -75,17 +75,18 @@ class GraphQLPostman(KoiledModel):
             del self._ass_update_queues[assign.reference]
             raise e
 
-    def register_assignation_queue(self, ass_id: str, queue: asyncio.Queue):
+    def register_assignation_queue(self, ass_id: str, queue: asyncio.Queue) -> None:
+        """Register a queue"""
         self._ass_update_queues[ass_id] = queue
 
-    def unregister_assignation_queue(self, ass_id: str):
+    def unregister_assignation_queue(self, ass_id: str) -> None:
+        """Delte the watch queue"""
         del self._ass_update_queues[ass_id]
 
-    async def watch_assignations(self):
+    async def watch_assignations(self) -> None:
+        """Watch assingaitons task"""
         try:
-            async for assignation in awatch_assignations(
-                self.instance_id, rath=self.rath
-            ):
+            async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)
@@ -97,7 +98,11 @@ class GraphQLPostman(KoiledModel):
             logger.error("Watching Assignations failed", exc_info=True)
             raise e
 
-    async def watch_assraces(self):
+    async def watch_assraces(self) -> None:
+        """Checks for new assignaitons in the update_queue
+
+        Websockets can be faster than http, therefore we put stuff in a queue first
+        """
         try:
             while True:
                 ass: AssignationEvent = await self._ass_update_queue.get()
@@ -111,7 +116,8 @@ class GraphQLPostman(KoiledModel):
         except Exception:
             logger.error("Error in watch_resraces", exc_info=True)
 
-    async def start_watching(self):
+    async def start_watching(self) -> None:
+        """Start watching for updates"""
         logger.info("Starting watching")
         self._ass_update_queue = asyncio.Queue()
         self._watch_assignations_task = asyncio.create_task(self.watch_assignations())
@@ -119,10 +125,12 @@ class GraphQLPostman(KoiledModel):
         self._watch_assraces_task = asyncio.create_task(self.watch_assraces())
         self._watching = True
 
-    def log_assignation_fail(self, future):
+    def log_assignation_fail(self, task: asyncio.Task) -> None:
+        """a hook to"""
         return
 
-    async def stop_watching(self):
+    async def stop_watching(self) -> None:
+        """Causes the postman to stop watching"""
         self._watch_assignations_task.cancel()
         self._watch_assraces_task.cancel()
 
@@ -137,12 +145,19 @@ class GraphQLPostman(KoiledModel):
 
         self._watching = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "GraphQLPostman":
+        """Enter the postman"""
         self._lock = asyncio.Lock()
         current_postman.set(self)
-        return await super().__aenter__()
+        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,
+    ) -> None:
+        """Exit the context manager"""
         if self._watching:
             await self.stop_watching()
         current_postman.set(None)

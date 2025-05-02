@@ -1,3 +1,5 @@
+"""Predication module for Rekuest Next."""
+
 from typing import Any, Union
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
@@ -10,9 +12,18 @@ import datetime as dt
 
 def predicate_port(
     port: Union[Port, PortInput],
-    value: Any,
+    value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry = None,
-):
+) -> bool:
+    """Check if the value is of the correct type for the structure.
+
+    Args:
+        port (Union[Port, PortInput]): The port to check.
+        value (Any): The value to check.
+        structure_registry (StructureRegistry, optional): The structure registry. Defaults to None.
+    Returns:
+        bool: True if the value is of the correct type for the structure, False otherwise.
+    """
     if port.kind == PortKind.DICT:
         if not isinstance(value, dict):
             return False

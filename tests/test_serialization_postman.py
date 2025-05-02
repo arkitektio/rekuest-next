@@ -2,7 +2,6 @@
 
 import pytest
 from rekuest_next.definition.define import prepare_definition
-from rekuest_next.definition.validate import auto_validate
 from rekuest_next.structures.serialization.postman import ashrink_args, aexpand_returns
 from rekuest_next.structures.serialization.actor import expand_inputs
 from .funcs import (
@@ -26,15 +25,13 @@ async def test_shrinking_nullable(
     """Test if we can shrink a nullable input."""
     functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
 
-    definition = auto_validate(functional_definition)
-
     args = await ashrink_args(
-        definition, (None,), {}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition, (None,), {}, structure_registry=simple_registry, shelver=mock_shelver
     )
     assert args == {"x": None}
 
     args = await ashrink_args(
-        definition, (1,), {}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition, (1,), {}, structure_registry=simple_registry, shelver=mock_shelver
     )
     assert args == {"x": 1}
 
@@ -48,10 +45,8 @@ async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver:
         plain_basic_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     args = await ashrink_args(
-        definition,
+        functional_definition,
         ("hallo", "zz"),
         {},
         structure_registry=simple_registry,
@@ -70,10 +65,8 @@ async def test_rountdrip_structure(
         plain_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     args = await ashrink_args(
-        definition,
+        functional_definition,
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
         structure_registry=simple_registry,
@@ -91,10 +84,8 @@ async def test_shrink_union(simple_registry: StructureRegistry, mock_shelver: Sh
         union_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     args = await ashrink_args(
-        definition,
+        functional_definition,
         (SerializableObject(number=3),),
         {},
         structure_registry=simple_registry,
@@ -112,10 +103,8 @@ async def test_roundtrip(simple_registry: StructureRegistry, mock_shelver: Shelv
         plain_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     shrinked_args = await ashrink_args(
-        definition,
+        functional_definition,
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
         structure_registry=simple_registry,
@@ -123,7 +112,7 @@ async def test_roundtrip(simple_registry: StructureRegistry, mock_shelver: Shelv
     )
 
     expanded_args = await expand_inputs(
-        definition,
+        functional_definition,
         shrinked_args,
         structure_registry=simple_registry,
         shelver=mock_shelver,
@@ -141,11 +130,9 @@ async def test_shrinking_structure_error(
         plain_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     with pytest.raises(ShrinkingError):
         await ashrink_args(
-            definition,
+            functional_definition,
             (SerializableObject(number=3), SecondObject(id=4)),
             {},
             structure_registry=simple_registry,
@@ -163,10 +150,8 @@ async def test_shrinking_nested_structure(
         nested_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     args = await ashrink_args(
-        definition,
+        functional_definition,
         ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
         {},
         structure_registry=simple_registry,
@@ -183,10 +168,8 @@ async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Sh
         plain_basic_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     await aexpand_returns(
-        definition,
+        functional_definition,
         {"return0": "hallo"},
         structure_registry=simple_registry,
         shelver=mock_shelver,
@@ -203,11 +186,9 @@ async def test_expand_nested_structure_error(
         nested_structure_function, structure_registry=simple_registry
     )
 
-    definition = auto_validate(functional_definition)
-
     with pytest.raises(ExpandingError):
         await aexpand_returns(
-            definition,
+            functional_definition,
             ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
             structure_registry=simple_registry,
             shelver=mock_shelver,

@@ -1,3 +1,5 @@
+"""Predicates to check if something is a state or a state class."""
+
 from typing import Type, TypeVar
 
 T = TypeVar("T")

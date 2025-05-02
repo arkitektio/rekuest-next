@@ -5,6 +5,7 @@ from typing import (
     Any,
     AsyncGenerator,
     Dict,
+    Generator,
     List,
     Optional,
     Union,
@@ -29,12 +30,13 @@ from rekuest_next.postmans.types import Postman
 from rekuest_next.postmans.vars import get_current_postman
 from rekuest_next.structures.registry import (
     StructureRegistry,
-    get_current_structure_registry,
 )
+from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 
 
-def ensure_return_as_list(value: Any) -> list:
+def ensure_return_as_list(value: Any) -> list:  # noqa: ANN401
+    """Ensure that the value is a list."""
     if not value:
         return []
     if isinstance(value, tuple):
@@ -55,7 +57,8 @@ async def acall_raw(
     timeout_is_recoverable: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
-) -> AsyncGenerator[AssignationEvent, None]:
+) -> Any:  # noqa: ANN401
+    """Call the assignation function"""
     postman: Postman = postman or get_current_postman()
 
     try:
@@ -147,7 +150,7 @@ async def aiterate_raw(
 
 async def acall(
     node_template_res: Union[Node, Template, Reservation] = None,
-    *args,
+    *args,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -155,8 +158,9 @@ async def acall(
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
-    **kwargs,
+    **kwargs,  # noqa: ANN003
 ) -> tuple[Any]:
+    """Call the assignation function"""
     node = None
     template = None
     reservation = None
@@ -178,7 +182,7 @@ async def acall(
         # If the node is not a node, we need to find the node
         raise ValueError("node_template_res must be a Node, Template or Reservation")
 
-    structure_registry = get_current_structure_registry()
+    structure_registry = get_default_structure_registry()
 
     shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
 
@@ -200,15 +204,16 @@ async def acall(
 
 async def aiterate(
     node_template_res: Union[Node, Template, Reservation] = None,
-    *args,
+    *args,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     parent: bool = None,
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
-    **kwargs,
+    **kwargs,  # noqa: ANN003
 ) -> AsyncGenerator[tuple[Any], None]:
+    """Async generator that yields the results of the assignation"""
     node = None
     template = None
     reservation = None
@@ -230,7 +235,7 @@ async def aiterate(
         # If the node is not a node, we need to find the node
         raise ValueError("node_template_res must be a Node, Template or Reservation")
 
-    structure_registry = get_current_structure_registry()
+    structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
 
@@ -249,9 +254,10 @@ async def aiterate(
 
 
 def call(
-    *args,
-    **kwargs,
-) -> tuple[Any]:
+    *args,  # noqa: ANN002
+    **kwargs,  # noqa: ANN003
+) -> Any:  # noqa: ANN002, ANN003, ANN401
+    """Call the assignation function"""
     return unkoil(
         acall,
         *args,
@@ -260,9 +266,10 @@ def call(
 
 
 def iterate(
-    *args,
-    **kwargs,
-) -> tuple[Any]:
+    *args,  # noqa: ANN002
+    **kwargs,  # noqa: ANN003
+) -> Generator[Any, None, None]:
+    """Iterate over the results of the assignation"""
     return unkoil_gen(
         aiterate,
         *args,
@@ -270,5 +277,6 @@ def iterate(
     )
 
 
-def call_raw(*args, **kwargs):
+def call_raw(*args, **kwargs) -> Any:  # noqa: ANN002, ANN003, ANN401
+    """Call the raw assignation function"""
     return unkoil(acall_raw, *args, **kwargs)

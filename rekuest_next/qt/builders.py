@@ -1,11 +1,17 @@
+"""Builders for Qt actors.
+
+This allow the async patterns of actors to extend to the Qt world.
+
+"""
+
 import inspect
-from typing import Any, Callable, Tuple, get_args, get_origin
-from qtpy import QtCore
+from typing import Any, AsyncGenerator, Callable, Tuple, get_args, get_origin
+from qtpy import QtCore, QtWidgets
 from koil.qt import QtCoro, QtGenerator, QtFuture, QtYielder
 from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
-from qtpy import QtWidgets
+
 from rekuest_next.definition.define import prepare_definition, DefinitionInput
-from rekuest_next.actors.types import ActorBuilder
+from rekuest_next.actors.types import ActorBuilder, Agent
 from rekuest_next.structures.registry import StructureRegistry
 
 
@@ -22,12 +28,13 @@ class QtInLoopBuilder(QtCore.QObject):
     def __init__(
         self,
         assign: Callable = None,
-        *args,
-        parent=None,
-        structure_registry=None,
-        definition=None,
-        **actor_kwargs,
+        *args,  # noqa: ANN002
+        parent: QtWidgets.QWidget | None = None,
+        structure_registry: StructureRegistry | None = None,
+        definition: DefinitionInput = None,
+        **actor_kwargs: dict,
     ) -> None:
+        """Initialize the builder."""
         super().__init__(*args, parent=parent)
         self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True)
         self.provisions = {}
@@ -35,17 +42,15 @@ class QtInLoopBuilder(QtCore.QObject):
         self.actor_kwargs = actor_kwargs
         self.definition = definition
 
-    async def on_assign(self, *args, **kwargs) -> None:
+    async def on_assign(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        """Runs in the same thread as the koil instance."""
         return await self.coro.acall(*args, **kwargs)
 
-    async def on_unprovide(self) -> Any:
-        return None
-
-    def build(self, *args, **kwargs) -> Any:
+    def build(self, agent: Agent) -> "FunctionalFuncActor":
+        """Builds the actor."""
         try:
             ac = FunctionalFuncActor(
-                *args,
-                **kwargs,
+                agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
@@ -67,13 +72,14 @@ class QtFutureBuilder(QtCore.QObject):
 
     def __init__(
         self,
-        assign=None,
-        *args,
-        parent=None,
-        structure_registry=None,
-        definition=None,
-        **actor_kwargs,
+        assign: Callable = None,
+        *args,  # noqa: ANN002
+        parent: QtWidgets.QWidget | None = None,
+        structure_registry: StructureRegistry | None = None,
+        definition: DefinitionInput = None,
+        **actor_kwargs: dict,
     ) -> None:
+        """Initialize the builder."""
         super().__init__(*args, parent=parent)
         self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False)
         self.provisions = {}
@@ -81,15 +87,16 @@ class QtFutureBuilder(QtCore.QObject):
         self.actor_kwargs = actor_kwargs
         self.definition = definition
 
-    async def on_assign(self, *args, **kwargs) -> None:
+    async def on_assign(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        """Runs in the same thread as the koil instance."""
         x = await self.coro.acall(*args, **kwargs)
         return x
 
-    def build(self, *args, **kwargs) -> Any:
+    def build(self, agent: Agent) -> "FunctionalFuncActor":
+        """Builds the actor."""
         try:
             ac = FunctionalFuncActor(
-                *args,
-                **kwargs,
+                agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
@@ -111,13 +118,14 @@ class QtGeneratorBuilder(QtCore.QObject):
 
     def __init__(
         self,
-        assign=None,
-        *args,
-        parent=None,
-        structure_registry=None,
-        definition=None,
-        **actor_kwargs,
+        assign: Callable = None,
+        *args,  # noqa: ANN002
+        parent: QtWidgets.QWidget | None = None,
+        structure_registry: StructureRegistry | None = None,
+        definition: DefinitionInput = None,
+        **actor_kwargs: dict,
     ) -> None:
+        """Initialize the builder."""
         super().__init__(*args, parent=parent)
         self.yielder = QtYielder(lambda *args, **kwargs: assign(*args, **kwargs))
         self.provisions = {}
@@ -125,15 +133,16 @@ class QtGeneratorBuilder(QtCore.QObject):
         self.actor_kwargs = actor_kwargs
         self.definition = definition
 
-    async def on_assign(self, *args, **kwargs):
+    async def on_assign(self, *args, **kwargs) -> AsyncGenerator[Any, None, None]:  # noqa: ANN002, ANN003
+        """Runs in the same thread as the koil instance."""
         async for i in self.yielder.aiterate(*args, **kwargs):
             yield i
 
-    def build(self, *args, **kwargs) -> Any:
+    def build(self, agent: Agent) -> "FunctionalGenActor":
+        """Builds the actor."""
         try:
             ac = FunctionalGenActor(
-                *args,
-                **kwargs,
+                agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
@@ -165,14 +174,14 @@ def qtinloopactifier(
         definition=definition,
     )
 
-    def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
-
-    return definition, builder
+    return definition, in_loop_instance.build
 
 
 def qtwithfutureactifier(
-    function, structure_registry, parent: QtWidgets.QWidget = None, **kwargs
+    function: Callable,
+    structure_registry: StructureRegistry,
+    parent: QtWidgets.QWidget = None,
+    **kwargs: dict,
 ) -> ActorBuilder:
     """Qt Actifier
 
@@ -216,15 +225,15 @@ def qtwithfutureactifier(
         definition=definition,
     )
 
-    def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
-
-    return definition, builder
+    return definition, in_loop_instance.build
 
 
 def qtwithgeneratoractifier(
-    function, structure_registry: StructureRegistry, parent: QtWidgets.QWidget = None, **kwargs
-) -> ActorBuilder:
+    function: Callable,
+    structure_registry: StructureRegistry,
+    parent: QtWidgets.QWidget = None,
+    **kwargs: dict,
+) -> Tuple[DefinitionInput, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
@@ -266,8 +275,6 @@ def qtwithgeneratoractifier(
         structure_registry=structure_registry,
         definition=definition,
     )
+    # build an actor for this inloop instance
 
-    def builder(*args, **kwargs) -> Any:
-        return in_loop_instance.build(*args, **kwargs)  # build an actor for this inloop instance
-
-    return definition, builder
+    return definition, in_loop_instance.build

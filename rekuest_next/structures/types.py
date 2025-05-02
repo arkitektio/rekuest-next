@@ -1,4 +1,6 @@
-from typing import Protocol, Optional, List
+"""Types for the structures module."""
+
+from typing import Protocol, Optional, List, Union
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
@@ -13,13 +15,15 @@ from typing import (
     runtime_checkable,
 )
 
+JSONSerializable = Union[str, int, float, bool, None, dict, list]
+
 
 @runtime_checkable
 class Shrinker(Protocol):
     """A callable that takes a value and returns a string representation of it that
     can be serialized to json."""
 
-    def __call__(self, value: Any) -> Awaitable[str]:
+    def __call__(self, value: Any) -> Awaitable[str]:  # noqa: ANN401
         """Convert a value to a string representation."""
 
         ...
@@ -30,7 +34,7 @@ class Predicator(Protocol):
     """A callable that takes a value and returns True if the value is of the
     correct type for the structure."""
 
-    def __call__(self, value: Any) -> bool:
+    def __call__(self, value: Any) -> bool:  # noqa: ANN401
         """Check if the value is of the correct type for the structure."""
 
         ...
@@ -41,7 +45,7 @@ class DefaultConverter(Protocol):
     """A callable that takes a value and returns a string representation of it
     that can be serialized to json."""
 
-    def __call__(self, value: Any) -> str:
+    def __call__(self, value: Any) -> str:  # noqa: ANN401
         """Convert a value to a string representation."""
         ...
 

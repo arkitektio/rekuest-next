@@ -1,3 +1,5 @@
+"""Define"""
+
 from enum import Enum
 from typing import Callable, List, Union, get_type_hints
 
@@ -30,7 +32,7 @@ import types
 import typing
 
 
-def is_annotated(obj: Any) -> bool:
+def is_annotated(obj: Any) -> bool:  # noqa: ANN401
     """Checks if a hint is an Annotated type
 
     Args:
@@ -43,36 +45,39 @@ def is_annotated(obj: Any) -> bool:
     return get_origin(obj) is Annotated
 
 
-def is_union_type(cls):
+def is_union_type(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a union"""
     # We are dealing with a 3.10 Union (PEP 646)
 
     return get_origin(cls) in (typing.Union, types.UnionType)
 
 
-def is_nullable(cls):
+def is_nullable(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is nullable"""
     is_union = is_union_type(cls) or get_origin(cls) is Union
 
     if is_union:
         for arg in get_args(cls):
-            if arg == type(None):
+            if arg is type(None):
                 return True
 
     return False
 
 
-def get_non_nullable(cls):
+def get_non_nullable(cls: Any) -> Any:  # noqa: ANN401
+    """Get the non-nullable type of a union type"""
     args = get_args(cls)
 
-    non_nullable_args = [arg for arg in args if arg != type(None)]
+    non_nullable_args = [arg for arg in args if arg is not type(None)]
     if len(non_nullable_args) == 1:
         return non_nullable_args[0]
     else:
         return Union.__getitem__(tuple(non_nullable_args))
 
 
-def get_non_nullable_variant(cls):
-    non_nullable_args = [arg for arg in get_args(cls) if arg != type(None)]
+def get_non_nullable_variant(cls: Any) -> Any:  # noqa: ANN401
+    """Get the non-nullable type of a union type"""
+    non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
     if len(non_nullable_args) == 1:
         return non_nullable_args[0]
     # We are dealing with a Union so we still use the same class
@@ -81,117 +86,99 @@ def get_non_nullable_variant(cls):
     return cls
 
 
-def is_union(cls):
-    print(cls)
-    return is_union_type(cls) and all(i != type(None) for i in get_args(cls))
+def is_union(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a union"""
+    return is_union_type(cls) and all(i is not type(None) for i in get_args(cls))
 
 
-def is_tuple(cls):
-    """Check if a class is a tuple
-
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            # We are dealing with a Typing Var?
-            if cls._name == "Tuple":
-
-    Returns:
-        _type_: _description_
-    """
+def is_tuple(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a tuple"""
     return get_origin(cls) in (tuple, typing.Tuple)
 
 
-def is_list(cls):
-    """Check if a class is a list
+def is_list(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a list"""
+    return get_origin(cls) in (list, typing.List)
 
 
-
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            # We are dealing with a Typing Var?
-            if cls._name == "List":
-
-    Returns:
-        _type_: _description_
-    """
-    return get_origin(cls) == list
+def is_dict(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a dict"""
+    return get_origin(cls) in (dict, typing.Dict, types.MappingProxyType)
 
 
-def is_dict(cls):
-    """Check if a class is a dict
-
-    if cls.__module__ == "typing":
-        if hasattr(cls, "_name"):
-            if cls._name == "Dict":
-
-    Returns:
-        _type_: _description_
-    """
-    return get_origin(cls) == dict
-
-
-def get_dict_value_cls(cls):
+def get_dict_value_cls(cls: Any) -> Any:  # noqa: ANN401
+    """Get the value class of a dict"""
     return get_args(cls)[1]
 
 
-def get_list_value_cls(cls):
+def get_list_value_cls(cls: Any) -> Any:  # noqa: ANN401
+    """Get the value class of a list"""
     return get_args(cls)[0]
 
 
-def get_non_null_variants(cls):
-    return [arg for arg in get_args(cls) if arg != type(None)]
+def get_non_null_variants(cls: Any) -> List[Any]:  # noqa: ANN401
+    """Get the non-null variants of a union type"""
+    return [arg for arg in get_args(cls) if arg is type(None)]
 
 
-def is_bool(cls, default=None):
+def is_bool(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a bool"""
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and issubclass(cls, bool)
     return False
 
 
-def is_float(cls):
+def is_float(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a float"""
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and issubclass(cls, float)
     return False
 
 
-def is_generator_type(cls):
+def is_generator_type(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a generator type"""
     if get_origin(cls) in (types.GeneratorType, typing.Generator, types.AsyncGeneratorType):
         return True
     else:
         return False
 
 
-def is_int(cls):
+def is_int(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is an int"""
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and issubclass(cls, int)
     return False
 
 
-def is_str(cls):
+def is_str(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a string"""
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and issubclass(cls, str)
     return False
 
 
-def is_datetime(cls):
+def is_datetime(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a datetime"""
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and (issubclass(cls, dt.datetime))
     return False
 
 
-def is_structure(cls):
+def is_structure(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a structure"""
     return True
 
 
 def convert_object_to_port(
-    cls,
-    key,
+    cls: Any,  # noqa: ANN401
+    key: str,
     registry: StructureRegistry,
-    assign_widget=None,
-    return_widget=None,
-    default=None,
-    label=None,
-    description=None,
-    nullable=False,
+    assign_widget: AssignWidgetInput | None = None,
+    return_widget: ReturnWidgetInput | None = None,
+    default: Any | None = None,  # noqa: ANN401
+    label: str | None = None,
+    description: str | None = None,
+    nullable: bool = False,
     validators: Optional[List[ValidatorInput]] = None,
     effects: Optional[List[EffectInput]] = None,
 ) -> PortInput:
@@ -218,9 +205,8 @@ def convert_object_to_port(
         )
 
     if is_model(cls):
-        children = []
-        converters = []
         set_default = default or {}
+        children = []
 
         full_filled_model = retrieve_fullfiled_model(cls)
 
@@ -455,7 +441,14 @@ ReturnWidgetMap = Dict[str, List[ReturnWidgetInput]]
 EffectsMap = Dict[str, List[EffectInput]]
 
 
-def snake_to_title_case(snake_str):
+def snake_to_title_case(snake_str: str) -> str:
+    """Convert a snake_case string to Title Case.
+
+    Args:
+        snake_str (str): The snake_case string to convert.
+    Returns:
+        str: The converted Title Case string.
+    """
     # Split the string by underscores
     words = snake_str.split("_")
 
@@ -475,7 +468,7 @@ def prepare_definition(
     return_widgets: Optional[ReturnWidgetMap] = None,
     effects: Optional[EffectsMap] = None,
     port_groups: List[PortGroupInput] | None = None,
-    allow_empty_doc=True,
+    allow_empty_doc: bool = True,
     collections: List[str] = [],
     interfaces: Optional[List[str]] = None,
     description: str | None = None,
@@ -485,13 +478,12 @@ def prepare_definition(
     port_description_map: Optional[Dict[str, str]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     name: str | None = None,
-    omitfirst=None,
-    omitlast=None,
-    omitkeys=[],
+    omitfirst: int | None = None,
+    omitlast: int | None = None,
+    omitkeys: list[str] = None,
     return_annotations: Optional[List[Any]] = None,
-    allow_dev=True,
+    allow_dev: bool = True,
     allow_annotations: bool = True,
-    **kwargs,  # additional kwargs can be ignored
 ) -> DefinitionInput:
     """Define
 
@@ -514,6 +506,7 @@ def prepare_definition(
     sig = inspect.signature(function)
     widgets = widgets or {}
     effects = effects or {}
+    omitkeys = omitkeys or []
     validators = validators or {}
 
     port_groups = port_groups or []

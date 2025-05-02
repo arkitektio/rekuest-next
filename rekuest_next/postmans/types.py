@@ -18,9 +18,7 @@ class Postman(Protocol):
     connected: bool
     instance_id: str
 
-    async def aassign(
-        self, input: AssignInput
-    ) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(self, input: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         """Assign"""
         yield
 
@@ -28,6 +26,11 @@ class Postman(Protocol):
         """Enter"""
         ...
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,
+    ) -> None:
         """Exit"""
         pass

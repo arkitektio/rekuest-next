@@ -54,6 +54,7 @@ class GlobalStructureHook(BaseModel):
         self,
         cls: Type,
     ) -> FullFilledStructure:
+        """Apply the hook to the class and return a FullFilledStructure."""
         if hasattr(cls, "get_identifier"):
             identifier = cls.get_identifier()
         else:

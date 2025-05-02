@@ -1,3 +1,5 @@
+"""The structure registry is a registry for all structures that are used in the system."""
+
 import contextvars
 from typing import (
     Any,
@@ -224,6 +226,7 @@ class StructureRegistry(BaseModel):
                 ) from e
 
     def register_as_model(self, cls: Type, identifier: str) -> None:
+        """Register a class as a model."""
         self._identifier_model_map[identifier] = cls
         self._model_identifier_map[cls] = identifier
 
@@ -408,8 +411,3 @@ class StructureRegistry(BaseModel):
 
 
 DEFAULT_STRUCTURE_REGISTRY: StructureRegistry | None = None
-
-
-def get_current_structure_registry(allow_default=True) -> StructureRegistry:
-    """Get the current structure registry."""
-    return current_structure_registry.get(None)

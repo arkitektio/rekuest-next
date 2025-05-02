@@ -1,3 +1,5 @@
+"""Traits for ports and widgets, especially for validating the input"""
+
 from typing import Callable, TYPE_CHECKING, Any, Union
 from pydantic import BaseModel, field_validator, model_validator
 import uuid
@@ -22,7 +24,7 @@ class PortTrait(BaseModel):
     """
 
     @field_validator("default", check_fields=False)
-    def default_validator(cls, v: Any) -> Any:
+    def default_validator(cls, v: Any) -> Any:  # noqa: ANN401
         """Validate the default value of the port"""
         # Check if the default value is JSON serializable
         if v is None:
