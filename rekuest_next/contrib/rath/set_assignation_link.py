@@ -1,3 +1,5 @@
+"""SetAssignationLink"""
+
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
 from typing import AsyncIterator
@@ -15,7 +17,8 @@ class SetAssignationLink(ContinuationLink):
         """Connect the link"""
         pass
 
-    async def aexecute(self, operation: Operation, **kwargs) -> AsyncIterator[GraphQLResult]:
+    async def aexecute(self, operation: Operation, **kwargs) -> AsyncIterator[GraphQLResult]:  # noqa: ANN003
+        """Execute the link"""
         try:
             assignment = current_assignment.get()
             operation.context.headers[self.header_name] = assignment.assignation

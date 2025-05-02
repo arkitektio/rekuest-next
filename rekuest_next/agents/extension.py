@@ -1,3 +1,5 @@
+"""The base class for all agent extensions."""
+
 from typing import List, runtime_checkable, Protocol, Optional
 from rekuest_next.actors.base import Actor
 from typing import TYPE_CHECKING
@@ -10,9 +12,11 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class AgentExtension(Protocol):
+    """Protocol for all agent extensions."""
+
     cleanup: bool = False
 
-    async def astart(self):
+    async def astart(self) -> None:
         """This should be called when the agent starts"""
         ...
 
@@ -45,16 +49,18 @@ class AgentExtension(Protocol):
         """
         ...
 
-    async def atear_down(self):
+    async def atear_down(self) -> None:
         """This should be called when the agent is torn down"""
         ...
 
 
 class BaseAgentExtension(ABC):
+    """Base class for all agent extensions."""
+
     cleanup: bool = False
 
     @abstractmethod
-    async def astart(self):
+    async def astart(self) -> None:
         """This should be called when the agent starts"""
         ...
 
@@ -86,7 +92,7 @@ class BaseAgentExtension(ABC):
         ...
 
     @abstractmethod
-    async def atear_down(self):
+    async def atear_down(self) -> None:
         """
         This should be called when the agent is torn down
         """

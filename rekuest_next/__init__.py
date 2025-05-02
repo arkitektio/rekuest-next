@@ -9,7 +9,6 @@ from .remote import (
     call,
     aiterate,
     iterate,
-    call_raw,
     acall_raw,
 )
 from .structures.model import model
@@ -17,7 +16,7 @@ from .state.decorator import state
 
 try:
     from .arkitekt import ArkitektNextRekuestNext
-except ImportError as e:
+except ImportError:
     pass
 from .structure import structure_reg
 
@@ -35,4 +34,5 @@ __all__ = [
     "aiterate",
     "model",
     "acall_raw",
+    "structure_reg",
 ]

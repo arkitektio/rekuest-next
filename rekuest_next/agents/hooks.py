@@ -1,7 +1,9 @@
+"""Hooks for the agent"""
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import wraps
-from typing import Dict, Any, Optional, Protocol, runtime_checkable
+from typing import Callable, Dict, Any, Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field
 import asyncio
 
@@ -20,21 +22,46 @@ import inspect
 
 @runtime_checkable
 class BackgroundTask(Protocol):
-    def __init__(self):
+    """Background task that runs in the background
+    This task is used to run a function in the background
+    It is run in the order they are registered.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the background task"""
         pass
 
-    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]): ...
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]) -> None:
+        """Run the background task in the event loop
+        Args:
+            contexts (Dict[str, Any]): The contexts of the agent
+            proxies (Dict[str, Any]): The state variables of the agent
+        Returns:
+            None
+        """
+        ...
 
 
 @dataclass
 class StartupHookReturns:
+    """Startup hook returns
+    This is the return type of the startup hook.
+    It contains the state variables and contexts that are used by the agent.
+    """
+
     states: Dict[str, Any]
     contexts: Dict[str, Any]
 
 
 @runtime_checkable
 class StartupHook(Protocol):
-    def __init__(self):
+    """Startup hook that runs when the agent starts up.
+    This hook is used to setup the state variables and contexts that are used by the agent.
+    It is run in the order they are registered.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the startup hook"""
         pass
 
     async def arun(self, instance_id: str) -> StartupHookReturns:
@@ -58,17 +85,27 @@ class HooksRegistry(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
+        """Cleanup the registry"""
         for task in self._background_tasks.values():
             task.cancel()
 
-    def register_background(cls, name: str, task: BackgroundTask):
-        cls.background_worker[name] = task
+    def register_background(self, name: str, task: BackgroundTask) -> None:
+        """Register a background task in the registry."""
+        self.background_worker[name] = task
 
-    def register_startup(cls, name: str, hook: StartupHook):
-        cls.startup_hooks[name] = hook
+    def register_startup(self, name: str, hook: StartupHook) -> None:
+        """Register a startup hook in the registry."""
+        self.startup_hooks[name] = hook
 
     async def arun_startup(self, instance_id: str) -> StartupHookReturns:
+        """Run the startup hooks in the registry.
+
+        Args:
+            instance_id (str): The instance id of the agent
+        Returns:
+            StartupHookReturns: The state variables and contexts
+        """
         states = {}
         contexts = {}
 
@@ -89,7 +126,8 @@ class HooksRegistry(BaseModel):
                 raise StartupHookError(f"Startup hook {key} failed") from e
         return StartupHookReturns(states=states, contexts=contexts)
 
-    def reset(self):
+    def reset(self) -> None:
+        """Reset the registry"""
         self.background_worker = {}
         self.startup_hooks = {}
 
@@ -98,7 +136,15 @@ default_registry = None
 
 
 class WrappedStartupHook(StartupHook):
-    def __init__(self, func):
+    """Startup hook that runs in the event loop"""
+
+    def __init__(self, func: Callable) -> None:
+        """Initialize the startup hook
+
+        Args:
+
+            func (Callable): The function to run in the startup hook
+        """
         self.func = func
 
         # check if has context argument
@@ -109,6 +155,12 @@ class WrappedStartupHook(StartupHook):
             )
 
     async def arun(self, instance_id: str) -> Optional[Dict[str, Any]]:
+        """Run the startup hook in the event loop
+        Args:
+            instance_id (str): The instance id of the agent
+        Returns:
+            Optional[Dict[str, Any]]: The state variables and contexts
+        """
         parsed_returns = await self.func(instance_id)
 
         returns = ensure_return_as_list(parsed_returns)
@@ -130,24 +182,29 @@ class WrappedStartupHook(StartupHook):
 
 
 class WrappedBackgroundTask(BackgroundTask):
-    def __init__(self, func):
+    """Background task that runs in the event loop"""
+
+    def __init__(self, func: Callable) -> None:
+        """Initialize the background task
+        Args:
+            func (Callable): The function to run in the background async
+        """
         self.func = func
         # check if has context argument
-        arguments = inspect.signature(func).parameters
+        inspect.signature(func).parameters
 
         self.state_variables, self.state_returns = prepare_state_variables(func)
 
         self.context_variables, self.context_returns = prepare_context_variables(func)
 
-    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]):
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]) -> None:
+        """Run the background task in the event loop"""
         kwargs = {}
         for key, value in self.context_variables.items():
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
         for key, value in self.state_variables.items():
             try:
@@ -159,25 +216,30 @@ class WrappedBackgroundTask(BackgroundTask):
 
 
 class WrappedThreadedBackgroundTask(BackgroundTask):
-    def __init__(self, func):
+    """Background task that runs in a thread pool"""
+
+    def __init__(self, func: Callable) -> None:
+        """Initialize the background task
+        Args:
+            func (Callable): The function to run in the background
+        """
         self.func = func
         # check if has context argument
-        arguments = inspect.signature(func).parameters
+        inspect.signature(func).parameters
 
         self.state_variables, self.state_returns = prepare_state_variables(func)
 
         self.context_variables, self.context_returns = prepare_context_variables(func)
         self.thread_pool = ThreadPoolExecutor(1)
 
-    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]):
+    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]) -> None:
+        """Run the background task in a thread pool"""
         kwargs = {}
         for key, value in self.context_variables.items():
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
         for key, value in self.state_variables.items():
             try:
@@ -185,21 +247,20 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        return await run_spawned(
-            self.func, **kwargs, executor=self.thread_pool, pass_context=True
-        )
+        return await run_spawned(self.func, **kwargs, executor=self.thread_pool, pass_context=True)
 
 
 def get_default_hook_registry() -> HooksRegistry:
+    """Get the default hook registry."""
     global default_registry
     if default_registry is None:
         default_registry = HooksRegistry()
     return default_registry
 
 
-def background(
-    *func, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
-):
+def background(  # noqa: ANN201
+    *func: Callable, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+) -> Callable:
     """
     Background tasks are functions that are run in the background
     as asyncio tasks. They are started when the agent starts up
@@ -213,9 +274,7 @@ def background(
         function = func[0]
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
-        if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-            function
-        ):
+        if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(function):
             registry.register_background(name, WrappedBackgroundTask(function))
         else:
             registry.register_background(name, WrappedThreadedBackgroundTask(function))
@@ -224,24 +283,20 @@ def background(
 
     else:
 
-        def real_decorator(function):
+        def real_decorator(function: Callable):  # noqa: ANN202, F821
             nonlocal registry, name
 
             # Simple bypass for now
             @wraps(function)
-            def wrapped_function(*args, **kwargs):
+            def wrapped_function(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
                 return function(*args, **kwargs)
 
             name = name or function.__name__
             registry = registry or get_default_hook_registry()
-            if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-                function
-            ):
+            if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(function):
                 registry.register_background(name, WrappedBackgroundTask(function))
             else:
-                registry.register_background(
-                    name, WrappedThreadedBackgroundTask(function)
-                )
+                registry.register_background(name, WrappedThreadedBackgroundTask(function))
 
             return wrapped_function
 
@@ -249,8 +304,8 @@ def background(
 
 
 def startup(
-    *func, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
-):
+    *func: Callable, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+) -> Callable:
     """
     This is a decorator that registers a function as a startup hook.
     Startup hooks are called when the agent starts up and AFTER the
@@ -264,9 +319,7 @@ def startup(
         raise ValueError("You can only register one function at a time.")
     if len(func) == 1:
         function = func[0]
-        assert asyncio.iscoroutinefunction(function), (
-            "Startup hooks must be (currently) async"
-        )
+        assert asyncio.iscoroutinefunction(function), "Startup hooks must be (currently) async"
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
 
@@ -276,15 +329,13 @@ def startup(
 
     else:
 
-        def real_decorator(function):
+        def real_decorator(function: Callable):  # noqa: ANN202, F821
             nonlocal registry, name
-            assert asyncio.iscoroutinefunction(function), (
-                "Startup hooks must be (currently) async"
-            )
+            assert asyncio.iscoroutinefunction(function), "Startup hooks must be (currently) async"
 
             # Simple bypass for now
             @wraps(function)
-            def wrapped_function(*args, **kwargs):
+            def wrapped_function(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
                 return function(*args, **kwargs)
 
             registry = registry or get_default_hook_registry()

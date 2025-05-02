@@ -1,3 +1,5 @@
+"""ArkitektNextRekuestNext class."""
+
 import json
 import os
 from typing import TYPE_CHECKING
@@ -30,25 +32,32 @@ if TYPE_CHECKING:
 
 
 class ArkitektNextRekuestNext(RekuestNext):
+    """ArkitektNextRekuestNext class."""
+
     rath: RekuestNextRath
     agent: BaseAgent
 
 
 def build_relative_path(*path: str) -> str:
+    """Build a relative path to the current file."""
     return os.path.join(os.path.dirname(__file__), *path)
 
 
 class RekuestNextService(BaseArkitektService):
+    """Service for RekuestNext."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the RekuestNextService."""
         self.structure_reg = get_default_structure_registry()
 
-    def get_service_name(self):
+    def get_service_name(self) -> str:
+        """Get the service name."""
         return "rekuest"
 
     def build_service(
         self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
-    ):
+    ) -> "ArkitektNextRekuestNext":
+        """Build the service."""
         instance_id = params.get("instance_id", "default")
 
         rath = RekuestNextRath(
@@ -88,7 +97,8 @@ class RekuestNextService(BaseArkitektService):
             ),
         )
 
-    def get_requirements(self):
+    def get_requirements(self) -> list[Requirement]:
+        """Get the requirements for this service."""
         return [
             Requirement(
                 key="rekuest",
@@ -97,12 +107,14 @@ class RekuestNextService(BaseArkitektService):
             )
         ]
 
-    def get_graphql_schema(self):
+    def get_graphql_schema(self) -> str:
+        """Get the GraphQL schema for this service."""
         schema_graphql_path = build_relative_path("api", "schema.graphql")
         with open(schema_graphql_path) as f:
             return f.read()
 
-    def get_turms_project(self):
+    def get_turms_project(self) -> dict:
+        """Get the turms project for this service."""
         turms_prject = build_relative_path("api", "project.json")
         with open(turms_prject) as f:
             return json.loads(f.read())

@@ -1,3 +1,5 @@
+"""Default extension for rekuest-next."""
+
 from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
 from rekuest_next.definition.registry import (
@@ -24,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class DefaultExtensionError(ExtensionError):
+    """Base class for all standard extension errors."""
+
     pass
 
 
@@ -110,7 +114,8 @@ class DefaultExtension(BaseModel):
         for name, state_schema in self.state_registry.state_schemas.items():
             self._state_schemas[name] = await acreate_state_schema(state_schema=state_schema)
 
-    async def ainit_state(self, state_key: str, value: Any) -> None:
+    async def ainit_state(self, state_key: str, value: Any) -> None:  # noqa: ANN401
+        """Initialize the state of the extension. This will be called when"""
         from rekuest_next.api.schema import aset_state
 
         schema = self._state_schemas[state_key]
@@ -122,18 +127,18 @@ class DefaultExtension(BaseModel):
         # Shrink the value to the schema
 
         shrunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=value)
-        state = await aset_state(
-            state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id
-        )
+        await aset_state(state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id)
 
         self._current_states[state_key] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
 
-    async def aget_state(self, state_key: str, attribute: Any) -> Any:
+    async def aget_state(self, state_key: str, attribute: Any) -> Any:  # noqa: ANN401
+        """Get the state of the extension. This will be called when"""
         async with self._state_lock:
             return getattr(self._current_states[state_key], attribute)
 
-    async def aset_state(self, state_key: str, attribute: Any, value: Any):
+    async def aset_state(self, state_key: str, attribute: Any, value: Any) -> None:  # noqa: ANN401
+        """Set the state of the extension. This will be called when the agent starts"""
         from rekuest_next.api.schema import aupdate_state
 
         async with self._state_lock:
@@ -163,13 +168,15 @@ class DefaultExtension(BaseModel):
             print("State updated", self._current_states[state_key], state)
 
     async def arun_background(self) -> None:
+        """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self.hook_registry.background_worker.items():
             task = asyncio.create_task(worker.arun(contexts=self.contexts, proxies=self.proxies))
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
 
-    async def astop_background(self):
+    async def astop_background(self) -> None:
+        """Stop the background tasks. This will be called when the agent stops."""
         for name, task in self._background_tasks.items():
             task.cancel()
 
@@ -200,5 +207,6 @@ class DefaultExtension(BaseModel):
             proxies=self.proxies,
         )
 
-    async def atear_down(self):
+    async def atear_down(self) -> None:
+        """Tear down the extension. This will be called when the agent stops."""
         await self.astop_background()

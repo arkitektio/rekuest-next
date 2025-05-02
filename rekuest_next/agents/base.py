@@ -68,9 +68,7 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
     interface_template_map: Dict[str, Template] = Field(default_factory=dict)
     template_interface_map: Dict[str, str] = Field(default_factory=dict)
@@ -88,7 +86,7 @@ class BaseAgent(KoiledModel):
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    async def aput_on_shelve(self, value: Any) -> str:
+    async def aput_on_shelve(self, value: Any) -> str:  # noqa: ANN401
         """Get the shelve for the agent. This is used to get the shelve
         for the agent and all the actors that are spawned from it.
         """
@@ -97,7 +95,7 @@ class BaseAgent(KoiledModel):
         print("Shelve", key)
         return key
 
-    async def aget_from_shelve(self, key: str) -> Any:
+    async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
         shelve for the agent and all the actors that are spawned from it.
         """
@@ -330,20 +328,13 @@ class BaseAgent(KoiledModel):
                 self.interface_template_map[template.interface] = template
                 self.template_interface_map[template.id] = template
 
-    async def afind_local_template_for_nodehash(
-        self, nodehash: str
-    ) -> Optional[Template]:
-        for template in self.interface_template_map.values():
-            if template.node.hash == nodehash:
-                return template
-
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
         await self.transport.asend(message)
 
-    async def astart(self, instance_id: Optional[str] = None):
+    async def astart(self, instance_id: Optional[str] = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
@@ -363,9 +354,7 @@ class BaseAgent(KoiledModel):
         spawining protocol within an actor. But maps template"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
-            )
+            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -380,7 +369,8 @@ class BaseAgent(KoiledModel):
         """Waits for the error future to be set. This is used to wait for"""
         return await self._errorfuture
 
-    async def astep(self):
+    async def astep(self) -> None:
+        """Async step that runs the agent. This is used to run the agent"""
         queue_task = asyncio.create_task(self._inqueue.get(), name="queue_future")
         error_task = asyncio.create_task(self.await_errorfuture(), name="error_future")
         done, pending = await asyncio.wait(
@@ -398,7 +388,7 @@ class BaseAgent(KoiledModel):
         connected the transport."""
         return unkoil(self.aprovide, instance_id=instance_id)
 
-    async def aloop(self):
+    async def aloop(self) -> None:
         """Async loop that runs the agent. This is used to run the agent"""
         try:
             while True:
@@ -417,9 +407,7 @@ class BaseAgent(KoiledModel):
 
         """
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.transport.instance_id}"
-            )
+            logger.info(f"Launching provisioning task. We are running {self.transport.instance_id}")
             await self.astart(instance_id=instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()

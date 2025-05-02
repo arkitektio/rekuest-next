@@ -1,3 +1,5 @@
+"""The AssignmentHelper is a helper class that is used to manage the assignment"""
+
 from typing import Optional, Self
 from pydantic import BaseModel, ConfigDict
 from rekuest_next.api.schema import LogLevel

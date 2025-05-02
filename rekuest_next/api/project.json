@@ -164,6 +164,9 @@
             ],
             "processors": [
                 {
+                    "type": "turms.processors.disclaimer.DisclaimerProcessor"
+                },
+                {
                     "type": "turms.processors.black.BlackProcessor"
                 }
             ],

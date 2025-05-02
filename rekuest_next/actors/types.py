@@ -1,3 +1,5 @@
+"""Types for the actors module"""
+
 from typing import Protocol, Self, runtime_checkable, Callable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.structures.registry import StructureRegistry
@@ -19,12 +21,12 @@ class Passport(BaseModel):
 class Shelver(Protocol):
     """A protocol for mostly fullfield by the agent that is used to store data"""
 
-    async def aput_on_shelve(self, value: Any) -> str:
+    async def aput_on_shelve(self, value: Any) -> str:  # noqa: ANN401
         """Put a value on the shelve and return the key. This is used to store
         values on the shelve."""
         ...
 
-    async def aget_from_shelve(self, key: str) -> Any:
+    async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
         shelve."""
         ...
@@ -65,13 +67,13 @@ class ActorBuilder(Protocol):
 
     def __call__(
         self,
-        passport: Passport,
-        transport: Any,
-        collector: Any,
-        definition_registry: Any,
+        agent: Agent,
         contexts: Dict[str, Any],
         proxies: Dict[str, Any],
-    ) -> Actor: ...
+    ) -> Actor:
+        """Create the actor and return it. This method will create the actor and"""
+
+        ...
 
 
 @runtime_checkable
@@ -87,28 +89,31 @@ class Actifier(Protocol):
         structure_registry: StructureRegistry,
         port_groups: Optional[List[PortGroupInput]] = None,
         is_test_for: Optional[List[str]] = None,
-        **kwargs,
-    ) -> Tuple[DefinitionInput, ActorBuilder]: ...
+        **kwargs: Any,  # noqa: ANN401
+    ) -> Tuple[DefinitionInput, ActorBuilder]:
+        """A function that will inspect the function and return a definition and
+        an actor builder. This method will inspect the function and return a
+        definition and an actor builder.
+        """
+        ...
 
 
 @runtime_checkable
 class OnProvide(Protocol):
-    """An on_provide is a function that takes a provision and a transport and returns
-    an awaitable
-
-    """
+    """An on_provide is a function gets call when the actors gets first started"""
 
     def __call__(
         self,
         passport: Passport,
-    ) -> Awaitable[Any]: ...
+    ) -> Awaitable[Any]:
+        """Provide the provision. This method will provide the provision and"""
+        ...
 
 
 @runtime_checkable
 class OnUnprovide(Protocol):
-    """An on_provide is a function that takes a provision and a transport and returns
-    an awaitable
+    """An on unprovide is a function gets call when the actors gets kills"""
 
-    """
-
-    def __call__(self) -> Awaitable[Any]: ...
+    def __call__(self) -> Awaitable[Any]:
+        """Unprovide the provision. This method will unprovide the provision and"""
+        ...

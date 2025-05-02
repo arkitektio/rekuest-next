@@ -1,3 +1,5 @@
+"""Contextual variables for assignations."""
+
 import contextvars
 from rekuest_next.actors.errors import (
     NotWithinAnAssignationError,
@@ -13,6 +15,7 @@ current_assignation_helper = contextvars.ContextVar("assignment_helper")
 
 
 def get_current_assignation_helper() -> "AssignmentHelper":
+    """Get the current assignation helper."""
     try:
         return current_assignation_helper.get()
     except LookupError as e:
@@ -21,11 +24,11 @@ def get_current_assignation_helper() -> "AssignmentHelper":
         ) from e
 
 
-def is_inside_assignation():
+def is_inside_assignation() -> bool:
     """Checks if the current context is inside an assignation (e.g. was called from
     the rekuest_server)"""
     try:
-        current_assignment.get()
+        current_assignation_helper.get()
         return True
     except LookupError:
         return False
