@@ -1,4 +1,4 @@
-fragment Definition on Node {
+fragment Definition on Action {
   args {
     ...Port
   }
@@ -22,13 +22,13 @@ fragment Definition on Node {
   stateful
 }
 
-fragment Node on Node {
+fragment Action on Action {
   hash
   id
   ...Definition
 }
 
-fragment PrimaryNode on Node {
+fragment PrimaryAction on Action {
   name
   id
   hash

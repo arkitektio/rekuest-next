@@ -23,10 +23,10 @@ from rekuest_next.agents.registry import (
 )
 from rekuest_next.agents.transport.base import AgentTransport, Contextual
 from rekuest_next.api.schema import (
-    Template,
+    Implementation,
     Agent,
     aensure_agent,
-    aset_extension_templates,
+    aset_extension_implementations,
 )
 from rekuest_next import messages
 from rekuest_next.rath import RekuestNextRath
@@ -68,10 +68,14 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
+    extension_registry: ExtensionRegistry = Field(
+        default_factory=get_default_extension_registry
+    )
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_template_map: Dict[str, Template] = Field(default_factory=dict)
-    template_interface_map: Dict[str, str] = Field(default_factory=dict)
+    interface_implementation_map: Dict[str, Implementation] = Field(
+        default_factory=dict
+    )
+    implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
@@ -296,7 +300,7 @@ class BaseAgent(KoiledModel):
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
     async def aregister_definitions(self, instance_id: Optional[str] = None) -> None:
-        """Register all templates that are handled by extensiosn
+        """Register all implementations that are handled by extensiosn
 
         This method is called by the agent when it starts and it is responsible for
         registering the tempaltes that are defined in the extensions.
@@ -315,18 +319,20 @@ class BaseAgent(KoiledModel):
             extension_name,
             extension,
         ) in self.extension_registry.agent_extensions.items():
-            to_be_created_templates = await extension.aget_templates()
+            to_be_created_implementations = await extension.aget_implementations()
 
-            created_templates = await aset_extension_templates(
-                templates=to_be_created_templates,
+            created_implementations = await aset_extension_implementations(
+                implementations=to_be_created_implementations,
                 run_cleanup=extension.cleanup,
                 instance_id=instance_id,
                 extension=extension_name,
             )
 
-            for template in created_templates:
-                self.interface_template_map[template.interface] = template
-                self.template_interface_map[template.id] = template
+            for implementation in created_implementations:
+                self.interface_implementation_map[implementation.interface] = (
+                    implementation
+                )
+                self.implementation_interface_map[implementation.id] = implementation
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
@@ -351,10 +357,12 @@ class BaseAgent(KoiledModel):
 
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
         """Spawns an Actor from a Provision. This function closely mimics the
-        spawining protocol within an actor. But maps template"""
+        spawining protocol within an actor. But maps implementation"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
+            raise ProvisionException(
+                f"Extension {assign.extension} not found in agent {self.name}"
+            )
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -407,7 +415,9 @@ class BaseAgent(KoiledModel):
 
         """
         try:
-            logger.info(f"Launching provisioning task. We are running {self.transport.instance_id}")
+            logger.info(
+                f"Launching provisioning task. We are running {self.transport.instance_id}"
+            )
             await self.astart(instance_id=instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()

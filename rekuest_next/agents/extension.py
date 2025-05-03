@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
-    from rekuest_next.api.schema import TemplateInput
+    from rekuest_next.api.schema import ImplementationInput
 
 
 @runtime_checkable
@@ -25,14 +25,14 @@ class AgentExtension(Protocol):
         in the registry."""
         return "default"
 
-    async def aget_templates(self) -> List["TemplateInput"]:
-        """Get the templates for this extension. This
+    async def aget_implementations(self) -> List["ImplementationInput"]:
+        """Get the implementations for this extension. This
         will be called when the agent starts and will
-        be used to register the templates on the rekuest server
+        be used to register the implementations on the rekuest server
 
-        the templates in the registry.
+        the implementations in the registry.
         Returns:
-            List[TemplateInput]: The templates for this extension.
+            List[ImplementationInput]: The implementations for this extension.
         """
 
     async def aspawn_actor_for_interface(
@@ -40,7 +40,7 @@ class AgentExtension(Protocol):
         agent: "BaseAgent",
         interface: str,
     ) -> Optional[Actor]:
-        """This should create an actor from a template and return it.
+        """This should create an actor from a implementation and return it.
 
         The actor should not be started!
 
@@ -75,14 +75,14 @@ class BaseAgentExtension(ABC):
         agent: "BaseAgent",
         interface: str,
     ) -> Optional[Actor]:
-        """This should create an actor from a template and return it.
+        """This should create an actor from a implementation and return it.
 
         The actor should not be started!
         """
         ...
 
     @abstractmethod
-    async def aget_templates(self) -> List["TemplateInput"]:
+    async def aget_implementations(self) -> List["ImplementationInput"]:
         """This should register the definitions for the agent.
 
         This is called when the agent is started, for each extensions. Extensions

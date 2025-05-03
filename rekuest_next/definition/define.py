@@ -12,7 +12,7 @@ from .utils import extract_annotations, is_local_var
 from rekuest_next.api.schema import (
     PortInput,
     DefinitionInput,
-    NodeKind,
+    ActionKind,
     PortKind,
     PortScope,
     AssignWidgetInput,
@@ -297,7 +297,9 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -339,7 +341,9 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -514,7 +518,9 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
+        function
+    )
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -553,7 +559,9 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
+    doc_param_description_map = {
+        param.arg_name: param.description for param in docstring.params
+    }
     doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
 
     if docstring.many_returns:
@@ -694,17 +702,17 @@ def prepare_definition(
                     )
                 )
 
-    node_name = None
+    action_name = None
     # Documentation Parsing
     if name is not None:
-        node_name = name
+        action_name = name
 
     elif docstring.long_description:
-        node_name = docstring.short_description
+        action_name = docstring.short_description
         description = description or docstring.long_description
 
     else:
-        node_name = name or snake_to_title_case(function.__name__)
+        action_name = name or snake_to_title_case(function.__name__)
         description = description or docstring.short_description or "No Description"
 
     if widgets:
@@ -726,12 +734,12 @@ def prepare_definition(
 
     x = DefinitionInput(
         **{
-            "name": node_name,
+            "name": action_name,
             "description": description,
             "collections": collections,
             "args": args,
             "returns": returns,
-            "kind": NodeKind.GENERATOR if is_generator else NodeKind.FUNCTION,
+            "kind": ActionKind.GENERATOR if is_generator else ActionKind.FUNCTION,
             "interfaces": interfaces,
             "portGroups": port_groups,
             "isDev": is_dev,

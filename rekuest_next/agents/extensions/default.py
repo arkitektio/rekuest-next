@@ -7,7 +7,7 @@ from rekuest_next.definition.registry import (
     get_default_definition_registry,
 )
 from rekuest_next.api.schema import (
-    TemplateInput,
+    ImplementationInput,
     acreate_state_schema,
     StateSchema,
 )
@@ -73,16 +73,16 @@ class DefaultExtension(BaseModel):
         in the registry."""
         return "default"
 
-    async def aget_templates(self) -> List[TemplateInput]:
-        """Get the templates for this extension. This
+    async def aget_implementations(self) -> List[ImplementationInput]:
+        """Get the implementations for this extension. This
         will be called when the agent starts and will
-        be used to register the templates on the rekuest server
+        be used to register the implementations on the rekuest server
 
-        the templates in the registry.
+        the implementations in the registry.
         Returns:
-            List[TemplateInput]: The templates for this extension.
+            List[ImplementationInput]: The implementations for this extension.
         """
-        return self.definition_registry.templates.values()
+        return self.definition_registry.implementations.values()
 
     async def astart(self, instance_id: str) -> None:
         """This should be called when the agent starts"""
@@ -104,7 +104,7 @@ class DefaultExtension(BaseModel):
         await self.arun_background()
 
     def should_cleanup_on_init(self) -> bool:
-        """Should the extension cleanup its templates?"""
+        """Should the extension cleanup its implementations?"""
         return True
 
     async def aregister_schemas(self) -> None:
@@ -112,7 +112,9 @@ class DefaultExtension(BaseModel):
         the agent starts and will be used to register the schemas on the
         rekuest server."""
         for name, state_schema in self.state_registry.state_schemas.items():
-            self._state_schemas[name] = await acreate_state_schema(state_schema=state_schema)
+            self._state_schemas[name] = await acreate_state_schema(
+                state_schema=state_schema
+            )
 
     async def ainit_state(self, state_key: str, value: Any) -> None:  # noqa: ANN401
         """Initialize the state of the extension. This will be called when"""
@@ -126,8 +128,12 @@ class DefaultExtension(BaseModel):
 
         # Shrink the value to the schema
 
-        shrunk_state = await self.state_registry.ashrink_state(state_key=state_key, state=value)
-        await aset_state(state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id)
+        shrunk_state = await self.state_registry.ashrink_state(
+            state_key=state_key, state=value
+        )
+        await aset_state(
+            state_schema=schema.id, value=shrunk_state, instance_id=self._instance_id
+        )
 
         self._current_states[state_key] = value
         self.proxies[state_key] = StateProxy(proxy_holder=self, state_key=state_key)
@@ -170,7 +176,9 @@ class DefaultExtension(BaseModel):
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self.hook_registry.background_worker.items():
-            task = asyncio.create_task(worker.arun(contexts=self.contexts, proxies=self.proxies))
+            task = asyncio.create_task(
+                worker.arun(contexts=self.contexts, proxies=self.proxies)
+            )
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
@@ -181,7 +189,9 @@ class DefaultExtension(BaseModel):
             task.cancel()
 
         try:
-            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self._background_tasks.values(), return_exceptions=True
+            )
         except asyncio.CancelledError:
             pass
 
@@ -191,10 +201,12 @@ class DefaultExtension(BaseModel):
         interface: str,
     ) -> Optional[Actor]:
         """Spawns an Actor from a Provision. This function closely mimics the
-        spawining protocol within an actor. But maps template"""
+        spawining protocol within an actor. But maps implementation"""
 
         try:
-            actor_builder = self.definition_registry.get_builder_for_interface(interface)
+            actor_builder = self.definition_registry.get_builder_for_interface(
+                interface
+            )
 
         except KeyError:
             raise ExtensionError(

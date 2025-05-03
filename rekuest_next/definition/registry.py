@@ -3,8 +3,8 @@
 import contextvars
 from rekuest_next.api.schema import (
     DefinitionInput,
-    TemplateInput,
-    CreateTemplateInput,
+    ImplementationInput,
+    CreateImplementationInput,
 )
 from typing import Dict
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,7 +16,9 @@ import hashlib
 from rekuest_next.structures.types import JSONSerializable
 
 
-current_definition_registry = contextvars.ContextVar("current_definition_registry", default=None)
+current_definition_registry = contextvars.ContextVar(
+    "current_definition_registry", default=None
+)
 
 
 class DefinitionRegistry(BaseModel):
@@ -27,9 +29,13 @@ class DefinitionRegistry(BaseModel):
     structure registries for each function and generator.
     """
 
-    templates: Dict[str, TemplateInput] = Field(default_factory=dict, exclude=True)
+    implementations: Dict[str, ImplementationInput] = Field(
+        default_factory=dict, exclude=True
+    )
     actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
-    structure_registries: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
+    structure_registries: Dict[str, StructureRegistry] = Field(
+        default_factory=dict, exclude=True
+    )
     copy_from_default: bool = False
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -38,11 +44,11 @@ class DefinitionRegistry(BaseModel):
     def register_at_interface(
         self,
         interface: str,
-        template: TemplateInput,
+        implementation: ImplementationInput,
         actorBuilder: ActorBuilder,
     ) -> None:
         """Register a function or generator at the given interface."""
-        self.templates[interface] = template
+        self.implementations[interface] = implementation
         self.actor_builders[interface] = actorBuilder
 
     def get_builder_for_interface(self, interface: str) -> ActorBuilder:
@@ -51,25 +57,30 @@ class DefinitionRegistry(BaseModel):
 
     def get_definition_for_interface(self, interface: str) -> DefinitionInput:
         """Get the definition for a given interface."""
-        assert interface in self.templates, "No definition for interface"
-        return self.templates[interface].definition
+        assert interface in self.implementations, "No definition for interface"
+        return self.implementations[interface].definition
 
-    def get_template_input_for_interface(self, interface: str) -> CreateTemplateInput:
-        """Get the template input for a given interface."""
-        assert interface in self.templates, "No definition for interface"
-        return self.templates[interface]
+    def get_implementation_input_for_interface(
+        self, interface: str
+    ) -> CreateImplementationInput:
+        """Get the implementation input for a given interface."""
+        assert interface in self.implementations, "No definition for interface"
+        return self.implementations[interface]
 
     def dump(self) -> Dict[str, Dict[str, JSONSerializable]]:
         """Dump the registry to a JSON serializable format."""
         return {
-            "templates": [
-                json.loads(x[0].json(exclude_none=True, exclude_unset=True)) for x in self.templates
+            "implementations": [
+                json.loads(x[0].json(exclude_none=True, exclude_unset=True))
+                for x in self.implementations
             ]
         }
 
     def hash(self) -> str:
         """Get the hash of the registry."""
-        return hashlib.sha256(json.dumps(self.dump(), sort_keys=True).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(self.dump(), sort_keys=True).encode()
+        ).hexdigest()
 
     def create_merged(
         self, other: "DefinitionRegistry", strict: bool = True
@@ -77,12 +88,12 @@ class DefinitionRegistry(BaseModel):
         """Create a new registry that is a merge of this one and another one."""
         new = DefinitionRegistry()
 
-        for key in self.templates:
+        for key in self.implementations:
             if strict:
-                assert key in other.templates, (
+                assert key in other.implementations, (
                     f"Cannot merge definition registrs with the same interface in strict mode: {key}"
                 )
-            new.templates[key] = self.templates[key]
+            new.implementations[key] = self.implementations[key]
             new.actor_builders[key] = self.actor_builders[key]
             new.structure_registries[key] = self.structure_registries[key]
 
@@ -99,12 +110,12 @@ class DefinitionRegistry(BaseModel):
         Raises:
             AssertionError: If strict is True and the same interface is found in both registries.
         """
-        for key in other.templates:
+        for key in other.implementations:
             if strict:
-                assert key not in self.templates, (
+                assert key not in self.implementations, (
                     f"Cannot merge definition registrs with the same interface in strict mode: {key}"
                 )
-            self.templates[key] = other.templates[key]
+            self.implementations[key] = other.implementations[key]
             self.actor_builders[key] = other.actor_builders[key]
             self.structure_registries[key] = other.structure_registries[key]
 

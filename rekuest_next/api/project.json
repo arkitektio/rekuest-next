@@ -30,7 +30,7 @@
                 "Args": "rekuest_next.scalars.Args",
                 "ValueMap": "rekuest_next.scalars.ValueMap",
                 "ID": "rath.scalars.ID",
-                "NodeHash": "rekuest_next.scalars.NodeHash",
+                "ActionHash": "rekuest_next.scalars.ActionHash",
                 "Arg": "typing.Any",
                 "InstanceId": "rekuest_next.scalars.InstanceId",
                 "Identifier": "rekuest_next.scalars.Identifier",

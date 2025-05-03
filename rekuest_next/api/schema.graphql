@@ -219,9 +219,9 @@ type Query {
   clients(filters: AppFilter, order: AppOrder, pagination: OffsetPaginationInput): [App!]!
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
-  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
   protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
-  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
   testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
   reservations(instanceId: InstanceId = null): [Reservation!]!
@@ -232,12 +232,12 @@ type Query {
   states: [State!]!
   panels: [Panel!]!
   stateSchemas: [StateSchema!]!
-  node(id: ID = null, reservation: ID = null, assignation: ID = null, template: ID = null, agent: ID = null, interface: String = null, hash: NodeHash = null): Node!
+  action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null): Action!
   assignations(instanceId: InstanceId = null): [Assignation!]!
   event(id: ID = null): [AssignationEvent!]!
-  templateAt(agent: ID!, extension: String = null, interface: String = null, nodeHash: String = null): Template!
-  myTemplateAt(instanceId: String!, nodeId: ID = null, interface: String = null): Template!
-  stateFor(template: ID = null, agent: ID = null, stateHash: String = null): State!
+  implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null): Implementation!
+  myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
+  stateFor(implementation: ID = null, agent: ID = null, stateHash: String = null): State!
   state(id: ID!): State!
   panel(id: ID!): Panel!
   stateSchema(id: ID!): StateSchema!
@@ -250,7 +250,7 @@ type Query {
   testCase(id: ID!): TestCase!
   testResult(id: ID!): TestResult!
   reservation(id: ID!): Reservation!
-  template(id: ID!): Template!
+  implementation(id: ID!): Implementation!
   assignation(id: ID!): Assignation!
 }
 
@@ -264,7 +264,7 @@ type App {
 input AppFilter {
   interface: StrFilterLookup
   ids: [ID!]
-  hasTemplatesFor: [NodeHash!]
+  hasImplementationsFor: [ActionHash!]
   mine: Boolean
   AND: AppFilter
   OR: AppFilter
@@ -310,7 +310,7 @@ input StrFilterLookup {
 """
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
-scalar NodeHash
+scalar ActionHash
 
 """A way to order apps"""
 input AppOrder {
@@ -344,13 +344,13 @@ type Agent {
   instanceId: InstanceId!
   registry: Registry!
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
-  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
   lastSeen: DateTime
   connected: Boolean!
   extensions: [String!]!
   name: String!
   states: [State!]!
-  template(interface: String!): Template
+  implementation(interface: String!): Implementation
   active: Boolean!
   latestHardwareRecord: HardwareRecord
   pinned: Boolean!
@@ -386,8 +386,8 @@ input AgentFilter {
   """Filter by extensions of the agents"""
   extensions: [String!] = null
 
-  """Filter by templates of the agents"""
-  hasTemplates: [String!] = null
+  """Filter by implementations of the agents"""
+  hasImplementations: [String!] = null
 
   """Filter by states of the agents"""
   hasStates: [String!] = null
@@ -413,12 +413,12 @@ input HardwareRecordFilter {
   OR: HardwareRecordFilter
 }
 
-type Template {
+type Implementation {
   id: ID!
   interface: String!
   extension: String!
   agent: Agent!
-  node: Node!
+  action: Action!
   params: AnyDefault!
   dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
   dependencyGraph: DependencyGraph!
@@ -427,19 +427,19 @@ type Template {
   myLatestAssignation: Assignation
 }
 
-type Node {
+type Action {
   id: ID!
-  hash: NodeHash!
+  hash: ActionHash!
   name: String!
-  kind: NodeKind!
+  kind: ActionKind!
   stateful: Boolean!
   description: String
   collections: [Collection!]!
-  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
-  scope: NodeScope!
-  isTestFor(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+  scope: ActionScope!
+  isTestFor(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
   isDev: Boolean!
-  tests(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  tests(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
   interfaces: [String!]!
   protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
   definedAt: DateTime!
@@ -453,8 +453,8 @@ type Node {
   pinned: Boolean!
 }
 
-"""The kind of node."""
-enum NodeKind {
+"""The kind of action."""
+enum ActionKind {
   FUNCTION
   GENERATOR
 }
@@ -462,18 +462,18 @@ enum NodeKind {
 type Collection {
   id: ID!
   name: String!
-  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
 }
 
-input NodeFilter {
+input ActionFilter {
   search: String
   name: StrFilterLookup
   ids: [ID!]
   demands: [PortDemandInput!]
   protocols: [String!]
-  kind: NodeKind
-  AND: NodeFilter
-  OR: NodeFilter
+  kind: ActionKind
+  AND: ActionFilter
+  OR: ActionFilter
 }
 
 """The input for creating a port demand."""
@@ -485,17 +485,17 @@ input PortDemandInput {
   matches: [PortMatchInput!] = null
 
   """
-  Require that the node has a specific number of ports. This is used to identify the demand in the system.
+  Require that the action has a specific number of ports. This is used to identify the demand in the system.
   """
   forceLength: Int = null
 
   """
-  Require that the node has a specific number of non-nullable ports. This is used to identify the demand in the system.
+  Require that the action has a specific number of non-nullable ports. This is used to identify the demand in the system.
   """
   forceNonNullableLength: Int = null
 
   """
-  Require that the node has a specific number of structure ports. This is used to identify the demand in the system.
+  Require that the action has a specific number of structure ports. This is used to identify the demand in the system.
   """
   forceStructureLength: Int = null
 }
@@ -526,42 +526,42 @@ input PortMatchInput {
   children: [PortMatchInput!] = null
 }
 
-input NodeOrder {
+input ActionOrder {
   definedAt: Ordering
 }
 
-input TemplateFilter {
+input ImplementationFilter {
   interface: StrFilterLookup
   ids: [ID!]
-  nodeHash: NodeHash
-  node: TemplateNodeFilter
+  actionHash: ActionHash
+  action: ImplementationActionFilter
   extension: String
-  agent: TemplateAgentFilter
+  agent: ImplementationAgentFilter
   parameters: [ParamPair!]
-  AND: TemplateFilter
-  OR: TemplateFilter
+  AND: ImplementationFilter
+  OR: ImplementationFilter
 }
 
-input TemplateNodeFilter {
+input ImplementationActionFilter {
   search: String
   name: String
   ids: [ID!]
   demands: [PortDemandInput!]
   protocols: [String!]
-  kind: NodeKind
-  AND: TemplateNodeFilter
-  OR: TemplateNodeFilter
+  kind: ActionKind
+  AND: ImplementationActionFilter
+  OR: ImplementationActionFilter
 }
 
-input TemplateAgentFilter {
+input ImplementationAgentFilter {
   clientId: String
   instanceId: String
   ids: [ID!]
   extensions: [String!]
-  hasTemplates: [String!]
+  hasImplementations: [String!]
   hasStates: [String!]
-  AND: TemplateAgentFilter
-  OR: TemplateAgentFilter
+  AND: ImplementationAgentFilter
+  OR: ImplementationAgentFilter
 }
 
 input ParamPair {
@@ -569,7 +569,7 @@ input ParamPair {
   value: String!
 }
 
-enum NodeScope {
+enum ActionScope {
   GLOBAL
   LOCAL
   BRIDGE_GLOBAL_TO_LOCAL
@@ -579,7 +579,7 @@ enum NodeScope {
 type Protocol {
   id: ID!
   name: String!
-  nodes(filters: NodeFilter, order: NodeOrder, pagination: OffsetPaginationInput): [Node!]!
+  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
 }
 
 input ProtocolFilter {
@@ -599,16 +599,16 @@ type Reservation {
   name: String!
   waiter: Waiter!
   title: String
-  node: Node!
+  action: Action!
   updatedAt: DateTime!
   reference: String!
-  templates(filters: TemplateFilter, pagination: OffsetPaginationInput): [Template!]!
+  implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
   binds: Binds
   causingDependency: Dependency
   strategy: ReservationStrategy!
   viable: Boolean!
   happy: Boolean!
-  template: Template
+  implementation: Implementation
   dependencyGraph: DependencyGraph!
 }
 
@@ -619,17 +619,17 @@ type Waiter {
 }
 
 type Binds {
-  templates: [ID!]!
+  implementations: [ID!]!
   clients: [ID!]!
   desiredInstances: Int!
 }
 
 type Dependency {
   id: ID!
-  template: Template!
-  node: Node
-  hash: NodeHash!
-  initialHash: NodeHash!
+  implementation: Implementation!
+  action: Action
+  hash: ActionHash!
+  initialHash: ActionHash!
   reference: String
   optional: Boolean!
   binds: Binds
@@ -647,28 +647,28 @@ enum ReservationStrategy {
 }
 
 type DependencyGraph {
-  nodes: [NodeNodeInvalidNodeTemplateNode!]!
+  actions: [ActionActionInvalidActionImplementationAction!]!
   edges: [DependencyEdgeImplementationEdge!]!
 }
 
-union NodeNodeInvalidNodeTemplateNode = NodeNode | InvalidNode | TemplateNode
+union ActionActionInvalidActionImplementationAction = ActionAction | InvalidAction | ImplementationAction
 
-type NodeNode {
+type ActionAction {
   id: String!
-  nodeId: String!
+  actionId: String!
   name: String!
   status: String
   reservationId: String
 }
 
-type InvalidNode {
+type InvalidAction {
   id: String!
   initialHash: String!
 }
 
-type TemplateNode {
+type ImplementationAction {
   id: String!
-  templateId: String!
+  implementationId: String!
   interface: String!
   clientId: String!
   status: String
@@ -725,8 +725,8 @@ enum ReservationStatus {
 
 type TestCase {
   id: ID!
-  tester: Node!
-  node: Node!
+  tester: Action!
+  action: Action!
   isBenchmark: Boolean!
   description: String!
   name: String!
@@ -735,8 +735,8 @@ type TestCase {
 
 type TestResult {
   id: ID!
-  template: Template!
-  tester: Template!
+  implementation: Implementation!
+  tester: Implementation!
   case: TestCase!
   passed: Boolean!
   createdAt: DateTime!
@@ -780,11 +780,11 @@ type Assignation {
   """
   reservation: Reservation
 
-  """The node that this assignation is assigned to"""
-  node: Node!
+  """The action that this assignation is assigned to"""
+  action: Action!
 
-  """The template that this assignation is assigned to"""
-  template: Template!
+  """The implementation that this assignation is assigned to"""
+  implementation: Implementation!
 
   """The status of this assignation"""
   latestEventKind: AssignationEventKind!
@@ -909,8 +909,8 @@ type Shortcut {
   id: ID!
   name: String!
   description: String
-  node: Node!
-  template: Template
+  action: Action!
+  implementation: Implementation
   toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
   savedArgs: AnyDefault!
   allowQuick: Boolean!
@@ -979,9 +979,9 @@ type UITree {
 }
 
 type Mutation {
-  createTemplate(input: CreateTemplateInput!): Template!
-  createForeignTemplate(input: CreateForeignTemplateInput!): Template!
-  setExtensionTemplates(input: SetExtensionTemplatesInput!): [Template!]!
+  createImplementation(input: CreateImplementationInput!): Implementation!
+  createForeignImplementation(input: CreateForeignImplementationInput!): Implementation!
+  setExtensionImplementations(input: SetExtensionImplementationsInput!): [Implementation!]!
   ack(input: AckInput!): Assignation!
   assign(input: AssignInput!): Assignation!
   cancel(input: CancelInput!): Assignation!
@@ -998,8 +998,8 @@ type Mutation {
   reserve(input: ReserveInput!): Reservation!
   unreserve(input: UnreserveInput!): String!
 
-  """Delete a template"""
-  deleteTemplate(input: DeleteTemplateInput!): String!
+  """Delete a implementation"""
+  deleteImplementation(input: DeleteImplementationInput!): String!
   ensureAgent(input: AgentInput!): Agent!
   createTestCase(input: CreateTestCaseInput!): TestCase!
   createTestResult(input: CreateTestResultInput!): TestResult!
@@ -1011,7 +1011,7 @@ type Mutation {
   updateState(input: UpdateStateInput!): State!
   archiveState(input: ArchiveStateInput!): StateSchema!
   pinAgent(input: PinInput!): Agent!
-  pinTemplate(input: PinInput!): Template!
+  pinImplementation(input: PinInput!): Implementation!
   createShortcut(input: CreateShortcutInput!): Shortcut!
   deleteShortcut(input: DeleteShortcutInput!): String!
   createToolbox(input: CreateToolboxInput!): Toolbox!
@@ -1022,17 +1022,17 @@ type Mutation {
   deleteAgent(input: DeleteAgentInput!): ID!
 }
 
-"""The input for creating a template."""
-input CreateTemplateInput {
-  template: TemplateInput!
+"""The input for creating a implementation."""
+input CreateImplementationInput {
+  implementation: ImplementationInput!
   instanceId: InstanceId!
   extension: String!
 }
 
 """
-A template is a blueprint for a node. It is composed of a definition, a list of dependencies, and a list of params.
+A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params.
 """
-input TemplateInput {
+input ImplementationInput {
   definition: DefinitionInput!
   dependencies: [DependencyInput!]!
   interface: String
@@ -1041,7 +1041,7 @@ input TemplateInput {
   logo: String = null
 }
 
-"A definition\n\n    Definitions are the building template for Nodes and provide the\n    information needed to create a node. They are primarly composed of a name,\n    a description, and a list of ports.\n\n    Definitions provide a protocol of input and output, and do not contain\n    any information about the actual implementation of the node ( this is handled\n    by a template that implements a node).\n\n\n\n\n    "
+"A definition\n\n    Definitions are the building implementation for Actions and provide the\n    information needed to create a action. They are primarly composed of a name,\n    a description, and a list of ports.\n\n    Definitions provide a protocol of input and output, and do not contain\n    any information about the actual implementation of the action ( this is handled\n    by a implementation that implements a action).\n\n\n\n\n    "
 input DefinitionInput {
   """
   The description of the definition. This is the text that is displayed in the UI
@@ -1059,7 +1059,7 @@ input DefinitionInput {
   name: String!
 
   """
-  Whether the definition is stateful or not. If the definition is stateful, it can be used to create a stateful node. If the definition is not stateful, it cannot be used to create a stateful node
+  Whether the definition is stateful or not. If the definition is stateful, it can be used to create a stateful action. If the definition is not stateful, it cannot be used to create a stateful action
   """
   stateful: Boolean! = false
 
@@ -1079,7 +1079,7 @@ input DefinitionInput {
   """
   The kind of the definition. This is the type of the definition. Can be either a function or a generator
   """
-  kind: NodeKind!
+  kind: ActionKind!
 
   """
   The tests for the definition. This is used to group definitions together in the UI
@@ -1092,7 +1092,7 @@ input DefinitionInput {
   interfaces: [String!]! = []
 
   """
-  Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev node. If the definition is not a dev definition, it cannot be used to create a dev node
+  Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev action. If the definition is not a dev definition, it cannot be used to create a dev action
   """
   isDev: Boolean! = false
 
@@ -1124,7 +1124,7 @@ input EffectInput {
   ward: String = null
 }
 
-"Port\n\n    A Port is a single input or output of a node. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
+"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input PortInput {
   validators: [ValidatorInput!] = null
   key: String!
@@ -1195,11 +1195,11 @@ input ReturnWidgetInput {
 }
 
 """
-A dependency for a template. By defining dependencies, you can
-    create a dependency graph for your templates and nodes
+A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions
 """
 input DependencyInput {
-  hash: NodeHash
+  hash: ActionHash
   reference: String = null
   binds: BindsInput = null
   optional: Boolean! = false
@@ -1207,27 +1207,27 @@ input DependencyInput {
 }
 
 input BindsInput {
-  templates: [String!] = null
+  implementations: [String!] = null
   clients: [String!] = null
   desiredInstances: Int! = 1
 }
 
-"""The input for creating a template in another agents extension."""
-input CreateForeignTemplateInput {
+"""The input for creating a implementation in another agents extension."""
+input CreateForeignImplementationInput {
   """
-  The agent ID to create the template in. This is used to identify the agent in the system.
+  The agent ID to create the implementation in. This is used to identify the agent in the system.
   """
   agent: ID!
-  template: TemplateInput!
+  implementation: ImplementationInput!
   extension: String!
 }
 
-"""The input for setting extension templates."""
-input SetExtensionTemplatesInput {
+"""The input for setting extension implementations."""
+input SetExtensionImplementationsInput {
   """
-  The templates to set. This is used to identify the templates in the system.
+  The implementations to set. This is used to identify the implementations in the system.
   """
-  templates: [TemplateInput!]!
+  implementations: [ImplementationInput!]!
   instanceId: InstanceId!
   extension: String!
   runCleanup: Boolean! = false
@@ -1237,18 +1237,18 @@ input AckInput {
   assignation: ID!
 }
 
-"""The input for assigning args to a node."""
+"""The input for assigning args to a action."""
 input AssignInput {
   instanceId: InstanceId!
-  node: ID = null
-  template: ID = null
+  action: ID = null
+  implementation: ID = null
   agent: ID = null
-  nodeHash: NodeHash = null
+  actionHash: ActionHash = null
   reservation: ID = null
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "fc024349-3d2c-4071-8d69-60d60604529b"
+  reference: String = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1258,11 +1258,11 @@ input AssignInput {
 }
 
 """
-A hook is a function that is called when a node has reached a specific lifecycle point. Hooks are jsut nodes that take an assignation as input and return a value.
+A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value.
 """
 input HookInput {
   kind: HookKind!
-  hash: NodeHash!
+  hash: ActionHash!
 }
 
 enum HookKind {
@@ -1297,14 +1297,14 @@ input InterruptInput {
   assignation: ID!
 }
 
-"""The input for reserving a node."""
+"""The input for reserving a action."""
 input ReserveInput {
-  reference: String = "58096569-e797-4066-a1b4-4b5500d3511e"
+  reference: String = "1821a55a-f8a8-4f41-9265-539149825cc6"
   instanceId: InstanceId! = "default"
-  node: ID = null
-  template: ID = null
+  action: ID = null
+  implementation: ID = null
   title: String = null
-  hash: NodeHash = null
+  hash: ActionHash = null
   binds: BindsInput = null
   assignationId: ID = null
 }
@@ -1313,9 +1313,9 @@ input UnreserveInput {
   reservation: ID!
 }
 
-"""The input for deleting a template."""
-input DeleteTemplateInput {
-  template: ID!
+"""The input for deleting a implementation."""
+input DeleteImplementationInput {
+  implementation: ID!
 }
 
 input AgentInput {
@@ -1336,7 +1336,7 @@ input AgentInput {
 }
 
 input CreateTestCaseInput {
-  node: ID!
+  action: ID!
   tester: ID!
   description: String = null
   name: String = null
@@ -1345,7 +1345,7 @@ input CreateTestCaseInput {
 input CreateTestResultInput {
   case: ID!
   tester: ID!
-  template: ID!
+  implementation: ID!
   passed: Boolean!
   result: String = null
 }
@@ -1435,8 +1435,8 @@ input CreateShortcutInput {
   toolbox: ID = null
   name: String!
   description: String = null
-  node: ID!
-  template: ID = null
+  action: ID!
+  implementation: ID = null
   args: Args!
   allowQuick: Boolean! = false
   useReturns: Boolean! = false
@@ -1470,13 +1470,13 @@ input DeleteAgentInput {
 }
 
 type Subscription {
-  newNodes(cage: ID!): Node!
+  newActions(cage: ID!): Action!
   assignations(instanceId: InstanceId!): AssignationChangeEvent!
   reservations(instanceId: InstanceId!): Reservation!
   assignationEvents(instanceId: InstanceId!): AssignationEvent!
   agents: AgentChangeEvent!
-  templateChange(template: ID!): Template!
-  templates(agent: ID!): TemplateUpdate!
+  implementationChange(implementation: ID!): Implementation!
+  implementations(agent: ID!): ImplementationUpdate!
   stateUpdateEvents(stateId: ID!): State!
 }
 
@@ -1491,8 +1491,8 @@ type AgentChangeEvent {
   delete: ID
 }
 
-type TemplateUpdate {
-  create: Template!
-  update: Template!
+type ImplementationUpdate {
+  create: Implementation!
+  update: Implementation!
   delete: ID!
 }

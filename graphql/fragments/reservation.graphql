@@ -1,6 +1,6 @@
 fragment Reservation on Reservation {
   id
-  node {
+  action {
     id
     hash
   }

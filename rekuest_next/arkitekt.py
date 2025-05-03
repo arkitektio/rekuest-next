@@ -103,7 +103,7 @@ class RekuestNextService(BaseArkitektService):
             Requirement(
                 key="rekuest",
                 service="live.arkitekt.rekuest",
-                description="An instance of ArkitektNext Rekuest to assign to nodes",
+                description="An instance of ArkitektNext Rekuest to assign to actions",
             )
         ]
 

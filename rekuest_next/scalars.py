@@ -16,7 +16,7 @@ from pydantic_core import CoreSchema, core_schema
 import re
 
 
-NodeHash = str
+ActionHash = str
 InstanceId = str
 QString = str
 
@@ -121,13 +121,13 @@ class ValidatorFunction(str):
 
 
 def parse_or_raise(v: str) -> DocumentNode:
-    """Parse a string to a graphql DocumentNode. If it fails, raise a ValueError
+    """Parse a string to a graphql DocumentAction. If it fails, raise a ValueError
     with the error message and the source location of the error.
 
     Args:
         v (str): The string to parse.
     Raises:
-        ValueError: If the string cannot be parsed to a DocumentNode.
+        ValueError: If the string cannot be parsed to a DocumentAction.
     """
     try:
         return parse(v)
@@ -171,7 +171,7 @@ class SearchQuery(str):
     def validate(cls, v: Union[str, DocumentNode]) -> str:
         """Validate the search query"""
         if not isinstance(v, str) and not isinstance(v, DocumentNode):
-            raise TypeError("Search query must be either a str or a graphql DocumentNode")
+            raise TypeError("Search query must be either a str or a graphql DocumentAction")
         if isinstance(v, str):
             v = parse_or_raise(v)
 

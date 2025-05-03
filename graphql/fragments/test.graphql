@@ -1,6 +1,6 @@
 fragment TestCase on TestCase {
   id
-  node {
+  action {
     id
   }
   isBenchmark

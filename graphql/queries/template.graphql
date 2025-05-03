@@ -1,11 +1,11 @@
-query get_template($id: ID!) {
-  template(id: $id) {
-    ...Template
+query get_implementation($id: ID!) {
+  implementation(id: $id) {
+    ...Implementation
   }
 }
 
-query search_templates($search: String, $values: [ID!]) {
-  options: templates(
+query search_implementations($search: String, $values: [ID!]) {
+  options: implementations(
     filters: { interface: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }
   ) {
@@ -14,18 +14,18 @@ query search_templates($search: String, $values: [ID!]) {
   }
 }
 
-query templates_for($hash: NodeHash!) {
-  templates(filters: { nodeHash: $hash }) {
-    ...Template
+query implementations_for($hash: ActionHash!) {
+  implementations(filters: { actionHash: $hash }) {
+    ...Implementation
   }
 }
 
-query MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {
-  myTemplateAt(
+query MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {
+  myImplementationAt(
     instanceId: $instanceId
     interface: $interface
-    nodeId: $nodeId
+    actionId: $actionId
   ) {
-    ...Template
+    ...Implementation
   }
 }

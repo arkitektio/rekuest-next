@@ -3,36 +3,35 @@
 from typing_extensions import Literal
 from typing import (
     Optional,
+    Iterator,
     Tuple,
-    Union,
+    Iterable,
     List,
     Any,
     Annotated,
-    Iterable,
-    Iterator,
     AsyncIterator,
+    Union,
 )
-from rekuest_next.scalars import (
-    NodeHash,
-    Args,
-    SearchQuery,
-    InstanceId,
-    Identifier,
-    ValidatorFunction,
-)
-from rekuest_next.funcs import subscribe, execute, aexecute, asubscribe
-from rekuest_next.rath import RekuestNextRath
-from rath.scalars import ID
-from enum import Enum
 from rekuest_next.traits.ports import (
-    ValidatorInputTrait,
+    WidgetInputTrait,
     ReturnWidgetInputTrait,
     DefinitionInputTrait,
+    ValidatorInputTrait,
     PortTrait,
-    WidgetInputTrait,
 )
-from pydantic import BaseModel, Field, ConfigDict
-from rekuest_next.traits.node import Reserve
+from enum import Enum
+from rekuest_next.scalars import (
+    ValidatorFunction,
+    ActionHash,
+    Args,
+    Identifier,
+    SearchQuery,
+    InstanceId,
+)
+from rekuest_next.funcs import aexecute, asubscribe, subscribe, execute
+from pydantic import ConfigDict, BaseModel, Field
+from rath.scalars import ID
+from rekuest_next.rath import RekuestNextRath
 from datetime import datetime
 
 
@@ -100,8 +99,8 @@ class Ordering(str, Enum):
     DESC = "DESC"
 
 
-class NodeKind(str, Enum):
-    """The kind of node."""
+class ActionKind(str, Enum):
+    """The kind of action."""
 
     FUNCTION = "FUNCTION"
     GENERATOR = "GENERATOR"
@@ -217,15 +216,15 @@ class PortDemandInput(BaseModel):
     matches: Optional[Tuple["PortMatchInput", ...]] = None
     "The matches of the demand. "
     force_length: Optional[int] = Field(alias="forceLength", default=None)
-    "Require that the node has a specific number of ports. This is used to identify the demand in the system."
+    "Require that the action has a specific number of ports. This is used to identify the demand in the system."
     force_non_nullable_length: Optional[int] = Field(
         alias="forceNonNullableLength", default=None
     )
-    "Require that the node has a specific number of non-nullable ports. This is used to identify the demand in the system."
+    "Require that the action has a specific number of non-nullable ports. This is used to identify the demand in the system."
     force_structure_length: Optional[int] = Field(
         alias="forceStructureLength", default=None
     )
-    "Require that the node has a specific number of structure ports. This is used to identify the demand in the system."
+    "Require that the action has a specific number of structure ports. This is used to identify the demand in the system."
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -251,7 +250,7 @@ class PortMatchInput(BaseModel):
     )
 
 
-class NodeOrder(BaseModel):
+class ActionOrder(BaseModel):
     """No documentation"""
 
     defined_at: Optional[Ordering] = Field(alias="definedAt", default=None)
@@ -305,10 +304,10 @@ class ToolboxOrder(BaseModel):
     )
 
 
-class CreateTemplateInput(BaseModel):
-    """The input for creating a template."""
+class CreateImplementationInput(BaseModel):
+    """The input for creating a implementation."""
 
-    template: "TemplateInput"
+    implementation: "ImplementationInput"
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
     model_config = ConfigDict(
@@ -316,8 +315,8 @@ class CreateTemplateInput(BaseModel):
     )
 
 
-class TemplateInput(BaseModel):
-    """A template is a blueprint for a node. It is composed of a definition, a list of dependencies, and a list of params."""
+class ImplementationInput(BaseModel):
+    """A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params."""
 
     definition: "DefinitionInput"
     dependencies: Tuple["DependencyInput", ...]
@@ -333,13 +332,13 @@ class TemplateInput(BaseModel):
 class DefinitionInput(DefinitionInputTrait, BaseModel):
     """A definition
 
-    Definitions are the building template for Nodes and provide the
-    information needed to create a node. They are primarly composed of a name,
+    Definitions are the building implementation for Actions and provide the
+    information needed to create a action. They are primarly composed of a name,
     a description, and a list of ports.
 
     Definitions provide a protocol of input and output, and do not contain
-    any information about the actual implementation of the node ( this is handled
-    by a template that implements a node).
+    any information about the actual implementation of the action ( this is handled
+    by a implementation that implements a action).
 
 
 
@@ -353,21 +352,21 @@ class DefinitionInput(DefinitionInputTrait, BaseModel):
     name: str
     "The name of the actions. This is used to uniquely identify the definition"
     stateful: bool
-    "Whether the definition is stateful or not. If the definition is stateful, it can be used to create a stateful node. If the definition is not stateful, it cannot be used to create a stateful node"
+    "Whether the definition is stateful or not. If the definition is stateful, it can be used to create a stateful action. If the definition is not stateful, it cannot be used to create a stateful action"
     port_groups: Tuple["PortGroupInput", ...] = Field(alias="portGroups")
     "The port groups of the definition. This is used to group ports together in the UI"
     args: Tuple["PortInput", ...]
     "The args of the definition. This is the input ports of the definition"
     returns: Tuple["PortInput", ...]
     "The returns of the definition. This is the output ports of the definition"
-    kind: NodeKind
+    kind: ActionKind
     "The kind of the definition. This is the type of the definition. Can be either a function or a generator"
     is_test_for: Tuple[str, ...] = Field(alias="isTestFor")
     "The tests for the definition. This is used to group definitions together in the UI"
     interfaces: Tuple[str, ...]
     "The interfaces of the definition. This is used to group definitions together in the UI"
     is_dev: bool = Field(alias="isDev")
-    "Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev node. If the definition is not a dev definition, it cannot be used to create a dev node"
+    "Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev action. If the definition is not a dev definition, it cannot be used to create a dev action"
     logo: Optional[str] = None
     "The logo of the definition. This is used to display the logo in the UI"
     model_config = ConfigDict(
@@ -414,7 +413,7 @@ class EffectInput(BaseModel):
 class PortInput(PortTrait, BaseModel):
     """Port
 
-    A Port is a single input or output of a node. It is composed of a key and a kind
+    A Port is a single input or output of a action. It is composed of a key and a kind
     which are used to uniquely identify the port.
 
     If the Port is a structure, we need to define a identifier and scope,
@@ -542,10 +541,10 @@ class ReturnWidgetInput(ReturnWidgetInputTrait, BaseModel):
 
 
 class DependencyInput(BaseModel):
-    """A dependency for a template. By defining dependencies, you can
-    create a dependency graph for your templates and nodes"""
+    """A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions"""
 
-    hash: Optional[NodeHash] = None
+    hash: Optional[ActionHash] = None
     reference: Optional[str] = None
     binds: Optional["BindsInput"] = None
     optional: bool
@@ -558,7 +557,7 @@ class DependencyInput(BaseModel):
 class BindsInput(BaseModel):
     """No documentation"""
 
-    templates: Optional[Tuple[str, ...]] = None
+    implementations: Optional[Tuple[str, ...]] = None
     clients: Optional[Tuple[str, ...]] = None
     desired_instances: int = Field(alias="desiredInstances")
     model_config = ConfigDict(
@@ -566,11 +565,11 @@ class BindsInput(BaseModel):
     )
 
 
-class SetExtensionTemplatesInput(BaseModel):
-    """The input for setting extension templates."""
+class SetExtensionImplementationsInput(BaseModel):
+    """The input for setting extension implementations."""
 
-    templates: Tuple[TemplateInput, ...]
-    "The templates to set. This is used to identify the templates in the system."
+    implementations: Tuple[ImplementationInput, ...]
+    "The implementations to set. This is used to identify the implementations in the system."
     instance_id: InstanceId = Field(alias="instanceId")
     extension: str
     run_cleanup: bool = Field(alias="runCleanup")
@@ -580,13 +579,13 @@ class SetExtensionTemplatesInput(BaseModel):
 
 
 class AssignInput(BaseModel):
-    """The input for assigning args to a node."""
+    """The input for assigning args to a action."""
 
     instance_id: InstanceId = Field(alias="instanceId")
-    node: Optional[ID] = None
-    template: Optional[ID] = None
+    action: Optional[ID] = None
+    implementation: Optional[ID] = None
     agent: Optional[ID] = None
-    node_hash: Optional[NodeHash] = Field(alias="nodeHash", default=None)
+    action_hash: Optional[ActionHash] = Field(alias="actionHash", default=None)
     reservation: Optional[ID] = None
     interface: Optional[str] = None
     hooks: Optional[Tuple["HookInput", ...]] = None
@@ -604,10 +603,10 @@ class AssignInput(BaseModel):
 
 
 class HookInput(BaseModel):
-    """A hook is a function that is called when a node has reached a specific lifecycle point. Hooks are jsut nodes that take an assignation as input and return a value."""
+    """A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value."""
 
     kind: HookKind
-    hash: NodeHash
+    hash: ActionHash
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -632,14 +631,14 @@ class InterruptInput(BaseModel):
 
 
 class ReserveInput(BaseModel):
-    """The input for reserving a node."""
+    """The input for reserving a action."""
 
     reference: Optional[str] = None
     instance_id: InstanceId = Field(alias="instanceId")
-    node: Optional[ID] = None
-    template: Optional[ID] = None
+    action: Optional[ID] = None
+    implementation: Optional[ID] = None
     title: Optional[str] = None
-    hash: Optional[NodeHash] = None
+    hash: Optional[ActionHash] = None
     binds: Optional[BindsInput] = None
     assignation_id: Optional[ID] = Field(alias="assignationId", default=None)
     model_config = ConfigDict(
@@ -673,7 +672,7 @@ class AgentInput(BaseModel):
 class CreateTestCaseInput(BaseModel):
     """No documentation"""
 
-    node: ID
+    action: ID
     tester: ID
     description: Optional[str] = None
     name: Optional[str] = None
@@ -687,7 +686,7 @@ class CreateTestResultInput(BaseModel):
 
     case: ID
     tester: ID
-    template: ID
+    implementation: ID
     passed: bool
     result: Optional[str] = None
     model_config = ConfigDict(
@@ -798,8 +797,8 @@ class CreateShortcutInput(BaseModel):
     "The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox."
     name: str
     description: Optional[str] = None
-    node: ID
-    template: Optional[ID] = None
+    action: ID
+    implementation: Optional[ID] = None
     args: Args
     allow_quick: bool = Field(alias="allowQuick")
     use_returns: bool = Field(alias="useReturns")
@@ -817,10 +816,12 @@ class CollectInput(BaseModel):
     )
 
 
-class TestCaseNode(Reserve, BaseModel):
+class TestCaseAction(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     id: ID
     model_config = ConfigDict(frozen=True)
 
@@ -832,7 +833,7 @@ class TestCase(BaseModel):
         alias="__typename", default="TestCase", exclude=True
     )
     id: ID
-    node: TestCaseNode
+    action: TestCaseAction
     is_benchmark: bool = Field(alias="isBenchmark")
     description: str
     name: str
@@ -1085,12 +1086,14 @@ class Panel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ReservationNode(Reserve, BaseModel):
+class ReservationAction(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     id: ID
-    hash: NodeHash
+    hash: ActionHash
     model_config = ConfigDict(frozen=True)
 
 
@@ -1111,7 +1114,7 @@ class Reservation(BaseModel):
         alias="__typename", default="Reservation", exclude=True
     )
     id: ID
-    node: ReservationNode
+    action: ReservationAction
     waiter: ReservationWaiter
     reference: str
     updated_at: datetime = Field(alias="updatedAt")
@@ -1310,13 +1313,15 @@ class ListToolbox(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class PrimaryNode(Reserve, BaseModel):
+class PrimaryAction(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     name: str
     id: ID
-    hash: NodeHash
+    hash: ActionHash
     description: Optional[str] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
@@ -1684,12 +1689,14 @@ class Port(PortTrait, BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ListShortcutNode(Reserve, BaseModel):
+class ListShortcutAction(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     id: ID
-    hash: NodeHash
+    hash: ActionHash
     model_config = ConfigDict(frozen=True)
 
 
@@ -1702,7 +1709,7 @@ class ListShortcut(BaseModel):
     id: ID
     name: str
     description: Optional[str] = Field(default=None)
-    node: ListShortcutNode
+    action: ListShortcutAction
     saved_args: Any = Field(alias="savedArgs")
     args: Tuple[Port, ...]
     returns: Tuple[Port, ...]
@@ -1733,10 +1740,12 @@ class DefinitionCollections(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class DefinitionIstestfor(Reserve, BaseModel):
+class DefinitionIstestfor(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     id: ID
     model_config = ConfigDict(frozen=True)
 
@@ -1751,13 +1760,15 @@ class DefinitionPortgroups(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class Definition(Reserve, BaseModel):
+class Definition(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     args: Tuple[Port, ...]
     returns: Tuple[Port, ...]
-    kind: NodeKind
+    kind: ActionKind
     name: str
     description: Optional[str] = Field(default=None)
     interfaces: Tuple[str, ...]
@@ -1792,11 +1803,13 @@ class State(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class Node(Definition, Reserve, BaseModel):
+class Action(Definition, BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
-    hash: NodeHash
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
+    hash: ActionHash
     id: ID
     model_config = ConfigDict(frozen=True)
 
@@ -1810,7 +1823,7 @@ class Shortcut(BaseModel):
     id: ID
     name: str
     description: Optional[str] = Field(default=None)
-    node: Node
+    action: Action
     saved_args: Any = Field(alias="savedArgs")
     args: Tuple[Port, ...]
     returns: Tuple[Port, ...]
@@ -1818,7 +1831,7 @@ class Shortcut(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TemplateAgentRegistry(BaseModel):
+class ImplementationAgentRegistry(BaseModel):
     """No documentation"""
 
     typename: Literal["Registry"] = Field(
@@ -1828,25 +1841,25 @@ class TemplateAgentRegistry(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class TemplateAgent(BaseModel):
+class ImplementationAgent(BaseModel):
     """No documentation"""
 
     typename: Literal["Agent"] = Field(
         alias="__typename", default="Agent", exclude=True
     )
-    registry: TemplateAgentRegistry
+    registry: ImplementationAgentRegistry
     model_config = ConfigDict(frozen=True)
 
 
-class Template(BaseModel):
+class Implementation(BaseModel):
     """No documentation"""
 
-    typename: Literal["Template"] = Field(
-        alias="__typename", default="Template", exclude=True
+    typename: Literal["Implementation"] = Field(
+        alias="__typename", default="Implementation", exclude=True
     )
     id: ID
-    agent: TemplateAgent
-    node: Node
+    agent: ImplementationAgent
+    action: Action
     params: Any
     extension: str
     interface: str
@@ -1866,7 +1879,7 @@ class Create_testcaseMutation(BaseModel):
     class Meta:
         """Meta class for create_testcase"""
 
-        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nmutation create_testcase($input: CreateTestCaseInput!) {\n  createTestCase(input: $input) {\n    ...TestCase\n    __typename\n  }\n}"
+        document = "fragment TestCase on TestCase {\n  id\n  action {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nmutation create_testcase($input: CreateTestCaseInput!) {\n  createTestCase(input: $input) {\n    ...TestCase\n    __typename\n  }\n}"
 
 
 class Create_testresultMutation(BaseModel):
@@ -1898,7 +1911,7 @@ class SetStateMutation(BaseModel):
     class Meta:
         """Meta class for SetState"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class UpdateStateMutation(BaseModel):
@@ -1914,7 +1927,7 @@ class UpdateStateMutation(BaseModel):
     class Meta:
         """Meta class for UpdateState"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class EnsureAgentMutationEnsureagent(BaseModel):
@@ -1975,7 +1988,7 @@ class ReserveMutation(BaseModel):
     class Meta:
         """Meta class for reserve"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  node {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nmutation reserve($input: ReserveInput!) {\n  reserve(input: $input) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nmutation reserve($input: ReserveInput!) {\n  reserve(input: $input) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class UnreserveMutation(BaseModel):
@@ -2007,7 +2020,7 @@ class CreateShortcutMutation(BaseModel):
     class Meta:
         """Meta class for CreateShortcut"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  node {\n    ...Node\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class AssignMutation(BaseModel):
@@ -2106,39 +2119,41 @@ class CreateStateSchemaMutation(BaseModel):
     class Meta:
         """Meta class for CreateStateSchema"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
 
 
-class CreateTemplateMutation(BaseModel):
+class CreateImplementationMutation(BaseModel):
     """No documentation found for this operation."""
 
-    create_template: Template = Field(alias="createTemplate")
+    create_implementation: Implementation = Field(alias="createImplementation")
 
     class Arguments(BaseModel):
-        """Arguments for createTemplate"""
+        """Arguments for createImplementation"""
 
-        input: CreateTemplateInput
+        input: CreateImplementationInput
 
     class Meta:
-        """Meta class for createTemplate"""
+        """Meta class for createImplementation"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createTemplate($input: CreateTemplateInput!) {\n  createTemplate(input: $input) {\n    ...Template\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createImplementation($input: CreateImplementationInput!) {\n  createImplementation(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
-class SetExtensionTemplatesMutation(BaseModel):
+class SetExtensionImplementationsMutation(BaseModel):
     """No documentation found for this operation."""
 
-    set_extension_templates: Tuple[Template, ...] = Field(alias="setExtensionTemplates")
+    set_extension_implementations: Tuple[Implementation, ...] = Field(
+        alias="setExtensionImplementations"
+    )
 
     class Arguments(BaseModel):
-        """Arguments for SetExtensionTemplates"""
+        """Arguments for SetExtensionImplementations"""
 
-        input: SetExtensionTemplatesInput
+        input: SetExtensionImplementationsInput
 
     class Meta:
-        """Meta class for SetExtensionTemplates"""
+        """Meta class for SetExtensionImplementations"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {\n  setExtensionTemplates(input: $input) {\n    ...Template\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {\n  setExtensionImplementations(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
@@ -2154,7 +2169,7 @@ class WatchReservationsSubscription(BaseModel):
     class Meta:
         """Meta class for WatchReservations"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  node {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class WatchAssignationsSubscription(BaseModel):
@@ -2186,7 +2201,7 @@ class Get_testcaseQuery(BaseModel):
     class Meta:
         """Meta class for get_testcase"""
 
-        document = "fragment TestCase on TestCase {\n  id\n  node {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nquery get_testcase($id: ID!) {\n  testCase(id: $id) {\n    ...TestCase\n    __typename\n  }\n}"
+        document = "fragment TestCase on TestCase {\n  id\n  action {\n    id\n    __typename\n  }\n  isBenchmark\n  description\n  name\n  __typename\n}\n\nquery get_testcase($id: ID!) {\n  testCase(id: $id) {\n    ...TestCase\n    __typename\n  }\n}"
 
 
 class Get_testresultQuery(BaseModel):
@@ -2261,29 +2276,29 @@ class Search_testresultsQuery(BaseModel):
         document = "query search_testresults($search: String, $values: [ID!]) {\n  options: testResults(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: createdAt\n    value: id\n    __typename\n  }\n}"
 
 
-class GetMeNodesQueryNodes(Reserve, BaseModel):
+class GetMeActionsQueryActions(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     id: ID
     name: str
     model_config = ConfigDict(frozen=True)
 
 
-class GetMeNodesQuery(BaseModel):
+class GetMeActionsQuery(BaseModel):
     """No documentation found for this operation."""
 
-    nodes: Tuple[GetMeNodesQueryNodes, ...]
+    actions: Tuple[GetMeActionsQueryActions, ...]
 
     class Arguments(BaseModel):
-        """Arguments for GetMeNodes"""
+        """Arguments for GetMeActions"""
 
     class Meta:
-        """Meta class for GetMeNodes"""
+        """Meta class for GetMeActions"""
 
-        document = (
-            "query GetMeNodes {\n  nodes {\n    id\n    name\n    __typename\n  }\n}"
-        )
+        document = "query GetMeActions {\n  actions {\n    id\n    name\n    __typename\n  }\n}"
 
 
 class GetAgentQuery(BaseModel):
@@ -2331,7 +2346,7 @@ class Get_reservationQuery(BaseModel):
     class Meta:
         """Meta class for get_reservation"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  node {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery get_reservation($id: ID!) {\n  reservation(id: $id) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery get_reservation($id: ID!) {\n  reservation(id: $id) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class ReservationsQuery(BaseModel):
@@ -2347,7 +2362,7 @@ class ReservationsQuery(BaseModel):
     class Meta:
         """Meta class for reservations"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  node {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class ListShortcutsQuery(BaseModel):
@@ -2365,7 +2380,7 @@ class ListShortcutsQuery(BaseModel):
     class Meta:
         """Meta class for ListShortcuts"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  node {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
 
 
 class GetShortcutQuery(BaseModel):
@@ -2381,7 +2396,7 @@ class GetShortcutQuery(BaseModel):
     class Meta:
         """Meta class for GetShortcut"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  node {\n    ...Node\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class RequestsQuery(BaseModel):
@@ -2466,106 +2481,106 @@ class GetToolboxQuery(BaseModel):
         document = "fragment Toolbox on Toolbox {\n  id\n  name\n  description\n  __typename\n}\n\nquery GetToolbox($id: ID!) {\n  toolbox(id: $id) {\n    ...Toolbox\n    __typename\n  }\n}"
 
 
-class Get_templateQuery(BaseModel):
+class Get_implementationQuery(BaseModel):
     """No documentation found for this operation."""
 
-    template: Template
+    implementation: Implementation
 
     class Arguments(BaseModel):
-        """Arguments for get_template"""
+        """Arguments for get_implementation"""
 
         id: ID
 
     class Meta:
-        """Meta class for get_template"""
+        """Meta class for get_implementation"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_template($id: ID!) {\n  template(id: $id) {\n    ...Template\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_implementation($id: ID!) {\n  implementation(id: $id) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
-class Search_templatesQueryOptions(BaseModel):
+class Search_implementationsQueryOptions(BaseModel):
     """No documentation"""
 
-    typename: Literal["Template"] = Field(
-        alias="__typename", default="Template", exclude=True
+    typename: Literal["Implementation"] = Field(
+        alias="__typename", default="Implementation", exclude=True
     )
     label: str
     value: ID
     model_config = ConfigDict(frozen=True)
 
 
-class Search_templatesQuery(BaseModel):
+class Search_implementationsQuery(BaseModel):
     """No documentation found for this operation."""
 
-    options: Tuple[Search_templatesQueryOptions, ...]
+    options: Tuple[Search_implementationsQueryOptions, ...]
 
     class Arguments(BaseModel):
-        """Arguments for search_templates"""
+        """Arguments for search_implementations"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        """Meta class for search_templates"""
+        """Meta class for search_implementations"""
 
-        document = "query search_templates($search: String, $values: [ID!]) {\n  options: templates(\n    filters: {interface: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
+        document = "query search_implementations($search: String, $values: [ID!]) {\n  options: implementations(\n    filters: {interface: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
 
 
-class Templates_forQuery(BaseModel):
+class Implementations_forQuery(BaseModel):
     """No documentation found for this operation."""
 
-    templates: Tuple[Template, ...]
+    implementations: Tuple[Implementation, ...]
 
     class Arguments(BaseModel):
-        """Arguments for templates_for"""
+        """Arguments for implementations_for"""
 
-        hash: NodeHash
+        hash: ActionHash
 
     class Meta:
-        """Meta class for templates_for"""
+        """Meta class for implementations_for"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery templates_for($hash: NodeHash!) {\n  templates(filters: {nodeHash: $hash}) {\n    ...Template\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery implementations_for($hash: ActionHash!) {\n  implementations(filters: {actionHash: $hash}) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
-class MyTemplateAtQuery(BaseModel):
+class MyImplementationAtQuery(BaseModel):
     """No documentation found for this operation."""
 
-    my_template_at: Template = Field(alias="myTemplateAt")
+    my_implementation_at: Implementation = Field(alias="myImplementationAt")
 
     class Arguments(BaseModel):
-        """Arguments for MyTemplateAt"""
+        """Arguments for MyImplementationAt"""
 
         instance_id: str = Field(alias="instanceId")
         interface: Optional[str] = Field(default=None)
-        node_id: Optional[ID] = Field(alias="nodeId", default=None)
+        action_id: Optional[ID] = Field(alias="actionId", default=None)
 
     class Meta:
-        """Meta class for MyTemplateAt"""
+        """Meta class for MyImplementationAt"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Template on Template {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  node {\n    ...Node\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyTemplateAt($instanceId: String!, $interface: String, $nodeId: ID) {\n  myTemplateAt(instanceId: $instanceId, interface: $interface, nodeId: $nodeId) {\n    ...Template\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {\n  myImplementationAt(\n    instanceId: $instanceId\n    interface: $interface\n    actionId: $actionId\n  ) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class FindQuery(BaseModel):
     """No documentation found for this operation."""
 
-    node: Node
+    action: Action
 
     class Arguments(BaseModel):
         """Arguments for find"""
 
         id: Optional[ID] = Field(default=None)
-        template: Optional[ID] = Field(default=None)
-        hash: Optional[NodeHash] = Field(default=None)
+        implementation: Optional[ID] = Field(default=None)
+        hash: Optional[ActionHash] = Field(default=None)
 
     class Meta:
         """Meta class for find"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $template: ID, $hash: NodeHash) {\n  node(id: $id, template: $template, hash: $hash) {\n    ...Node\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $implementation: ID, $hash: ActionHash) {\n  action(id: $id, implementation: $implementation, hash: $hash) {\n    ...Action\n    __typename\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
     """No documentation found for this operation."""
 
-    nodes: Tuple[Node, ...]
+    actions: Tuple[Action, ...]
 
     class Arguments(BaseModel):
         """Arguments for retrieveall"""
@@ -2573,56 +2588,58 @@ class RetrieveallQuery(BaseModel):
     class Meta:
         """Meta class for retrieveall"""
 
-        document = "fragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Node {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Node on Node {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  nodes {\n    ...Node\n    __typename\n  }\n}"
+        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  actions {\n    ...Action\n    __typename\n  }\n}"
 
 
-class Search_nodesQueryOptions(Reserve, BaseModel):
+class Search_actionsQueryOptions(BaseModel):
     """No documentation"""
 
-    typename: Literal["Node"] = Field(alias="__typename", default="Node", exclude=True)
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
     label: str
     value: ID
     model_config = ConfigDict(frozen=True)
 
 
-class Search_nodesQuery(BaseModel):
+class Search_actionsQuery(BaseModel):
     """No documentation found for this operation."""
 
-    options: Tuple[Search_nodesQueryOptions, ...]
+    options: Tuple[Search_actionsQueryOptions, ...]
 
     class Arguments(BaseModel):
-        """Arguments for search_nodes"""
+        """Arguments for search_actions"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
 
     class Meta:
-        """Meta class for search_nodes"""
+        """Meta class for search_actions"""
 
-        document = "query search_nodes($search: String, $values: [ID!]) {\n  options: nodes(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
+        document = "query search_actions($search: String, $values: [ID!]) {\n  options: actions(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
 
 
-class PrimaryNodesQuery(BaseModel):
+class PrimaryActionsQuery(BaseModel):
     """No documentation found for this operation."""
 
-    nodes: Tuple[PrimaryNode, ...]
+    actions: Tuple[PrimaryAction, ...]
 
     class Arguments(BaseModel):
-        """Arguments for PrimaryNodes"""
+        """Arguments for PrimaryActions"""
 
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
         identifier: Optional[str] = Field(default=None)
-        order: Optional[NodeOrder] = Field(default=None)
+        order: Optional[ActionOrder] = Field(default=None)
         search: Optional[str] = Field(default=None)
 
     class Meta:
-        """Meta class for PrimaryNodes"""
+        """Meta class for PrimaryActions"""
 
-        document = "fragment PrimaryNode on Node {\n  name\n  id\n  hash\n  description\n  __typename\n}\n\nquery PrimaryNodes($pagination: OffsetPaginationInput, $identifier: String, $order: NodeOrder, $search: String) {\n  nodes(\n    order: $order\n    pagination: $pagination\n    filters: {demands: [{kind: ARGS, matches: [{at: 0, kind: STRUCTURE, identifier: $identifier}]}], search: $search}\n  ) {\n    ...PrimaryNode\n    __typename\n  }\n}"
+        document = "fragment PrimaryAction on Action {\n  name\n  id\n  hash\n  description\n  __typename\n}\n\nquery PrimaryActions($pagination: OffsetPaginationInput, $identifier: String, $order: ActionOrder, $search: String) {\n  actions(\n    order: $order\n    pagination: $pagination\n    filters: {demands: [{kind: ARGS, matches: [{at: 0, kind: STRUCTURE, identifier: $identifier}]}], search: $search}\n  ) {\n    ...PrimaryAction\n    __typename\n  }\n}"
 
 
 async def acreate_testcase(
-    node: ID,
+    action: ID,
     tester: ID,
     description: Optional[str] = None,
     name: Optional[str] = None,
@@ -2632,7 +2649,7 @@ async def acreate_testcase(
 
 
     Arguments:
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -2646,7 +2663,7 @@ async def acreate_testcase(
             Create_testcaseMutation,
             {
                 "input": {
-                    "node": node,
+                    "action": action,
                     "tester": tester,
                     "description": description,
                     "name": name,
@@ -2658,7 +2675,7 @@ async def acreate_testcase(
 
 
 def create_testcase(
-    node: ID,
+    action: ID,
     tester: ID,
     description: Optional[str] = None,
     name: Optional[str] = None,
@@ -2668,7 +2685,7 @@ def create_testcase(
 
 
     Arguments:
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -2681,7 +2698,7 @@ def create_testcase(
         Create_testcaseMutation,
         {
             "input": {
-                "node": node,
+                "action": action,
                 "tester": tester,
                 "description": description,
                 "name": name,
@@ -2694,7 +2711,7 @@ def create_testcase(
 async def acreate_testresult(
     case: ID,
     tester: ID,
-    template: ID,
+    implementation: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -2705,7 +2722,7 @@ async def acreate_testresult(
     Arguments:
         case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         passed: The `Boolean` scalar type represents `true` or `false`. (required)
         result: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -2720,7 +2737,7 @@ async def acreate_testresult(
                 "input": {
                     "case": case,
                     "tester": tester,
-                    "template": template,
+                    "implementation": implementation,
                     "passed": passed,
                     "result": result,
                 }
@@ -2733,7 +2750,7 @@ async def acreate_testresult(
 def create_testresult(
     case: ID,
     tester: ID,
-    template: ID,
+    implementation: ID,
     passed: bool,
     result: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -2744,7 +2761,7 @@ def create_testresult(
     Arguments:
         case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         tester: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
         passed: The `Boolean` scalar type represents `true` or `false`. (required)
         result: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -2758,7 +2775,7 @@ def create_testresult(
             "input": {
                 "case": case,
                 "tester": tester,
-                "template": template,
+                "implementation": implementation,
                 "passed": passed,
                 "result": result,
             }
@@ -3067,11 +3084,11 @@ def create_panel(
 
 async def areserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "58096569-e797-4066-a1b4-4b5500d3511e",
-    node: Optional[ID] = None,
-    template: Optional[ID] = None,
+    reference: Optional[str] = "1821a55a-f8a8-4f41-9265-539149825cc6",
+    action: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     title: Optional[str] = None,
-    hash: Optional[NodeHash] = None,
+    hash: Optional[ActionHash] = None,
     binds: Optional[BindsInput] = None,
     assignation_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -3082,8 +3099,8 @@ async def areserve(
     Arguments:
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         title: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         binds:
@@ -3100,8 +3117,8 @@ async def areserve(
                 "input": {
                     "reference": reference,
                     "instanceId": instance_id,
-                    "node": node,
-                    "template": template,
+                    "action": action,
+                    "implementation": implementation,
                     "title": title,
                     "hash": hash,
                     "binds": binds,
@@ -3115,11 +3132,11 @@ async def areserve(
 
 def reserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "58096569-e797-4066-a1b4-4b5500d3511e",
-    node: Optional[ID] = None,
-    template: Optional[ID] = None,
+    reference: Optional[str] = "1821a55a-f8a8-4f41-9265-539149825cc6",
+    action: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     title: Optional[str] = None,
-    hash: Optional[NodeHash] = None,
+    hash: Optional[ActionHash] = None,
     binds: Optional[BindsInput] = None,
     assignation_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
@@ -3130,8 +3147,8 @@ def reserve(
     Arguments:
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         title: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         binds:
@@ -3147,8 +3164,8 @@ def reserve(
             "input": {
                 "reference": reference,
                 "instanceId": instance_id,
-                "node": node,
-                "template": template,
+                "action": action,
+                "implementation": implementation,
                 "title": title,
                 "hash": hash,
                 "binds": binds,
@@ -3195,13 +3212,13 @@ def unreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
 
 async def acreate_shortcut(
     name: str,
-    node: ID,
+    action: ID,
     args: Args,
     allow_quick: bool,
     use_returns: bool,
     toolbox: Optional[ID] = None,
     description: Optional[str] = None,
-    template: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> Shortcut:
     """CreateShortcut
@@ -3211,8 +3228,8 @@ async def acreate_shortcut(
         toolbox: The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         allow_quick: The `Boolean` scalar type represents `true` or `false`. (required)
         use_returns: The `Boolean` scalar type represents `true` or `false`. (required)
@@ -3229,8 +3246,8 @@ async def acreate_shortcut(
                     "toolbox": toolbox,
                     "name": name,
                     "description": description,
-                    "node": node,
-                    "template": template,
+                    "action": action,
+                    "implementation": implementation,
                     "args": args,
                     "allowQuick": allow_quick,
                     "useReturns": use_returns,
@@ -3243,13 +3260,13 @@ async def acreate_shortcut(
 
 def create_shortcut(
     name: str,
-    node: ID,
+    action: ID,
     args: Args,
     allow_quick: bool,
     use_returns: bool,
     toolbox: Optional[ID] = None,
     description: Optional[str] = None,
-    template: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
 ) -> Shortcut:
     """CreateShortcut
@@ -3259,8 +3276,8 @@ def create_shortcut(
         toolbox: The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox.
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         description: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         allow_quick: The `Boolean` scalar type represents `true` or `false`. (required)
         use_returns: The `Boolean` scalar type represents `true` or `false`. (required)
@@ -3276,8 +3293,8 @@ def create_shortcut(
                 "toolbox": toolbox,
                 "name": name,
                 "description": description,
-                "node": node,
-                "template": template,
+                "action": action,
+                "implementation": implementation,
                 "args": args,
                 "allowQuick": allow_quick,
                 "useReturns": use_returns,
@@ -3293,14 +3310,14 @@ async def aassign(
     cached: bool,
     log: bool,
     ephemeral: bool,
-    node: Optional[ID] = None,
-    template: Optional[ID] = None,
+    action: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     agent: Optional[ID] = None,
-    node_hash: Optional[NodeHash] = None,
+    action_hash: Optional[ActionHash] = None,
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "fc024349-3d2c-4071-8d69-60d60604529b",
+    reference: Optional[str] = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3311,13 +3328,13 @@ async def aassign(
 
     Arguments:
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         agent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        node_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        action_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-        hooks: A hook is a function that is called when a node has reached a specific lifecycle point. Hooks are jsut nodes that take an assignation as input and return a value. (required) (list)
+        hooks: A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value. (required) (list)
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -3337,10 +3354,10 @@ async def aassign(
             {
                 "input": {
                     "instanceId": instance_id,
-                    "node": node,
-                    "template": template,
+                    "action": action,
+                    "implementation": implementation,
                     "agent": agent,
-                    "nodeHash": node_hash,
+                    "actionHash": action_hash,
                     "reservation": reservation,
                     "interface": interface,
                     "hooks": hooks,
@@ -3365,14 +3382,14 @@ def assign(
     cached: bool,
     log: bool,
     ephemeral: bool,
-    node: Optional[ID] = None,
-    template: Optional[ID] = None,
+    action: Optional[ID] = None,
+    implementation: Optional[ID] = None,
     agent: Optional[ID] = None,
-    node_hash: Optional[NodeHash] = None,
+    action_hash: Optional[ActionHash] = None,
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "fc024349-3d2c-4071-8d69-60d60604529b",
+    reference: Optional[str] = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3383,13 +3400,13 @@ def assign(
 
     Arguments:
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
-        node: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        template: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+        implementation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         agent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
-        node_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+        action_hash: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
         interface: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
-        hooks: A hook is a function that is called when a node has reached a specific lifecycle point. Hooks are jsut nodes that take an assignation as input and return a value. (required) (list)
+        hooks: A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value. (required) (list)
         args: The `Args` scalar type represents a Dictionary of arguments (required)
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
         parent: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
@@ -3408,10 +3425,10 @@ def assign(
         {
             "input": {
                 "instanceId": instance_id,
-                "node": node,
-                "template": template,
+                "action": action,
+                "implementation": implementation,
                 "agent": agent,
-                "nodeHash": node_hash,
+                "actionHash": action_hash,
                 "reservation": reservation,
                 "interface": interface,
                 "hooks": hooks,
@@ -3629,96 +3646,96 @@ def create_state_schema(
     ).create_state_schema
 
 
-async def acreate_template(
-    template: TemplateInput,
+async def acreate_implementation(
+    implementation: ImplementationInput,
     instance_id: InstanceId,
     extension: str,
     rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """createTemplate
+) -> Implementation:
+    """createImplementation
 
 
     Arguments:
-        template: A template is a blueprint for a node. It is composed of a definition, a list of dependencies, and a list of params. (required)
+        implementation: A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params. (required)
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
     return (
         await aexecute(
-            CreateTemplateMutation,
+            CreateImplementationMutation,
             {
                 "input": {
-                    "template": template,
+                    "implementation": implementation,
                     "instanceId": instance_id,
                     "extension": extension,
                 }
             },
             rath=rath,
         )
-    ).create_template
+    ).create_implementation
 
 
-def create_template(
-    template: TemplateInput,
+def create_implementation(
+    implementation: ImplementationInput,
     instance_id: InstanceId,
     extension: str,
     rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """createTemplate
+) -> Implementation:
+    """createImplementation
 
 
     Arguments:
-        template: A template is a blueprint for a node. It is composed of a definition, a list of dependencies, and a list of params. (required)
+        implementation: A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params. (required)
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
     return execute(
-        CreateTemplateMutation,
+        CreateImplementationMutation,
         {
             "input": {
-                "template": template,
+                "implementation": implementation,
                 "instanceId": instance_id,
                 "extension": extension,
             }
         },
         rath=rath,
-    ).create_template
+    ).create_implementation
 
 
-async def aset_extension_templates(
-    templates: Iterable[TemplateInput],
+async def aset_extension_implementations(
+    implementations: Iterable[ImplementationInput],
     instance_id: InstanceId,
     extension: str,
     run_cleanup: bool,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Template, ...]:
-    """SetExtensionTemplates
+) -> Tuple[Implementation, ...]:
+    """SetExtensionImplementations
 
 
     Arguments:
-        templates: The templates to set. This is used to identify the templates in the system.
+        implementations: The implementations to set. This is used to identify the implementations in the system.
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         run_cleanup: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
+        List[Implementation]
     """
     return (
         await aexecute(
-            SetExtensionTemplatesMutation,
+            SetExtensionImplementationsMutation,
             {
                 "input": {
-                    "templates": templates,
+                    "implementations": implementations,
                     "instanceId": instance_id,
                     "extension": extension,
                     "runCleanup": run_cleanup,
@@ -3726,41 +3743,41 @@ async def aset_extension_templates(
             },
             rath=rath,
         )
-    ).set_extension_templates
+    ).set_extension_implementations
 
 
-def set_extension_templates(
-    templates: Iterable[TemplateInput],
+def set_extension_implementations(
+    implementations: Iterable[ImplementationInput],
     instance_id: InstanceId,
     extension: str,
     run_cleanup: bool,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Template, ...]:
-    """SetExtensionTemplates
+) -> Tuple[Implementation, ...]:
+    """SetExtensionImplementations
 
 
     Arguments:
-        templates: The templates to set. This is used to identify the templates in the system.
+        implementations: The implementations to set. This is used to identify the implementations in the system.
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
         extension: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
         run_cleanup: The `Boolean` scalar type represents `true` or `false`. (required)
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
+        List[Implementation]
     """
     return execute(
-        SetExtensionTemplatesMutation,
+        SetExtensionImplementationsMutation,
         {
             "input": {
-                "templates": templates,
+                "implementations": implementations,
                 "instanceId": instance_id,
                 "extension": extension,
                 "runCleanup": run_cleanup,
             }
         },
         rath=rath,
-    ).set_extension_templates
+    ).set_extension_implementations
 
 
 async def awatch_reservations(
@@ -3983,34 +4000,34 @@ def search_testresults(
     ).options
 
 
-async def aget_me_nodes(
+async def aget_me_actions(
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[GetMeNodesQueryNodes, ...]:
-    """GetMeNodes
+) -> Tuple[GetMeActionsQueryActions, ...]:
+    """GetMeActions
 
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetMeNodesQueryNodes]
+        List[GetMeActionsQueryActions]
     """
-    return (await aexecute(GetMeNodesQuery, {}, rath=rath)).nodes
+    return (await aexecute(GetMeActionsQuery, {}, rath=rath)).actions
 
 
-def get_me_nodes(
+def get_me_actions(
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[GetMeNodesQueryNodes, ...]:
-    """GetMeNodes
+) -> Tuple[GetMeActionsQueryActions, ...]:
+    """GetMeActions
 
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[GetMeNodesQueryNodes]
+        List[GetMeActionsQueryActions]
     """
-    return execute(GetMeNodesQuery, {}, rath=rath).nodes
+    return execute(GetMeActionsQuery, {}, rath=rath).actions
 
 
 async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
@@ -4389,8 +4406,10 @@ def get_toolbox(id: ID, rath: Optional[RekuestNextRath] = None) -> Toolbox:
     return execute(GetToolboxQuery, {"id": id}, rath=rath).toolbox
 
 
-async def aget_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
-    """get_template
+async def aget_implementation(
+    id: ID, rath: Optional[RekuestNextRath] = None
+) -> Implementation:
+    """get_implementation
 
 
     Arguments:
@@ -4398,13 +4417,17 @@ async def aget_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Templ
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
-    return (await aexecute(Get_templateQuery, {"id": id}, rath=rath)).template
+    return (
+        await aexecute(Get_implementationQuery, {"id": id}, rath=rath)
+    ).implementation
 
 
-def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
-    """get_template
+def get_implementation(
+    id: ID, rath: Optional[RekuestNextRath] = None
+) -> Implementation:
+    """get_implementation
 
 
     Arguments:
@@ -4412,17 +4435,17 @@ def get_template(id: ID, rath: Optional[RekuestNextRath] = None) -> Template:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
-    return execute(Get_templateQuery, {"id": id}, rath=rath).template
+    return execute(Get_implementationQuery, {"id": id}, rath=rath).implementation
 
 
-async def asearch_templates(
+async def asearch_implementations(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_templatesQueryOptions, ...]:
-    """search_templates
+) -> Tuple[Search_implementationsQueryOptions, ...]:
+    """search_implementations
 
 
     Arguments:
@@ -4431,21 +4454,21 @@ async def asearch_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_templatesQueryTemplates]
+        List[Search_implementationsQueryImplementations]
     """
     return (
         await aexecute(
-            Search_templatesQuery, {"search": search, "values": values}, rath=rath
+            Search_implementationsQuery, {"search": search, "values": values}, rath=rath
         )
     ).options
 
 
-def search_templates(
+def search_implementations(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_templatesQueryOptions, ...]:
-    """search_templates
+) -> Tuple[Search_implementationsQueryOptions, ...]:
+    """search_implementations
 
 
     Arguments:
@@ -4454,146 +4477,150 @@ def search_templates(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_templatesQueryTemplates]
+        List[Search_implementationsQueryImplementations]
     """
     return execute(
-        Search_templatesQuery, {"search": search, "values": values}, rath=rath
+        Search_implementationsQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 
-async def atemplates_for(
-    hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> Tuple[Template, ...]:
-    """templates_for
+async def aimplementations_for(
+    hash: ActionHash, rath: Optional[RekuestNextRath] = None
+) -> Tuple[Implementation, ...]:
+    """implementations_for
 
 
     Arguments:
-        hash (NodeHash): No description
+        hash (ActionHash): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
+        List[Implementation]
     """
-    return (await aexecute(Templates_forQuery, {"hash": hash}, rath=rath)).templates
+    return (
+        await aexecute(Implementations_forQuery, {"hash": hash}, rath=rath)
+    ).implementations
 
 
-def templates_for(
-    hash: NodeHash, rath: Optional[RekuestNextRath] = None
-) -> Tuple[Template, ...]:
-    """templates_for
+def implementations_for(
+    hash: ActionHash, rath: Optional[RekuestNextRath] = None
+) -> Tuple[Implementation, ...]:
+    """implementations_for
 
 
     Arguments:
-        hash (NodeHash): No description
+        hash (ActionHash): No description
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Template]
+        List[Implementation]
     """
-    return execute(Templates_forQuery, {"hash": hash}, rath=rath).templates
+    return execute(Implementations_forQuery, {"hash": hash}, rath=rath).implementations
 
 
-async def amy_template_at(
+async def amy_implementation_at(
     instance_id: str,
     interface: Optional[str] = None,
-    node_id: Optional[ID] = None,
+    action_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """MyTemplateAt
+) -> Implementation:
+    """MyImplementationAt
 
 
     Arguments:
         instance_id (str): No description
         interface (Optional[str], optional): No description.
-        node_id (Optional[ID], optional): No description.
+        action_id (Optional[ID], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
     return (
         await aexecute(
-            MyTemplateAtQuery,
-            {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+            MyImplementationAtQuery,
+            {"instanceId": instance_id, "interface": interface, "actionId": action_id},
             rath=rath,
         )
-    ).my_template_at
+    ).my_implementation_at
 
 
-def my_template_at(
+def my_implementation_at(
     instance_id: str,
     interface: Optional[str] = None,
-    node_id: Optional[ID] = None,
+    action_id: Optional[ID] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Template:
-    """MyTemplateAt
+) -> Implementation:
+    """MyImplementationAt
 
 
     Arguments:
         instance_id (str): No description
         interface (Optional[str], optional): No description.
-        node_id (Optional[ID], optional): No description.
+        action_id (Optional[ID], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Template
+        Implementation
     """
     return execute(
-        MyTemplateAtQuery,
-        {"instanceId": instance_id, "interface": interface, "nodeId": node_id},
+        MyImplementationAtQuery,
+        {"instanceId": instance_id, "interface": interface, "actionId": action_id},
         rath=rath,
-    ).my_template_at
+    ).my_implementation_at
 
 
 async def afind(
     id: Optional[ID] = None,
-    template: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
+    implementation: Optional[ID] = None,
+    hash: Optional[ActionHash] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Node:
+) -> Action:
     """find
 
 
     Arguments:
         id (Optional[ID], optional): No description.
-        template (Optional[ID], optional): No description.
-        hash (Optional[NodeHash], optional): No description.
+        implementation (Optional[ID], optional): No description.
+        hash (Optional[ActionHash], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Node
+        Action
     """
     return (
         await aexecute(
-            FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
+            FindQuery,
+            {"id": id, "implementation": implementation, "hash": hash},
+            rath=rath,
         )
-    ).node
+    ).action
 
 
 def find(
     id: Optional[ID] = None,
-    template: Optional[ID] = None,
-    hash: Optional[NodeHash] = None,
+    implementation: Optional[ID] = None,
+    hash: Optional[ActionHash] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Node:
+) -> Action:
     """find
 
 
     Arguments:
         id (Optional[ID], optional): No description.
-        template (Optional[ID], optional): No description.
-        hash (Optional[NodeHash], optional): No description.
+        implementation (Optional[ID], optional): No description.
+        hash (Optional[ActionHash], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        Node
+        Action
     """
     return execute(
-        FindQuery, {"id": id, "template": template, "hash": hash}, rath=rath
-    ).node
+        FindQuery, {"id": id, "implementation": implementation, "hash": hash}, rath=rath
+    ).action
 
 
-async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ...]:
+async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Action, ...]:
     """retrieveall
 
 
@@ -4601,12 +4628,12 @@ async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ..
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Node]
+        List[Action]
     """
-    return (await aexecute(RetrieveallQuery, {}, rath=rath)).nodes
+    return (await aexecute(RetrieveallQuery, {}, rath=rath)).actions
 
 
-def retrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ...]:
+def retrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Action, ...]:
     """retrieveall
 
 
@@ -4614,17 +4641,17 @@ def retrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Node, ...]:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Node]
+        List[Action]
     """
-    return execute(RetrieveallQuery, {}, rath=rath).nodes
+    return execute(RetrieveallQuery, {}, rath=rath).actions
 
 
-async def asearch_nodes(
+async def asearch_actions(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_nodesQueryOptions, ...]:
-    """search_nodes
+) -> Tuple[Search_actionsQueryOptions, ...]:
+    """search_actions
 
 
     Arguments:
@@ -4633,21 +4660,21 @@ async def asearch_nodes(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_nodesQueryNodes]
+        List[Search_actionsQueryActions]
     """
     return (
         await aexecute(
-            Search_nodesQuery, {"search": search, "values": values}, rath=rath
+            Search_actionsQuery, {"search": search, "values": values}, rath=rath
         )
     ).options
 
 
-def search_nodes(
+def search_actions(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_nodesQueryOptions, ...]:
-    """search_nodes
+) -> Tuple[Search_actionsQueryOptions, ...]:
+    """search_actions
 
 
     Arguments:
@@ -4656,36 +4683,36 @@ def search_nodes(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_nodesQueryNodes]
+        List[Search_actionsQueryActions]
     """
     return execute(
-        Search_nodesQuery, {"search": search, "values": values}, rath=rath
+        Search_actionsQuery, {"search": search, "values": values}, rath=rath
     ).options
 
 
-async def aprimary_nodes(
+async def aprimary_actions(
     pagination: Optional[OffsetPaginationInput] = None,
     identifier: Optional[str] = None,
-    order: Optional[NodeOrder] = None,
+    order: Optional[ActionOrder] = None,
     search: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[PrimaryNode, ...]:
-    """PrimaryNodes
+) -> Tuple[PrimaryAction, ...]:
+    """PrimaryActions
 
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
         identifier (Optional[str], optional): No description.
-        order (Optional[NodeOrder], optional): No description.
+        order (Optional[ActionOrder], optional): No description.
         search (Optional[str], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[PrimaryNode]
+        List[PrimaryAction]
     """
     return (
         await aexecute(
-            PrimaryNodesQuery,
+            PrimaryActionsQuery,
             {
                 "pagination": pagination,
                 "identifier": identifier,
@@ -4694,31 +4721,31 @@ async def aprimary_nodes(
             },
             rath=rath,
         )
-    ).nodes
+    ).actions
 
 
-def primary_nodes(
+def primary_actions(
     pagination: Optional[OffsetPaginationInput] = None,
     identifier: Optional[str] = None,
-    order: Optional[NodeOrder] = None,
+    order: Optional[ActionOrder] = None,
     search: Optional[str] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[PrimaryNode, ...]:
-    """PrimaryNodes
+) -> Tuple[PrimaryAction, ...]:
+    """PrimaryActions
 
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
         identifier (Optional[str], optional): No description.
-        order (Optional[NodeOrder], optional): No description.
+        order (Optional[ActionOrder], optional): No description.
         search (Optional[str], optional): No description.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[PrimaryNode]
+        List[PrimaryAction]
     """
     return execute(
-        PrimaryNodesQuery,
+        PrimaryActionsQuery,
         {
             "pagination": pagination,
             "identifier": identifier,
@@ -4726,22 +4753,22 @@ def primary_nodes(
             "search": search,
         },
         rath=rath,
-    ).nodes
+    ).actions
 
 
 AssignInput.model_rebuild()
 AssignWidgetInput.model_rebuild()
 CreateDashboardInput.model_rebuild()
+CreateImplementationInput.model_rebuild()
 CreateStateSchemaInput.model_rebuild()
-CreateTemplateInput.model_rebuild()
 DefinitionInput.model_rebuild()
 DependencyInput.model_rebuild()
+ImplementationInput.model_rebuild()
 PortDemandInput.model_rebuild()
 PortGroupInput.model_rebuild()
 PortInput.model_rebuild()
 PortMatchInput.model_rebuild()
 ShortcutFilter.model_rebuild()
-TemplateInput.model_rebuild()
 ToolboxFilter.model_rebuild()
 UIChildInput.model_rebuild()
 UITreeInput.model_rebuild()

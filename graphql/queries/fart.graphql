@@ -1,5 +1,5 @@
-query GetMeNodes {
-  nodes {
+query GetMeActions {
+  actions {
     id
     name
   }

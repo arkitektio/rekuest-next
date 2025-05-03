@@ -43,7 +43,9 @@ async def aexpand_arg(
         if port.nullable:
             return None
         else:
-            raise ExpandingError(f"{port.key} is not nullable (optional) but received None")
+            raise ExpandingError(
+                f"{port.key} is not nullable (optional) but received None"
+            )
 
     if not isinstance(value, (str, int, float, dict, list)):
         raise ExpandingError(
@@ -67,7 +69,10 @@ async def aexpand_arg(
 
         return {
             key: await aexpand_arg(
-                expanding_port, value, structure_registry=structure_registry, shelver=shelver
+                expanding_port,
+                value,
+                structure_registry=structure_registry,
+                shelver=shelver,
             )
             for key, value in value.items()
         }
@@ -88,7 +93,10 @@ async def aexpand_arg(
         index = value["use"]
         true_value = value["value"]
         return await aexpand_arg(
-            port.children[index], true_value, structure_registry=structure_registry, shelver=shelver
+            port.children[index],
+            true_value,
+            structure_registry=structure_registry,
+            shelver=shelver,
         )
 
     if port.kind == PortKind.LIST:
@@ -108,7 +116,10 @@ async def aexpand_arg(
         return await asyncio.gather(
             *[
                 aexpand_arg(
-                    expanding_port, item, structure_registry=structure_registry, shelver=shelver
+                    expanding_port,
+                    item,
+                    structure_registry=structure_registry,
+                    shelver=shelver,
                 )
                 for item in value
             ]
@@ -144,7 +155,9 @@ async def aexpand_arg(
                 ]
             )
 
-            expandend_params = {port.key: val for port, val in zip(port.children, expanded_args)}
+            expandend_params = {
+                port.key: val for port, val in zip(port.children, expanded_args)
+            }
 
             expander = structure_registry.retrieve_model_expander(port.identifier)
             expanded_values = await expander(expandend_params)
@@ -170,7 +183,9 @@ async def aexpand_arg(
         try:
             expander = structure_registry.get_expander_for_identifier(port.identifier)
         except KeyError:
-            raise StructureExpandingError(f"Couldn't find expander for {port.identifier}") from None
+            raise StructureExpandingError(
+                f"Couldn't find expander for {port.identifier}"
+            ) from None
 
         try:
             expand = await expander(value)
@@ -199,7 +214,7 @@ async def expand_inputs(
     """Expand
 
     Args:
-        node (Node): [description]
+        action (Action): [description]
         args (List[Any]): [description]
         kwargs (List[Any]): [description]
         registry (Registry): [description]
@@ -221,12 +236,16 @@ async def expand_inputs(
                 ]
             )
 
-            expandend_params = {port.key: val for port, val in zip(definition.args, expanded_args)}
+            expandend_params = {
+                port.key: val for port, val in zip(definition.args, expanded_args)
+            }
 
         except Exception as e:
             raise ExpandingError(f"Couldn't expand Arguments {args}: {e}") from e
     else:
-        expandend_params = {port.key: args.get(port.key, None) for port in definition.args}
+        expandend_params = {
+            port.key: args.get(port.key, None) for port in definition.args
+        }
 
     return expandend_params
 
@@ -256,7 +275,9 @@ async def ashrink_return(
             if port.nullable:
                 return None
             else:
-                raise ValueError(f"{port} is not nullable (optional) but your provided None")
+                raise ValueError(
+                    f"{port} is not nullable (optional) but your provided None"
+                )
 
         if port.kind == PortKind.UNION:
             for index, x in enumerate(port.children[0]):
@@ -264,7 +285,10 @@ async def ashrink_return(
                     return {
                         "use": index,
                         "value": await ashrink_return(
-                            x, value, structure_registry=structure_registry, shelver=shelver
+                            x,
+                            value,
+                            structure_registry=structure_registry,
+                            shelver=shelver,
                         ),
                     }
 
@@ -276,7 +300,10 @@ async def ashrink_return(
             assert isinstance(value, dict), f"Expected dict got {value}"
             return {
                 key: await ashrink_return(
-                    port.children[0], value, structure_registry=structure_registry, shelver=shelver
+                    port.children[0],
+                    value,
+                    structure_registry=structure_registry,
+                    shelver=shelver,
                 )
                 for key, value in value.items()
             }
@@ -309,12 +336,16 @@ async def ashrink_return(
                     ]
                 )
 
-                shrinked_params = {port.key: val for port, val in zip(port.children, shrinked_args)}
+                shrinked_params = {
+                    port.key: val for port, val in zip(port.children, shrinked_args)
+                }
 
                 return shrinked_params
 
             except Exception as e:
-                raise PortShrinkingError(f"Couldn't shrink Children {port.children}") from e
+                raise PortShrinkingError(
+                    f"Couldn't shrink Children {port.children}"
+                ) from e
 
         if port.kind == PortKind.INT:
             assert isinstance(value, int), f"Expected int got {value}"
@@ -337,7 +368,9 @@ async def ashrink_return(
                 return await shelver.aput_on_shelve(value)
 
             try:
-                shrinker = structure_registry.get_shrinker_for_identifier(port.identifier)
+                shrinker = structure_registry.get_shrinker_for_identifier(
+                    port.identifier
+                )
             except KeyError:
                 raise StructureShrinkingError(
                     f"Couldn't find shrinker for {port.identifier}"
@@ -361,7 +394,9 @@ async def ashrink_return(
         raise NotImplementedError(f"Should be implemented by subclass {port}")
 
     except Exception as e:
-        raise PortShrinkingError(f"Couldn't shrink value {value} with port {port}") from e
+        raise PortShrinkingError(
+            f"Couldn't shrink value {value} with port {port}"
+        ) from e
 
 
 async def shrink_outputs(
@@ -383,28 +418,30 @@ async def shrink_outputs(
     Returns:
         Dict[str, Union[str, int, float, dict, list, None]]: The shrunk values
     """
-    node = definition
+    action = definition
 
     if returns is None:
         returns = []
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert len(node.returns) == len(
-        returns
+    assert (
+        len(action.returns) == len(returns)
     ), (  # We are dealing with a single output, convert it to a proper port like structure
-        f"Mismatch in Return Length: expected {len(node.returns)} got {len(returns)}"
+        f"Mismatch in Return Length: expected {len(action.returns)} got {len(returns)}"
     )
 
     if not skip_shrinking:
         shrinked_returns_future = [
             ashrink_return(port, val, structure_registry, shelver=shelver)
-            for port, val in zip(node.returns, returns)
+            for port, val in zip(action.returns, returns)
         ]
         try:
             shrinked_returns = await asyncio.gather(*shrinked_returns_future)
-            return {port.key: val for port, val in zip(node.returns, shrinked_returns)}
+            return {
+                port.key: val for port, val in zip(action.returns, shrinked_returns)
+            }
         except Exception as e:
             raise ShrinkingError(f"Couldn't shrink Returns {returns}: {str(e)}") from e
     else:
-        return {port.key: val for port, val in zip(node.returns, returns)}
+        return {port.key: val for port, val in zip(action.returns, returns)}

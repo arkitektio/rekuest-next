@@ -22,7 +22,7 @@ from rekuest_next.api.schema import (
     PortScope,
     ReturnWidgetInput,
     EffectInput,
-    TemplateInput,
+    ImplementationInput,
     ValidatorInput,
 )
 from typing import (
@@ -114,7 +114,7 @@ def register_func(
 
     definition_registry.register_at_interface(
         interface,
-        TemplateInput(
+        ImplementationInput(
             interface=interface,
             definition=definition,
             dependencies=dependencies or [],
@@ -223,7 +223,7 @@ def register(
         package (str, optional): The package you want to register this function in. Defaults to standard app package    .
         interface (str, optional): The name of the function. Defaults to the functions name.
         widgets (Dict[str, WidgetInput], optional): A dictionary of parameter key and a widget. Defaults to the default widgets as registered in the structure registry .
-        interfaces (List[str], optional): Interfaces that this node adheres to. Defaults to [].
+        interfaces (List[str], optional): Interfaces that this action adheres to. Defaults to [].
         on_provide (Callable[[Provision], Awaitable[dict]], optional): Function that shall be called on provide (in the async eventloop). Defaults to None.
         on_unprovide (Callable[[], Awaitable[dict]], optional): Function that shall be called on unprovide (in the async eventloop). Defaults to None.
         structure_registry (StructureRegistry, optional): The structure registry to use for this Actor (used to shrink and expand inputs). Defaults to None.
@@ -393,14 +393,14 @@ def register_global(
 
 
 def test(
-    tested_node: Union[str, Callable],
+    tested_action: Union[str, Callable],
     name: Optional[str] = None,
     description: Optional[str] = None,
 ) -> T:
     """Register a test for a function or actor
 
-    It should check if the function or actor expects templates as an input,
-    and if so register the test for that template.
+    It should check if the function or actor expects implementations as an input,
+    and if so register the test for that implementation.
 
     Args:
         for (Callable): The function or actor to test
@@ -416,13 +416,13 @@ def test(
 
             return func(*args, **kwargs)
 
-        assert hasattr(tested_node, "__definition_hash__"), (
+        assert hasattr(tested_action, "__definition_hash__"), (
             "The to be tested function or actor should be registered with the register decorator. Or have a __definition__ attribute."
         )
 
         register(
             func,
-            is_test_for=[tested_node.__definition_hash__],
+            is_test_for=[tested_action.__definition_hash__],
             interface=name or func.__name__,
         )
 

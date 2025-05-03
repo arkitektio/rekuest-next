@@ -21,9 +21,9 @@ from rekuest_next.api.schema import (
     AssignationEventKind,
     AssignInput,
     HookInput,
-    Node,
+    Action,
     Reservation,
-    Template,
+    Implementation,
 )
 from rekuest_next.messages import Assign
 from rekuest_next.postmans.types import Postman
@@ -46,8 +46,8 @@ def ensure_return_as_list(value: Any) -> list:  # noqa: ANN401
 
 async def acall_raw(
     kwargs: Dict[str, Any] = None,
-    node: Optional[Node] = None,
-    template: Optional[Template] = None,
+    action: Optional[Action] = None,
+    implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
     reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
@@ -71,8 +71,8 @@ async def acall_raw(
 
     x = AssignInput(
         instanceId=postman.instance_id,
-        node=node,
-        template=template,
+        action=action,
+        implementation=implementation,
         reservation=reservation,  # type: ignore
         args=kwargs,
         reference=reference,
@@ -99,8 +99,8 @@ async def acall_raw(
 
 async def aiterate_raw(
     kwargs: Dict[str, Any] = None,
-    node: Optional[Node] = None,
-    template: Optional[Template] = None,
+    action: Optional[Action] = None,
+    implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
     reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
@@ -124,8 +124,8 @@ async def aiterate_raw(
 
     x = AssignInput(
         instanceId=postman.instance_id,
-        node=node,
-        template=template,
+        action=action,
+        implementation=implementation,
         reservation=reservation,  # type: ignore
         args=kwargs,
         reference=reference,
@@ -149,7 +149,7 @@ async def aiterate_raw(
 
 
 async def acall(
-    node_template_res: Union[Node, Template, Reservation] = None,
+    action_implementation_res: Union[Action, Implementation, Reservation] = None,
     *args,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
@@ -161,35 +161,39 @@ async def acall(
     **kwargs,  # noqa: ANN003
 ) -> tuple[Any]:
     """Call the assignation function"""
-    node = None
-    template = None
+    action = None
+    implementation = None
     reservation = None
 
-    if isinstance(node_template_res, Template):
-        # If the node is a template, we need to find the node
-        node = node_template_res.node
-        template = node_template_res
+    if isinstance(action_implementation_res, Implementation):
+        # If the action is a implementation, we need to find the action
+        action = action_implementation_res.action
+        implementation = action_implementation_res
 
-    elif isinstance(node_template_res, Reservation):
-        # If the node is a reservation, we need to find the node
-        node = node_template_res.node
-        reservation = node_template_res
+    elif isinstance(action_implementation_res, Reservation):
+        # If the action is a reservation, we need to find the action
+        action = action_implementation_res.action
+        reservation = action_implementation_res
 
-    elif isinstance(node_template_res, Node):
-        # If the node is a node, we need to find the node
-        node = node_template_res
+    elif isinstance(action_implementation_res, Action):
+        # If the action is a action, we need to find the action
+        action = action_implementation_res
     else:
-        # If the node is not a node, we need to find the node
-        raise ValueError("node_template_res must be a Node, Template or Reservation")
+        # If the action is not a action, we need to find the action
+        raise ValueError(
+            "action_implementation_res must be a Action, Implementation or Reservation"
+        )
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     returns = await acall_raw(
         kwargs=shrinked_args,
-        node=node,
-        template=template,
+        action=action,
+        implementation=implementation,
         reservation=reservation,
         reference=reference,
         hooks=hooks or [],
@@ -199,11 +203,11 @@ async def acall(
         postman=postman,
     )
 
-    return await aexpand_returns(node, returns, structure_registry=structure_registry)
+    return await aexpand_returns(action, returns, structure_registry=structure_registry)
 
 
 async def aiterate(
-    node_template_res: Union[Node, Template, Reservation] = None,
+    action_implementation_res: Union[Action, Implementation, Reservation] = None,
     *args,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
@@ -214,35 +218,39 @@ async def aiterate(
     **kwargs,  # noqa: ANN003
 ) -> AsyncGenerator[tuple[Any], None]:
     """Async generator that yields the results of the assignation"""
-    node = None
-    template = None
+    action = None
+    implementation = None
     reservation = None
 
-    if isinstance(node_template_res, Template):
-        # If the node is a template, we need to find the node
-        node = node_template_res.node
-        template = node_template_res
+    if isinstance(action_implementation_res, Implementation):
+        # If the action is a implementation, we need to find the action
+        action = action_implementation_res.action
+        implementation = action_implementation_res
 
-    elif isinstance(node_template_res, Reservation):
-        # If the node is a reservation, we need to find the node
-        node = node_template_res.node
-        reservation = node_template_res
+    elif isinstance(action_implementation_res, Reservation):
+        # If the action is a reservation, we need to find the action
+        action = action_implementation_res.action
+        reservation = action_implementation_res
 
-    elif isinstance(node_template_res, Node):
-        # If the node is a node, we need to find the node
-        node = node_template_res
+    elif isinstance(action_implementation_res, Action):
+        # If the action is a action, we need to find the action
+        action = action_implementation_res
     else:
-        # If the node is not a node, we need to find the node
-        raise ValueError("node_template_res must be a Node, Template or Reservation")
+        # If the action is not a action, we need to find the action
+        raise ValueError(
+            "action_implementation_res must be a Action, Implementation or Reservation"
+        )
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(node, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     async for i in await aiterate_raw(
         kwargs=shrinked_args,
-        node=node,
-        template=template,
+        action=action,
+        implementation=implementation,
         reservation=reservation,
         reference=reference,
         hooks=hooks or [],
@@ -250,7 +258,7 @@ async def aiterate(
         parent=parent,
         log=log,
     ):
-        yield aexpand_returns(node, i, structure_registry=structure_registry)
+        yield aexpand_returns(action, i, structure_registry=structure_registry)
 
 
 def call(

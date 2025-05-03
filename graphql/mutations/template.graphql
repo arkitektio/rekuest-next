@@ -1,11 +1,11 @@
-mutation createTemplate($input: CreateTemplateInput!) {
-  createTemplate(input: $input) {
-    ...Template
+mutation createImplementation($input: CreateImplementationInput!) {
+  createImplementation(input: $input) {
+    ...Implementation
   }
 }
 
-mutation SetExtensionTemplates($input: SetExtensionTemplatesInput!) {
-  setExtensionTemplates(input: $input) {
-    ...Template
+mutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {
+  setExtensionImplementations(input: $input) {
+    ...Implementation
   }
 }

@@ -1,17 +1,17 @@
-query find($id: ID, $template: ID, $hash: NodeHash) {
-  node(id: $id, template: $template, hash: $hash) {
-    ...Node
+query find($id: ID, $implementation: ID, $hash: ActionHash) {
+  action(id: $id, implementation: $implementation, hash: $hash) {
+    ...Action
   }
 }
 
 query retrieveall {
-  nodes {
-    ...Node
+  actions {
+    ...Action
   }
 }
 
-query search_nodes($search: String, $values: [ID!]) {
-  options: nodes(
+query search_actions($search: String, $values: [ID!]) {
+  options: actions(
     filters: { name: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }
   ) {
@@ -20,13 +20,13 @@ query search_nodes($search: String, $values: [ID!]) {
   }
 }
 
-query PrimaryNodes(
+query PrimaryActions(
   $pagination: OffsetPaginationInput
   $identifier: String
-  $order: NodeOrder
+  $order: ActionOrder
   $search: String
 ) {
-  nodes(
+  actions(
     order: $order
     pagination: $pagination
     filters: {
@@ -39,6 +39,6 @@ query PrimaryNodes(
       search: $search
     }
   ) {
-    ...PrimaryNode
+    ...PrimaryAction
   }
 }

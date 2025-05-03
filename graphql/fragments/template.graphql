@@ -1,12 +1,12 @@
-fragment Template on Template {
+fragment Implementation on Implementation {
   id
   agent {
     registry {
       id
     }
   }
-  node {
-    ...Node
+  action {
+    ...Action
   }
   params
   extension

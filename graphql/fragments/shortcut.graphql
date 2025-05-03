@@ -2,8 +2,8 @@ fragment Shortcut on Shortcut {
   id
   name
   description
-  node {
-    ...Node
+  action {
+    ...Action
   }
   savedArgs
   args {
@@ -19,7 +19,7 @@ fragment ListShortcut on Shortcut {
   id
   name
   description
-  node {
+  action {
     id
     hash
   }
