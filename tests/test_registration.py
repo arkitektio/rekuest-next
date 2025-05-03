@@ -30,23 +30,9 @@ def test_structure_registration() -> None:
 
 
 def test_structure_registration_overwrite(simple_registry: StructureRegistry) -> None:
-    """Test if the structure is correctly registered in the registry."""
-    with pytest.raises(HookError):
+    """Test if the structure can  be overwritten in the registry."""
 
-        @register_global(identifier="test", registry=simple_registry)
-        class SerializableObject:
-            def __init__(self, number: int) -> None:
-                super().__init__()
-                self.number = number
-
-            async def ashrink(self: int) -> str:
-                return self.number
-
-            @classmethod
-            async def aexpand(cls, shrinked_value: int) -> "SerializableObject":
-                return cls(shrinked_value)
-
-    @register_global(identifier="karl", registry=simple_registry)
+    @register_global(identifier="test", registry=simple_registry)
     class SerializableObject:
         def __init__(self, number: int) -> None:
             super().__init__()
@@ -55,3 +41,19 @@ def test_structure_registration_overwrite(simple_registry: StructureRegistry) ->
         @classmethod
         async def aexpand(cls, shrinked_value: str) -> "SerializableObject":
             return cls(shrinked_value)
+
+        async def ashrink(self) -> str:
+            return self.number
+
+    @register_global(identifier="test", registry=simple_registry)
+    class SecondSerializableObject:
+        def __init__(self, number: int) -> None:
+            super().__init__()
+            self.number = number
+
+        @classmethod
+        async def aexpand(cls, shrinked_value: str) -> "SerializableObject":
+            return cls(shrinked_value)
+
+        async def ashrink(self) -> str:
+            return self.number

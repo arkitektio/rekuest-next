@@ -1,5 +1,6 @@
 """Define"""
 
+import collections
 from enum import Enum
 from typing import Callable, List, Union, get_type_hints
 
@@ -49,17 +50,19 @@ def is_union_type(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a union"""
     # We are dealing with a 3.10 Union (PEP 646)
 
-    return get_origin(cls) in (typing.Union, types.UnionType)
+    return get_origin(cls) in (Union, typing.Union, types.UnionType, types.UnionType)
 
 
 def is_nullable(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is nullable"""
-    is_union = is_union_type(cls) or get_origin(cls) is Union
 
-    if is_union:
+    if is_union_type(cls):
         for arg in get_args(cls):
             if arg is type(None):
                 return True
+
+    if get_origin(cls) is Optional:
+        return True
 
     return False
 
@@ -88,7 +91,10 @@ def get_non_nullable_variant(cls: Any) -> Any:  # noqa: ANN401
 
 def is_union(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a union"""
-    return is_union_type(cls) and all(i is not type(None) for i in get_args(cls))
+    if not is_union_type(cls):
+        return False
+
+    return True
 
 
 def is_tuple(cls: Any) -> bool:  # noqa: ANN401
@@ -118,7 +124,7 @@ def get_list_value_cls(cls: Any) -> Any:  # noqa: ANN401
 
 def get_non_null_variants(cls: Any) -> List[Any]:  # noqa: ANN401
     """Get the non-null variants of a union type"""
-    return [arg for arg in get_args(cls) if arg is type(None)]
+    return [arg for arg in get_args(cls) if arg is not type(None)]
 
 
 def is_bool(cls: Any) -> bool:  # noqa: ANN401
@@ -140,7 +146,10 @@ def is_generator_type(cls: Any) -> bool:  # noqa: ANN401
     if get_origin(cls) in (
         types.GeneratorType,
         typing.Generator,
+        typing.AsyncGenerator,
         types.AsyncGeneratorType,
+        collections.abc.Generator,
+        collections.abc.AsyncGenerator,
     ):
         return True
     else:
@@ -194,18 +203,26 @@ def convert_object_to_port(
     if effects is None:
         effects = []
 
-    if is_generator_type(cls):
-        real_type = cls.__args__[0]
+    if is_nullable(cls):
+        # We are dealing with a union type
+        # wee need to get the non-nullable-types
+        # and convert hem to a new union
+
+        non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
+        cls = Union.__getitem__(tuple(non_nullable_args))
 
         return convert_object_to_port(
-            real_type,
-            key,
-            registry,
-            assign_widget=assign_widget,
+            cls=cls,
+            key=key,
+            registry=registry,
             default=default,
+            nullable=True,
+            assign_widget=assign_widget,
             label=label,
             effects=effects,
-            nullable=nullable,
+            return_widget=return_widget,
+            description=description,
+            validators=validators,
         )
 
     if is_model(cls):
@@ -280,9 +297,7 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -294,21 +309,6 @@ def convert_object_to_port(
             default=default if default else None,
             nullable=nullable,
             effects=effects,
-            description=description,
-            validators=validators,
-        )
-
-    if is_nullable(cls):
-        return convert_object_to_port(
-            cls=cls.__args__[0],
-            key=key,
-            registry=registry,
-            default=default,
-            nullable=True,
-            assign_widget=assign_widget,
-            label=label,
-            effects=effects,
-            return_widget=return_widget,
             description=description,
             validators=validators,
         )
@@ -339,9 +339,7 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -516,9 +514,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -557,9 +553,7 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
 
     if docstring.many_returns:
