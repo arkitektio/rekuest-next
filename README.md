@@ -21,7 +21,7 @@ Requires a running instance of a rekuest server (e.g in an arkitekt deployment).
 ## Install
 
 ```python
-pip install rekuest herre #herre is an authentication layer for establihing users and applications
+pip install rekuest-next
 ```
 
 rekuest is relying heavily on asyncio patters and therefore only supports python 3.7 and above. Its api provides sync and async
