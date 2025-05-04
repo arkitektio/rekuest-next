@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.5.2 (2025-05-04)
+
+
 ## v0.5.1 (2025-05-04)
+
+### Bug Fixes
+
+- Update versioning configuration in pyproject.toml
+  ([`26b2996`](https://github.com/arkitektio/rekuest-next/commit/26b2996243276a98851937d08ce7da404d76adfb))
 
 
 ## v0.5.0 (2025-05-04)
