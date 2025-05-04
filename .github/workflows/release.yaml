@@ -33,4 +33,7 @@ jobs:
       - name: Run semantic-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv run semantic-release publish --debug
+        run: uv run semantic-release publish 
+
+      - name: Publish to Pypi
+        run: uv publish
