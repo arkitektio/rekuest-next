@@ -94,6 +94,7 @@ docs_base_path = "website/docs"
 
 [tool.semantic_release]
 version_source = "tag"
+version_variable = "rekuest_next/__init__.py:__version__"
 upload_to_pypi = true
 branch = "main"
 build_command = "uv build"

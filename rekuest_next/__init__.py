@@ -20,6 +20,7 @@ except ImportError:
     pass
 from .structure import structure_reg
 
+__version__ = "0.4.1"
 
 __all__ = [
     "acall",
