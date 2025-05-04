@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.5.10 (2025-05-04)
+
+### Bug Fixes
+
+- Add missing imports and extend tests for reactify function
+  ([`64fece1`](https://github.com/arkitektio/rekuest-next/commit/64fece1a93fd00e3645a6104baddc25eb23c402e))
+
+
 ## v0.5.9 (2025-05-04)
 
 ### Bug Fixes
