@@ -1,6 +1,6 @@
 [project]
 name = "rekuest-next"
-dynamic = ["version"]
+version = "0.4.2" 
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.9, <4.0"
@@ -102,7 +102,7 @@ docs_base_path = "website/docs"
 
 [tool.semantic_release]
 version_source = "file"
-version_variable = "rekuest_next/__init__.py:__version__"
+version_variable = "pyproject.toml:project.version"
 upload_to_pypi = true
 branch = "main"
 build_command = "uv build"
