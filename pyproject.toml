@@ -24,11 +24,8 @@ dev-dependencies = [
     "python-semantic-release>=9.21.0",
     "testcontainers==3.7.0",
     "autoflake>=1.7.7,<2",
-    "pytest>=7.2.0,<8",
-    "pytest-asyncio>=0.20.2,<0.21",
     "aiohttp>=3.8.3,<4",
     "black>=23.1.0,<24",
-    "pytest-cov>=4.0.0,<5",
     "pytest-aiohttp>=1.0.4,<2",
     "ruff>=0.0.254,<0.0.255",
 ]
@@ -93,8 +90,6 @@ search_path = ["arkitekt"]
 [tool.pydoc-markdown.renderer]
 type = "docusaurus"
 docs_base_path = "website/docs"
-
-
 
 
 [tool.semantic_release]
