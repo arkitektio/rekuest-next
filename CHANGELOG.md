@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.5.7 (2025-05-04)
+
+### Bug Fixes
+
+- Add readme and homepage information to pyproject.toml
+  ([`84af7e4`](https://github.com/arkitektio/rekuest-next/commit/84af7e48d727d73bd7dbb6cc7776198347623c47))
+
+
 ## v0.5.6 (2025-05-04)
 
 ### Bug Fixes
