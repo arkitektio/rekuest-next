@@ -1,6 +1,6 @@
 [project]
 name = "rekuest-next"
-version = "0.4.0"
+dynamic = ["version"]
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.9, <4.0"
@@ -67,6 +67,9 @@ include = ["rekuest_next"]
 
 [tool.hatch.build.targets.wheel]
 include = ["rekuest_next"]
+
+[tool.hatch.version]
+path = "rekuest_next/__init__.py"
 
 [build-system]
 requires = ["hatchling"]
