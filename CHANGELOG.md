@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.5.9 (2025-05-04)
+
+### Bug Fixes
+
+- Update coverage workflow to remove locked sync and delete unused deploy workflow
+  ([`12dc4ce`](https://github.com/arkitektio/rekuest-next/commit/12dc4ce042ec0c071fd35fde46ed979f1a7407e4))
+
+
 ## v0.5.8 (2025-05-04)
 
 
