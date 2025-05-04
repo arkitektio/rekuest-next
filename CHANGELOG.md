@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v0.5.8 (2025-05-04)
+
+
 ## v0.5.7 (2025-05-04)
 
 ### Bug Fixes
 
 - Add readme and homepage information to pyproject.toml
   ([`84af7e4`](https://github.com/arkitektio/rekuest-next/commit/84af7e48d727d73bd7dbb6cc7776198347623c47))
+
+- Update project name in README and version in uv.lock; add coverage workflow
+  ([`c0c2fd9`](https://github.com/arkitektio/rekuest-next/commit/c0c2fd9c154f0243daab1f97e85072b2b85bdb1a))
 
 
 ## v0.5.6 (2025-05-04)
