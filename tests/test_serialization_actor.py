@@ -93,7 +93,7 @@ async def test_expand_structure_error(
 async def test_expand_nested_structure(
     simple_registry: StructureRegistry, mock_shelver: Shelver
 ) -> None:
-    """Test if we can expand a nested structure input."""
+    """Test if we can expand a nested structure input. dd"""
     functional_definition = prepare_definition(
         nested_structure_function, structure_registry=simple_registry
     )
