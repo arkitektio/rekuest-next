@@ -1,7 +1,6 @@
 [project]
 name = "rekuest-next"
-version = "0.0.0" # this will be updated by semantic-release
-readme = "README.md"
+version = "0.5.3" 
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.9, <4.0"

@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.5.3 (2025-05-04)
+
+
 ## v0.5.2 (2025-05-04)
+
+### Bug Fixes
+
+- Bump version of rekuest-next from 0.4.1 to 0.4.2
+  ([`e7cb439`](https://github.com/arkitektio/rekuest-next/commit/e7cb439f0d300814e79abfd5fd00c2440eb2886d))
 
 
 ## v0.5.1 (2025-05-04)
