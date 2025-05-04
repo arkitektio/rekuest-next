@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.5.1 (2025-05-04)
+
+
 ## v0.5.0 (2025-05-04)
 
 ### Bug Fixes
+
+- Change version source from tag to file in semantic release configuration
+  ([`b777e55`](https://github.com/arkitektio/rekuest-next/commit/b777e552dc5c47bcaa727843692fae1b1347a314))
 
 - Remove --locked option from uv sync command in CI workflow
   ([`65d8631`](https://github.com/arkitektio/rekuest-next/commit/65d86312b2b70c279ff6a62a2eb6d0277166ea29))
