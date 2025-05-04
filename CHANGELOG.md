@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v0.5.5 (2025-05-04)
+
+### Bug Fixes
+
+- Add missing environment variable for semantic-release step
+  ([`5f4608c`](https://github.com/arkitektio/rekuest-next/commit/5f4608ce33408566f0212f377d6673de85165bf0))
+
+- Improve release workflow by updating step names and removing unused tokens
+  ([`54991fd`](https://github.com/arkitektio/rekuest-next/commit/54991fd8e6d3c391bff4344e0e10d2b65b45cab9))
+
+- Remove outdated distribution files for rekuest_next
+  ([`440eade`](https://github.com/arkitektio/rekuest-next/commit/440eade234e857ac55aed2731eef1d254999fc59))
+
+- Update semantic-release command and bump rekuest-next version to 0.5.4
+  ([`575c63c`](https://github.com/arkitektio/rekuest-next/commit/575c63cfe25bd2734689d976e06680fe9bdafddf))
+
+
 ## v0.5.4 (2025-05-04)
 
 ### Bug Fixes
