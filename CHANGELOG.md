@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-05-04)
+
+### Bug Fixes
+
+- Remove --locked option from uv sync command in CI workflow
+  ([`65d8631`](https://github.com/arkitektio/rekuest-next/commit/65d86312b2b70c279ff6a62a2eb6d0277166ea29))
+
+- Remove --locked option from uv sync command in release workflow
+  ([`e3e1642`](https://github.com/arkitektio/rekuest-next/commit/e3e1642203420eedbfb565d161a57f4133f9577f))
+
+### Features
+
+- Add optional dependency for annotated-types and update dev dependencies
+  ([`05955bf`](https://github.com/arkitektio/rekuest-next/commit/05955bf55cdf1b17a45572c65c2428269c215d5f))
+
+- Update GitHub Actions workflows to use setup-uv@v6 and add deploy workflow for GitHub Pages
+  ([`8c5538b`](https://github.com/arkitektio/rekuest-next/commit/8c5538bbf7f028dd47462a567b3692db32cd1541))
+
+
 ## v0.4.3 (2025-05-04)
 
 ### Bug Fixes
@@ -10,6 +29,9 @@
 
 - Ensure full Git history is available by setting fetch-depth in checkout step
   ([`d533b60`](https://github.com/arkitektio/rekuest-next/commit/d533b60ea15d633ba5ca841ae8b27aadc4783e0d))
+
+- Update pyproject.toml to use dynamic versioning and specify version path
+  ([`043f91e`](https://github.com/arkitektio/rekuest-next/commit/043f91e54da6e31c5116b95ac290ad09e9495d8d))
 
 - Update semantic-release command to use 'version' instead of 'publish'
   ([`a642f82`](https://github.com/arkitektio/rekuest-next/commit/a642f82bd22ffe09f4c3dcce9901b5190b4191d9))
