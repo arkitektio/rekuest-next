@@ -3,8 +3,9 @@
 from typing import Protocol, Optional, List, Union
 from rekuest_next.api.schema import (
     AssignWidgetInput,
+    ChoiceInput,
     ReturnWidgetInput,
-    PortScope,
+    PortKind,
 )
 from pydantic import BaseModel, ConfigDict, model_validator, ValidationInfo
 from typing import (
@@ -71,9 +72,9 @@ class FullFilledStructure(BaseModel):
 
     cls: Type
     identifier: str
-    scope: PortScope
     aexpand: Expander | None
     ashrink: Shrinker | None
+    description: Optional[str]
     predicate: Callable[[Any], bool]
     convert_default: Callable[[Any], str] | None
     default_widget: Optional[AssignWidgetInput]
@@ -82,15 +83,15 @@ class FullFilledStructure(BaseModel):
 
     @model_validator(mode="after")
     def validate_cls(
-        cls, value: "FullFilledStructure", info: ValidationInfo
-    ) -> "FullFilledStructure":
+        cls, value: "FullFilledType", info: ValidationInfo
+    ) -> "FullFilledType":
         """Validate the class to make sure it has the required methods if it is a global structure."""
-        if value.aexpand is None and value.scope == PortScope.GLOBAL:
+        if value.aexpand is None and value.kind == PortKind.STRUCTURE:
             raise ValueError(
                 f"You need to pass 'expand' method or {cls.cls} needs to implement a"
-                " aexpand method if it wants to become a GLOBAL structure"
+                " aexpand method if it wants to become a structure"
             )
-        if value.ashrink is None and value.scope == PortScope.GLOBAL:
+        if value.ashrink is None and value.kind == PortKind.STRUCTURE:
             raise ValueError(
                 f"You need to pass 'ashrink' method or {cls.cls} needs to implement a"
                 " ashrink method if it wants to become a GLOBAL structure"
@@ -99,18 +100,40 @@ class FullFilledStructure(BaseModel):
         return value
 
 
-class FullFilledArg(BaseModel):
-    """A fullfiled argument of a model that can be used to serialize and deserialize"""
+class FullFilledEnum(BaseModel):
+    """A fullfiled enum that can be used to serialize and deserialize"""
 
-    key: str
-    default: Optional[Any]
-    cls: Any
+    cls: Type
+    identifier: str
     description: Optional[str]
+    choices: List[ChoiceInput]
+    predicate: Predicator
+    convert_default: DefaultConverter | None
+    default_widget: Optional[AssignWidgetInput]
+    default_returnwidget: Optional[ReturnWidgetInput]
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+
+class FullFilledMemoryStructure(BaseModel):
+    """A fullfiled memory structure that can be used to serialize and deserialize"""
+
+    cls: Type
+    identifier: str
+    predicate: Predicator
+    description: Optional[str]
+    convert_default: DefaultConverter | None
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
 class FullFilledModel(BaseModel):
     """A fullfiled model that can be used to serialize and deserialize"""
 
+    cls: Type
     identifier: str
-    description: Optional[str]
-    args: List[FullFilledArg]
+    predicate: Predicator
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+
+FullFilledType = Union[
+    FullFilledStructure, FullFilledEnum, FullFilledMemoryStructure, FullFilledModel
+]

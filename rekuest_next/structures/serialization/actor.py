@@ -9,7 +9,6 @@ from rekuest_next.api.schema import (
     PortKind,
     PortInput,
     DefinitionInput,
-    PortScope,
 )
 from rekuest_next.structures.errors import (
     PortShrinkingError,
@@ -159,9 +158,8 @@ async def aexpand_arg(
                 port.key: val for port, val in zip(port.children, expanded_args)
             }
 
-            expander = structure_registry.retrieve_model_expander(port.identifier)
-            expanded_values = await expander(expandend_params)
-            return expanded_values
+            fmodel = structure_registry.get_fullfilled_model(port.identifier)
+            return fmodel.cls(**expandend_params)
 
         except Exception as e:
             raise ExpandingError(f"Couldn't expand Children {port.children}") from e
@@ -175,21 +173,22 @@ async def aexpand_arg(
     if port.kind == PortKind.FLOAT:
         return float(value)
 
+    if port.kind == PortKind.ENUM:
+        fenum = structure_registry.get_fullfilled_enum(port.identifier)
+        if fenum:
+            return fenum.cls.__members__[value]
+        else:
+            raise ExpandingError(f"Enum {port.identifier} not found in registry")
+
+    if port.kind == PortKind.MEMORY_STRUCTURE:
+        return await shelver.aget_from_shelve(value)
+
     if port.kind == PortKind.STRUCTURE:
-        if port.scope == PortScope.LOCAL:
-            # We always get local shelve values as strings
-            return await shelver.aget_from_shelve(value)
+        fstruc = structure_registry.get_fullfilled_structure(port.identifier)
 
         try:
-            expander = structure_registry.get_expander_for_identifier(port.identifier)
-        except KeyError:
-            raise StructureExpandingError(
-                f"Couldn't find expander for {port.identifier}"
-            ) from None
-
-        try:
-            expand = await expander(value)
-            return expand
+            expanded = await fstruc.aexpand(value)
+            return expanded
         except Exception as e:
             raise StructureExpandingError(
                 f"Error expanding {repr(value)} with Structure {port.identifier}"
@@ -201,7 +200,7 @@ async def aexpand_arg(
     if port.kind == PortKind.STRING:
         return str(value)
 
-    raise NotImplementedError("Should be implemented by subclass")
+    raise StructureExpandingError(f"No shrinker for port kind {port.kind}")
 
 
 async def expand_inputs(
@@ -361,22 +360,13 @@ async def ashrink_return(
             assert isinstance(value, dt.datetime), f"Expected date got {value}"
             return value.isoformat() if value is not None else None
 
-        if port.kind == PortKind.STRUCTURE:
-            # We always convert structures returns to strings
-            if port.scope == PortScope.LOCAL:
-                # We always put local structure on the shelve
-                return await shelver.aput_on_shelve(value)
+        if port.kind == PortKind.MEMORY_STRUCTURE:
+            return await shelver.aput_on_shelve(port.identifier, value)
 
+        if port.kind == PortKind.STRUCTURE:
+            fstruc = structure_registry.get_fullfilled_structure(port.identifier)
             try:
-                shrinker = structure_registry.get_shrinker_for_identifier(
-                    port.identifier
-                )
-            except KeyError:
-                raise StructureShrinkingError(
-                    f"Couldn't find shrinker for {port.identifier}"
-                ) from None
-            try:
-                shrink = await shrinker(value)
+                shrink = await fstruc.ashrink(value)
                 return str(shrink)
             except Exception as e:
                 raise StructureShrinkingError(

@@ -1,7 +1,7 @@
 """Serialization for Postman"""
 
 from typing import Any, Dict, List, Tuple, Union
-from rekuest_next.api.schema import Action, PortScope
+from rekuest_next.api.schema import Action
 import asyncio
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.registry import StructureRegistry
@@ -41,9 +41,7 @@ async def ashrink_arg(
             if port.nullable:
                 return None
             else:
-                raise ValueError(
-                    "{port} is not nullable (optional) but your provided None"
-                )
+                raise ValueError("{port} is not nullable (optional) but your provided None")
 
         if port.kind == PortKind.DICT:
             return {
@@ -77,9 +75,7 @@ async def ashrink_arg(
                 if predicate_port(x, value, structure_registry):
                     return {
                         "use": index,
-                        "value": await ashrink_arg(
-                            x, value, structure_registry, shelver=shelver
-                        ),
+                        "value": await ashrink_arg(x, value, structure_registry, shelver=shelver),
                     }
 
             raise ShrinkingError(
@@ -89,20 +85,18 @@ async def ashrink_arg(
         if port.kind == PortKind.DATE:
             return value.isoformat() if value is not None else None
 
+        if port.kind == PortKind.ENUM:
+            fenum = structure_registry.get_fullfilled_enum(port.identifier)
+            return value.name
+
+        if port.kind == PortKind.MEMORY_STRUCTURE:
+            return await shelver.aput_on_shelve(value)
+
         if port.kind == PortKind.STRUCTURE:
-            if port.scope == PortScope.LOCAL:
-                return await shelver.aput_on_shelve(value)
-            # We always convert structures returns to strings
+            fenum = structure_registry.get_fullfilled_structure(port.identifier)
+
             try:
-                shrinker = structure_registry.get_shrinker_for_identifier(
-                    port.identifier
-                )
-            except KeyError:
-                raise StructureShrinkingError(
-                    f"Couldn't find shrinker for {port.identifier}"
-                ) from None
-            try:
-                shrink = await shrinker(value)
+                shrink = await fenum.ashrink(value)
                 return str(shrink)
             except Exception:
                 raise StructureShrinkingError(
@@ -115,12 +109,31 @@ async def ashrink_arg(
         if port.kind == PortKind.STRING:
             return str(value) if value is not None else None
 
+        if port.kind == PortKind.MODEL:
+            try:
+                shrinked_args = await asyncio.gather(
+                    *[
+                        ashrink_arg(
+                            port,
+                            getattr(value, port.key),
+                            structure_registry=structure_registry,
+                            shelver=shelver,
+                        )
+                        for port in port.children
+                    ]
+                )
+
+                shrinked_params = {port.key: val for port, val in zip(port.children, shrinked_args)}
+
+                return shrinked_params
+
+            except Exception as e:
+                raise PortShrinkingError(f"Couldn't shrink Children {port.children}") from e
+
         raise NotImplementedError(f"Should be implemented by subclass {port}")
 
     except Exception as e:
-        raise PortShrinkingError(
-            f"Couldn't shrink value {value} with port {port}"
-        ) from e
+        raise PortShrinkingError(f"Couldn't shrink value {value} with port {port}") from e
 
 
 async def ashrink_args(
@@ -198,9 +211,7 @@ async def aexpand_return(
         if port.nullable:
             return None
         else:
-            raise PortExpandingError(
-                f"{port} is not nullable (optional) but your provided None"
-            )
+            raise PortExpandingError(f"{port} is not nullable (optional) but your provided None")
 
     if port.kind == PortKind.DICT:
         return {
@@ -247,24 +258,23 @@ async def aexpand_return(
     if port.kind == PortKind.DATE:
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
 
-    if port.kind == PortKind.STRUCTURE:
-        if port.scope == PortScope.LOCAL:
+    if port.kind == PortKind.MEMORY_STRUCTURE:
+        if not isinstance(value, str):
+            raise PortExpandingError(f"Expected value to be a string, but got {type(value)}")
+
+        try:
             return await shelver.aget_from_shelve(value)
+        except Exception as e:
+            raise PortExpandingError(f"Couldn't get value from shelve {value}") from e
 
+    if port.kind == PortKind.STRUCTURE:
         if not (isinstance(value, str) or isinstance(value, int)):
-            raise PortExpandingError(
-                f"Expected value to be a string or int, but got {type(value)}"
-            )
+            raise PortExpandingError(f"Expected value to be a string or int, but got {type(value)}")
+
+        fstruc = structure_registry.get_fullfilled_structure(port.identifier)
 
         try:
-            expander = structure_registry.get_expander_for_identifier(port.identifier)
-        except KeyError:
-            raise StructureExpandingError(
-                f"Couldn't find expander for {port.identifier}"
-            ) from None
-
-        try:
-            return await expander(value)
+            return await fstruc.aexpand(value)
         except Exception:
             raise StructureExpandingError(
                 f"Error expanding {repr(value)} with Structure {port.identifier}"
@@ -276,7 +286,7 @@ async def aexpand_return(
     if port.kind == PortKind.STRING:
         return str(value)
 
-    raise NotImplementedError("Should be implemented by subclass")
+    raise StructureExpandingError(f"No valid expander found for {port.kind}")
 
 
 async def aexpand_returns(

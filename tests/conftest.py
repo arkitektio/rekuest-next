@@ -12,7 +12,7 @@ class MockShelver:
         """Initialize the mock shelver."""
         self.shelve = {}
 
-    async def aput_on_shelve(self, value: object) -> str:
+    async def aput_on_shelve(self, identifier: str, value: object) -> str:
         """Put a value on the shelve and return the key. This is used to store
         values on the shelve."""
         key = str(id(value))

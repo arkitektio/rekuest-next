@@ -2,7 +2,7 @@
 
 from .enum import EnumHook
 from collections import OrderedDict
-from .local_structure import LocalStructureHook
+from .memory_structure import MemoryStructureHook
 from .global_structure import GlobalStructureHook
 from .types import RegistryHook
 
@@ -12,5 +12,5 @@ def get_default_hooks() -> OrderedDict[str, RegistryHook]:
     return OrderedDict(
         enum=EnumHook(),
         global_structure=GlobalStructureHook(),
-        local_structure=LocalStructureHook(),
+        local_structure=MemoryStructureHook(),
     )

@@ -21,7 +21,11 @@ class Passport(BaseModel):
 class Shelver(Protocol):
     """A protocol for mostly fullfield by the agent that is used to store data"""
 
-    async def aput_on_shelve(self, value: Any) -> str:  # noqa: ANN401
+    async def aput_on_shelve(
+        self,
+        identifier: str,
+        value: Any,  # noqa: ANN401
+    ) -> str:  # noqa: ANN401
         """Put a value on the shelve and return the key. This is used to store
         values on the shelve."""
         ...

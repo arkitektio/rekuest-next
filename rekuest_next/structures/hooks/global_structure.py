@@ -5,9 +5,6 @@ from typing import (
 )
 from pydantic import BaseModel
 from rekuest_next.structures.types import FullFilledStructure
-from rekuest_next.api.schema import (
-    PortScope,
-)
 from rekuest_next.structures.utils import build_instance_predicate
 from .errors import HookError
 
@@ -58,7 +55,9 @@ class GlobalStructureHook(BaseModel):
         if hasattr(cls, "get_identifier"):
             identifier = cls.get_identifier()
         else:
-            raise GlobalStructureHookError(f"Class {cls} does not have a get_identifier method")
+            raise GlobalStructureHookError(
+                f"Class {cls} does not have a get_identifier method"
+            )
 
         if hasattr(cls, "get_default_widget"):
             default_widget = cls.get_default_widget()
@@ -93,10 +92,10 @@ class GlobalStructureHook(BaseModel):
         return FullFilledStructure(
             cls=cls,
             identifier=identifier,
-            scope=PortScope.GLOBAL,
             aexpand=aexpand,
             ashrink=ashrink,
             predicate=predicate,
+            description=None,
             convert_default=convert_default,
             default_widget=default_widget,
             default_returnwidget=default_returnwidget,

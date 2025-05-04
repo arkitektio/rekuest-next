@@ -53,7 +53,6 @@ type SearchAssignWidget implements AssignWidget {
 
 type Port {
   key: String!
-  scope: PortScope!
   label: String
   kind: PortKind!
   description: String
@@ -62,15 +61,10 @@ type Port {
   effects: [Effect!]
   default: AnyDefault
   children: [Port!]
+  choices: [Choice!]
   assignWidget: AssignWidget
   returnWidget: ReturnWidget
   validators: [Validator!]
-}
-
-"""The kind of port"""
-enum PortScope {
-  GLOBAL
-  LOCAL
 }
 
 """The kind of port."""
@@ -84,7 +78,9 @@ enum PortKind {
   FLOAT
   DATE
   UNION
+  ENUM
   MODEL
+  MEMORY_STRUCTURE
 }
 
 """
@@ -232,6 +228,7 @@ type Query {
   states: [State!]!
   panels: [Panel!]!
   stateSchemas: [StateSchema!]!
+  memoryShelves(filters: MemoryShelveFilter, order: MemoryShelveOrder, pagination: OffsetPaginationInput): [MemoryShelve!]!
   action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null): Action!
   assignations(instanceId: InstanceId = null): [Assignation!]!
   event(id: ID = null): [AssignationEvent!]!
@@ -239,6 +236,7 @@ type Query {
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
   stateFor(implementation: ID = null, agent: ID = null, stateHash: String = null): State!
   state(id: ID!): State!
+  memoryShelve(id: ID!): MemoryShelve!
   panel(id: ID!): Panel!
   stateSchema(id: ID!): StateSchema!
   toolbox(id: ID!): Toolbox!
@@ -345,6 +343,8 @@ type Agent {
   registry: Registry!
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
   implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+  memoryShelve: MemoryShelve
+  fileSystemShelves(filters: FilesystemShelveFilter, pagination: OffsetPaginationInput): [FilesystemShelve!]!
   lastSeen: DateTime
   connected: Boolean!
   extensions: [String!]!
@@ -881,6 +881,64 @@ input DependencyFilter {
   OR: DependencyFilter
 }
 
+type MemoryShelve {
+  id: ID!
+  agent: Agent!
+  name: String!
+  description: String
+  drawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
+}
+
+type MemoryDrawer {
+  id: ID!
+  resourceId: String!
+  shelve: MemoryShelve!
+  identifier: String!
+  label: String
+  description: String
+  createdAt: DateTime!
+}
+
+"""A way to filter shelved items"""
+input MemoryDrawerFilter {
+  shelve: ID
+  agent: ID
+  identifier: String
+  ids: [ID!]
+  AND: MemoryDrawerFilter
+  OR: MemoryDrawerFilter
+}
+
+type FilesystemShelve {
+  id: ID!
+  drawers(filters: FileDrawerFilter, pagination: OffsetPaginationInput): [FileDrawer!]!
+}
+
+type FileDrawer {
+  id: ID!
+  resourceId: String!
+  agent: Agent!
+  identifier: String!
+  createdAt: DateTime!
+}
+
+"""A way to filter shelved items"""
+input FileDrawerFilter {
+  shelve: ID
+  agent: ID
+  identifier: String
+  ids: [ID!]
+  AND: FileDrawerFilter
+  OR: FileDrawerFilter
+}
+
+"""A way to filter shelved items"""
+input FilesystemShelveFilter {
+  ids: [ID!]
+  AND: FilesystemShelveFilter
+  OR: FilesystemShelveFilter
+}
+
 type State {
   id: ID!
   stateSchema: StateSchema!
@@ -978,6 +1036,18 @@ type UITree {
   child: UIChild!
 }
 
+"""A way to filter shelved items"""
+input MemoryShelveFilter {
+  agent: ID
+  ids: [ID!]
+  AND: MemoryShelveFilter
+  OR: MemoryShelveFilter
+}
+
+input MemoryShelveOrder {
+  name: Ordering
+}
+
 type Mutation {
   createImplementation(input: CreateImplementationInput!): Implementation!
   createForeignImplementation(input: CreateForeignImplementationInput!): Implementation!
@@ -1003,7 +1073,7 @@ type Mutation {
   ensureAgent(input: AgentInput!): Agent!
   createTestCase(input: CreateTestCaseInput!): TestCase!
   createTestResult(input: CreateTestResultInput!): TestResult!
-  createHardwareRecord(input: CreateHardwareRecordInput!): HardwareRecord!
+  unshelveMemoryDrawer(input: UnshelveMemoryDrawerInput!): String!
   createDashboard(input: CreateDashboardInput!): Dashboard!
   createStateSchema(input: CreateStateSchemaInput!): StateSchema!
   createPanel(input: CreatePanelInput!): Panel!
@@ -1019,6 +1089,7 @@ type Mutation {
   """Collect data from a assignation"""
   collect(input: CollectInput!): [String!]!
   reinit(input: ReInitInput!): String!
+  shelveInMemoryDrawer(input: ShelveInMemoryDrawerInput!): MemoryDrawer!
   deleteAgent(input: DeleteAgentInput!): ID!
 }
 
@@ -1128,7 +1199,6 @@ input EffectInput {
 input PortInput {
   validators: [ValidatorInput!] = null
   key: String!
-  scope: PortScope!
   label: String = null
   kind: PortKind!
   description: String = null
@@ -1137,6 +1207,7 @@ input PortInput {
   effects: [EffectInput!] = null
   default: AnyDefault = null
   children: [PortInput!] = null
+  choices: [ChoiceInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
 }
@@ -1147,6 +1218,14 @@ input ValidatorInput {
   dependencies: [String!] = []
   label: String = null
   errorMessage: String = null
+}
+
+"\nA choice is a value that can be selected in a dropdown.\n\nIt is composed of a value, a label, and a description. The value is the\nvalue that is returned when the choice is selected. The label is the\ntext that is displayed in the dropdown. The description is the text\nthat is displayed when the user hovers over the choice.\n\n    "
+input ChoiceInput {
+  value: AnyDefault!
+  label: String!
+  image: String = null
+  description: String = null
 }
 
 input AssignWidgetInput {
@@ -1172,14 +1251,6 @@ input AssignWidgetInput {
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
 scalar SearchQuery
-
-"\nA choice is a value that can be selected in a dropdown.\n\nIt is composed of a value, a label, and a description. The value is the\nvalue that is returned when the choice is selected. The label is the\ntext that is displayed in the dropdown. The description is the text\nthat is displayed when the user hovers over the choice.\n\n    "
-input ChoiceInput {
-  value: AnyDefault!
-  label: String!
-  image: String = null
-  description: String = null
-}
 
 "A Return Widget is a UI element that is used to display the value of a port.\n\n    Return Widgets get displayed both if we show the return values of an assignment,\n    but also when we inspect the given arguments of a previous run task. Their primary\n    usecase is to adequately display the value of a port, in a user readable way.\n\n    Return Widgets are often overwriten by the underlying UI framework (e.g. Orkestrator)\n    to provide a better user experience. For example, a return widget that displays a\n    date could be overwriten to display a calendar widget.\n\n    Return Widgets provide more a way to customize this overwriten behavior.\n\n    "
 input ReturnWidgetInput {
@@ -1248,7 +1319,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d"
+  reference: String = "6b21fcac-8166-410e-be97-0638aa8d9cf7"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1299,7 +1370,7 @@ input InterruptInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "1821a55a-f8a8-4f41-9265-539149825cc6"
+  reference: String = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1350,11 +1421,14 @@ input CreateTestResultInput {
   result: String = null
 }
 
-input CreateHardwareRecordInput {
-  cpuCount: Int = null
-  cpuFrequency: Float = null
-  cpuVendorName: String = null
-  instanceId: InstanceId = null
+input UnshelveMemoryDrawerInput {
+  """
+  The instance ID of the agent. This is used to identify the agent in the system.
+  """
+  instanceId: InstanceId!
+
+  """The resource ID of the drawer."""
+  resourceId: String!
 }
 
 """The input for creating a dashboard."""
@@ -1460,6 +1534,31 @@ input CollectInput {
 
 input ReInitInput {
   agent: ID = null
+}
+
+input ShelveInMemoryDrawerInput {
+  """
+  The instance ID of the agent. This is used to identify the agent in the system.
+  """
+  instanceId: InstanceId!
+
+  """
+  The identifier of the drawer. This is used to identify the drawer in the system.
+  """
+  identifier: Identifier!
+
+  """The resource ID of the drawer."""
+  resourceId: String!
+
+  """
+  The label of the drawer. This is used to identify the drawer in the system.
+  """
+  label: String = null
+
+  """
+  The description of the drawer. This is used to identify the drawer in the system.
+  """
+  description: String = null
 }
 
 input DeleteAgentInput {

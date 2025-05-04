@@ -5,9 +5,8 @@ from typing import (
     Type,
 )
 from pydantic import BaseModel
-from rekuest_next.structures.types import FullFilledStructure
+from rekuest_next.structures.types import FullFilledMemoryStructure
 from rekuest_next.api.schema import (
-    PortScope,
     Identifier,
 )
 from rekuest_next.structures.utils import build_instance_predicate
@@ -40,10 +39,10 @@ class LocalStructureHookError(HookError):
     pass
 
 
-class LocalStructureHook(BaseModel):
-    """The Local Structure Hook is a hook that can be registered to the structure registry.
+class MemoryStructureHook(BaseModel):
+    """The Local Memotry Strucute Hook is a hook that can be registered to the structure registry.
 
-    It will register all types as local structures (that will be put into a local shelve
+    It will register all types as memory structures (that will be put into a local shelve
     instread of shrinking and expanding them) .
 
     """
@@ -58,7 +57,7 @@ class LocalStructureHook(BaseModel):
     def apply(
         self,
         cls: Type,
-    ) -> FullFilledStructure:
+    ) -> FullFilledMemoryStructure:
         """Apply the hook to the class and return a FullFilledStructure."""
         if hasattr(cls, "get_identifier"):
             identifier = cls.get_identifier()
@@ -67,14 +66,10 @@ class LocalStructureHook(BaseModel):
 
         predicate = build_instance_predicate(cls)
 
-        return FullFilledStructure(
+        return FullFilledMemoryStructure(
             cls=cls,
             identifier=identifier,
-            scope=PortScope.LOCAL,
-            aexpand=None,
-            ashrink=None,
             predicate=predicate,
+            description=None,
             convert_default=identity_default_converter,
-            default_widget=None,
-            default_returnwidget=None,
         )

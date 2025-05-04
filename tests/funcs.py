@@ -210,3 +210,37 @@ async def nested_model_with_annotations(karls: List[Karl]) -> List[Karl]:
         Representation: The Returned Representation
     """
     return "tested"
+
+
+class LocalizedStructure:
+    """Localized structure"""
+
+    def __init__(self, name: str) -> None:
+        """Localized structure
+
+        Args:
+            name (str): Name of the localized structure
+        """
+        self.name = name
+
+
+async def create_localized_structure() -> LocalizedStructure:
+    """Create a localized structure
+
+    Returns:
+        LocalizedStructure: Localized structure
+    """
+    return LocalizedStructure("localized_structure")
+
+
+async def localized_structure_function(rep: LocalizedStructure) -> LocalizedStructure:
+    """Localized structure function
+
+    Args:
+        rep (LocalizedStructure): Localized structure
+        name (LocalizedStructure, optional): Localized structure. Defaults to None.
+
+    Returns:
+        LocalizedStructure: Localized structure
+    """
+    return rep

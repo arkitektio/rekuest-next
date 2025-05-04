@@ -1,10 +1,8 @@
 fragment ChildPortNested on Port {
   key
   kind
-  scope
   children {
     identifier
-    scope
     nullable
     kind
   }
@@ -16,7 +14,6 @@ fragment ChildPortNested on Port {
 fragment ChildPort on Port {
   key
   kind
-  scope
   identifier
   children {
     ...ChildPortNested
@@ -123,7 +120,6 @@ fragment Port on Port {
   __typename
   key
   label
-  scope
   nullable
   description
   default

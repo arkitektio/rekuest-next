@@ -2,7 +2,7 @@
 
 from typing import Generator
 from rekuest_next.actors.actify import reactify
-from rekuest_next.api.schema import NodeKind
+from rekuest_next.api.schema import ActionKind
 from rekuest_next.structures.registry import StructureRegistry
 
 
@@ -19,7 +19,7 @@ def test_actify_function(simple_registry: StructureRegistry) -> None:
         return 1
 
     defi, actor_builder = reactify(func, simple_registry)
-    assert defi.kind == NodeKind.FUNCTION
+    assert defi.kind == ActionKind.FUNCTION
 
 
 def test_actify_generator(simple_registry: StructureRegistry) -> None:
@@ -35,4 +35,4 @@ def test_actify_generator(simple_registry: StructureRegistry) -> None:
         yield 1
 
     defi, actor_builder = reactify(gen, simple_registry)
-    assert defi.kind == NodeKind.GENERATOR
+    assert defi.kind == ActionKind.GENERATOR

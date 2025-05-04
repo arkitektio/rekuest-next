@@ -6,7 +6,7 @@ from typing import Callable, List, Union, get_type_hints
 
 from rekuest_next.structures.model import (
     is_model,
-    retrieve_fullfiled_model,
+    inspect_model_class,
 )
 from .utils import extract_annotations, is_local_var
 from rekuest_next.api.schema import (
@@ -14,7 +14,6 @@ from rekuest_next.api.schema import (
     DefinitionInput,
     ActionKind,
     PortKind,
-    PortScope,
     AssignWidgetInput,
     ReturnWidgetInput,
     PortGroupInput,
@@ -177,9 +176,14 @@ def is_datetime(cls: Any) -> bool:  # noqa: ANN401
     return False
 
 
-def is_structure(cls: Any) -> bool:  # noqa: ANN401
+def is_structure(cls: Any, structure_registry: StructureRegistry) -> bool:  # noqa: ANN401
     """Check if a class is a structure"""
-    return True
+    return structure_registry.is_structure(cls)
+
+
+def is_memory_structure(cls: Any, structure_registry: StructureRegistry) -> bool:  # noqa: ANN401
+    """Check if a class is a memory structure"""
+    return structure_registry.is_memory_structure(cls)
 
 
 def convert_object_to_port(
@@ -229,11 +233,11 @@ def convert_object_to_port(
         set_default = default or {}
         children = []
 
-        full_filled_model = retrieve_fullfiled_model(cls)
+        inspected_model = inspect_model_class(cls)
 
-        registry.register_as_model(cls, full_filled_model.identifier)
+        registry.register_as_model(cls, inspected_model.identifier)
 
-        for arg in full_filled_model.args:
+        for arg in inspected_model.args:
             child = convert_object_to_port(
                 cls=arg.cls,
                 registry=registry,
@@ -248,16 +252,15 @@ def convert_object_to_port(
             kind=PortKind.MODEL,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             children=children,
             label=label,
             default=set_default,
             nullable=nullable,
             effects=effects,
-            description=description or full_filled_model.description,
+            description=description or inspected_model.description,
             validators=validators,
-            identifier=full_filled_model.identifier,
+            identifier=inspected_model.identifier,
         )
 
     if is_annotated(cls):
@@ -297,14 +300,11 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             children=[child],
             label=label,
@@ -328,7 +328,6 @@ def convert_object_to_port(
             kind=PortKind.UNION,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             children=children,
             label=label,
@@ -341,13 +340,10 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
-            scope=PortScope.GLOBAL,
             returnWidget=return_widget,
             key=key,
             children=[child],
@@ -362,7 +358,6 @@ def convert_object_to_port(
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
         return PortInput(
             kind=PortKind.BOOL,
-            scope=PortScope.GLOBAL,
             assignWidget=assign_widget,
             returnWidget=return_widget,
             key=key,
@@ -378,7 +373,6 @@ def convert_object_to_port(
         return PortInput(
             kind=PortKind.INT,
             assignWidget=assign_widget,
-            scope=PortScope.GLOBAL,
             returnWidget=return_widget,
             key=key,
             default=default,
@@ -394,7 +388,6 @@ def convert_object_to_port(
             kind=PortKind.FLOAT,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             default=default,
             label=label,
@@ -409,7 +402,6 @@ def convert_object_to_port(
             kind=PortKind.DATE,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             default=default,
             label=label,
@@ -424,7 +416,6 @@ def convert_object_to_port(
             kind=PortKind.STRING,
             assignWidget=assign_widget,
             returnWidget=return_widget,
-            scope=PortScope.GLOBAL,
             key=key,
             default=default,
             label=label,
@@ -434,21 +425,18 @@ def convert_object_to_port(
             description=description,
         )
 
-    if is_structure(cls):
-        return registry.get_port_for_cls(
-            cls,
-            key,
-            nullable=nullable,
-            description=description,
-            effects=effects,
-            label=label,
-            default=default,
-            validators=validators,
-            assign_widget=assign_widget,
-            return_widget=return_widget,
-        )
-
-    raise NotImplementedError(f"Could not convert {cls} to a port")
+    return registry.get_port_for_cls(
+        cls,
+        key,
+        nullable=nullable,
+        description=description,
+        effects=effects,
+        label=label,
+        default=default,
+        validators=validators,
+        assign_widget=assign_widget,
+        return_widget=return_widget,
+    )
 
 
 GroupMap = Dict[str, List[str]]
@@ -518,9 +506,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -559,9 +545,7 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
 
     if docstring.many_returns:

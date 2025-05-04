@@ -43,10 +43,16 @@ def predicate_port(
     if port.kind == PortKind.STRING:
         return isinstance(value, str)
     if port.kind == PortKind.STRUCTURE:
-        predicate = structure_registry.get_predicator_for_identifier(port.identifier)
-        return predicate(value)
+        fstruc = structure_registry.get_fullfilled_structure(port.identifier)
+        return fstruc.predicate(value)
     if port.kind == PortKind.MODEL:
-        predicate = structure_registry.get_predicator_for_identifier(port.identifier)
-        return predicate(value)
+        fstruc = structure_registry.get_fullfilled_model(port.identifier)
+        return fstruc.predicate(value)
+    if port.kind == PortKind.MEMORY_STRUCTURE:
+        fstruc = structure_registry.get_fullfilled_memory_structure(port.identifier)
+        return fstruc.predicate(value)
+    if port.kind == PortKind.ENUM:
+        fstruc = structure_registry.get_fullfilled_enum(port.identifier)
+        return fstruc.predicate(value)
 
     raise ValueError(f"Unknown port kind: {port.kind} to predicate")

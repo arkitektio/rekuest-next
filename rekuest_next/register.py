@@ -19,7 +19,6 @@ from rekuest_next.api.schema import (
     DefinitionInput,
     DependencyInput,
     PortGroupInput,
-    PortScope,
     ReturnWidgetInput,
     EffectInput,
     ImplementationInput,
@@ -314,7 +313,7 @@ def register(
 T = TypeVar("T")
 
 
-def register_global(
+def structure(
     *cls: T,
     identifier: str = None,
     aexpand: Callable[
@@ -357,7 +356,6 @@ def register_global(
         sregistry.register_as_structure(
             function_or_actor,
             identifier=identifier,
-            scope=PortScope.GLOBAL,
             ashrink=ashrink or getattr(function_or_actor, "ashrink", None),
             aexpand=aexpand or getattr(function_or_actor, "aexpand", None),
             convert_default=convert_default,
@@ -378,7 +376,6 @@ def register_global(
             sregistry.register_as_structure(
                 cls,
                 identifier=identifier,
-                scope=PortScope.GLOBAL,
                 ashrink=ashrink or getattr(cls, "ashrink", None),
                 aexpand=aexpand or getattr(cls, "aexpand", None),
                 convert_default=convert_default,

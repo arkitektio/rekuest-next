@@ -17,10 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from rekuest_next.api.schema import (
     AssignWidgetInput,
+    ChoiceInput,
     EffectInput,
     PortInput,
     PortKind,
-    PortScope,
     ReturnWidgetInput,
     ValidatorInput,
 )
@@ -28,13 +28,19 @@ from rekuest_next.structures.utils import build_instance_predicate
 
 from .errors import (
     StructureDefinitionError,
-    StructureOverwriteError,
     StructureRegistryError,
 )
 from .hooks.default import get_default_hooks
 from .hooks.errors import HookError
 from .hooks.types import RegistryHook
-from .types import FullFilledStructure, Predicator, Shrinker, Expander, DefaultConverter
+from .types import (
+    FullFilledStructure,
+    FullFilledType,
+    FullFilledEnum,
+    FullFilledModel,
+    FullFilledMemoryStructure,
+    Predicator,
+)
 
 current_structure_registry = contextvars.ContextVar("current_structure_registry")
 
@@ -66,87 +72,39 @@ class StructureRegistry(BaseModel):
         that is able to register this structure. If no hook is found, it will raise an error.
         The default hooks are the enum and the dataclass hook. You can add your own hooks by adding them to this list.""",
     )
-
-    identifier_structure_map: Dict[str, Type] = Field(default_factory=dict, exclude=True)
-    identifier_port_scope_map: Dict[str, PortScope] = Field(default_factory=dict, exclude=True)
-    _identifier_expander_map: Dict[str, Shrinker] = {}
-    _identifier_shrinker_map: Dict[str, Expander] = {}
-    _identifier_predicate_map: Dict[str, Predicator] = {}
-
-    _identifier_model_map: Dict[str, Type] = {}
-    _model_identifier_map: Dict[Type, str] = {}
-
-    _structure_convert_default_map: Dict[str, DefaultConverter] = {}
-    _structure_identifier_map: Dict[Type, str] = {}
-    _structure_default_widget_map: Dict[Type, AssignWidgetInput] = {}
-    _structure_default_returnwidget_map: Dict[Type, ReturnWidgetInput] = {}
-    _structure_annotation_map: Dict[Type, Type] = {}
-
-    _fullfilled_structures_map: Dict[Type, FullFilledStructure] = {}
+    identifier_structure_map: Dict[str, FullFilledStructure] = Field(
+        default_factory=dict, exclude=True
+    )
+    identifier_enum_map: Dict[str, FullFilledStructure] = Field(default_factory=dict, exclude=True)
+    identifier_memory_structure_map: Dict[str, FullFilledMemoryStructure] = Field(
+        default_factory=dict, exclude=True
+    )
+    identifier_model_map: Dict[str, Type] = Field(default_factory=dict, exclude=True)
+    cls_fullfilled_type_map: Dict[Type, FullFilledType] = Field(
+        default_factory=dict, exclude=True
+    )  # Map from class to fullfilled type
 
     _token: contextvars.Token = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def get_expander_for_identifier(self, identifier: str) -> Expander:
-        """Get the expander for a given identifier.
+    def get_fullfilled_structure(self, identifier: str) -> FullFilledStructure:
+        """Get the fullfilled structure for a given identifier."""
+        return self.identifier_structure_map[identifier]
 
-        This will use the structure registry to find the correct
-        expander for the given identifier.
+    def get_fullfilled_enum(self, identifier: str) -> FullFilledEnum:
+        """Get the fullfilled enum for a given identifier."""
+        return self.identifier_enum_map[identifier]
 
-        Args:
-            identifier (str): The identifier to get the expander for.
-        Returns:
-            Expander: The expander for the given identifier.
+    def get_fullfilled_model(self, identifier: str) -> FullFilledModel:
+        """Get the fullfilled model for a given identifier."""
+        return self.identifier_model_map[identifier]
 
-        Raises:
-            StructureRegistryError: If the identifier is not registered.
-        """
+    def get_fullfilled_memory_structure(self, identifier: str) -> FullFilledMemoryStructure:
+        """Get the fullfilled memory structure for a given identifier."""
+        return self.identifier_memory_structure_map[identifier]
 
-        try:
-            return self._identifier_expander_map[identifier]
-        except KeyError as e:
-            raise StructureRegistryError(f"Expander for {identifier} is not registered") from e
-
-    def get_shrinker_for_identifier(self, identifier: str) -> Shrinker:
-        """Get the shrinker for a given identifier.
-
-        This will use the structure registry to find the correct
-        shrinker for the given identifier.
-        Args:
-            identifier (str): The identifier to get the shrinker for.
-
-        Returns:
-            Shrinker: The shrinker for the given identifier.
-
-        Raises:
-            StructureRegistryError: If the identifier is not registered.
-        """
-        try:
-            return self._identifier_shrinker_map[identifier]
-        except KeyError as e:
-            raise StructureRegistryError(f"Shrinker for {identifier} is not registered") from e
-
-    def get_predicator_for_identifier(self, identifier: str) -> Predicator:
-        """Get the predicators for a given identifier.
-
-        This will use the structure registry to find the correct
-        predicators for the given identifier.
-        Args:
-            identifier (str): The identifier to get the shrinker for.
-
-        Returns:
-            Predicator: The shrinker for the given identifier.
-
-        Raises:
-            StructureRegistryError: If the identifier is not registered.
-        """
-        try:
-            return self._identifier_predicate_map[identifier]
-        except KeyError as e:
-            raise StructureRegistryError(f"Predicator for {identifier} is not registered") from e
-
-    def auto_register(self, cls: Type) -> FullFilledStructure:
+    def auto_register(self, cls: Type) -> FullFilledType:
         """Auto register a class.
 
         This uses the registry hooks to find a hook that is able to register the class.
@@ -166,9 +124,9 @@ class StructureRegistry(BaseModel):
             try:
                 if hook.is_applicable(cls):
                     try:
-                        fullfilled_structure = hook.apply(cls)
-                        self.fullfill_registration(fullfilled_structure)
-                        return fullfilled_structure
+                        fullfilled_type = hook.apply(cls)
+                        self.fullfill_registration(fullfilled_type)
+                        return fullfilled_type
                     except HookError as e:
                         raise StructureDefinitionError(
                             f"Hook {key} failed to apply to {cls}"
@@ -196,45 +154,41 @@ class StructureRegistry(BaseModel):
             StructureRegistryError: If the class is not registered.
         """
         try:
-            return self._structure_identifier_map[cls]
+            return self.cls_fullfilled_type_map[cls].identifier
         except KeyError as e:
             raise StructureRegistryError(f"Identifier for {cls} is not registered") from e
 
-    def get_port_scope_for_identifier(self, identifier: str) -> PortScope:
-        """Get the port scope for a given identifier."""
-        return self.identifier_port_scope_map[identifier]
-
-    def get_default_converter_for_structure(self, cls: Type) -> Callable[[Any], str]:
-        """Get the default converter for a given structure."""
-        try:
-            return self._structure_convert_default_map[cls]
-        except KeyError as e:
-            if self.allow_auto_register:
-                try:
-                    return self.auto_register[cls]
-                except StructureDefinitionError as e:
-                    raise StructureDefinitionError(
-                        f"{cls} was not registered and not be no default converter"
-                        " could be registered automatically."
-                    ) from e
-            else:
-                raise StructureRegistryError(
-                    f"{cls} is not registered and allow_auto_register is set to False."
-                    " Please register a 'conver_default' function for this type"
-                    " beforehand or set allow_auto_register to True. Otherwise you"
-                    " cant use this type with a default"
-                ) from e
-
-    def register_as_model(self, cls: Type, identifier: str) -> None:
+    def register_as_model(
+        self,
+        cls: Type,
+        identifier: str,
+        predicate: Predicator | None = None,
+    ) -> None:
         """Register a class as a model."""
-        self._identifier_model_map[identifier] = cls
-        self._model_identifier_map[cls] = identifier
+
+        fullfile_type = FullFilledModel(
+            cls=cls,
+            identifier=identifier,
+            predicate=predicate or build_instance_predicate(cls),
+        )
+
+        self.fullfill_registration(fullfile_type)
+
+    def register_as_enum(self, cls: Type, identifier: str, choices: list[ChoiceInput]) -> None:
+        """Register a class as an enum."""
+        fullfile_type = FullFilledEnum(
+            cls=cls,
+            identifier=identifier,
+            choices=choices,
+            predicate=build_instance_predicate(cls),
+        )
+
+        self.fullfill_registration(fullfile_type)
 
     def register_as_structure(
         self,
         cls: Type,
         identifier: str,
-        scope: PortScope = PortScope.GLOBAL,
         aexpand: Callable[
             [
                 str,
@@ -251,6 +205,7 @@ class StructureRegistry(BaseModel):
         | None = None,
         predicate: Callable[[Any], bool] | None = None,
         convert_default: Callable[[Any], str] | None = None,
+        description: Optional[str] = None,
         default_widget: Optional[AssignWidgetInput] = None,
         default_returnwidget: Optional[ReturnWidgetInput] = None,
     ) -> FullFilledStructure:
@@ -278,9 +233,9 @@ class StructureRegistry(BaseModel):
         fs = FullFilledStructure(
             cls=cls,
             identifier=identifier,
-            scope=scope,
             aexpand=aexpand,
             ashrink=ashrink,
+            description=description,
             convert_default=convert_default,
             predicate=predicate or build_instance_predicate(cls),
             default_widget=default_widget,
@@ -289,14 +244,14 @@ class StructureRegistry(BaseModel):
         self.fullfill_registration(fs)
         return fs
 
-    def get_fullfilled_structure_for_cls(self, cls: Type) -> FullFilledStructure:
+    def get_fullfilled_type_for_cls(self, cls: Type) -> FullFilledType:
         """Get the fullfilled structure for a given class.
         This will use the structure registry to find the correct
         structure for the given class.
 
         """
         try:
-            return self._fullfilled_structures_map[cls]
+            return self.cls_fullfilled_type_map[cls]
         except KeyError:
             if self.allow_auto_register:
                 try:
@@ -314,7 +269,7 @@ class StructureRegistry(BaseModel):
 
     def fullfill_registration(
         self,
-        fullfilled_structure: FullFilledStructure,
+        fullfilled_type: FullFilledType,
     ) -> None:
         """Fullfill the registration of a structure.
 
@@ -324,40 +279,28 @@ class StructureRegistry(BaseModel):
         Args:
             fullfilled_structure (FullFilledStructure): The fullfilled structure to register
         """
-        if (
-            fullfilled_structure.identifier in self.identifier_structure_map
-            and not self.allow_overwrites
-        ):
-            raise StructureOverwriteError(
-                f"{fullfilled_structure.identifier} is already registered. Previously registered"
-                f" {self.identifier_structure_map[fullfilled_structure.identifier]}"
-            )
+        self.cls_fullfilled_type_map[fullfilled_type.cls] = fullfilled_type
 
-        self._identifier_expander_map[fullfilled_structure.identifier] = (
-            fullfilled_structure.aexpand
-        )
-        self._identifier_shrinker_map[fullfilled_structure.identifier] = (
-            fullfilled_structure.ashrink
-        )
-        self._identifier_predicate_map[fullfilled_structure.identifier] = (
-            fullfilled_structure.predicate
-        )
+        if isinstance(fullfilled_type, FullFilledModel):
+            self.identifier_model_map[fullfilled_type.identifier] = fullfilled_type
+            return
 
-        self.identifier_structure_map[fullfilled_structure.identifier] = fullfilled_structure.cls
-        self.identifier_port_scope_map[fullfilled_structure.identifier] = fullfilled_structure.scope
+        if isinstance(fullfilled_type, FullFilledEnum):
+            self.identifier_enum_map[fullfilled_type.identifier] = fullfilled_type
+            return
 
-        self._structure_identifier_map[fullfilled_structure.cls] = fullfilled_structure.identifier
-        self._structure_default_widget_map[fullfilled_structure.cls] = (
-            fullfilled_structure.default_widget
-        )
-        self._structure_default_returnwidget_map[fullfilled_structure.cls] = (
-            fullfilled_structure.default_returnwidget
-        )
-        self._structure_convert_default_map[fullfilled_structure.cls] = (
-            fullfilled_structure.convert_default
-        )
+        if isinstance(fullfilled_type, FullFilledMemoryStructure):
+            self.identifier_memory_structure_map[fullfilled_type.identifier] = fullfilled_type
+            return
 
-        self._fullfilled_structures_map[fullfilled_structure.cls] = fullfilled_structure
+        if isinstance(fullfilled_type, FullFilledStructure):
+            self.identifier_structure_map[fullfilled_type.identifier] = fullfilled_type
+            return
+
+        raise StructureRegistryError(
+            f"Could not register {fullfilled_type} as it is not a FullFilledStructure"
+            f" or a FullFilledEnum or a FullFilledMemoryStructure"
+        )
 
     def get_port_for_cls(
         self,
@@ -380,34 +323,74 @@ class StructureRegistry(BaseModel):
         should not be created with the default values.
         """
 
-        structure = self.get_fullfilled_structure_for_cls(cls)
+        fullfilled_type = self.get_fullfilled_type_for_cls(cls)
 
-        identifier = structure.identifier
-        scope = structure.scope
-
-        default_converter = structure.convert_default
-        assign_widget = assign_widget or structure.default_widget
-        return_widget = return_widget or structure.default_returnwidget
-
-        try:
+        if isinstance(fullfilled_type, FullFilledModel):
             return PortInput(
-                kind=PortKind.STRUCTURE,
-                identifier=identifier,
+                kind=PortKind.MODEL,
+                identifier=fullfilled_type.identifier,
                 assignWidget=assign_widget,
-                scope=scope,
                 returnWidget=return_widget,
                 key=key,
                 label=label,
-                default=default_converter(default) if (default and default_converter) else None,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
                 nullable=nullable,
                 effects=effects or [],
-                description=description,
+                description=fullfilled_type.description,
                 validators=validators or [],
             )
-        except Exception as e:
+
+        elif isinstance(fullfilled_type, FullFilledEnum):
+            return PortInput(
+                kind=PortKind.ENUM,
+                identifier=fullfilled_type.identifier,
+                assignWidget=assign_widget,
+                returnWidget=return_widget,
+                choices=fullfilled_type.choices,
+                key=key,
+                label=label,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
+                nullable=nullable,
+                effects=effects or [],
+                description=fullfilled_type.description,
+                validators=validators or [],
+            )
+
+        elif isinstance(fullfilled_type, FullFilledMemoryStructure):
+            return PortInput(
+                kind=PortKind.MEMORY_STRUCTURE,
+                identifier=fullfilled_type.identifier,
+                assignWidget=assign_widget,
+                returnWidget=return_widget,
+                key=key,
+                label=label,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
+                nullable=nullable,
+                effects=effects or [],
+                description=fullfilled_type.description,
+                validators=validators or [],
+            )
+
+        elif isinstance(fullfilled_type, FullFilledStructure):
+            return PortInput(
+                kind=PortKind.STRUCTURE,
+                identifier=fullfilled_type.identifier,
+                assignWidget=assign_widget or fullfilled_type.default_widget,
+                returnWidget=return_widget or fullfilled_type.default_returnwidget,
+                key=key,
+                label=label,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
+                nullable=nullable,
+                effects=effects or [],
+                description=description or fullfilled_type.description,
+                validators=validators or [],
+            )
+
+        else:
             raise StructureRegistryError(
-                f"Could not create port for {cls} with fullfilled structure {structure}"
-            ) from e
+                f"Could not create port for {cls} as it is not a FullFilledStructure"
+                f" or a FullFilledEnum or a FullFilledMemoryStructure"
+            )
 
 
 DEFAULT_STRUCTURE_REGISTRY: StructureRegistry | None = None

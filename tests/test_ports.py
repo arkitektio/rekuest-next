@@ -1,6 +1,6 @@
 """Test the PortInput class  and its validation logic."""
 
-from rekuest_next.api.schema import PortInput, PortKind, PortScope
+from rekuest_next.api.schema import PortInput, PortKind
 from pydantic import ValidationError
 import pytest
 
@@ -30,21 +30,19 @@ def test_argport_input_errors() -> None:
 
 def test_argport() -> None:
     """Test valid PortInput instances"""
-    PortInput(kind=PortKind.BOOL, key="search", nullable=False, scope=PortScope.GLOBAL)
-    PortInput(kind=PortKind.STRING, key="search", nullable=False, scope=PortScope.GLOBAL)
+    PortInput(kind=PortKind.BOOL, key="search", nullable=False)
+    PortInput(kind=PortKind.STRING, key="search", nullable=False)
 
     PortInput(
         kind=PortKind.STRUCTURE,
         identifier="hm/karl",
         key="search",
         nullable=False,
-        scope=PortScope.GLOBAL,
     )
 
     PortInput(
         kind=PortKind.LIST,
-        children=[PortInput(key="0", kind=PortKind.BOOL, nullable=False, scope=PortScope.GLOBAL)],
-        scope=PortScope.GLOBAL,
+        children=[PortInput(key="0", kind=PortKind.BOOL, nullable=False)],
         nullable=False,
         key="search",
     )

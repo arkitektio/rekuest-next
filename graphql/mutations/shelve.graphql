@@ -1,0 +1,10 @@
+mutation shelve($input: ShelveInMemoryDrawerInput!) {
+  shelveInMemoryDrawer(input: $input) {
+    id
+  }
+}
+
+
+mutation unshelve($input: UnshelveMemoryDrawerInput!) {
+  unshelveMemoryDrawer(input: $input) 
+}

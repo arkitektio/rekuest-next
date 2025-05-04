@@ -1,6 +1,6 @@
 [project]
 name = "rekuest-next"
-version = "0.3.1"
+version = "0.4.0"
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.9, <4.0"
@@ -94,4 +94,12 @@ dev-dependencies = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=6.1.1",
     "pytest>=8.3.5",
+    "python-semantic-release>=9.21.0",
 ]
+
+
+[tool.semantic_release]
+version_source = "tag"
+upload_to_pypi = true
+branch = "main"
+build_command = "uv build"

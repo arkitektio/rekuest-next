@@ -6,9 +6,8 @@ from typing import (
 )
 from pydantic import BaseModel
 import inspect
-from rekuest_next.structures.types import FullFilledStructure
+from rekuest_next.structures.types import FullFilledEnum
 from rekuest_next.api.schema import (
-    PortScope,
     AssignWidgetInput,
     ReturnWidgetInput,
     ChoiceInput,
@@ -67,12 +66,10 @@ class EnumHook(BaseModel):
                 return True
         return False
 
-    def apply(self, cls: Type) -> FullFilledStructure:
+    def apply(self, cls: Type) -> FullFilledEnum:
         """Apply the hook to the class and return a FullFilledStructure"""
         identifier = self.cls_to_identifier(cls)
-        ashrink, aexpand = build_enum_shrink_expand(cls)
         predicate = build_instance_predicate(cls)
-        scope = PortScope.GLOBAL
 
         default_widget = AssignWidgetInput(
             kind=AssignWidgetKind.CHOICE,
@@ -93,13 +90,17 @@ class EnumHook(BaseModel):
             ),
         )
 
-        return FullFilledStructure(
+        return FullFilledEnum(
             cls=cls,
             identifier=identifier,
-            scope=scope,
-            aexpand=aexpand,
-            ashrink=ashrink,
+            choices=tuple(
+                [
+                    ChoiceInput(label=key, value=key, description=value.__doc__)
+                    for key, value in cls.__members__.items()
+                ]
+            ),
             predicate=predicate,
+            description=cls.__doc__,
             convert_default=enum_converter,
             default_widget=default_widget,
             default_returnwidget=default_returnwidget,

@@ -26,6 +26,8 @@ from rekuest_next.api.schema import (
     Implementation,
     Agent,
     aensure_agent,
+    ashelve,
+    aunshelve,
     aset_extension_implementations,
 )
 from rekuest_next import messages
@@ -68,13 +70,9 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(
-        default_factory=dict
-    )
+    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
@@ -90,13 +88,36 @@ class BaseAgent(KoiledModel):
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    async def aput_on_shelve(self, value: Any) -> str:  # noqa: ANN401
+    async def aput_on_shelve(
+        self,
+        identifier: str,
+        value: Any,  # noqa: ANN401
+    ) -> str:  # noqa: ANN401
         """Get the shelve for the agent. This is used to get the shelve
         for the agent and all the actors that are spawned from it.
         """
+
+        if hasattr(value, "aget_label"):
+            label = await value.aget_label()
+        else:
+            label = None
+
+        if hasattr(value, "aget_description"):
+            description = await value.aget_description()
+        else:
+            description = None
+
         key = self._agent.id + ":" + str(uuid.uuid4())
         self.shelve[key] = value
-        print("Shelve", key)
+        await ashelve(
+            instance_id=self.instance_id,
+            identifier=identifier,
+            resource_id=key,
+            label=label,
+            description=description,
+            rath=self.rath,
+        )
+
         return key
 
     async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
@@ -113,6 +134,7 @@ class BaseAgent(KoiledModel):
         shelve for the agent and all the actors that are spawned from it.
         """
         del self.shelve[key]
+        await aunshelve(instance_id=self.instance_id, resource_id=key, rath=self.rath)
 
     async def abroadcast(self, message: messages.ToAgentMessage) -> None:
         """Broadcasts a message from a transport
@@ -213,12 +235,8 @@ class BaseAgent(KoiledModel):
                 )
 
         elif isinstance(message, messages.Collect):
-            print("Collecting")
             for key in message.drawers:
-                if key in self.shelve:
-                    del self.shelve[key]
-                else:
-                    print("Key not in shelve")
+                await self.acollect(key)
 
         elif isinstance(message, messages.AssignInquiry):
             if message.assignation in self.managed_assignments:
@@ -329,9 +347,7 @@ class BaseAgent(KoiledModel):
             )
 
             for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = (
-                    implementation
-                )
+                self.interface_implementation_map[implementation.interface] = implementation
                 self.implementation_interface_map[implementation.id] = implementation
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
@@ -360,9 +376,7 @@ class BaseAgent(KoiledModel):
         spawining protocol within an actor. But maps implementation"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
-            )
+            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -415,9 +429,7 @@ class BaseAgent(KoiledModel):
 
         """
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.transport.instance_id}"
-            )
+            logger.info(f"Launching provisioning task. We are running {self.transport.instance_id}")
             await self.astart(instance_id=instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()

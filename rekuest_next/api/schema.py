@@ -2,37 +2,37 @@
 
 from typing_extensions import Literal
 from typing import (
-    Optional,
+    Any,
+    Union,
+    List,
     Iterator,
     Tuple,
-    Iterable,
-    List,
-    Any,
-    Annotated,
     AsyncIterator,
-    Union,
+    Optional,
+    Annotated,
+    Iterable,
 )
-from rekuest_next.traits.ports import (
-    WidgetInputTrait,
-    ReturnWidgetInputTrait,
-    DefinitionInputTrait,
-    ValidatorInputTrait,
-    PortTrait,
-)
-from enum import Enum
+from datetime import datetime
+from rekuest_next.funcs import subscribe, execute, asubscribe, aexecute
 from rekuest_next.scalars import (
-    ValidatorFunction,
-    ActionHash,
     Args,
     Identifier,
-    SearchQuery,
+    ActionHash,
     InstanceId,
+    ValidatorFunction,
+    SearchQuery,
 )
-from rekuest_next.funcs import aexecute, asubscribe, subscribe, execute
-from pydantic import ConfigDict, BaseModel, Field
-from rath.scalars import ID
+from rekuest_next.traits.ports import (
+    ValidatorInputTrait,
+    DefinitionInputTrait,
+    PortTrait,
+    ReturnWidgetInputTrait,
+    WidgetInputTrait,
+)
+from enum import Enum
+from pydantic import BaseModel, Field, ConfigDict
 from rekuest_next.rath import RekuestNextRath
-from datetime import datetime
+from rath.scalars import ID
 
 
 class AssignWidgetKind(str, Enum):
@@ -44,13 +44,6 @@ class AssignWidgetKind(str, Enum):
     CUSTOM = "CUSTOM"
     STRING = "STRING"
     STATE_CHOICE = "STATE_CHOICE"
-
-
-class PortScope(str, Enum):
-    """The kind of port"""
-
-    GLOBAL = "GLOBAL"
-    LOCAL = "LOCAL"
 
 
 class PortKind(str, Enum):
@@ -65,7 +58,9 @@ class PortKind(str, Enum):
     FLOAT = "FLOAT"
     DATE = "DATE"
     UNION = "UNION"
+    ENUM = "ENUM"
     MODEL = "MODEL"
+    MEMORY_STRUCTURE = "MEMORY_STRUCTURE"
 
 
 class EffectKind(str, Enum):
@@ -432,7 +427,6 @@ class PortInput(PortTrait, BaseModel):
 
     validators: Optional[Tuple["ValidatorInput", ...]] = None
     key: str
-    scope: PortScope
     label: Optional[str] = None
     kind: PortKind
     description: Optional[str] = None
@@ -441,6 +435,7 @@ class PortInput(PortTrait, BaseModel):
     effects: Optional[Tuple[EffectInput, ...]] = None
     default: Optional[Any] = None
     children: Optional[Tuple["PortInput", ...]] = None
+    choices: Optional[Tuple["ChoiceInput", ...]] = None
     assign_widget: Optional["AssignWidgetInput"] = Field(
         alias="assignWidget", default=None
     )
@@ -469,28 +464,6 @@ class ValidatorInput(ValidatorInputTrait, BaseModel):
     )
 
 
-class AssignWidgetInput(WidgetInputTrait, BaseModel):
-    """No documentation"""
-
-    as_paragraph: Optional[bool] = Field(alias="asParagraph", default=None)
-    "Whether to display the input as a paragraph or not. This is used for text inputs and dropdowns"
-    kind: AssignWidgetKind
-    query: Optional[SearchQuery] = None
-    choices: Optional[Tuple["ChoiceInput", ...]] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    step: Optional[float] = None
-    placeholder: Optional[str] = None
-    hook: Optional[str] = None
-    ward: Optional[str] = None
-    fallback: Optional["AssignWidgetInput"] = None
-    filters: Optional[Tuple[PortInput, ...]] = None
-    dependencies: Optional[Tuple[str, ...]] = None
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class ChoiceInput(BaseModel):
     """
     A choice is a value that can be selected in a dropdown.
@@ -506,6 +479,28 @@ class ChoiceInput(BaseModel):
     label: str
     image: Optional[str] = None
     description: Optional[str] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class AssignWidgetInput(WidgetInputTrait, BaseModel):
+    """No documentation"""
+
+    as_paragraph: Optional[bool] = Field(alias="asParagraph", default=None)
+    "Whether to display the input as a paragraph or not. This is used for text inputs and dropdowns"
+    kind: AssignWidgetKind
+    query: Optional[SearchQuery] = None
+    choices: Optional[Tuple[ChoiceInput, ...]] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+    step: Optional[float] = None
+    placeholder: Optional[str] = None
+    hook: Optional[str] = None
+    ward: Optional[str] = None
+    fallback: Optional["AssignWidgetInput"] = None
+    filters: Optional[Tuple[PortInput, ...]] = None
+    dependencies: Optional[Tuple[str, ...]] = None
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -694,6 +689,18 @@ class CreateTestResultInput(BaseModel):
     )
 
 
+class UnshelveMemoryDrawerInput(BaseModel):
+    """No documentation"""
+
+    instance_id: InstanceId = Field(alias="instanceId")
+    "The instance ID of the agent. This is used to identify the agent in the system."
+    resource_id: str = Field(alias="resourceId")
+    "The resource ID of the drawer."
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class CreateDashboardInput(BaseModel):
     """The input for creating a dashboard."""
 
@@ -816,6 +823,24 @@ class CollectInput(BaseModel):
     )
 
 
+class ShelveInMemoryDrawerInput(BaseModel):
+    """No documentation"""
+
+    instance_id: InstanceId = Field(alias="instanceId")
+    "The instance ID of the agent. This is used to identify the agent in the system."
+    identifier: Identifier
+    "The identifier of the drawer. This is used to identify the drawer in the system."
+    resource_id: str = Field(alias="resourceId")
+    "The resource ID of the drawer."
+    label: Optional[str] = None
+    "The label of the drawer. This is used to identify the drawer in the system."
+    description: Optional[str] = None
+    "The description of the drawer. This is used to identify the drawer in the system."
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class TestCaseAction(BaseModel):
     """No documentation"""
 
@@ -867,7 +892,6 @@ class ChildPortNestedChildren(PortTrait, BaseModel):
 
     typename: Literal["Port"] = Field(alias="__typename", default="Port", exclude=True)
     identifier: Optional[Identifier] = Field(default=None)
-    scope: PortScope
     nullable: bool
     kind: PortKind
     model_config = ConfigDict(frozen=True)
@@ -879,7 +903,6 @@ class ChildPortNested(PortTrait, BaseModel):
     typename: Literal["Port"] = Field(alias="__typename", default="Port", exclude=True)
     key: str
     kind: PortKind
-    scope: PortScope
     children: Optional[Tuple[ChildPortNestedChildren, ...]] = Field(default=None)
     identifier: Optional[Identifier] = Field(default=None)
     nullable: bool
@@ -1043,13 +1066,27 @@ class AgentRegistry(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+class AgentMemoryshelve(BaseModel):
+    """No documentation"""
+
+    typename: Literal["MemoryShelve"] = Field(
+        alias="__typename", default="MemoryShelve", exclude=True
+    )
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
 class Agent(BaseModel):
     """No documentation"""
 
     typename: Literal["Agent"] = Field(
         alias="__typename", default="Agent", exclude=True
     )
+    id: ID
     registry: AgentRegistry
+    memory_shelve: Optional[AgentMemoryshelve] = Field(
+        default=None, alias="memoryShelve"
+    )
     model_config = ConfigDict(frozen=True)
 
 
@@ -1332,7 +1369,6 @@ class ChildPort(PortTrait, BaseModel):
     typename: Literal["Port"] = Field(alias="__typename", default="Port", exclude=True)
     key: str
     kind: PortKind
-    scope: PortScope
     identifier: Optional[Identifier] = Field(default=None)
     children: Optional[Tuple[ChildPortNested, ...]] = Field(default=None)
     nullable: bool
@@ -1638,7 +1674,6 @@ class Port(PortTrait, BaseModel):
     typename: Literal["Port"] = Field(alias="__typename", default="Port", exclude=True)
     key: str
     label: Optional[str] = Field(default=None)
-    scope: PortScope
     nullable: bool
     description: Optional[str] = Field(default=None)
     default: Optional[Any] = Field(default=None)
@@ -1911,7 +1946,7 @@ class SetStateMutation(BaseModel):
     class Meta:
         """Meta class for SetState"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class UpdateStateMutation(BaseModel):
@@ -1927,26 +1962,13 @@ class UpdateStateMutation(BaseModel):
     class Meta:
         """Meta class for UpdateState"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
-
-
-class EnsureAgentMutationEnsureagent(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Agent"] = Field(
-        alias="__typename", default="Agent", exclude=True
-    )
-    id: ID
-    instance_id: InstanceId = Field(alias="instanceId")
-    extensions: Tuple[str, ...]
-    name: str
-    model_config = ConfigDict(frozen=True)
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class EnsureAgentMutation(BaseModel):
     """No documentation found for this operation."""
 
-    ensure_agent: EnsureAgentMutationEnsureagent = Field(alias="ensureAgent")
+    ensure_agent: Agent = Field(alias="ensureAgent")
 
     class Arguments(BaseModel):
         """Arguments for EnsureAgent"""
@@ -1956,7 +1978,7 @@ class EnsureAgentMutation(BaseModel):
     class Meta:
         """Meta class for EnsureAgent"""
 
-        document = "mutation EnsureAgent($input: AgentInput!) {\n  ensureAgent(input: $input) {\n    id\n    instanceId\n    extensions\n    name\n    __typename\n  }\n}"
+        document = "fragment Agent on Agent {\n  id\n  registry {\n    app {\n      id\n      __typename\n    }\n    user {\n      id\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation EnsureAgent($input: AgentInput!) {\n  ensureAgent(input: $input) {\n    ...Agent\n    __typename\n  }\n}"
 
 
 class CreatePanelMutation(BaseModel):
@@ -2020,7 +2042,7 @@ class CreateShortcutMutation(BaseModel):
     class Meta:
         """Meta class for CreateShortcut"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class AssignMutation(BaseModel):
@@ -2106,6 +2128,50 @@ class CreateDashboardMutation(BaseModel):
         document = "fragment Dashboard on Dashboard {\n  id\n  name\n  uiTree {\n    child {\n      ... on UIGrid {\n        rowHeight\n        children {\n          x\n          y\n          w\n          h\n        }\n      }\n      __typename\n    }\n    __typename\n  }\n  panels {\n    id\n    state {\n      id\n      __typename\n    }\n    reservation {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nmutation CreateDashboard($input: CreateDashboardInput!) {\n  createDashboard(input: $input) {\n    ...Dashboard\n    __typename\n  }\n}"
 
 
+class ShelveMutationShelveinmemorydrawer(BaseModel):
+    """No documentation"""
+
+    typename: Literal["MemoryDrawer"] = Field(
+        alias="__typename", default="MemoryDrawer", exclude=True
+    )
+    id: ID
+    model_config = ConfigDict(frozen=True)
+
+
+class ShelveMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    shelve_in_memory_drawer: ShelveMutationShelveinmemorydrawer = Field(
+        alias="shelveInMemoryDrawer"
+    )
+
+    class Arguments(BaseModel):
+        """Arguments for shelve"""
+
+        input: ShelveInMemoryDrawerInput
+
+    class Meta:
+        """Meta class for shelve"""
+
+        document = "mutation shelve($input: ShelveInMemoryDrawerInput!) {\n  shelveInMemoryDrawer(input: $input) {\n    id\n    __typename\n  }\n}"
+
+
+class UnshelveMutation(BaseModel):
+    """No documentation found for this operation."""
+
+    unshelve_memory_drawer: str = Field(alias="unshelveMemoryDrawer")
+
+    class Arguments(BaseModel):
+        """Arguments for unshelve"""
+
+        input: UnshelveMemoryDrawerInput
+
+    class Meta:
+        """Meta class for unshelve"""
+
+        document = "mutation unshelve($input: UnshelveMemoryDrawerInput!) {\n  unshelveMemoryDrawer(input: $input)\n}"
+
+
 class CreateStateSchemaMutation(BaseModel):
     """No documentation found for this operation."""
 
@@ -2119,7 +2185,7 @@ class CreateStateSchemaMutation(BaseModel):
     class Meta:
         """Meta class for CreateStateSchema"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
 
 
 class CreateImplementationMutation(BaseModel):
@@ -2135,7 +2201,7 @@ class CreateImplementationMutation(BaseModel):
     class Meta:
         """Meta class for createImplementation"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createImplementation($input: CreateImplementationInput!) {\n  createImplementation(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createImplementation($input: CreateImplementationInput!) {\n  createImplementation(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class SetExtensionImplementationsMutation(BaseModel):
@@ -2153,7 +2219,7 @@ class SetExtensionImplementationsMutation(BaseModel):
     class Meta:
         """Meta class for SetExtensionImplementations"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {\n  setExtensionImplementations(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {\n  setExtensionImplementations(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
@@ -2314,7 +2380,7 @@ class GetAgentQuery(BaseModel):
     class Meta:
         """Meta class for GetAgent"""
 
-        document = "fragment Agent on Agent {\n  registry {\n    app {\n      id\n      __typename\n    }\n    user {\n      id\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n    __typename\n  }\n}"
+        document = "fragment Agent on Agent {\n  id\n  registry {\n    app {\n      id\n      __typename\n    }\n    user {\n      id\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n    __typename\n  }\n}"
 
 
 class GetPanelQuery(BaseModel):
@@ -2380,7 +2446,7 @@ class ListShortcutsQuery(BaseModel):
     class Meta:
         """Meta class for ListShortcuts"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
 
 
 class GetShortcutQuery(BaseModel):
@@ -2396,7 +2462,7 @@ class GetShortcutQuery(BaseModel):
     class Meta:
         """Meta class for GetShortcut"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class RequestsQuery(BaseModel):
@@ -2494,7 +2560,7 @@ class Get_implementationQuery(BaseModel):
     class Meta:
         """Meta class for get_implementation"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_implementation($id: ID!) {\n  implementation(id: $id) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_implementation($id: ID!) {\n  implementation(id: $id) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class Search_implementationsQueryOptions(BaseModel):
@@ -2538,7 +2604,7 @@ class Implementations_forQuery(BaseModel):
     class Meta:
         """Meta class for implementations_for"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery implementations_for($hash: ActionHash!) {\n  implementations(filters: {actionHash: $hash}) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery implementations_for($hash: ActionHash!) {\n  implementations(filters: {actionHash: $hash}) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class MyImplementationAtQuery(BaseModel):
@@ -2556,7 +2622,7 @@ class MyImplementationAtQuery(BaseModel):
     class Meta:
         """Meta class for MyImplementationAt"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {\n  myImplementationAt(\n    instanceId: $instanceId\n    interface: $interface\n    actionId: $actionId\n  ) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {\n  myImplementationAt(\n    instanceId: $instanceId\n    interface: $interface\n    actionId: $actionId\n  ) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class FindQuery(BaseModel):
@@ -2574,7 +2640,7 @@ class FindQuery(BaseModel):
     class Meta:
         """Meta class for find"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $implementation: ID, $hash: ActionHash) {\n  action(id: $id, implementation: $implementation, hash: $hash) {\n    ...Action\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $implementation: ID, $hash: ActionHash) {\n  action(id: $id, implementation: $implementation, hash: $hash) {\n    ...Action\n    __typename\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
@@ -2588,7 +2654,7 @@ class RetrieveallQuery(BaseModel):
     class Meta:
         """Meta class for retrieveall"""
 
-        document = "fragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  scope\n  children {\n    identifier\n    scope\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  scope\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  scope\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  actions {\n    ...Action\n    __typename\n  }\n}"
+        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  actions {\n    ...Action\n    __typename\n  }\n}"
 
 
 class Search_actionsQueryOptions(BaseModel):
@@ -2917,7 +2983,7 @@ async def aensure_agent(
     name: Optional[str] = None,
     extensions: Optional[Iterable[str]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> EnsureAgentMutationEnsureagent:
+) -> Agent:
     """EnsureAgent
 
 
@@ -2928,7 +2994,7 @@ async def aensure_agent(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        EnsureAgentMutationEnsureagent
+        Agent
     """
     return (
         await aexecute(
@@ -2950,7 +3016,7 @@ def ensure_agent(
     name: Optional[str] = None,
     extensions: Optional[Iterable[str]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> EnsureAgentMutationEnsureagent:
+) -> Agent:
     """EnsureAgent
 
 
@@ -2961,7 +3027,7 @@ def ensure_agent(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        EnsureAgentMutationEnsureagent
+        Agent
     """
     return execute(
         EnsureAgentMutation,
@@ -3084,7 +3150,7 @@ def create_panel(
 
 async def areserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "1821a55a-f8a8-4f41-9265-539149825cc6",
+    reference: Optional[str] = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3",
     action: Optional[ID] = None,
     implementation: Optional[ID] = None,
     title: Optional[str] = None,
@@ -3132,7 +3198,7 @@ async def areserve(
 
 def reserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "1821a55a-f8a8-4f41-9265-539149825cc6",
+    reference: Optional[str] = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3",
     action: Optional[ID] = None,
     implementation: Optional[ID] = None,
     title: Optional[str] = None,
@@ -3317,7 +3383,7 @@ async def aassign(
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d",
+    reference: Optional[str] = "6b21fcac-8166-410e-be97-0638aa8d9cf7",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3389,7 +3455,7 @@ def assign(
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "786e4a7b-5518-40ab-8a3f-9ae8e3a95a4d",
+    reference: Optional[str] = "6b21fcac-8166-410e-be97-0638aa8d9cf7",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3604,6 +3670,126 @@ def create_dashboard(
         {"input": {"name": name, "panels": panels, "tree": tree}},
         rath=rath,
     ).create_dashboard
+
+
+async def ashelve(
+    instance_id: InstanceId,
+    identifier: Identifier,
+    resource_id: str,
+    label: Optional[str] = None,
+    description: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> ShelveMutationShelveinmemorydrawer:
+    """shelve
+
+
+    Arguments:
+        instance_id: The instance ID of the agent. This is used to identify the agent in the system.
+        identifier: The identifier of the drawer. This is used to identify the drawer in the system.
+        resource_id: The resource ID of the drawer.
+        label: The label of the drawer. This is used to identify the drawer in the system.
+        description: The description of the drawer. This is used to identify the drawer in the system.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        ShelveMutationShelveinmemorydrawer
+    """
+    return (
+        await aexecute(
+            ShelveMutation,
+            {
+                "input": {
+                    "instanceId": instance_id,
+                    "identifier": identifier,
+                    "resourceId": resource_id,
+                    "label": label,
+                    "description": description,
+                }
+            },
+            rath=rath,
+        )
+    ).shelve_in_memory_drawer
+
+
+def shelve(
+    instance_id: InstanceId,
+    identifier: Identifier,
+    resource_id: str,
+    label: Optional[str] = None,
+    description: Optional[str] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> ShelveMutationShelveinmemorydrawer:
+    """shelve
+
+
+    Arguments:
+        instance_id: The instance ID of the agent. This is used to identify the agent in the system.
+        identifier: The identifier of the drawer. This is used to identify the drawer in the system.
+        resource_id: The resource ID of the drawer.
+        label: The label of the drawer. This is used to identify the drawer in the system.
+        description: The description of the drawer. This is used to identify the drawer in the system.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        ShelveMutationShelveinmemorydrawer
+    """
+    return execute(
+        ShelveMutation,
+        {
+            "input": {
+                "instanceId": instance_id,
+                "identifier": identifier,
+                "resourceId": resource_id,
+                "label": label,
+                "description": description,
+            }
+        },
+        rath=rath,
+    ).shelve_in_memory_drawer
+
+
+async def aunshelve(
+    instance_id: InstanceId, resource_id: str, rath: Optional[RekuestNextRath] = None
+) -> str:
+    """unshelve
+
+
+    Arguments:
+        instance_id: The instance ID of the agent. This is used to identify the agent in the system.
+        resource_id: The resource ID of the drawer.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        str
+    """
+    return (
+        await aexecute(
+            UnshelveMutation,
+            {"input": {"instanceId": instance_id, "resourceId": resource_id}},
+            rath=rath,
+        )
+    ).unshelve_memory_drawer
+
+
+def unshelve(
+    instance_id: InstanceId, resource_id: str, rath: Optional[RekuestNextRath] = None
+) -> str:
+    """unshelve
+
+
+    Arguments:
+        instance_id: The instance ID of the agent. This is used to identify the agent in the system.
+        resource_id: The resource ID of the drawer.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        str
+    """
+    return execute(
+        UnshelveMutation,
+        {"input": {"instanceId": instance_id, "resourceId": resource_id}},
+        rath=rath,
+    ).unshelve_memory_drawer
 
 
 async def acreate_state_schema(

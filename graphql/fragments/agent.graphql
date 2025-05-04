@@ -1,4 +1,5 @@
 fragment Agent on Agent {
+  id
   registry {
     app {
       id
@@ -7,4 +8,8 @@ fragment Agent on Agent {
       id
     }
   }
+  memoryShelve {
+    id
+  }
+
 }
