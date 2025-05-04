@@ -1,6 +1,6 @@
 [project]
 name = "rekuest-next"
-version = "0.5.5" 
+version = "0.5.6" 
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
 requires-python = ">=3.9, <4.0"

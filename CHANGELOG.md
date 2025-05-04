@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.5.6 (2025-05-04)
+
+### Bug Fixes
+
+- Update installation command in README to use rekuest-next
+  ([`4f0c533`](https://github.com/arkitektio/rekuest-next/commit/4f0c5336295f297ca9646dd9ceeb62d06ae61b58))
+
+
 ## v0.5.5 (2025-05-04)
 
 ### Bug Fixes
