@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v0.5.4 (2025-05-04)
+
+### Bug Fixes
+
+- Update semantic-release version step and bump rekuest-next version to 0.5.3
+  ([`4505c6a`](https://github.com/arkitektio/rekuest-next/commit/4505c6a94eee4f5f437ec7b5ea2b94dcab521693))
+
+
 ## v0.5.3 (2025-05-04)
+
+### Bug Fixes
+
+- Update semantic-release command and reset version in pyproject.toml
+  ([`db8a083`](https://github.com/arkitektio/rekuest-next/commit/db8a083e3bc7b4a6817759904c49dd7bf394c87f))
 
 
 ## v0.5.2 (2025-05-04)
