@@ -1,18 +1,18 @@
-# rekuest
+# rekuest-next
 
-[![codecov](https://codecov.io/gh/jhnnsrs/rekuest/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/jhnnsrs/rekuest)
-[![PyPI version](https://badge.fury.io/py/rekuest.svg)](https://pypi.org/project/rekuest/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/rekuest/)
+[![codecov](https://codecov.io/gh/arkitektio/rekuest-next/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/arkitektio/rekuest-next)
+[![PyPI version](https://badge.fury.io/py/rekuest-next.svg)](https://pypi.org/project/rekuest-next/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/rekuest-next/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
-[![PyPI pyversions](https://img.shields.io/pypi/pyversions/rekuest.svg)](https://pypi.python.org/pypi/rekuest/)
-[![PyPI status](https://img.shields.io/pypi/status/rekuest.svg)](https://pypi.python.org/pypi/rekuest/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/rekuest-next.svg)](https://pypi.python.org/pypi/rekuest-next/)
+[![PyPI status](https://img.shields.io/pypi/status/rekuest-next.svg)](https://pypi.python.org/pypi/rekuest-next/)
 
 self-documenting asynchronous scalable RPC based on provisionable untrusted actors
 
 ## Idea
 
-rekuest is the python client for the rekuest server, it provides a simple interface both register and provide nodes (functionality)
-and call other nodes in async and synchronous manner. Contrary to most RPC services, Rekuest is focussed on providing functionaly on the Client, and is especially tailored for scanarios where apps can be developed to perform tasks on users behalves, therefore requiring fine grained access control.
+rekuest is the python client for the rekuest server, it provides a simple interface both register and provide actions (functionality)
+and call other actions in async and synchronous manner. Contrary to most RPC services, Rekuest is focussed on providing functionaly on the Client, and is especially tailored for scenarios where apps can be developed to perform tasks on users behalves, therefore requiring fine grained access control.
 
 ## Prerequesits
 
@@ -20,44 +20,43 @@ Requires a running instance of a rekuest server (e.g in an arkitekt deployment).
 
 ## Install
 
-```python
-pip install rekuest-next
-```
 
-rekuest is relying heavily on asyncio patters and therefore only supports python 3.7 and above. Its api provides sync and async
-interfaces through koil.
+Currently the usage of rekeust is heavily tied to the arkitekt platform, which provides a simple way to deploy and manage the rekuest server. Please install the arkitekt-next package to get started. This installation will also install the rekuest-next package.
+
+
+```bash
+pip install arkitekt-next
+```
 
 > If you are working in image analysis checkout the arkitekt platform that also provides data structures for image analysis (composed in the arkitekt platform)
 
 ## Get started
 
 ```python
-from rekuest import Rekuest
-from herre import Herre, ClientCredentialsGrant
+from arkitekt_next import register
 
-auth = Herre(grant=ClientCredentialsGrant(client_id="ssss", client_secret="osinsoisnoein"))
-
-client = Rekuest(auth=auth)
-
-@client.register()
+@register
 def rpc_function(x: int, name: str) -> str
     """
     A rpc function that we can
     simple call from anywhere
 
-    ""
+    """
     print(str)
 
 
-with client:
-  client.run()
+
+with easy("other_app") as app:
+    # this will register the function on the app
+    app.run()
+
 
 ```
 
 Run example:
 
 ```bash
-arkitekt dev
+arkitekt-next run dev
 ```
 
 This node is now register under the application and signed in user and can be provisioned and called to by other apps. By default users
@@ -66,24 +65,26 @@ are only able to asign to their own apps. This can be changed on the rekuest ser
 ## Calling
 
 ```python
-from rekuest import Rekuest, find
-from herre import Herre, ClientCredentialsGrant
+from arkitekt_next import easy
+from rekuest_next import find
 
-auth = Herre(grant=ClientCredentialsGrant(client_id="ssss", client_secret="osinsoisnoein"))
 
-client = Rekuest(auth=auth)
+with easy("name_of_your_app") as app:
+    # this will call the function on the app
+    action = find("other_app", "rpc_function")
 
-with client:
-  node = find(interface="rpc_function") #
+    x = action.call(
+        x=1,
+        name="hello world",
+    )
 
-  with node:
-    node.assign(4, "johannes")
+    print(x)
 
 ```
 
 ## Usage with complex Datastructures
 
-Rekuest takes care of serialization and documentation of standard python datastructures
+Rekuest_next takes care of serialization and documentation of standard python datastructures
 
 - str
 - bool
