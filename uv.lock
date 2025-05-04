@@ -1354,6 +1354,11 @@ dependencies = [
     { name = "websockets" },
 ]
 
+[package.optional-dependencies]
+types = [
+    { name = "annotated-types" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "aiohttp" },
@@ -1370,6 +1375,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "annotated-types", marker = "extra == 'types'", specifier = ">=0.5.0" },
     { name = "docstring-parser", specifier = ">=0.11" },
     { name = "fieldz", specifier = ">=0.0.2" },
     { name = "inflection", specifier = ">=0.5.1" },
