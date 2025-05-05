@@ -1,11 +1,3 @@
-"""Make string uppercase"""
-directive @upper on FIELD
-
-directive @replace(old: String!, new: String!) on FIELD
-
-"""Make get stuff uppercase"""
-directive @relation(on: String!) on FIELD
-
 type SliderAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
@@ -212,7 +204,7 @@ type UIState implements UIChild {
 }
 
 type Query {
-  clients(filters: AppFilter, order: AppOrder, pagination: OffsetPaginationInput): [App!]!
+  clients(filters: ClientFilter, order: ClientOrder, pagination: OffsetPaginationInput): [Client!]!
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
@@ -252,20 +244,22 @@ type Query {
   assignation(id: ID!): Assignation!
 }
 
-type App {
+type Client {
   id: ID!
   name: String!
   clientId: String!
 }
 
 """A way to filter apps"""
-input AppFilter {
+input ClientFilter {
   interface: StrFilterLookup
   ids: [ID!]
   hasImplementationsFor: [ActionHash!]
   mine: Boolean
-  AND: AppFilter
-  OR: AppFilter
+  AND: ClientFilter
+  OR: ClientFilter
+  NOT: ClientFilter
+  DISTINCT: Boolean
 }
 
 input StrFilterLookup {
@@ -286,23 +280,6 @@ input StrFilterLookup {
   isNull: Boolean
   regex: String
   iRegex: String
-  nExact: String
-  nIExact: String
-  nContains: String
-  nIContains: String
-  nInList: [String!]
-  nGt: String
-  nGte: String
-  nLt: String
-  nLte: String
-  nStartsWith: String
-  nIStartsWith: String
-  nEndsWith: String
-  nIEndsWith: String
-  nRange: [String!]
-  nIsNull: Boolean
-  nRegex: String
-  nIRegex: String
 }
 
 """
@@ -311,18 +288,22 @@ The `ArrayLike` scalar type represents a reference to a store previously created
 scalar ActionHash
 
 """A way to order apps"""
-input AppOrder {
+input ClientOrder {
   definedAt: Ordering
 }
 
 enum Ordering {
   ASC
+  ASC_NULLS_FIRST
+  ASC_NULLS_LAST
   DESC
+  DESC_NULLS_FIRST
+  DESC_NULLS_LAST
 }
 
 input OffsetPaginationInput {
   offset: Int! = 0
-  limit: Int! = -1
+  limit: Int
 }
 
 type HardwareRecord {
@@ -363,13 +344,13 @@ scalar InstanceId
 
 type Registry {
   id: ID!
-  app: App!
+  client: Client!
   user: User!
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
 }
 
 type User {
-  id: ID!
+  sub: ID!
 }
 
 """A way to filter agents"""
@@ -400,6 +381,8 @@ input AgentFilter {
   distinct: Boolean
   AND: AgentFilter
   OR: AgentFilter
+  NOT: AgentFilter
+  DISTINCT: Boolean
 }
 
 input AgentOrder {
@@ -411,6 +394,8 @@ input HardwareRecordFilter {
   cpuVendorName: String
   AND: HardwareRecordFilter
   OR: HardwareRecordFilter
+  NOT: HardwareRecordFilter
+  DISTINCT: Boolean
 }
 
 type Implementation {
@@ -421,7 +406,6 @@ type Implementation {
   action: Action!
   params: AnyDefault!
   dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
-  dependencyGraph: DependencyGraph!
   name: String!
   pinned: Boolean!
   myLatestAssignation: Assignation
@@ -446,7 +430,6 @@ type Action {
   reservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]
   runs: [Assignation!]
-  dependencyGraph: DependencyGraph!
   args: [Port!]!
   returns: [Port!]!
   portGroups: [PortGroup!]!
@@ -474,6 +457,8 @@ input ActionFilter {
   kind: ActionKind
   AND: ActionFilter
   OR: ActionFilter
+  NOT: ActionFilter
+  DISTINCT: Boolean
 }
 
 """The input for creating a port demand."""
@@ -540,6 +525,8 @@ input ImplementationFilter {
   parameters: [ParamPair!]
   AND: ImplementationFilter
   OR: ImplementationFilter
+  NOT: ImplementationFilter
+  DISTINCT: Boolean
 }
 
 input ImplementationActionFilter {
@@ -551,6 +538,8 @@ input ImplementationActionFilter {
   kind: ActionKind
   AND: ImplementationActionFilter
   OR: ImplementationActionFilter
+  NOT: ImplementationActionFilter
+  DISTINCT: Boolean
 }
 
 input ImplementationAgentFilter {
@@ -562,6 +551,8 @@ input ImplementationAgentFilter {
   hasStates: [String!]
   AND: ImplementationAgentFilter
   OR: ImplementationAgentFilter
+  NOT: ImplementationAgentFilter
+  DISTINCT: Boolean
 }
 
 input ParamPair {
@@ -588,6 +579,8 @@ input ProtocolFilter {
   ids: [ID!]
   AND: ProtocolFilter
   OR: ProtocolFilter
+  NOT: ProtocolFilter
+  DISTINCT: Boolean
 }
 
 input ProtocolOrder {
@@ -609,7 +602,6 @@ type Reservation {
   viable: Boolean!
   happy: Boolean!
   implementation: Implementation
-  dependencyGraph: DependencyGraph!
 }
 
 type Waiter {
@@ -646,57 +638,6 @@ enum ReservationStrategy {
   DIRECT
 }
 
-type DependencyGraph {
-  actions: [ActionActionInvalidActionImplementationAction!]!
-  edges: [DependencyEdgeImplementationEdge!]!
-}
-
-union ActionActionInvalidActionImplementationAction = ActionAction | InvalidAction | ImplementationAction
-
-type ActionAction {
-  id: String!
-  actionId: String!
-  name: String!
-  status: String
-  reservationId: String
-}
-
-type InvalidAction {
-  id: String!
-  initialHash: String!
-}
-
-type ImplementationAction {
-  id: String!
-  implementationId: String!
-  interface: String!
-  clientId: String!
-  status: String
-  provisionId: String
-  reservationId: String
-  linked: Boolean!
-  active: Boolean!
-}
-
-union DependencyEdgeImplementationEdge = DependencyEdge | ImplementationEdge
-
-type DependencyEdge {
-  id: String!
-  source: String!
-  target: String!
-  optional: Boolean!
-  depId: String!
-  reservationId: String
-}
-
-type ImplementationEdge {
-  id: String!
-  source: String!
-  target: String!
-  reservationId: String
-  linked: Boolean!
-}
-
 """A way to filter reservations"""
 input ReservationFilter {
   waiter: WaiterFilter
@@ -704,6 +645,8 @@ input ReservationFilter {
   status: [ReservationStatus!]
   AND: ReservationFilter
   OR: ReservationFilter
+  NOT: ReservationFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter waiters"""
@@ -712,6 +655,8 @@ input WaiterFilter {
   ids: [ID!]
   AND: WaiterFilter
   OR: WaiterFilter
+  NOT: WaiterFilter
+  DISTINCT: Boolean
 }
 
 enum ReservationStatus {
@@ -749,6 +694,8 @@ input TestResultFilter {
   ids: [ID!]
   AND: TestResultFilter
   OR: TestResultFilter
+  NOT: TestResultFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter test cases"""
@@ -757,6 +704,8 @@ input TestCaseFilter {
   ids: [ID!]
   AND: TestCaseFilter
   OR: TestCaseFilter
+  NOT: TestCaseFilter
+  DISTINCT: Boolean
 }
 
 type Assignation {
@@ -879,6 +828,8 @@ input DependencyFilter {
   ids: [ID!]
   AND: DependencyFilter
   OR: DependencyFilter
+  NOT: DependencyFilter
+  DISTINCT: Boolean
 }
 
 type MemoryShelve {
@@ -907,6 +858,8 @@ input MemoryDrawerFilter {
   ids: [ID!]
   AND: MemoryDrawerFilter
   OR: MemoryDrawerFilter
+  NOT: MemoryDrawerFilter
+  DISTINCT: Boolean
 }
 
 type FilesystemShelve {
@@ -930,6 +883,8 @@ input FileDrawerFilter {
   ids: [ID!]
   AND: FileDrawerFilter
   OR: FileDrawerFilter
+  NOT: FileDrawerFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter shelved items"""
@@ -937,6 +892,8 @@ input FilesystemShelveFilter {
   ids: [ID!]
   AND: FilesystemShelveFilter
   OR: FilesystemShelveFilter
+  NOT: FilesystemShelveFilter
+  DISTINCT: Boolean
 }
 
 type State {
@@ -991,6 +948,8 @@ input ShortcutFilter {
   toolbox: ID
   AND: ShortcutFilter
   OR: ShortcutFilter
+  NOT: ShortcutFilter
+  DISTINCT: Boolean
 }
 
 input ShortcutOrder {
@@ -1003,6 +962,8 @@ input ToolboxFilter {
   ids: [ID!]
   AND: ToolboxFilter
   OR: ToolboxFilter
+  NOT: ToolboxFilter
+  DISTINCT: Boolean
 }
 
 input ToolboxOrder {
@@ -1042,6 +1003,8 @@ input MemoryShelveFilter {
   ids: [ID!]
   AND: MemoryShelveFilter
   OR: MemoryShelveFilter
+  NOT: MemoryShelveFilter
+  DISTINCT: Boolean
 }
 
 input MemoryShelveOrder {
@@ -1191,22 +1154,22 @@ input EffectInput {
   dependencies: [String!] = []
   message: String = null
   kind: EffectKind!
-  hook: String = null
-  ward: String = null
+  hook: String
+  ward: String
 }
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input PortInput {
-  validators: [ValidatorInput!] = null
+  validators: [ValidatorInput!]
   key: String!
   label: String = null
   kind: PortKind!
   description: String = null
   identifier: String = null
   nullable: Boolean! = false
-  effects: [EffectInput!] = null
+  effects: [EffectInput!]
   default: AnyDefault = null
-  children: [PortInput!] = null
+  children: [PortInput!]
   choices: [ChoiceInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
@@ -1224,8 +1187,8 @@ input ValidatorInput {
 input ChoiceInput {
   value: AnyDefault!
   label: String!
-  image: String = null
-  description: String = null
+  image: String
+  description: String
 }
 
 input AssignWidgetInput {
@@ -1243,7 +1206,7 @@ input AssignWidgetInput {
   hook: String = null
   ward: String = null
   fallback: AssignWidgetInput = null
-  filters: [PortInput!] = null
+  filters: [PortInput!]
   dependencies: [String!] = null
 }
 
@@ -1271,15 +1234,15 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input DependencyInput {
   hash: ActionHash
-  reference: String = null
-  binds: BindsInput = null
+  reference: String
+  binds: BindsInput
   optional: Boolean! = false
-  viableInstances: Int = null
+  viableInstances: Int
 }
 
 input BindsInput {
-  implementations: [String!] = null
-  clients: [String!] = null
+  implementations: [String!]
+  clients: [String!]
   desiredInstances: Int! = 1
 }
 
@@ -1319,7 +1282,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "6b21fcac-8166-410e-be97-0638aa8d9cf7"
+  reference: String = "1ecb98e6-ffbe-4c24-bed4-6a2f81296c29"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1370,7 +1333,7 @@ input InterruptInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3"
+  reference: String = "75662bfc-53fe-4ea8-b7f3-1595ab88c4c7"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1446,9 +1409,9 @@ input UIChildInput {
   state: String = null
   kind: UIChildKind!
   hidden: Boolean
-  children: [UIChildInput!] = null
-  left: UIChildInput = null
-  right: UIChildInput = null
+  children: [UIChildInput!]
+  left: UIChildInput
+  right: UIChildInput
 }
 
 """The input for creating a state schema."""
