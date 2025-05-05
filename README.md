@@ -1,6 +1,6 @@
 # rekuest-next
 
-[![codecov](https://codecov.io/gh/arkitektio/rekuest-next/branch/master/graph/badge.svg?token=UGXEA2THBV)](https://codecov.io/gh/arkitektio/rekuest-next)
+[![codecov](https://codecov.io/gh/arkitektio/rekuest-next/graph/badge.svg?token=xzxX2AQPmS)](https://codecov.io/gh/arkitektio/rekuest-next)
 [![PyPI version](https://badge.fury.io/py/rekuest-next.svg)](https://pypi.org/project/rekuest-next/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/rekuest-next/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
