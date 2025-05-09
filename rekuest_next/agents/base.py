@@ -107,26 +107,24 @@ class BaseAgent(KoiledModel):
         else:
             description = None
 
-        key = self._agent.id + ":" + str(uuid.uuid4())
-        self.shelve[key] = value
-        await ashelve(
+        drawer = await ashelve(
             instance_id=self.instance_id,
             identifier=identifier,
-            resource_id=key,
+            resource_id=uuid.uuid4().hex,
             label=label,
             description=description,
             rath=self.rath,
         )
+        
+        self.shelve[drawer.id] = value
 
-        return key
+        return drawer.id
 
     async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
         shelve for the agent and all the actors that are spawned from it.
         """
-        assert ":" in key, "Key must be a shelve key"
-        assert key.startswith(self._agent.id), "Key must be a shelve key"
-        assert key in self.shelve, "Key must be a shelve key"
+        assert key in self.shelve, "Drawer is not in current shelve"
         return self.shelve[key]
 
     async def acollect(self, key: str) -> None:
@@ -134,7 +132,7 @@ class BaseAgent(KoiledModel):
         shelve for the agent and all the actors that are spawned from it.
         """
         del self.shelve[key]
-        await aunshelve(instance_id=self.instance_id, resource_id=key, rath=self.rath)
+        await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
 
     async def abroadcast(self, message: messages.ToAgentMessage) -> None:
         """Broadcasts a message from a transport

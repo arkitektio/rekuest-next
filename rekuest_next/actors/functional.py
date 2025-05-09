@@ -61,8 +61,8 @@ class AsyncFuncActor(SerializingActor):
         await self.asend(
             message=messages.ProgressEvent(
                 assignation=assignment.assignation,
-                percentage=0,
-                messages="Queued for running",
+                progress=0,
+                message="Queued for running",
             )
         )
 
@@ -71,8 +71,8 @@ class AsyncFuncActor(SerializingActor):
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
-                        percentage=0,
-                        messages="Queued for running",
+                        progress=0,
+                        message="Queued for running",
                     )
                 )
 
@@ -89,8 +89,8 @@ class AsyncFuncActor(SerializingActor):
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
-                        percentage=0,
-                        messages="Queued for running",
+                        progress=0,
+                        message="Queued for running",
                     )
                 )
 

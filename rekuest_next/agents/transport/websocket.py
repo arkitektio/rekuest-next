@@ -125,11 +125,11 @@ class WebsocketAgentTransport(AgentTransport):
         try:
             try:
                 token = await self.token_loader(force_refresh=reload_token)
-
                 async with websockets.connect(
                     f"{self.endpoint_url}",
                     ssl=(self.ssl_context if self.endpoint_url.startswith("wss") else None),
                 ) as client:
+                    print("Connected to Websockets")
                     retry = 0
                     logger.info("Agent on Websockets connected")
 
@@ -137,8 +137,10 @@ class WebsocketAgentTransport(AgentTransport):
                         messages.Register(
                             token=token,
                             instance_id=instance_id,
-                        ).json()
+                        ).model_dump_json()
                     )
+                    
+                    print("Sent register message")
 
                     send_task = asyncio.create_task(self.sending(client))
                     receive_task = asyncio.create_task(self.receiving(client))

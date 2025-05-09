@@ -35,6 +35,23 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 
 
+
+def find(agent: str, interface: str) -> Optional[Action]:
+    """Find the action for the given agent and interface.
+    This function is used to find the action for the given agent and interface.
+
+    Args:
+        agent (str): _description_
+        interface (str): _description_
+
+    Returns:
+        Optional[Action]: _description_
+    """
+    raise NotImplementedError(
+        "find is not implemented yet. Please use the find function from the agent."
+    )
+
+
 def ensure_return_as_list(value: Any) -> list:  # noqa: ANN401
     """Ensure that the value is a list."""
     if not value:

@@ -45,6 +45,21 @@ class Agent(Protocol):
         to the agent from the actor."""
 
         ...
+        
+    async def aput_on_shelve(
+        self,
+        identifier: str,
+        value: Any,  # noqa: ANN401
+    ) -> str:  # noqa: ANN401
+        """Put a value on the shelve and return the key. This is used to store
+        values on the shelve."""
+        ...
+
+    async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
+        """Get a value from the shelve. This is used to get values from the
+        shelve."""
+        ...
+
 
 
 @runtime_checkable

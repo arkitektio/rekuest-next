@@ -1327,21 +1327,21 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "1.1.1"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/4e/75d9df2b123d78df5ea715b6477ffd8ce21cadef1b09812a00542ca337b8/rath-1.1.1.tar.gz", hash = "sha256:179d92b212d01b334daffd8ed07f9db6c2fa576d90de3f91476696427fb51dda", size = 39221 }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/21/eb2e4bf35aa2a7bcb11899603f6dd696f45a1abf1c12aa6eba6810fb7673/rath-2.0.0.tar.gz", hash = "sha256:c511d0d2c096254d77d432dde4ea7d07955e3132e9439e97abf44e97545ec208", size = 35522 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/41/39de6d206d7134061fb503cece35758d7341ee702ecae570867feae58b60/rath-1.1.1-py3-none-any.whl", hash = "sha256:083c2387178bc389b421e12ccba475bed28daafe0aac2755b3a1b734b2ac1507", size = 55026 },
+    { url = "https://files.pythonhosted.org/packages/72/c0/fa0cd77fa1b0532f7055d242676d08f413032e4823ed6df14bbfa719714d/rath-2.0.0-py3-none-any.whl", hash = "sha256:f581ddf94c06f46e06b7cb02f2035c881f5446e7a8b9f73e6b05b4c4d454af3e", size = 54397 },
 ]
 
 [[package]]
 name = "rekuest-next"
-version = "0.5.6"
+version = "0.5.10"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },
@@ -1382,7 +1382,7 @@ requires-dist = [
     { name = "jsonpatch", specifier = ">=1.33" },
     { name = "koil", specifier = ">=1.0.2" },
     { name = "pydantic", specifier = ">=2" },
-    { name = "rath", specifier = ">=1.0.0" },
+    { name = "rath", specifier = ">=2" },
     { name = "websockets", specifier = ">=12.0" },
 ]
 
