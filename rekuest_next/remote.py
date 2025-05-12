@@ -12,7 +12,8 @@ from typing import (
 )
 
 from koil import unkoil, unkoil_gen
-from rekuest_next.actors.context import useAssignation
+from rath.scalars import ID
+from rekuest_next.actors.context import useAssign
 from rekuest_next.actors.vars import (
     NotWithinAnAssignationError,
 )
@@ -35,7 +36,6 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 
 
-
 def find(agent: str, interface: str) -> Optional[Action]:
     """Find the action for the given agent and interface.
     This function is used to find the action for the given agent and interface.
@@ -52,17 +52,17 @@ def find(agent: str, interface: str) -> Optional[Action]:
     )
 
 
-def ensure_return_as_list(value: Any) -> list:  # noqa: ANN401
+def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
     """Ensure that the value is a list."""
     if not value:
-        return []
+        return tuple()
     if isinstance(value, tuple):
-        return value
-    return [value]
+        return value  # type: ignore
+    return tuple([value])
 
 
 async def acall_raw(
-    kwargs: Dict[str, Any] = None,
+    kwargs: Dict[str, Any] | None = None,
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
@@ -70,16 +70,18 @@ async def acall_raw(
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
-    assign_timeout: Optional[int] = None,
+    assign_timeout: Optional[float] = None,
     timeout_is_recoverable: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
 ) -> Any:  # noqa: ANN401
     """Call the assignation function"""
-    postman: Postman = postman or get_current_postman()
+    postman = postman or get_current_postman()
+    if not postman:
+        raise ValueError("Postman is not set")
 
     try:
-        parent = useAssignation()
+        parent = useAssign()
     except NotWithinAnAssignationError:
         # If we are not within an assignation, we can set the parent to None
         parent = None
@@ -88,14 +90,14 @@ async def acall_raw(
 
     x = AssignInput(
         instanceId=postman.instance_id,
-        action=action,
-        implementation=implementation,
+        action=action.id if action else None,
+        implementation=implementation.id if implementation else None,
         reservation=reservation,  # type: ignore
-        args=kwargs,
+        args=kwargs or {},
         reference=reference,
-        hooks=hooks or [],
+        hooks=tuple(hooks or []),
         cached=cached,
-        parent=parent,
+        parent=ID.validate(parent.assignation) if parent else None,
         log=log,
         isHook=False,
         ephemeral=False,
@@ -115,7 +117,7 @@ async def acall_raw(
 
 
 async def aiterate_raw(
-    kwargs: Dict[str, Any] = None,
+    kwargs: Dict[str, Any] | None = None,
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
@@ -123,16 +125,18 @@ async def aiterate_raw(
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
-    assign_timeout: Optional[int] = None,
+    assign_timeout: Optional[float] = None,
     timeout_is_recoverable: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
 ) -> AsyncGenerator[AssignationEvent, None]:
     """Async generator that yields the results of the assignation"""
-    postman: Postman = postman or get_current_postman()
+    postman = postman or get_current_postman()
+    if not postman:
+        raise ValueError("Postman is not set")
 
     try:
-        parent = useAssignation()
+        parent = useAssign()
     except NotWithinAnAssignationError:
         # If we are not within an assignation, we can set the parent to None
         parent = None
@@ -141,14 +145,14 @@ async def aiterate_raw(
 
     x = AssignInput(
         instanceId=postman.instance_id,
-        action=action,
-        implementation=implementation,
+        action=action.id if action else None,
+        implementation=implementation.id if implementation else None,
         reservation=reservation,  # type: ignore
-        args=kwargs,
+        args=kwargs or {},
         reference=reference,
-        hooks=hooks or [],
+        hooks=tuple(hooks or []),
         cached=cached,
-        parent=parent,
+        parent=ID.validate(parent.assignation) if parent else None,
         log=log,
         isHook=False,
         ephemeral=False,
@@ -156,6 +160,7 @@ async def aiterate_raw(
 
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
+            assert i.returns is not None, "YIELD event must have returns"
             yield i.returns
 
         if i.kind == AssignationEventKind.DONE:
@@ -166,16 +171,16 @@ async def aiterate_raw(
 
 
 async def acall(
-    action_implementation_res: Union[Action, Implementation, Reservation] = None,
-    *args,  # noqa: ANN002
+    action_implementation_res: Union[Action, Implementation, Reservation],
+    *args: Any,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
-    parent: bool = None,
+    parent: Assign | None = None,
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
-    **kwargs,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN003
 ) -> tuple[Any]:
     """Call the assignation function"""
     action = None
@@ -192,7 +197,7 @@ async def acall(
         action = action_implementation_res.action
         reservation = action_implementation_res
 
-    elif isinstance(action_implementation_res, Action):
+    elif isinstance(action_implementation_res, Action):  # type: ignore
         # If the action is a action, we need to find the action
         action = action_implementation_res
     else:
@@ -224,15 +229,15 @@ async def acall(
 
 
 async def aiterate(
-    action_implementation_res: Union[Action, Implementation, Reservation] = None,
-    *args,  # noqa: ANN002
+    action_implementation_res: Union[Action, Implementation, Reservation],
+    *args: Any,  # noqa: ANN002
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
-    parent: bool = None,
+    parent: Assign | None = None,
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
-    **kwargs,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN003
 ) -> AsyncGenerator[tuple[Any], None]:
     """Async generator that yields the results of the assignation"""
     action = None
@@ -249,7 +254,7 @@ async def aiterate(
         action = action_implementation_res.action
         reservation = action_implementation_res
 
-    elif isinstance(action_implementation_res, Action):
+    elif isinstance(action_implementation_res, Action):  # type: ignore
         # If the action is a action, we need to find the action
         action = action_implementation_res
     else:
@@ -264,7 +269,7 @@ async def aiterate(
         action, args, kwargs, structure_registry=structure_registry
     )
 
-    async for i in await aiterate_raw(
+    async for i in aiterate_raw(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
@@ -275,33 +280,61 @@ async def aiterate(
         parent=parent,
         log=log,
     ):
-        yield aexpand_returns(action, i, structure_registry=structure_registry)
+        assert i.returns, "YIELD event must have returns"
+        yield await aexpand_returns(
+            action, i.returns, structure_registry=structure_registry
+        )
 
 
 def call(
-    *args,  # noqa: ANN002
-    **kwargs,  # noqa: ANN003
+    action_implementation_res: Union[Action, Implementation, Reservation],
+    *args: Any,  # noqa: ANN002
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Assign | None = None,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    postman: Optional[Postman] = None,
+    **kwargs: Any,  # noqa: ANN003
 ) -> Any:  # noqa: ANN002, ANN003, ANN401
     """Call the assignation function"""
     return unkoil(
         acall,
+        action_implementation_res,
         *args,
+        reference=reference,
+        hooks=hooks,
+        cached=cached,
+        parent=parent,
+        log=log,
+        structure_registry=structure_registry,
+        postman=postman,
         **kwargs,
     )
 
 
 def iterate(
-    *args,  # noqa: ANN002
-    **kwargs,  # noqa: ANN003
+    action_implementation_res: Union[Action, Implementation, Reservation],
+    *args: Any,  # noqa: ANN002
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Assign | None = None,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    **kwargs: Any,  # noqa: ANN003
 ) -> Generator[Any, None, None]:
     """Iterate over the results of the assignation"""
     return unkoil_gen(
         aiterate,
+        action_implementation_res,
         *args,
+        reference=reference,
+        hooks=hooks,
+        cached=cached,
+        parent=parent,
+        log=log,
+        structure_registry=structure_registry,
         **kwargs,
     )
-
-
-def call_raw(*args, **kwargs) -> Any:  # noqa: ANN002, ANN003, ANN401
-    """Call the raw assignation function"""
-    return unkoil(acall_raw, *args, **kwargs)

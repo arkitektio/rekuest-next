@@ -1,13 +1,14 @@
 """Types for the structures module."""
 
+from enum import Enum
 from typing import Protocol, Optional, List, Union
+from rath.scalars import ID
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ChoiceInput,
     ReturnWidgetInput,
-    PortKind,
 )
-from pydantic import BaseModel, ConfigDict, model_validator, ValidationInfo
+from pydantic import BaseModel, ConfigDict, Field
 from typing import (
     Any,
     Awaitable,
@@ -16,7 +17,18 @@ from typing import (
     runtime_checkable,
 )
 
-JSONSerializable = Union[str, int, float, bool, None, dict, list]
+JSONSerializable = Union[
+    str, int, float, bool, None, dict[str, "JSONSerializable"], list["JSONSerializable"]
+]
+
+
+@runtime_checkable
+class Expandable(Protocol):
+    """A callable that takes a set of keyword arguments to initialize the object."""
+
+    def __init__(self, **value: Any) -> None:
+        """Initialize the Expandable with the value."""
+        ...
 
 
 @runtime_checkable
@@ -56,7 +68,7 @@ class Expander(Protocol):
     """A callable that takes a string and returns the original value,
     which can be deserialized from json."""
 
-    def __call__(self, value: str) -> Awaitable[Any]:
+    def __call__(self, id: ID) -> Awaitable[Any]:
         """Convert a string representation back to the original value."""
 
         ...
@@ -70,10 +82,10 @@ class FullFilledStructure(BaseModel):
     aexpand and ashrink can be None.
     """
 
-    cls: Type
+    cls: Type[object]
     identifier: str
-    aexpand: Expander | None
-    ashrink: Shrinker | None
+    aexpand: Expander
+    ashrink: Shrinker
     description: Optional[str]
     predicate: Callable[[Any], bool]
     convert_default: Callable[[Any], str] | None
@@ -81,34 +93,16 @@ class FullFilledStructure(BaseModel):
     default_returnwidget: Optional[ReturnWidgetInput]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    @model_validator(mode="after")
-    def validate_cls(
-        cls, value: "FullFilledType", info: ValidationInfo
-    ) -> "FullFilledType":
-        """Validate the class to make sure it has the required methods if it is a global structure."""
-        if value.aexpand is None and value.kind == PortKind.STRUCTURE:
-            raise ValueError(
-                f"You need to pass 'expand' method or {cls.cls} needs to implement a"
-                " aexpand method if it wants to become a structure"
-            )
-        if value.ashrink is None and value.kind == PortKind.STRUCTURE:
-            raise ValueError(
-                f"You need to pass 'ashrink' method or {cls.cls} needs to implement a"
-                " ashrink method if it wants to become a GLOBAL structure"
-            )
-
-        return value
-
 
 class FullFilledEnum(BaseModel):
     """A fullfiled enum that can be used to serialize and deserialize"""
 
-    cls: Type
+    cls: Type[Enum]
     identifier: str
     description: Optional[str]
     choices: List[ChoiceInput]
     predicate: Predicator
-    convert_default: DefaultConverter | None
+    convert_default: Callable[[Any], str]
     default_widget: Optional[AssignWidgetInput]
     default_returnwidget: Optional[ReturnWidgetInput]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -117,20 +111,20 @@ class FullFilledEnum(BaseModel):
 class FullFilledMemoryStructure(BaseModel):
     """A fullfiled memory structure that can be used to serialize and deserialize"""
 
-    cls: Type
+    cls: Type[Any]
     identifier: str
     predicate: Predicator
     description: Optional[str]
-    convert_default: DefaultConverter | None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
 class FullFilledModel(BaseModel):
     """A fullfiled model that can be used to serialize and deserialize"""
 
-    cls: Type
+    cls: Type[Expandable]
     identifier: str
     predicate: Predicator
+    description: Optional[str] = Field(default=None)
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 

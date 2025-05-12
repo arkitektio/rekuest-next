@@ -6,14 +6,14 @@ readme-content-type = "text/markdown"
 homepage = "https://arkitekt.live"
 description = "rpc and node backbone"
 authors = [{ name = "jhnnsrs", email = "jhnnsrs@gmail.com" }]
-requires-python = ">=3.9, <4.0"
+requires-python = ">=3.11, <4.0"
 license = "GPL-3.0-or-later"
 dependencies = [
     "docstring-parser>=0.11",
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=2",
+    "rath>=3.2",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
     "koil>=1.0.2",
@@ -35,7 +35,7 @@ dev-dependencies =  [
     "aiohttp>=3.8.3,<4",
     "black>=23.1.0,<24",
     "pytest-aiohttp>=1.0.4,<2",
-    "ruff>=0.0.254,<0.0.255",
+    "ruff>0.11",
 ]
 
 

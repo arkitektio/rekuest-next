@@ -1,7 +1,7 @@
 """The base class for all agent extensions."""
 
 from typing import List, runtime_checkable, Protocol, Optional
-from rekuest_next.actors.base import Actor
+from rekuest_next.actors.types import Actor
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 
@@ -16,7 +16,7 @@ class AgentExtension(Protocol):
 
     cleanup: bool = False
 
-    async def astart(self) -> None:
+    async def astart(self, instance_id: str) -> None:
         """This should be called when the agent starts"""
         ...
 
@@ -34,12 +34,13 @@ class AgentExtension(Protocol):
         Returns:
             List[ImplementationInput]: The implementations for this extension.
         """
+        ...
 
     async def aspawn_actor_for_interface(
         self,
         agent: "BaseAgent",
         interface: str,
-    ) -> Optional[Actor]:
+    ) -> Actor:
         """This should create an actor from a implementation and return it.
 
         The actor should not be started!

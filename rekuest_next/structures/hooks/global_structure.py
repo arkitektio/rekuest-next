@@ -1,17 +1,14 @@
 """Global Structure Hook"""
 
 from typing import (
+    Protocol,
     Type,
 )
 from pydantic import BaseModel
+from rekuest_next.scalars import Identifier
 from rekuest_next.structures.types import FullFilledStructure
-from rekuest_next.structures.utils import build_instance_predicate
+from rekuest_next.structures.utils import build_instance_predicate, id_shrink
 from .errors import HookError
-
-
-async def id_shrink(self: BaseModel) -> str:
-    """Convert a structure with an id to a string repesentaiton by using the id"""
-    return self.id
 
 
 def identity_default_converter(x: str) -> str:
@@ -25,6 +22,18 @@ class GlobalStructureHookError(HookError):
     pass
 
 
+class Identifiable(Protocol):
+    @classmethod
+    def get_identifier(cls) -> Identifier:
+        """Get the identifier of the object."""
+        ...
+
+    @classmethod
+    async def aexpand(cls, value: object) -> "Identifiable":
+        """Expand the value to its string representation."""
+        ...
+
+
 class GlobalStructureHook(BaseModel):
     """The Standard Hook is a hook that can be registered to the structure registry.
 
@@ -34,7 +43,7 @@ class GlobalStructureHook(BaseModel):
 
     """
 
-    def is_applicable(self, cls: Type) -> bool:
+    def is_applicable(self, cls: Type[object]) -> bool:
         """Given a class, return True if this hook is applicable to it"""
         if not hasattr(cls, "aexpand"):
             return False
@@ -49,28 +58,29 @@ class GlobalStructureHook(BaseModel):
 
     def apply(
         self,
-        cls: Type,
+        cls: Type[object],
     ) -> FullFilledStructure:
         """Apply the hook to the class and return a FullFilledStructure."""
+
         if hasattr(cls, "get_identifier"):
-            identifier = cls.get_identifier()
+            identifier: Identifier = cls.get_identifier()  # type: ignore
         else:
             raise GlobalStructureHookError(
                 f"Class {cls} does not have a get_identifier method"
             )
 
         if hasattr(cls, "get_default_widget"):
-            default_widget = cls.get_default_widget()
+            default_widget = cls.get_default_widget()  # type: ignore
         else:
             default_widget = None
 
         if hasattr(cls, "get_default_returnwidget"):
-            default_returnwidget = cls.get_default_returnwidget()
+            default_returnwidget = cls.get_default_returnwidget()  # type: ignore
         else:
             default_returnwidget = None
 
         if hasattr(cls, "convert_default"):
-            convert_default = cls.convert_default
+            convert_default = cls.convert_default  # type: ignore
 
         convert_default = identity_default_converter
 
@@ -91,12 +101,12 @@ class GlobalStructureHook(BaseModel):
 
         return FullFilledStructure(
             cls=cls,
-            identifier=identifier,
+            identifier=identifier,  # type: ignore
             aexpand=aexpand,
             ashrink=ashrink,
             predicate=predicate,
             description=None,
             convert_default=convert_default,
-            default_widget=default_widget,
-            default_returnwidget=default_returnwidget,
+            default_widget=default_widget,  # type: ignore
+            default_returnwidget=default_returnwidget,  # type: ignore
         )

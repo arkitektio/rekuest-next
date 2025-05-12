@@ -31,13 +31,6 @@ if TYPE_CHECKING:
     pass
 
 
-class ArkitektNextRekuestNext(RekuestNext):
-    """ArkitektNextRekuestNext class."""
-
-    rath: RekuestNextRath
-    agent: BaseAgent
-
-
 def build_relative_path(*path: str) -> str:
     """Build a relative path to the current file."""
     return os.path.join(os.path.dirname(__file__), *path)
@@ -56,7 +49,7 @@ class RekuestNextService(BaseArkitektService):
 
     def build_service(
         self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
-    ) -> "ArkitektNextRekuestNext":
+    ) -> "RekuestNext":
         """Build the service."""
         instance_id = params.get("instance_id", "default")
 
@@ -81,14 +74,14 @@ class RekuestNextService(BaseArkitektService):
                 fakts=fakts,
                 herre=herre,
                 endpoint_url="FAKE_URL",
-                instance_id=instance_id,
+                token_loader=herre.aget_token,
             ),
             instance_id=instance_id,
             rath=rath,
             name=f"{manifest.identifier}:{manifest.version}",
         )
 
-        return ArkitektNextRekuestNext(
+        return RekuestNext(
             rath=rath,
             agent=agent,
             postman=GraphQLPostman(
@@ -113,7 +106,7 @@ class RekuestNextService(BaseArkitektService):
         with open(schema_graphql_path) as f:
             return f.read()
 
-    def get_turms_project(self) -> dict:
+    def get_turms_project(self):
         """Get the turms project for this service."""
         turms_prject = build_relative_path("api", "project.json")
         with open(turms_prject) as f:

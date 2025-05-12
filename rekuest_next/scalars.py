@@ -1,13 +1,14 @@
-"""This module contains the custom scalars for the rekuest_next library."""
+"""This module mirros exactly the scalars used in the  rekuest_next library."""
 
 from graphql import (
     DocumentNode,
+    FieldNode,
     parse,
     OperationDefinitionNode,
     OperationType,
     print_ast,
     print_source_location,
-    GraphQLError,
+    GraphQLSyntaxError,
 )
 from typing import Callable, Dict, Any, Union
 
@@ -32,15 +33,15 @@ class Interface(str):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        self,
+        cls,
         source_type: Any,  # noqa: ANN401
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the interface"""
-        return core_schema.no_info_after_validator_function(self.validate, handler(str))
+        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: Union[str, Callable]) -> str:
+    def validate(cls, v: Union[str, Callable[[Any], Any]]) -> str:
         """Validate the interface"""
         if not isinstance(v, str):
             if hasattr(v, "__name__"):
@@ -61,24 +62,21 @@ class Identifier(str):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        self,
+        cls,
         source_type: Any,  # noqa: ANN401
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the identifier"""
-        return core_schema.no_info_after_validator_function(self.validate, handler(str))
+        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: str) -> str:
+    def validate(cls, v: str) -> "Identifier":
         """Validate the identifier"""
-        if not isinstance(v, str):
-            raise TypeError("Identifier must be a string")
         if "@" in v and "/" not in v:
             raise ValueError(
-                "Identifier must contain follow '@package/module' when trying to mimic"
-                " a global module "
+                "Identifier must contain follow '@package/module' when trying to mimic a global module "
             )
-        return v
+        return Identifier(v)
 
 
 class ValidatorFunction(str):
@@ -87,18 +85,16 @@ class ValidatorFunction(str):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        self,
+        cls,
         source_type: Any,  # noqa: ANN401
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(self.validate, handler(str))
+        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
     def validate(cls, v: str) -> str:
         """Validate the validator function"""
-        if not isinstance(v, str):
-            raise TypeError("ValidatorFunction must be a string")
 
         if not (v.startswith("(") or ("=>" not in v)):
             raise ValueError("ValidatorFunction must be an arrow function or block function")
@@ -131,12 +127,14 @@ def parse_or_raise(v: str) -> DocumentNode:
     """
     try:
         return parse(v)
-    except GraphQLError as e:
+    except GraphQLSyntaxError as e:
         x = repr(e)
         x += "\n" + v + "\n"
-        for loc in e.locations:
-            x += "\n" + print_source_location(e.source, loc)
-        raise ValueError("Could not parse to graphql: \n" + x)
+        if e.locations:
+            for loc in e.locations:
+                if e.source:
+                    x += "\n" + print_source_location(e.source, loc)
+        raise ValueError("Could not parse to graphql: \n" + x) from e
 
 
 class SearchQuery(str):
@@ -160,47 +158,48 @@ class SearchQuery(str):
 
     @classmethod
     def __get_pydantic_core_schema__(  # noqa: D105
-        self,
+        cls,
         source_type: Any,  # noqa: ANN401
         handler: GetCoreSchemaHandler,  # noqa: ANN401
     ) -> CoreSchema:
         """Get the pydantic core schema for the search query"""
-        return core_schema.no_info_after_validator_function(self.validate, handler(str))
+        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: Union[str, DocumentNode]) -> str:
+    def validate(cls, v: Union[str, DocumentNode, Any]) -> "SearchQuery":
         """Validate the search query"""
         if not isinstance(v, str) and not isinstance(v, DocumentNode):
-            raise TypeError("Search query must be either a str or a graphql DocumentAction")
+            raise ValueError("Search query must be either a str or a graphql DocumentAction")
         if isinstance(v, str):
             v = parse_or_raise(v)
 
         if not v.definitions or len(v.definitions) > 1:
             raise ValueError("Only one definintion allowed")
 
-        if not isinstance(v.definitions[0], OperationDefinitionNode):
-            raise ValueError("Needs an operation")
+        if len(v.definitions) == 0:
+            raise ValueError("No definition found")
 
         definition = v.definitions[0]
         if not definition:
             raise ValueError("Specify an operation")
 
+        if not isinstance(definition, OperationDefinitionNode):
+            raise ValueError("Needs an operation")
+
         if not definition.operation == OperationType.QUERY:
             raise ValueError("Needs to be operation")
 
-        assert len(definition.variable_definitions) >= 2, (
-            "At least two arguments should be provided ($search: String, $values:"
-            f" [ID])): Was given: {print_ast(v)}"
-        )
+        if len(definition.variable_definitions) < 2:
+            raise ValueError(
+                f"At least two arguments should be provided ($search: String, $values: [ID])): Was given: {print_ast(v)}"
+            )
 
         if (
             definition.variable_definitions[0].variable.name.value != "search"
             or definition.variable_definitions[0].type.kind != "named_type"
         ):
             raise ValueError(
-                "First parameter of search function should be '$search: String' if you"
-                " provide arguments for your options. This parameter will be filled"
-                f" with userinput: Was given: {print_ast(v)}"
+                f"First parameter of search function should be '$search: String' if you provide arguments for your options. This parameter will be filled with userinput: Was given: {print_ast(v)}"
             )
 
         if (
@@ -208,12 +207,13 @@ class SearchQuery(str):
             or definition.variable_definitions[0].type.kind != "named_type"
         ):
             raise ValueError(
-                "Seconrd parameter of search function should be '$values: [ID]' if you"
-                " provide arguments for your options. This parameter will be filled"
-                f" with the default values: Was given: {print_ast(v)}"
+                f"Seconrd parameter of search function should be '$values: [ID]' if you provide arguments for your options. This parameter will be filled with the default values: Was given: {print_ast(v)}"
             )
 
         wrapped_query = definition.selection_set.selections[0]
+
+        if not isinstance(wrapped_query, FieldNode):
+            raise ValueError(f"Wrapped query should be a field node: Was given: {print_ast(v)}")
 
         options_value = (
             wrapped_query.alias.value if wrapped_query.alias else wrapped_query.name.value
@@ -223,19 +223,25 @@ class SearchQuery(str):
                 f"First element of query should be 'options':  Was given: {print_ast(v)}"
             )
 
+        if not wrapped_query.selection_set:
+            raise ValueError(
+                f"Wrapped query should contain a selection set: Was given: {print_ast(v)}"
+            )
+
         wrapped_selection = wrapped_query.selection_set.selections
+
         aliases = [
-            field.alias.value if field.alias else field.name.value for field in wrapped_selection
+            field.alias.value if field.alias else field.name.value
+            for field in wrapped_selection
+            if isinstance(field, FieldNode)
         ]
         if "value" not in aliases:
             raise ValueError(
-                "Searched query needs to contain a 'value' not that corresponds to the"
-                " selected value"
+                "Searched query needs to contain a 'value' not that corresponds to the selected value"
             )
         if "label" not in aliases:
             raise ValueError(
-                "Searched query needs to contain a 'label' that corresponds to the"
-                " displayed value to the user"
+                "Searched query needs to contain a 'label' that corresponds to the displayed value to the user"
             )
 
-        return print_ast(v)
+        return SearchQuery(print_ast(v))

@@ -1,11 +1,13 @@
 """Context management for Rekuest Next."""
 
-from typing import Type, TypeVar, Callable
+from typing import Tuple, Type, TypeVar, Callable
 from typing import Dict, Any, overload
 import inspect
 
+from rekuest_next.protocols import AnyContext, AnyFunction
 
-T = TypeVar("T")
+
+T = TypeVar("T", bound=AnyContext)
 
 
 def is_context(cls: Type[T]) -> bool:
@@ -23,7 +25,7 @@ def get_context_name(cls: Type[T]) -> str:
 
 
 @overload
-def context(cls: Type[T]) -> Type[T]:
+def context(*clss: Type[T]) -> Type[T]:
     """Decorator to mark a class as a context.
 
     Args:
@@ -34,7 +36,7 @@ def context(cls: Type[T]) -> Type[T]:
 
 
 @overload
-def context(name: str) -> Callable[[Type[T]], Type[T]]:
+def context(*, name: str | None = None) -> Callable[[Type[T]], Type[T]]:
     """Decorator to mark a class as a context.
 
     Args:
@@ -43,16 +45,18 @@ def context(name: str) -> Callable[[Type[T]], Type[T]]:
     ...
 
 
-def context(*func, name: str = None) -> Callable[[Type[T]], Type[T]]:
+def context(
+    *clss: Type[T], name: str | None = None
+) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Decorator to mark a class as a context.
 
     Args:
         cls (Type[T]): The class to mark as a context.
         name (str): The name of the context. If not provided, the class name will be used.
     """
-    if len(func) == 1 and not isinstance(func[0], str):
-        cls = func[0]
-        setattr(cls, "__rekuest_context__", cls.__name__)
+    if len(clss) == 1 and not isinstance(clss[0], str):
+        cls = clss[0]
+        setattr(cls, "__rekuest_context__", cls.__name__)  # type: ignore
 
         return cls
 
@@ -65,7 +69,9 @@ def context(*func, name: str = None) -> Callable[[Type[T]], Type[T]]:
         return wrapper
 
 
-def prepare_context_variables(function: Callable) -> Dict[str, Any]:
+def prepare_context_variables(
+    function: AnyFunction,
+) -> Tuple[Dict[str, Any], Dict[int, Any]]:
     """Prepares the context variables for a function.
 
     Args:
@@ -77,8 +83,8 @@ def prepare_context_variables(function: Callable) -> Dict[str, Any]:
     sig = inspect.signature(function)
     parameters = sig.parameters
 
-    state_variables = {}
-    state_returns = {}
+    state_variables: Dict[str, str] = {}
+    state_returns: Dict[int, str] = {}
 
     for key, value in parameters.items():
         cls = value.annotation
@@ -91,9 +97,9 @@ def prepare_context_variables(function: Callable) -> Dict[str, Any]:
         if returns._name == "Tuple":
             for index, cls in enumerate(returns.__args__):
                 if is_context(cls):
-                    state_returns[index] = cls.__rekuest_state__
+                    state_returns[index] = cls.__rekuest_context__
         else:
             if is_context(returns):
-                state_returns[0] = returns.__rekuest_state__
+                state_returns[0] = returns.__rekuest_context__
 
     return state_variables, state_returns

@@ -15,9 +15,13 @@ from .structures.model import model
 from .state.decorator import state
 
 try:
-    from .arkitekt import ArkitektNextRekuestNext
-except ImportError:
-    pass
+    from .arkitekt import RekuestNextService
+except ImportError as e:
+    RekuestNextService = None
+    print(
+        "RekuestNextService not available. Please install arkitekt_next to use this feature."
+    )
+    print(f"Error: {e}")
 from .structure import structure_reg
 
 __version__ = "0.4.1"
@@ -25,13 +29,10 @@ __version__ = "0.4.1"
 __all__ = [
     "acall",
     "state",
-    "areserve",
-    "reserved",
+    "RekuestNextService",
     "call",
-    "structur_reg",
-    "imported",
+    "structure_reg",
     "iterate",
-    "ArkitektNextRekuestNext",
     "aiterate",
     "model",
     "acall_raw",

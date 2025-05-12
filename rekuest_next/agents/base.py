@@ -7,21 +7,21 @@ for managing the lifecycle of the actors that are spawned from it.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from types import TracebackType
+from typing import Any, Dict, Optional, Self
 import uuid
 
 from pydantic import ConfigDict, Field
 
 from koil import unkoil
 from koil.composition import KoiledModel
-from rekuest_next.actors.base import Actor
-from rekuest_next.actors.types import Passport
+from rekuest_next.actors.types import Passport, Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.registry import (
     ExtensionRegistry,
     get_default_extension_registry,
 )
-from rekuest_next.agents.transport.base import AgentTransport, Contextual
+from rekuest_next.agents.transport.base import AgentTransport
 from rekuest_next.api.schema import (
     Implementation,
     Agent,
@@ -32,7 +32,12 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next import messages
 from rekuest_next.rath import RekuestNextRath
-from .transport.errors import CorrectableConnectionFail, DefiniteConnectionFail
+from rekuest_next.scalars import Identifier
+from .transport.errors import (
+    AgentTransportException,
+    CorrectableConnectionFail,
+    DefiniteConnectionFail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,27 +75,35 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
+    extension_registry: ExtensionRegistry = Field(
+        default_factory=get_default_extension_registry
+    )
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
+    interface_implementation_map: Dict[str, Implementation] = Field(
+        default_factory=dict
+    )
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps assignation to actor id"
     )
-    _inqueue: Contextual[asyncio.Queue] = None
-    _errorfuture: Contextual[asyncio.Future] = None
-    _contexts: Dict[str, Any] = None
-    _states: Dict[str, Any] = None
-    _agent: Contextual[Agent] = None
+    managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
+        default_factory=dict,
+        description="Maps actor id to the task that is running the actor",
+    )
+    _inqueue: Optional[asyncio.Queue[messages.ToAgentMessage]] = None
+    _errorfuture: Optional[asyncio.Future[Exception]] = None
+    _contexts: Dict[str, Any] | None = None
+    _states: Dict[str, Any] | None = None
+    _agent: Optional[Agent] = None
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def aput_on_shelve(
         self,
-        identifier: str,
+        identifier: Identifier,
         value: Any,  # noqa: ANN401
     ) -> str:  # noqa: ANN401
         """Get the shelve for the agent. This is used to get the shelve
@@ -115,7 +128,7 @@ class BaseAgent(KoiledModel):
             description=description,
             rath=self.rath,
         )
-        
+
         self.shelve[drawer.id] = value
 
         return drawer.id
@@ -142,16 +155,18 @@ class BaseAgent(KoiledModel):
         queue. The agent will then process the message and send it to the
         actors.
         """
+        if self._inqueue is None:
+            raise AgentException("Agent is not started yet")
 
         await self._inqueue.put(message)
 
-    async def on_agent_error(self, exception: Exception) -> None:
+    async def on_agent_error(self, error: AgentTransportException) -> None:
         """Called when an error occurs in the agent. This
         can be used to handle errors that occur in the agent
         """
         if self._errorfuture is None or self._errorfuture.done():
             return
-        self._errorfuture.set_exception(exception)
+        self._errorfuture.set_exception(error)
         ...
 
     async def on_definite_error(self, error: DefiniteConnectionFail) -> None:
@@ -187,7 +202,37 @@ class BaseAgent(KoiledModel):
         """
         logger.info(f"Agent received {message}")
 
-        if isinstance(message, messages.Assign):
+        if isinstance(message, messages.Init):
+            for inquiry in message.inquiries:
+                if inquiry.assignation in self.managed_assignments:
+                    assignment = self.managed_assignments[inquiry.assignation]
+                    actor = self.managed_actors[assignment.actor_id]
+
+                    # Checking status
+                    status = await actor.acheck_assignation(assignment.assignation)
+                    if status:
+                        await self.transport.asend(
+                            messages.ProgressEvent(
+                                assignation=inquiry.assignation,
+                                message="Actor is still running",
+                            )
+                        )
+                    else:
+                        await self.transport.asend(
+                            messages.CriticalEvent(
+                                assignation=inquiry.assignation,
+                                error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
+                            )
+                        )
+                else:
+                    await self.transport.asend(
+                        messages.CriticalEvent(
+                            assignation=inquiry.assignation,
+                            error="After disconnect actor was no longer managed (probably the app was restarted)",
+                        )
+                    )
+
+        elif isinstance(message, messages.Assign):
             if message.actor_id in self.managed_actors:
                 actor = self.managed_actors[message.actor_id]
                 self.managed_assignments[message.assignation] = message
@@ -223,7 +268,7 @@ class BaseAgent(KoiledModel):
             else:
                 logger.warning(
                     "Received unassignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message.provision}"
+                    f"Managed: {self.provision_passport_map} Received: {message.assignation}"
                 )
                 await self.transport.asend(
                     messages.CriticalEvent(
@@ -242,7 +287,7 @@ class BaseAgent(KoiledModel):
                 actor = self.managed_actors[assignment.actor_id]
 
                 # Checking status
-                status = await actor.is_assignment_still_running(assignment)
+                status = await actor.acheck_assignation(assignment.assignation)
                 if status:
                     await self.transport.asend(
                         messages.ProgressEvent(
@@ -265,9 +310,6 @@ class BaseAgent(KoiledModel):
                     )
                 )
 
-        elif isinstance(message, messages.Collect):
-            await self.shelve.adelete(message.assignation)
-
         else:
             raise AgentException(f"Unknown message type {type(message)}")
 
@@ -275,13 +317,15 @@ class BaseAgent(KoiledModel):
         """Tears down the agent. This is used to tear down the agent
         and all the actors that are spawned from it.
         """
+        logger.info("Tearing down the agent")
 
-        cancelations = [actor.acancel() for actor in self.managed_actors.values()]
+        for actor_task in self.managed_actor_tasks.values():
+            actor_task.cancel()
         # just stopping the actor, not cancelling the provision..
 
-        for c in cancelations:
+        for actor_task in self.managed_actor_tasks.values():
             try:
-                await c
+                await actor_task
             except asyncio.CancelledError:
                 pass
 
@@ -298,8 +342,8 @@ class BaseAgent(KoiledModel):
     async def __aexit__(
         self,
         exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
     ) -> None:
         """Exit the agent.
 
@@ -315,7 +359,7 @@ class BaseAgent(KoiledModel):
         await self.atear_down()
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def aregister_definitions(self, instance_id: Optional[str] = None) -> None:
+    async def aregister_definitions(self, instance_id: str) -> None:
         """Register all implementations that are handled by extensiosn
 
         This method is called by the agent when it starts and it is responsible for
@@ -345,8 +389,12 @@ class BaseAgent(KoiledModel):
             )
 
             for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = implementation
-                self.implementation_interface_map[implementation.id] = implementation
+                self.interface_implementation_map[implementation.interface] = (
+                    implementation
+                )
+                self.implementation_interface_map[implementation.id] = (
+                    implementation.interface
+                )
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
@@ -359,10 +407,10 @@ class BaseAgent(KoiledModel):
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
         """
-        instance_id = self.instance_id
+        instance_id = instance_id or self.instance_id
 
         for extension in self.extension_registry.agent_extensions.values():
-            await extension.astart(instance_id)
+            await extension.astart(instance_id=instance_id)
 
         await self.aregister_definitions(instance_id=instance_id)
 
@@ -374,12 +422,14 @@ class BaseAgent(KoiledModel):
         spawining protocol within an actor. But maps implementation"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
+            raise ProvisionException(
+                f"Extension {assign.extension} not found in agent {self.name}"
+            )
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
 
-        await actor.arun()  # TODO: Maybe move this outside?
+        await actor.arun()
         self.managed_actors[assign.actor_id] = actor
         self.managed_assignments[assign.assignation] = assign
 
@@ -387,21 +437,32 @@ class BaseAgent(KoiledModel):
 
     async def await_errorfuture(self) -> Exception:
         """Waits for the error future to be set. This is used to wait for"""
+        if self._errorfuture is None:
+            raise AgentException("Error future is not set")
+
         return await self._errorfuture
 
     async def astep(self) -> None:
         """Async step that runs the agent. This is used to run the agent"""
+        if self._inqueue is None or self._errorfuture is None:
+            raise AgentException("Agent is not started yet")
+
         queue_task = asyncio.create_task(self._inqueue.get(), name="queue_future")
         error_task = asyncio.create_task(self.await_errorfuture(), name="error_future")
-        done, pending = await asyncio.wait(
+        done, _ = await asyncio.wait(
             [queue_task, error_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
         if self._errorfuture.done():
-            raise self._errorfuture.exception()
+            exception = self._errorfuture.exception()
+            if exception is not None:
+                raise exception
+            else:
+                raise AgentException("Agent was cancelled")
         else:
-            await self.process(await done.pop())
+            # TODO: Check if the task was cancelled
+            await self.process(await done.pop())  # type: ignore
 
     def provide(self, instance_id: Optional[str] = None) -> None:
         """Provides the agent. This starts the agents and
@@ -426,9 +487,14 @@ class BaseAgent(KoiledModel):
         It also starts the agent and starts listening for messages from the transport.
 
         """
+        if instance_id is not None:
+            self.instance_id = instance_id
+
         try:
-            logger.info(f"Launching provisioning task. We are running {self.transport.instance_id}")
-            await self.astart(instance_id=instance_id)
+            logger.info(
+                f"Launching provisioning task. We are running {self.instance_id}"
+            )
+            await self.astart(instance_id=self.instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()
         except asyncio.CancelledError:
@@ -436,7 +502,7 @@ class BaseAgent(KoiledModel):
             await self.atear_down()
             raise
 
-    async def __aenter__(self) -> None:
+    async def __aenter__(self) -> Self:
         """Enter the agent context manager. This is used to enter the agent
 
         context manager and start the agent. The agent will then start the

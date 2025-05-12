@@ -4,7 +4,7 @@ from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
 from typing import AsyncIterator
 from rekuest_next.actors.vars import (
-    current_assignment,
+    current_assignation_helper,
 )
 
 
@@ -13,17 +13,16 @@ class SetAssignationLink(ContinuationLink):
 
     header_name: str = "x-assignation-id"
 
-    async def aconnect(self) -> None:
-        """Connect the link"""
-        pass
-
-    async def aexecute(self, operation: Operation, **kwargs) -> AsyncIterator[GraphQLResult]:  # noqa: ANN003
+    async def aexecute(self, operation: Operation) -> AsyncIterator[GraphQLResult]:  # noqa: ANN003
         """Execute the link"""
+        if not self.next:
+            raise ValueError("Next link is not set")
+
         try:
-            assignment = current_assignment.get()
+            assignment = current_assignation_helper.get()
             operation.context.headers[self.header_name] = assignment.assignation
         except LookupError:
             pass
 
-        async for result in self.next.aexecute(operation, **kwargs):
+        async for result in self.next.aexecute(operation):
             yield result

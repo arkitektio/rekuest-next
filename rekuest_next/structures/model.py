@@ -2,13 +2,13 @@
 be used to mark a class as a model."""
 
 from dataclasses import dataclass
-from fieldz import fields, Field
-from typing import Any, List, Optional, TypeVar
+from fieldz import fields, Field  # type: ignore
+from typing import Any, List, Optional, Type, TypeVar
 import inflection
 from pydantic import BaseModel
 
 
-T = TypeVar("T", bound=object)
+T = TypeVar("T", bound=Type[Any])
 
 
 def model(cls: T) -> T:
@@ -19,7 +19,7 @@ def model(cls: T) -> T:
         fields(cls)
     except TypeError:
         try:
-            return model(dataclass(cls))
+            return model(dataclass(cls))  # type: ignore
         except TypeError:
             raise TypeError(
                 "Models must be serializable by fieldz in order to be used in rekuest_next."
@@ -30,7 +30,7 @@ def model(cls: T) -> T:
     return cls
 
 
-def is_model(cls: T) -> bool:
+def is_model(cls: Type[Any]) -> bool:
     """Check if a class is a model."""
 
     return getattr(cls, "__rekuest_model__", False)
@@ -53,12 +53,12 @@ class InspectedArg(BaseModel):
     description: Optional[str]
 
 
-def inspect_args_for_model(cls: T) -> List[InspectedArg]:
+def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
     """Retrieve the arguments for a model."""
-    children_clses = fields(cls)
+    children_classes: tuple[Field[Any], ...] = fields(cls)
 
-    args = []
-    for field in children_clses:
+    args: list[InspectedArg] = []
+    for field in children_classes:
         args.append(
             InspectedArg(
                 cls=field.annotated_type or field.type,
@@ -70,7 +70,7 @@ def inspect_args_for_model(cls: T) -> List[InspectedArg]:
     return args
 
 
-def inspect_model_class(cls: T) -> InspectedModel:
+def inspect_model_class(cls: Type[Any]) -> InspectedModel:
     """Retrieve the fullfilled model for a class."""
     return InspectedModel(
         identifier=cls.__rekuest_model__,

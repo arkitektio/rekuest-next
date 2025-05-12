@@ -1,11 +1,11 @@
 """Decorator to register a class as a state."""
 
 from dataclasses import dataclass
-from rekuest_next.state.predicate import get_state_name, is_state
+from rekuest_next.api.schema import PortInput
+from rekuest_next.actors.types import AnyFunction
 from typing import Optional, Type, TypeVar, Callable, overload
-from typing import Dict, Any
-import inspect
-from fieldz import fields
+from fieldz import fields  # type: ignore
+from rekuest_next.protocols import AnyState
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
@@ -17,7 +17,7 @@ from rekuest_next.state.registry import (
 from rekuest_next.api.schema import StateSchemaInput
 from rekuest_next.structures.default import get_default_structure_registry
 
-T = TypeVar("T")
+T = TypeVar("T", bound=AnyState)
 
 
 def inspect_state_schema(
@@ -26,23 +26,30 @@ def inspect_state_schema(
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
-    ports = []
+    ports: list[PortInput] = []
 
-    for field in fields(cls):
-        port = convert_object_to_port(field.type, field.name, structure_registry)
+    for field in fields(cls):  # type: ignore
+        type = field.type or field.annotated_type  # type: ignore
+        if type is None:
+            raise ValueError(
+                f"Field {field.name} has no type annotation. Please add a type annotation."
+            )
+
+        port = convert_object_to_port(type, field.name, structure_registry)  # type: ignore
         ports.append(port)
 
-    return StateSchemaInput(ports=ports, name=cls.__rekuest_state__)
+    return StateSchemaInput(ports=tuple(ports), name=getattr(cls, "__rekuest_state__"))
 
 
 @overload
 def state(
-    function_or_actor: T,
-) -> T: ...
+    *function: Type[T],
+) -> Type[T]: ...
 
 
 @overload
 def state(
+    *,
     name: Optional[str] = None,
     local_only: bool = False,
     registry: Optional[StateRegistry] = None,
@@ -51,12 +58,12 @@ def state(
 
 
 def state(
-    *name_or_function: Type[T],
+    *function: Type[T],
     local_only: bool = False,
     name: Optional[str] = None,
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
-) -> Callable[[Type[T]], Type[T]]:
+) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Decorator to register a class as a state.
 
     Args:
@@ -75,11 +82,11 @@ def state(
     registry = registry or get_default_state_registry()
     structure_registry = structure_reg or get_default_structure_registry()
 
-    if len(name_or_function) == 1:
-        cls = name_or_function[0]
+    if len(function) == 1:
+        cls = function[0]
         return state(name=cls.__name__)(cls)
 
-    if len(name_or_function) == 0:
+    if len(function) == 0:
 
         def wrapper(cls: Type[T]) -> Type[T]:
             try:
@@ -98,35 +105,4 @@ def state(
 
         return wrapper
 
-
-def prepare_state_variables(function: Callable) -> Dict[str, Any]:
-    """Prepare the state variables for the function.
-
-    Args:
-        function (Callable): The function to prepare the state variables for.
-
-    Returns:
-        Dict[str, Any]: The state variables for the function.
-    """
-    sig = inspect.signature(function)
-    parameters = sig.parameters
-
-    state_variables = {}
-    state_returns = {}
-
-    for key, value in parameters.items():
-        if is_state(value.annotation):
-            state_variables[key] = get_state_name(value.annotation)
-
-    returns = sig.return_annotation
-
-    if hasattr(returns, "_name"):
-        if returns._name == "Tuple":
-            for index, cls in enumerate(returns.__args__):
-                if is_state(cls):
-                    state_returns[index] = get_state_name(value)
-        else:
-            if is_state(returns):
-                state_returns[0] = get_state_name(value)
-
-    return state_variables, state_returns
+    raise ValueError("You can only register one class at a time.")

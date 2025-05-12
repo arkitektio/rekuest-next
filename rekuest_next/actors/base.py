@@ -7,7 +7,6 @@ from typing import (
     Dict,
     Optional,
     Self,
-    Type,
 )
 import uuid
 
@@ -46,18 +45,24 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
+    id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
+    )
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
 
-    _in_queue: Optional[asyncio.Queue] = PrivateAttr(default=None)
-    _running_asyncio_tasks: Dict[str, asyncio.Task] = PrivateAttr(default_factory=dict)
-    _provision_task: asyncio.Task = PrivateAttr(default=None)
-    _break_futures: Dict[str, asyncio.Future] = PrivateAttr(default_factory=dict)
+    _in_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
+        default=None
+    )
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=dict
+    )
+    _run_task: asyncio.Task[None] | None = PrivateAttr(default=None)
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="before")
-    def validate_sync(cls: Type["Actor"], values: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """A default syncgroup will be created if none is set"""
         if values.get("sync") is None:
             values["sync"] = SyncGroup()
@@ -72,7 +77,7 @@ class Actor(BaseModel):
                 actor that was resumed.
         """
         if resume.assignation in self._break_futures:
-            self._break_futures[resume.assignation].set_result(None)
+            self._break_futures[resume.assignation].set_result(True)
             del self._break_futures[resume.assignation]
         else:
             logger.warning(
@@ -161,7 +166,7 @@ class Actor(BaseModel):
             "Needs to be owerwritten in Actor Subclass. Never use this class directly"
         )
 
-    async def apass(self: Self, message: messages.FromAgentMessage) -> None:
+    async def apass(self: Self, message: messages.ToAgentMessage) -> None:
         """A function that is called once the actor is passed a message. This is used to
         process the message and send the results back to the agent.
 
@@ -172,7 +177,7 @@ class Actor(BaseModel):
         assert self._in_queue, "Actor is currently not listening"
         await self._in_queue.put(message)
 
-    async def arun(self: Self) -> asyncio.Task:
+    async def arun(self: Self) -> asyncio.Task[None]:
         """A funciton to start the actor. This is used to start the actor and
         start listening for messages from the agent.
 
@@ -180,8 +185,9 @@ class Actor(BaseModel):
             asyncio.Task: The task that is running the actor.
         """
         self._in_queue = asyncio.Queue()
-        self._provision_task = asyncio.create_task(self.alisten())
-        return self._provision_task
+        self._run_task = asyncio.create_task(self.alisten())
+        self._run_task.add_done_callback(self._provision_task_done)
+        return self._run_task
 
     async def acancel(self: Self) -> None:
         """A function to cancel the actor. This is used to cancel the actor and
@@ -190,29 +196,31 @@ class Actor(BaseModel):
         # Cancel Mnaged actors
         logger.info(f"Cancelling Actor {self.id}")
 
-        if not self._provision_task or self._provision_task.done():
+        if not self._run_task or self._run_task.done():
             # Race condition
             return
 
-        self._provision_task.cancel()
+        self._run_task.cancel()
 
         try:
-            await self._provision_task
+            await self._run_task
         except asyncio.CancelledError:
             logger.info(f"Actor {self} was cancelled")
 
-    async def abreak(self: Self, assignation: str) -> bool:
+    async def abreak(self: Self, assignation_id: str) -> bool:
         """A function to break the actor. This is used to instruct the actor to
         stop processing the assignment at the current time
         """
-        if assignation in self._break_futures:
-            await self._break_futures[assignation]
+        if assignation_id in self._break_futures:
+            await self._break_futures[assignation_id]
             return True
         else:
-            logger.warning(f"Currently no break future for {assignation} was found. Wasn't paused")
+            logger.warning(
+                f"Currently no break future for {assignation_id} was found. Wasn't paused"
+            )
             return False
 
-    def assign_task_done(self: Self, task: asyncio.Task) -> None:
+    def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:
         """A function that is called once the assignment task is done. This can be
         used in debugging to check if the task was cancelled or if it was done successfully.
 
@@ -229,7 +237,7 @@ class Actor(BaseModel):
             logger.error(f"Assign task {task} failed with exception {e}", exc_info=True)
         pass
 
-    async def is_assignment_still_running(self: Self, id: str) -> bool:
+    async def acheck_assignation(self: Self, assignation_id: str) -> bool:
         """A function to check if the assignment is still running. This is used to
         check if the assignment is still running and if it is still valid.
 
@@ -238,7 +246,7 @@ class Actor(BaseModel):
         Returns:
             bool: True if the assignment is still running, False otherwise.
         """
-        if id in self._running_asyncio_tasks:
+        if assignation_id in self._running_asyncio_tasks:
             return True
         return False
 
@@ -252,6 +260,7 @@ class Actor(BaseModel):
         """
 
         logger.info(f"Actor for {self.id}: Received {message}")
+        print("Actor for {self.id}: Received", message)
 
         if isinstance(message, messages.Assign):
             task = asyncio.create_task(
@@ -261,7 +270,7 @@ class Actor(BaseModel):
             )
 
             task.add_done_callback(self.assign_task_done)
-            self._running_asyncio_tasks[message.id] = task
+            self._running_asyncio_tasks[message.assignation] = task
 
         elif isinstance(message, messages.Cancel):
             if message.assignation in self._running_asyncio_tasks:
@@ -272,31 +281,33 @@ class Actor(BaseModel):
                     try:
                         await task
                     except asyncio.CancelledError:
+                        print("Cancellation was successful")
                         logger.info(
                             f"Task {message.assignation} was cancelled through arkitekt. Setting Cancelled"
                         )
-                        await self.agent.asend(
-                            self,
-                            message=messages.CancelledEvent(assignation=message.assignation),
-                        )
 
-                        del self._running_asyncio_tasks[message.id]
-                        del self._running_transports[message.id]
+                        del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(assignation=message.assignation),
+                            message=messages.CancelledEvent(
+                                assignation=message.assignation
+                            ),
                         )
 
                 else:
-                    logger.warning("Race Condition: Task was already done before cancellation")
+                    logger.warning(
+                        "Race Condition: Task was already done before cancellation"
+                    )
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(assignation=message.assignation),
+                        message=messages.CancelledEvent(
+                            assignation=message.assignation
+                        ),
                     )
 
             else:
                 logger.error(
-                    f"Actor for {self.passport}: Received unassignment for unknown assignation {message.id}"
+                    f"Actor for {self}: Received unassignment for unknown assignation {message.id}"
                 )
         else:
             raise UnknownMessageError(f"{message}")
@@ -312,6 +323,9 @@ class Actor(BaseModel):
         process messages from the agent in a tasked loop.
 
         """
+        if self._in_queue is None:
+            raise RuntimeError("Actor is not running")
+
         try:
             logger.info(f"Actor {self.id} Is now active")
 
@@ -320,7 +334,9 @@ class Actor(BaseModel):
                 try:
                     await self.aprocess(message)
                 except Exception:
-                    logger.critical("Processing unknown message should never happen", exc_info=True)
+                    logger.critical(
+                        "Processing unknown message should never happen", exc_info=True
+                    )
 
         except asyncio.CancelledError:
             logger.info("Doing Whatever needs to be done to cancel!")
@@ -331,7 +347,9 @@ class Actor(BaseModel):
                 try:
                     await task
                 except asyncio.CancelledError:
-                    logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
+                    logger.info(
+                        f"Task {key} was cancelled through applicaction. Setting Critical"
+                    )
                     await self.agent.asend(
                         self,
                         messages.CriticalEvent(
@@ -350,7 +368,7 @@ class Actor(BaseModel):
 
         self._in_queue = None
 
-    def _provision_task_done(self: Self, task: asyncio.Task) -> None:
+    def _provision_task_done(self: Self, task: asyncio.Task[None]) -> None:
         """A function that is called once the provision task (the run task) is done. This can be
         used in debugging to check if the task was cancelled or if it was done successfully.
 
@@ -358,9 +376,17 @@ class Actor(BaseModel):
             task (asyncio.Task): The task that was done.
         """
 
-        logger.info(f"Provision task is done: {task}")
-        if task.exception():
-            raise task.exception()
+        # TODO: Does this really work?
+        try:
+            exception = task.exception()
+            if exception:
+                raise exception
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(
+                f"Provision task {task} failed with exception {e}", exc_info=True
+            )
 
 
 class SerializingActor(Actor):

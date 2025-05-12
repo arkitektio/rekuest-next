@@ -1,5 +1,6 @@
 """A GraphQL postman"""
 
+from types import TracebackType
 from typing import AsyncGenerator, Dict
 from rekuest_next.api.schema import (
     AssignationEvent,
@@ -10,12 +11,12 @@ from rekuest_next.api.schema import (
     AssignInput,
 )
 import asyncio
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 import logging
 from .errors import PostmanException
-from .vars import current_postman
 from rekuest_next.rath import RekuestNextRath
 from koil.composition import KoiledModel
+from .vars import current_postman
 
 logger = logging.getLogger(__name__)
 
@@ -35,22 +36,23 @@ class GraphQLPostman(KoiledModel):
     instance_id: str = Field(description="The instance_id of the waiter")
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
 
-    _ass_update_queues: Dict[str, asyncio.Queue] = {}
-    _ass_update_queue: asyncio.Queue = None
-    _watch_assraces_task: asyncio.Task = None
-    _watch_assignations_task: asyncio.Task = None
+    _ass_update_queues: Dict[str, asyncio.Queue[AssignationEvent]] = PrivateAttr(
+        default_factory=dict
+    )
+    _ass_update_queue: asyncio.Queue[AssignationEvent] | None = None
+    _watch_assraces_task: asyncio.Task[None] | None = None
+    _watch_assignations_task: asyncio.Task[None] | None = None
 
-    _watching: bool = None
-    _lock: asyncio.Lock = None
+    _watching: bool = PrivateAttr(default=False)
+    _lock: asyncio.Lock | None = None
 
-    async def aconnect(self) -> None:
-        """A"""
-        await super().aconnect()
-        data = {}  # await self.transport.alist_assignations()
-        self.assignations = {ass.assignation: ass for ass in data}
-
-    async def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(
+        self, assign: AssignInput
+    ) -> AsyncGenerator[AssignationEvent, None]:
         """Assign a"""
+        if not self._lock:
+            raise ValueError("Postman was never connected")
+
         async with self._lock:
             if not self._watching:
                 await self.start_watching()
@@ -59,6 +61,8 @@ class GraphQLPostman(KoiledModel):
             assignation = await aassign(**assign.model_dump())
         except Exception as e:
             raise PostmanException("Cannot Assign") from e
+
+        assert assign.reference, "Needs to be set"
 
         self._ass_update_queues[assign.reference] = asyncio.Queue()
         queue = self._ass_update_queues[assign.reference]
@@ -75,10 +79,6 @@ class GraphQLPostman(KoiledModel):
             del self._ass_update_queues[assign.reference]
             raise e
 
-    def register_assignation_queue(self, ass_id: str, queue: asyncio.Queue) -> None:
-        """Register a queue"""
-        self._ass_update_queues[ass_id] = queue
-
     def unregister_assignation_queue(self, ass_id: str) -> None:
         """Delte the watch queue"""
         del self._ass_update_queues[ass_id]
@@ -86,7 +86,9 @@ class GraphQLPostman(KoiledModel):
     async def watch_assignations(self) -> None:
         """Watch assingaitons task"""
         try:
-            async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
+            async for assignation in awatch_assignations(
+                self.instance_id, rath=self.rath
+            ):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)
@@ -103,6 +105,8 @@ class GraphQLPostman(KoiledModel):
 
         Websockets can be faster than http, therefore we put stuff in a queue first
         """
+        assert self._ass_update_queue is not None, "Needs to be set"
+
         try:
             while True:
                 ass: AssignationEvent = await self._ass_update_queue.get()
@@ -125,23 +129,24 @@ class GraphQLPostman(KoiledModel):
         self._watch_assraces_task = asyncio.create_task(self.watch_assraces())
         self._watching = True
 
-    def log_assignation_fail(self, task: asyncio.Task) -> None:
+    def log_assignation_fail(self, task: asyncio.Task[None]) -> None:
         """a hook to"""
         return
 
     async def stop_watching(self) -> None:
         """Causes the postman to stop watching"""
-        self._watch_assignations_task.cancel()
-        self._watch_assraces_task.cancel()
+        if self._watch_assignations_task and self._watch_assraces_task:
+            self._watch_assignations_task.cancel()
+            self._watch_assraces_task.cancel()
 
-        try:
-            await asyncio.gather(
-                self._watch_assignations_task,
-                self._watch_assraces_task,
-                return_exceptions=True,
-            )
-        except asyncio.CancelledError:
-            pass
+            try:
+                await asyncio.gather(
+                    self._watch_assignations_task,
+                    self._watch_assraces_task,
+                    return_exceptions=True,
+                )
+            except asyncio.CancelledError:
+                pass
 
         self._watching = False
 
@@ -155,7 +160,7 @@ class GraphQLPostman(KoiledModel):
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: object | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Exit the context manager"""
         if self._watching:

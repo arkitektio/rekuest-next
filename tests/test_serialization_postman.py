@@ -26,12 +26,18 @@ async def test_shrinking_nullable(
     functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
 
     args = await ashrink_args(
-        functional_definition, (None,), {}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        (None,),
+        {},
+        structure_registry=simple_registry,
     )
     assert args == {"x": None}
 
     args = await ashrink_args(
-        functional_definition, (1,), {}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        (1,),
+        {},
+        structure_registry=simple_registry,
     )
     assert args == {"x": 1}
 
@@ -50,7 +56,6 @@ async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver:
         ("hallo", "zz"),
         {},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
     assert args == {"name": "zz", "rep": "hallo"}
 
@@ -70,7 +75,6 @@ async def test_rountdrip_structure(
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
 
     for arg in args:
@@ -89,7 +93,6 @@ async def test_shrink_union(simple_registry: StructureRegistry, mock_shelver: Sh
         (SerializableObject(number=3),),
         {},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
 
     assert args["rep"]["use"] == 0, "Should use the first union type"
@@ -108,7 +111,6 @@ async def test_roundtrip(simple_registry: StructureRegistry, mock_shelver: Shelv
         (SerializableObject(number=3), SerializableObject(number=3)),
         {},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
 
     expanded_args = await expand_inputs(
@@ -136,7 +138,6 @@ async def test_shrinking_structure_error(
             (SerializableObject(number=3), SecondObject(id=4)),
             {},
             structure_registry=simple_registry,
-            shelver=mock_shelver,
         )
 
 
@@ -155,7 +156,6 @@ async def test_shrinking_nested_structure(
         ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
         {},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
     assert args == {"name": {"hallo": "3"}, "rep": ["3"]}
 
@@ -172,7 +172,6 @@ async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Sh
         functional_definition,
         {"return0": "hallo"},
         structure_registry=simple_registry,
-        shelver=mock_shelver,
     )
 
 
@@ -191,5 +190,4 @@ async def test_expand_nested_structure_error(
             functional_definition,
             ([SerializableObject(number=3)], {"hallo": SerializableObject(number=3)}),
             structure_registry=simple_registry,
-            shelver=mock_shelver,
         )

@@ -9,7 +9,9 @@ from rekuest_next.agents.extensions.default import DefaultExtension
 Params = Dict[str, str]
 
 
-current_extension_registry = contextvars.ContextVar("current_service_registry", default=None)
+current_extension_registry = contextvars.ContextVar(
+    "current_service_registry", default=None
+)
 GLOBAL_EXTENSION_REGISTRY = None
 
 
@@ -40,7 +42,7 @@ class ExtensionRegistry:
 
     def get(self, name: str) -> AgentExtension:
         """Get the extension by name."""
-        return self.agent_extensions.get(name)
+        return self.agent_extensions[name]
 
 
 def get_default_extension_registry() -> ExtensionRegistry:
@@ -49,6 +51,6 @@ def get_default_extension_registry() -> ExtensionRegistry:
     """
     global GLOBAL_EXTENSION_REGISTRY
     if GLOBAL_EXTENSION_REGISTRY is None:
-        GLOBAL_EXTENSION_REGISTRY = ExtensionRegistry()
+        GLOBAL_EXTENSION_REGISTRY = ExtensionRegistry()  # type: ignore
         GLOBAL_EXTENSION_REGISTRY.register(DefaultExtension())
     return GLOBAL_EXTENSION_REGISTRY

@@ -1731,7 +1731,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "53af63d2-3e31-4596-a818-a805e559d05a"
+  reference: String = "d4066669-4632-4921-8609-9fd0ec725ac7"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1791,7 +1791,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "203c30dd-8e93-4978-9283-bc322beb5f9a"
+  reference: String = "e4c61070-e480-4109-83ac-df9aae5646d6"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

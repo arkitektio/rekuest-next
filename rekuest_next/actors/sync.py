@@ -40,7 +40,10 @@ class BaseGroup:
         return await self.acquire()
 
     async def __aexit__(
-        self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[type]
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[type],
     ) -> None:
         """Exit the context manager.
         This method will release the lock if it is held.
@@ -129,10 +132,10 @@ class ParallelGroup(BaseGroup):
         """
         return None
 
-    async def release(self) -> Self:
+    async def release(self) -> None:
         """Release the lock.
 
         This method will release the lock if it is held.
         """
         pass
-        return self
+        return None

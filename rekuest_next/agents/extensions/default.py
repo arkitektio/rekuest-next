@@ -1,7 +1,7 @@
 """Default extension for rekuest-next."""
 
-from pydantic import ConfigDict, Field, BaseModel
-from rekuest_next.agents.hooks import HooksRegistry, get_default_hook_registry
+from pydantic import ConfigDict, Field, BaseModel, PrivateAttr
+from rekuest_next.agents.hooks.registry import HooksRegistry, get_default_hook_registry
 from rekuest_next.definition.registry import (
     DefinitionRegistry,
     get_default_definition_registry,
@@ -11,13 +11,13 @@ from rekuest_next.api.schema import (
     acreate_state_schema,
     StateSchema,
 )
-from rekuest_next.actors.base import Actor
+from rekuest_next.actors.types import Actor
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from rekuest_next.agents.errors import ExtensionError
 from rekuest_next.state.proxies import StateProxy
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
-import jsonpatch
+import jsonpatch  # type: ignore
 import asyncio
 import logging
 
@@ -59,10 +59,10 @@ class DefaultExtension(BaseModel):
     contexts: Dict[str, Any] = Field(default_factory=dict)
     cleanup: bool = True
 
-    _current_states = {}
-    _shrunk_states = {}
+    _current_states: Dict[str, Any] = PrivateAttr(default_factory=dict)
+    _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=dict)
     _state_schemas: Dict[str, StateSchema] = {}
-    _background_tasks = {}
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=dict)
     _state_lock: Optional[asyncio.Lock] = None
     _instance_id: Optional[str] = None
 
@@ -82,7 +82,7 @@ class DefaultExtension(BaseModel):
         Returns:
             List[ImplementationInput]: The implementations for this extension.
         """
-        return self.definition_registry.implementations.values()
+        return list(self.definition_registry.implementations.values())
 
     async def astart(self, instance_id: str) -> None:
         """This should be called when the agent starts"""
@@ -120,6 +120,11 @@ class DefaultExtension(BaseModel):
         """Initialize the state of the extension. This will be called when"""
         from rekuest_next.api.schema import aset_state
 
+        if not self._instance_id:
+            raise DefaultExtensionError(
+                "Instance ID is not set. This extensions is not initialized"
+            )
+
         schema = self._state_schemas[state_key]
         """
         if not schema.validate(value):
@@ -140,12 +145,22 @@ class DefaultExtension(BaseModel):
 
     async def aget_state(self, state_key: str, attribute: Any) -> Any:  # noqa: ANN401
         """Get the state of the extension. This will be called when"""
+        if not self._state_lock:
+            raise DefaultExtensionError(
+                "State lock is not set. This extensions is not initialized"
+            )
+
         async with self._state_lock:
             return getattr(self._current_states[state_key], attribute)
 
     async def aset_state(self, state_key: str, attribute: Any, value: Any) -> None:  # noqa: ANN401
         """Set the state of the extension. This will be called when the agent starts"""
         from rekuest_next.api.schema import aupdate_state
+
+        if not self._state_lock:
+            raise DefaultExtensionError(
+                "State lock is not set. This extensions is not initialized"
+            )
 
         async with self._state_lock:
             schema = self._state_schemas[state_key]
@@ -163,13 +178,13 @@ class DefaultExtension(BaseModel):
                 state_key=state_key, state=self._current_states[state_key]
             )
 
-            patch = jsonpatch.make_patch(old_shrunk_state, new_shunk_state)
+            patch = jsonpatch.make_patch(old_shrunk_state, new_shunk_state)  # type: ignore
 
             # Shrink the value to the schema
             state = await aupdate_state(
                 state_schema=schema.id,
-                patches=patch.patch,
-                instance_id=self._instance_id,
+                patches=patch.patch,  # type: ignore
+                instance_id=self._instance_id,  # type: ignore
             )
             print("State updated", self._current_states[state_key], state)
 
@@ -185,7 +200,7 @@ class DefaultExtension(BaseModel):
 
     async def astop_background(self) -> None:
         """Stop the background tasks. This will be called when the agent stops."""
-        for name, task in self._background_tasks.items():
+        for _, task in self._background_tasks.items():
             task.cancel()
 
         try:
@@ -199,7 +214,7 @@ class DefaultExtension(BaseModel):
         self,
         agent: "BaseAgent",
         interface: str,
-    ) -> Optional[Actor]:
+    ) -> Actor:
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps implementation"""
 

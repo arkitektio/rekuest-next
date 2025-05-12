@@ -5,6 +5,7 @@ from rekuest_next.actors.vars import (
 )
 from rekuest_next.api.schema import LogLevel
 from typing import Optional
+from rekuest_next import messages
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
@@ -25,7 +26,7 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
         level (LogLevel): The log level.
     """
 
-    if not isinstance(message, str):
+    if not isinstance(message, str):  # type: ignore[assignment]
         message = str(message)
 
     get_current_assignation_helper().log(level, message)
@@ -36,9 +37,9 @@ def useUser() -> str:
     return get_current_assignation_helper().user
 
 
-def useAssignation() -> str:
+def useAssign() -> messages.Assign:
     """Returns the assignation id of the current provision"""
-    return get_current_assignation_helper().assignation
+    return get_current_assignation_helper().assignment
 
 
 def useInstanceID() -> str:

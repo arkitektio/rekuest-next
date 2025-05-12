@@ -4,6 +4,7 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
     ChoiceInput,
+    PortInput,
     AssignWidgetKind,
     ReturnWidgetKind,
 )
@@ -11,7 +12,9 @@ from rekuest_next.scalars import SearchQuery
 from typing import List
 
 
-def SliderWidget(min: int = None, max: int = None, step: int = None) -> AssignWidgetInput:
+def SliderWidget(
+    min: int | None = None, max: int | None = None, step: int | None = None
+) -> AssignWidgetInput:
     """Generate a slider widget.
 
     Args:
@@ -25,7 +28,10 @@ def SliderWidget(min: int = None, max: int = None, step: int = None) -> AssignWi
 
 
 def SearchWidget(
-    query: SearchQuery, ward: str, dependencies: list[str] = None
+    query: SearchQuery | str,
+    ward: str,
+    dependencies: list[str] | None = None,
+    filters: list[PortInput] | None = None,
 ) -> AssignWidgetInput:
     (
         """Generte a search widget.
@@ -45,7 +51,11 @@ def SearchWidget(
         """P"""
     )
     return AssignWidgetInput(
-        kind=AssignWidgetKind.SEARCH, query=query, ward=ward, dependencies=dependencies
+        kind=AssignWidgetKind.SEARCH,
+        query=SearchQuery.validate(query),
+        ward=ward,
+        dependencies=tuple(dependencies) if dependencies else None,
+        filters=tuple(filters) if filters else None,
     )
 
 
@@ -116,7 +126,7 @@ def ChoiceReturnWidget(choices: List[ChoiceInput]) -> ReturnWidgetInput:
     Returns:
         ReturnWidgetInput: _description_
     """
-    return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=choices)
+    return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=tuple(choices))
 
 
 def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
@@ -131,4 +141,4 @@ def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
     Returns:
         AssignWidgetInput: The widget input
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=choices)
+    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
