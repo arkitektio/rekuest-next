@@ -1,6 +1,39 @@
 # CHANGELOG
 
 
+## v0.6.0 (2025-05-12)
+
+### Bug Fixes
+
+- Refactor code structure for improved readability and maintainability
+  ([`032c993`](https://github.com/arkitektio/rekuest-next/commit/032c993f3b17fc893530b7e9fb106fa250583926))
+
+- Update codecov badge link in README.md
+  ([`8b009c3`](https://github.com/arkitektio/rekuest-next/commit/8b009c35ad3556be3af36220896c3a95f89a95db))
+
+### Features
+
+- Implement find function in remote.py
+  ([`24ddeff`](https://github.com/arkitektio/rekuest-next/commit/24ddeff774690d99213480734907148094a0bd57))
+
+- Added a new function `find` to locate actions based on agent and interface. - The function
+  currently raises a NotImplementedError.
+
+fix: Update action query name in structure.py
+
+- Renamed `Search_actionsQuery` to `SearchActionsQuery` for consistency.
+
+chore: Upgrade rath and rekuest-next versions in uv.lock
+
+- Updated rath from version 1.1.1 to 2.0.0. - Updated rekuest-next from version 0.5.6 to 0.5.10. -
+  Adjusted dependencies to reflect the new version requirements.
+
+feat: Add GraphQL fragments for Action
+
+- Introduced new GraphQL fragments for Action, including Definition, PrimaryAction, and ListAction.
+  - These fragments define the structure and fields for Action objects.
+
+
 ## v0.5.10 (2025-05-04)
 
 ### Bug Fixes
