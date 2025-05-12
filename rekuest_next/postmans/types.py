@@ -1,5 +1,6 @@
 """Postman types"""
 
+from types import TracebackType
 from typing import AsyncGenerator, Protocol, runtime_checkable
 from rekuest_next.api.schema import (
     AssignInput,
@@ -18,9 +19,9 @@ class Postman(Protocol):
     connected: bool
     instance_id: str
 
-    async def aassign(self, input: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
+    def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         """Assign"""
-        yield
+        ...
 
     async def __aenter__(self) -> "Postman":
         """Enter"""
@@ -30,7 +31,7 @@ class Postman(Protocol):
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: object | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Exit"""
         pass

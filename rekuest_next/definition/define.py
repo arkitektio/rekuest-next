@@ -2,8 +2,9 @@
 
 import collections
 from enum import Enum
-from typing import Callable, List, Union, get_type_hints
+from typing import List, Union, get_type_hints
 
+from rekuest_next.actors.types import AnyFunction
 from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
@@ -74,7 +75,7 @@ def get_non_nullable(cls: Any) -> Any:  # noqa: ANN401
     if len(non_nullable_args) == 1:
         return non_nullable_args[0]
     else:
-        return Union.__getitem__(tuple(non_nullable_args))
+        return Union.__getitem__(tuple(non_nullable_args))  # type: ignore
 
 
 def get_non_nullable_variant(cls: Any) -> Any:  # noqa: ANN401
@@ -147,8 +148,8 @@ def is_generator_type(cls: Any) -> bool:  # noqa: ANN401
         typing.Generator,
         typing.AsyncGenerator,
         types.AsyncGeneratorType,
-        collections.abc.Generator,
-        collections.abc.AsyncGenerator,
+        collections.abc.Generator,  # type: ignore
+        collections.abc.AsyncGenerator,  # type: ignore
     ):
         return True
     else:
@@ -174,16 +175,6 @@ def is_datetime(cls: Any) -> bool:  # noqa: ANN401
     if inspect.isclass(cls):
         return not issubclass(cls, Enum) and (issubclass(cls, dt.datetime))
     return False
-
-
-def is_structure(cls: Any, structure_registry: StructureRegistry) -> bool:  # noqa: ANN401
-    """Check if a class is a structure"""
-    return structure_registry.is_structure(cls)
-
-
-def is_memory_structure(cls: Any, structure_registry: StructureRegistry) -> bool:  # noqa: ANN401
-    """Check if a class is a memory structure"""
-    return structure_registry.is_memory_structure(cls)
 
 
 def convert_object_to_port(
@@ -213,7 +204,8 @@ def convert_object_to_port(
         # and convert hem to a new union
 
         non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
-        cls = Union.__getitem__(tuple(non_nullable_args))
+        cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
+        # TODO: We might want to handle this better
 
         return convert_object_to_port(
             cls=cls,
@@ -230,7 +222,6 @@ def convert_object_to_port(
         )
 
     if is_model(cls):
-        set_default = default or {}
         children = []
 
         inspected_model = inspect_model_class(cls)
@@ -253,13 +244,13 @@ def convert_object_to_port(
             assignWidget=assign_widget,
             returnWidget=return_widget,
             key=key,
-            children=children,
+            children=tuple(children),
             label=label,
-            default=set_default,
+            default=None,
             nullable=nullable,
-            effects=effects,
             description=description or inspected_model.description,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             identifier=inspected_model.identifier,
         )
 
@@ -300,24 +291,26 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
             returnWidget=return_widget,
             key=key,
-            children=[child],
+            children=tuple([child]),
             label=label,
             default=default if default else None,
             nullable=nullable,
-            effects=effects,
             description=description,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
         )
 
     if is_union(cls):
         variants = get_non_null_variants(cls)
-        children = []
+        children: list[PortInput] = []
         for index, arg in enumerate(variants):
             child = convert_object_to_port(
                 cls=arg, registry=registry, nullable=False, key=str(index)
@@ -329,29 +322,31 @@ def convert_object_to_port(
             assignWidget=assign_widget,
             returnWidget=return_widget,
             key=key,
-            children=children,
+            children=tuple(children),
             label=label,
             default=default,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
+        child = convert_object_to_port(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
             returnWidget=return_widget,
             key=key,
-            children=[child],
+            children=tuple([child]),
             label=label,
             default=default,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
@@ -364,8 +359,8 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )  # catch bool is subclass of int
 
@@ -378,8 +373,8 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
@@ -392,8 +387,8 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
-            validators=validators,
-            effects=effects,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
@@ -406,8 +401,8 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
@@ -420,8 +415,8 @@ def convert_object_to_port(
             default=default,
             label=label,
             nullable=nullable,
-            effects=effects,
-            validators=validators,
+            effects=tuple(effects),
+            validators=tuple(validators),
             description=description,
         )
 
@@ -440,8 +435,8 @@ def convert_object_to_port(
 
 
 GroupMap = Dict[str, List[str]]
-AssignWidgetMap = Dict[str, List[AssignWidgetInput]]
-ReturnWidgetMap = Dict[str, List[ReturnWidgetInput]]
+AssignWidgetMap = Dict[str, AssignWidgetInput]
+ReturnWidgetMap = Dict[str, ReturnWidgetInput]
 EffectsMap = Dict[str, List[EffectInput]]
 
 
@@ -466,14 +461,14 @@ def snake_to_title_case(snake_str: str) -> str:
 
 
 def prepare_definition(
-    function: Callable,
+    function: AnyFunction,
     structure_registry: StructureRegistry,
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,
     effects: Optional[EffectsMap] = None,
     port_groups: List[PortGroupInput] | None = None,
     allow_empty_doc: bool = True,
-    collections: List[str] = [],
+    collections: List[str] | None = None,
     interfaces: Optional[List[str]] = None,
     description: str | None = None,
     stateful: bool = False,
@@ -485,7 +480,7 @@ def prepare_definition(
     omitfirst: int | None = None,
     omitlast: int | None = None,
     logo: str | None = None,
-    omitkeys: list[str] = None,
+    omitkeys: list[str] | None = None,
     return_annotations: Optional[List[Any]] = None,
     allow_dev: bool = True,
     allow_annotations: bool = True,
@@ -506,7 +501,9 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
+        function
+    )
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -524,7 +521,7 @@ def prepare_definition(
     returns: List[PortInput] = []
 
     # Docstring Parser to help with descriptions
-    docstring = parse(function.__doc__)
+    docstring = parse(function.__doc__ or "")
 
     is_dev = False
 
@@ -545,8 +542,12 @@ def prepare_definition(
     type_hints = get_type_hints(function, include_extras=allow_annotations)
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
-    doc_param_label_map = {param.arg_name: param.arg_name for param in docstring.params}
+    doc_param_description_map = {
+        param.arg_name: param.description for param in docstring.params
+    }
+    doc_param_label_map: Dict[str, str] = {
+        param.arg_name: param.arg_name for param in docstring.params
+    }
 
     if docstring.many_returns:
         doc_param_description_map.update(
@@ -557,13 +558,15 @@ def prepare_definition(
         )
         doc_param_label_map.update(
             {
-                f"return{index}": param.return_name
+                f"return{index}": param.return_name or f"return{index}"
                 for index, param in enumerate(docstring.many_returns)
             }
         )
     elif docstring.returns:
         doc_param_description_map.update({"return0": docstring.returns.description})
-        doc_param_label_map.update({"return0": docstring.returns.return_name})
+        doc_param_label_map.update(
+            {"return0": docstring.returns.return_name or "return0"}
+        )
 
     if port_label_map:
         doc_param_label_map.update(port_label_map)
@@ -692,7 +695,9 @@ def prepare_definition(
         action_name = name
 
     elif docstring.long_description:
-        action_name = docstring.short_description
+        action_name = docstring.short_description or snake_to_title_case(
+            function.__name__
+        )
         description = description or docstring.long_description
 
     else:
@@ -716,21 +721,19 @@ def prepare_definition(
             f"Could not find the following ports for the descriptions in the function {function.__name__}: {','.join(port_description_map.keys())}. Did you forget the type hint?"
         )
 
-    x = DefinitionInput(
-        **{
-            "name": action_name,
-            "description": description,
-            "collections": collections,
-            "args": args,
-            "returns": returns,
-            "kind": ActionKind.GENERATOR if is_generator else ActionKind.FUNCTION,
-            "interfaces": interfaces,
-            "portGroups": port_groups,
-            "isDev": is_dev,
-            "logo": logo,
-            "stateful": stateful,
-            "isTestFor": is_test_for or [],
-        }
+    definition = DefinitionInput(
+        name=action_name,
+        description=description,
+        collections=tuple(collections),
+        args=tuple(args),
+        returns=tuple(returns),
+        kind=ActionKind.GENERATOR if is_generator else ActionKind.FUNCTION,
+        interfaces=tuple(interfaces),
+        portGroups=tuple(port_groups),
+        isDev=is_dev,
+        logo=logo,
+        stateful=stateful,
+        isTestFor=tuple(is_test_for or []),
     )
 
-    return x
+    return definition

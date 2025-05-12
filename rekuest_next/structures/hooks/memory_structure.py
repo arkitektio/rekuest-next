@@ -13,20 +13,10 @@ from rekuest_next.structures.utils import build_instance_predicate
 from .errors import HookError
 
 
-async def id_shrink(self: BaseModel) -> str:
-    """Convert a structure with an id to a string representation by using the id."""
-    return self.id
-
-
-def identity_default_converter(x: str) -> str:
-    """Convert a value to its string representation."""
-    return x
-
-
-def cls_to_identifier(cls: Type) -> Identifier:
+def cls_to_identifier(cls: Type[object]) -> Identifier:
     """Convert a class to an identifier."""
     try:
-        return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
+        return Identifier.validate(f"{cls.__module__.lower()}.{cls.__name__.lower()}")
     except AttributeError:
         raise HookError(
             f"Cannot convert {cls} to identifier. The class needs to have a __module__ and __name__ attribute."
@@ -47,20 +37,20 @@ class MemoryStructureHook(BaseModel):
 
     """
 
-    cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
+    cls_to_identifier: Callable[[Type[object]], Identifier] = cls_to_identifier
 
-    def is_applicable(self, cls: Type) -> bool:
+    def is_applicable(self, cls: Type[object]) -> bool:
         """Given a class, return True if this hook is applicable to it"""
         # everything is applicable
         return True  # Catch all
 
     def apply(
         self,
-        cls: Type,
+        cls: Type[object],
     ) -> FullFilledMemoryStructure:
         """Apply the hook to the class and return a FullFilledStructure."""
         if hasattr(cls, "get_identifier"):
-            identifier = cls.get_identifier()
+            identifier = cls.get_identifier()  # type: ignore
         else:
             identifier = self.cls_to_identifier(cls)
 
@@ -68,8 +58,7 @@ class MemoryStructureHook(BaseModel):
 
         return FullFilledMemoryStructure(
             cls=cls,
-            identifier=identifier,
+            identifier=identifier,  # type: ignore
             predicate=predicate,
             description=None,
-            convert_default=identity_default_converter,
         )

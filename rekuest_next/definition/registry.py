@@ -4,9 +4,8 @@ import contextvars
 from rekuest_next.api.schema import (
     DefinitionInput,
     ImplementationInput,
-    CreateImplementationInput,
 )
-from typing import Dict
+from typing import Dict, List
 from pydantic import BaseModel, ConfigDict, Field
 import json
 from rekuest_next.actors.types import ActorBuilder
@@ -62,19 +61,25 @@ class DefinitionRegistry(BaseModel):
 
     def get_implementation_input_for_interface(
         self, interface: str
-    ) -> CreateImplementationInput:
+    ) -> ImplementationInput:
         """Get the implementation input for a given interface."""
         assert interface in self.implementations, "No definition for interface"
         return self.implementations[interface]
 
-    def dump(self) -> Dict[str, Dict[str, JSONSerializable]]:
+    def dump(self) -> List[JSONSerializable]:
         """Dump the registry to a JSON serializable format."""
-        return {
-            "implementations": [
-                json.loads(x[0].json(exclude_none=True, exclude_unset=True))
-                for x in self.implementations
-            ]
-        }
+
+        serialized_values: List[JSONSerializable] = []
+
+        for impl in self.implementations.values():
+            serialized_values.append(
+                impl.definition.model_dump_json(
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+            )
+
+        return serialized_values
 
     def hash(self) -> str:
         """Get the hash of the registry."""
@@ -131,5 +136,5 @@ def get_default_definition_registry() -> DefinitionRegistry:
     """
     global GLOBAL_DEFINITION_REGISTRY
     if GLOBAL_DEFINITION_REGISTRY is None:
-        GLOBAL_DEFINITION_REGISTRY = DefinitionRegistry()
+        GLOBAL_DEFINITION_REGISTRY = DefinitionRegistry()  # type: ignore
     return GLOBAL_DEFINITION_REGISTRY

@@ -5,7 +5,7 @@ import pytest
 from rekuest_next.actors.types import Shelver
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
+from rekuest_next.structures.serialization.actor import shrink_outputs
 
 from .funcs import localized_structure_function, LocalizedStructure
 

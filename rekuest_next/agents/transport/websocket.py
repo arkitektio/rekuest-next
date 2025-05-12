@@ -1,6 +1,7 @@
 """Websocket Agent Transport"""
 
-from typing import Awaitable, Callable, Dict
+from types import TracebackType
+from typing import Awaitable, Callable, Dict, Optional, Self, Type
 import websockets
 from rekuest_next.agents.transport.base import AgentTransport
 import asyncio
@@ -19,6 +20,7 @@ import ssl
 import certifi
 from koil.types import ContextBool, Contextual
 from .errors import (
+    AgentConnectionFail,
     CorrectableConnectionFail,
     DefiniteConnectionFail,
     AgentWasKicked,
@@ -39,7 +41,9 @@ logger = logging.getLogger(__name__)
 
 async def token_loader() -> str:
     """Dummy token loader function"""
-    raise NotImplementedError("Websocket transport does need a defined token_loader on Connection")
+    raise NotImplementedError(
+        "Websocket transport does need a defined token_loader on Connection"
+    )
 
 
 KICK_CODE = 3001
@@ -47,13 +51,13 @@ BUSY_CODE = 3002
 BLOCKED_CODE = 3003
 BOUNCED_CODE = 3004
 
-agent_error_codes = {
+agent_error_codes: Dict[int, Type[Exception]] = {
     KICK_CODE: AgentWasKicked,
     BUSY_CODE: AgentIsAlreadyBusy,
     BLOCKED_CODE: AgentWasBlocked,
 }
 
-agent_error_message = {
+agent_error_message: Dict[int, str] = {
     KICK_CODE: "Agent was kicked by the server",
     BUSY_CODE: "Agent can't connect on this instance_id as another instance is already connected. Please kick the other instance first or use another instance_id",
     BLOCKED_CODE: "Agent was blocked by the server",
@@ -73,20 +77,23 @@ class WebsocketAgentTransport(AgentTransport):
     allow_reconnect: bool = True
     auto_connect: bool = True
 
-    _futures: Contextual[Dict[str, asyncio.Future]] = None
+    _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
     _connected: ContextBool = False
     _healthy: ContextBool = False
-    _send_queue: Contextual[asyncio.Queue] = None
-    _connection_task: Contextual[asyncio.Task] = None
-    _connected_future: Contextual[asyncio.Future] = None
+    _send_queue: Contextual[asyncio.Queue[str]] = None
+    _connection_task: Contextual[asyncio.Task[None]] = None
+    _connected_future: Contextual[asyncio.Future[bool]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    async def __aenter__(self) -> "WebsocketAgentTransport":
+    async def __aenter__(self) -> Self:
         """Connect to the agent transport. Sets the callback and"""
-        assert self._callback is not None, "Callback not set. Use set callback first to set it"
+        assert self._callback is not None, (
+            "Callback not set. Use set callback first to set it"
+        )
         self._futures = {}
         self._send_queue = asyncio.Queue()
+        return self
 
     async def aconnect(self, instance_id: str) -> None:
         """Connect to the agent transport"""
@@ -94,8 +101,13 @@ class WebsocketAgentTransport(AgentTransport):
         self._connection_task = asyncio.create_task(self.websocket_loop(instance_id))
         self._connected = await self._connected_future
 
-    async def on_definite_error(self, e: Exception) -> None:
+    async def on_definite_error(self, e: DefiniteConnectionFail) -> None:
         """Handle a definite error"""
+        if not self._connected_future or not self._callback:
+            raise AgentTransportException(
+                "No connection future set. We never connected this transport?"
+            )
+
         if not self._connected_future.done():
             self._connected_future.set_exception(e)
         else:
@@ -103,33 +115,57 @@ class WebsocketAgentTransport(AgentTransport):
 
     async def abroadcast(self, message: messages.ToAgentMessage) -> None:
         """Broadcast a message to all connected agents"""
+        if not self._connected_future or not self._callback:
+            raise AgentTransportException(
+                "No connection future set. We never connected this transport?"
+            )
+
         await self._callback.abroadcast(message=message)
 
-    async def on_agent_error(self, e: Exception) -> None:
+    async def on_agent_error(self, e: AgentConnectionFail) -> None:
         """Handle an agent error"""
+        if not self._connected_future or not self._callback:
+            raise AgentTransportException(
+                "No connection future set. We never connected this transport?"
+            )
+
         if not self._connected_future.done():
             self._connected_future.set_exception(e)
         else:
-            return await self._callback.on_agent_error(e)
+            await self._callback.on_agent_error(e)
 
-    async def on_correctable_error(self, e: Exception) -> bool:
+    async def on_correctable_error(self, e: CorrectableConnectionFail) -> bool:
         """Handle a correctable error"""
+        if not self._connected_future or not self._callback:
+            raise AgentTransportException(
+                "No connection future set. We never connected this transport?"
+            )
+
         return await self._callback.on_correctable_error(e)
 
     async def websocket_loop(
         self, instance_id: str, retry: int = 0, reload_token: str | bool = False
     ) -> None:
         """Websocket loop to connect to the agent transport"""
+        if not self._callback:
+            raise AgentTransportException(
+                "No callback set. Can't connect to the agent transport"
+            )
+
         send_task = None
         receive_task = None
         try:
             try:
-                token = await self.token_loader(force_refresh=reload_token)
-
+                token = await self.token_loader()
                 async with websockets.connect(
                     f"{self.endpoint_url}",
-                    ssl=(self.ssl_context if self.endpoint_url.startswith("wss") else None),
+                    ssl=(
+                        self.ssl_context
+                        if self.endpoint_url.startswith("wss")
+                        else None
+                    ),
                 ) as client:
+                    print("Connected to Websockets")
                     retry = 0
                     logger.info("Agent on Websockets connected")
 
@@ -137,8 +173,10 @@ class WebsocketAgentTransport(AgentTransport):
                         messages.Register(
                             token=token,
                             instance_id=instance_id,
-                        ).json()
+                        ).model_dump_json()
                     )
+
+                    print("Sent register message")
 
                     send_task = asyncio.create_task(self.sending(client))
                     receive_task = asyncio.create_task(self.receiving(client))
@@ -154,13 +192,18 @@ class WebsocketAgentTransport(AgentTransport):
                         task.cancel()
 
                     for task in done:
-                        raise task.exception()
+                        exception = task.exception()
+                        if exception:
+                            logger.error(
+                                "Websocket task failed with exception", exc_info=True
+                            )
+                            raise exception
 
             except InvalidHandshake as e:
                 logger.warning(
                     (
                         "Websocket to"
-                        f" {self.endpoint_url}?token={token}&instance_id={instance_id} was"
+                        f" {self.endpoint_url}?token=*******&instance_id={instance_id} was"
                         " denied. Trying to reload token"
                     ),
                     exc_info=True,
@@ -170,14 +213,16 @@ class WebsocketAgentTransport(AgentTransport):
 
             except ConnectionClosedError as e:
                 logger.warning("Websocket was closed", exc_info=True)
+                print("Websocket was closed", e)
                 if e.code in agent_error_codes:
                     await self.on_agent_error(
-                        agent_error_codes[e.code](agent_error_message[e.code])
+                        agent_error_codes[e.code](agent_error_message[e.code])  # type: ignore
                     )
-                    raise AgentTransportException("Agent Error") from e
 
                 if e.code == BOUNCED_CODE:
-                    raise CorrectableConnectionFail("Was bounced. Debug call to reconnect") from e
+                    raise CorrectableConnectionFail(
+                        "Was bounced. Debug call to reconnect"
+                    ) from e
 
                 else:
                     raise CorrectableConnectionFail(
@@ -199,10 +244,14 @@ class WebsocketAgentTransport(AgentTransport):
                 logger.error("Max retries reached. Giving up")
                 raise DefiniteConnectionFail("Exceeded Number of Retries")
 
-            logger.info(f"Waiting for some time before retrying: {self.time_between_retries}")
+            logger.info(
+                f"Waiting for some time before retrying: {self.time_between_retries}"
+            )
             await asyncio.sleep(self.time_between_retries)
             logger.info("Retrying to connect")
-            await self.websocket_loop(instance_id, retry=retry + 1, reload_token=reload_token)
+            await self.websocket_loop(
+                instance_id, retry=retry + 1, reload_token=reload_token
+            )
 
         except asyncio.CancelledError as e:
             logger.info("Websocket got cancelled. Trying to shutdown graceully")
@@ -210,11 +259,15 @@ class WebsocketAgentTransport(AgentTransport):
                 send_task.cancel()
                 receive_task.cancel()
 
-            await asyncio.gather(send_task, receive_task, return_exceptions=True)
+                await asyncio.gather(*(send_task, receive_task), return_exceptions=True)
             raise e
 
     async def sending(self, client: websockets.ClientConnection) -> None:
         """Send messages to the agent transport"""
+        if not self._send_queue:
+            raise AgentTransportException(
+                "No send queue set. Can't send messages to the agent transport"
+            )
         try:
             while True:
                 message = await self._send_queue.get()
@@ -229,6 +282,7 @@ class WebsocketAgentTransport(AgentTransport):
             async for message in client:
                 print(f"Received message {message}")
                 logger.info(f"Receiving message {message}")
+                assert isinstance(message, str), "Message should be a string"
                 await self.receive(message)
 
         except asyncio.CancelledError:
@@ -245,39 +299,50 @@ class WebsocketAgentTransport(AgentTransport):
 
             elif isinstance(payload.message, messages.Init):
                 print("Init message received", payload.message)
+                if not self._connected_future:
+                    raise AgentTransportException(
+                        "No connection future set. We never connected this transport?"
+                    )
+
                 if not self._connected_future.done():
                     self._connected_future.set_result(True)
 
-                for i in payload.message.inquiries:
-                    await self.abroadcast(i)
+                await self.abroadcast(payload.message)
 
             else:
                 await self.abroadcast(payload.message)
         except Exception:
             logger.error("Error while processing message", exc_info=True)
 
-    async def delayaction(self, action: messages.ToAgentMessage) -> None:
+    async def delayaction(self, action: messages.FromAgentMessage) -> None:
         """Delay the action until the agent is connected"""
-        assert self._connected, "Should be connected"
+        assert self._send_queue, "Should be connected"
+        print(">>>>> Sending message", action.model_dump_json())
         await self._send_queue.put(action.model_dump_json())
 
-    async def asend(self, event: messages.ToAgentMessage) -> None:
+    async def asend(self, message: messages.FromAgentMessage) -> None:
         """Send a message to the agent"""
-        await self.delayaction(event)
+        await self.delayaction(message)
 
     async def adisconnect(self) -> None:
         """Disconnect the agent transport"""
-        self._connection_task.cancel()
-        self._connected = False
+        if self._connection_task:
+            self._connection_task.cancel()
+            self._connected = False
 
-        try:
-            await self._connection_task
-        except asyncio.CancelledError:
-            pass
+            try:
+                await self._connection_task
+            except asyncio.CancelledError:
+                pass
 
-        self._connection_task = None
+            self._connection_task = None
 
-    async def __aexit__(self, *args, **kwargs):  # noqa: ANN002, ANN003, ANN204
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         """_summary_"""
         if self._connection_task:
             await self.adisconnect()

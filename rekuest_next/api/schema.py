@@ -2,37 +2,37 @@
 
 from typing_extensions import Literal
 from typing import (
+    Optional,
     Any,
-    Union,
     List,
     Iterator,
     Tuple,
-    AsyncIterator,
-    Optional,
     Annotated,
+    AsyncIterator,
     Iterable,
+    Union,
 )
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from rekuest_next.funcs import subscribe, execute, asubscribe, aexecute
+from rekuest_next.funcs import execute, aexecute, asubscribe, subscribe
 from rekuest_next.scalars import (
-    Args,
-    Identifier,
     ActionHash,
+    SearchQuery,
+    Identifier,
     InstanceId,
     ValidatorFunction,
-    SearchQuery,
+    Args,
 )
+from rath.scalars import ID
 from rekuest_next.traits.ports import (
-    ValidatorInputTrait,
+    WidgetInputTrait,
     DefinitionInputTrait,
+    ValidatorInputTrait,
     PortTrait,
     ReturnWidgetInputTrait,
-    WidgetInputTrait,
 )
-from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
 from rekuest_next.rath import RekuestNextRath
-from rath.scalars import ID
+from enum import Enum
 
 
 class AssignWidgetKind(str, Enum):
@@ -91,7 +91,11 @@ class Ordering(str, Enum):
     """No documentation"""
 
     ASC = "ASC"
+    ASC_NULLS_FIRST = "ASC_NULLS_FIRST"
+    ASC_NULLS_LAST = "ASC_NULLS_LAST"
     DESC = "DESC"
+    DESC_NULLS_FIRST = "DESC_NULLS_FIRST"
+    DESC_NULLS_LAST = "DESC_NULLS_LAST"
 
 
 class ActionKind(str, Enum):
@@ -171,23 +175,6 @@ class StrFilterLookup(BaseModel):
     is_null: Optional[bool] = Field(alias="isNull", default=None)
     regex: Optional[str] = None
     i_regex: Optional[str] = Field(alias="iRegex", default=None)
-    n_exact: Optional[str] = Field(alias="nExact", default=None)
-    n_i_exact: Optional[str] = Field(alias="nIExact", default=None)
-    n_contains: Optional[str] = Field(alias="nContains", default=None)
-    n_i_contains: Optional[str] = Field(alias="nIContains", default=None)
-    n_in_list: Optional[Tuple[str, ...]] = Field(alias="nInList", default=None)
-    n_gt: Optional[str] = Field(alias="nGt", default=None)
-    n_gte: Optional[str] = Field(alias="nGte", default=None)
-    n_lt: Optional[str] = Field(alias="nLt", default=None)
-    n_lte: Optional[str] = Field(alias="nLte", default=None)
-    n_starts_with: Optional[str] = Field(alias="nStartsWith", default=None)
-    n_i_starts_with: Optional[str] = Field(alias="nIStartsWith", default=None)
-    n_ends_with: Optional[str] = Field(alias="nEndsWith", default=None)
-    n_i_ends_with: Optional[str] = Field(alias="nIEndsWith", default=None)
-    n_range: Optional[Tuple[str, ...]] = Field(alias="nRange", default=None)
-    n_is_null: Optional[bool] = Field(alias="nIsNull", default=None)
-    n_regex: Optional[str] = Field(alias="nRegex", default=None)
-    n_i_regex: Optional[str] = Field(alias="nIRegex", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -197,7 +184,25 @@ class OffsetPaginationInput(BaseModel):
     """No documentation"""
 
     offset: int
-    limit: int
+    limit: Optional[int] = None
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
+class ActionFilter(BaseModel):
+    """No documentation"""
+
+    search: Optional[str] = None
+    name: Optional[StrFilterLookup] = None
+    ids: Optional[Tuple[ID, ...]] = None
+    demands: Optional[Tuple["PortDemandInput", ...]] = None
+    protocols: Optional[Tuple[str, ...]] = None
+    kind: Optional[ActionKind] = None
+    and_: Optional["ActionFilter"] = Field(alias="AND", default=None)
+    or_: Optional["ActionFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ActionFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -263,6 +268,8 @@ class ShortcutFilter(BaseModel):
     toolbox: Optional[ID] = None
     and_: Optional["ShortcutFilter"] = Field(alias="AND", default=None)
     or_: Optional["ShortcutFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ShortcutFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -285,6 +292,8 @@ class ToolboxFilter(BaseModel):
     ids: Optional[Tuple[ID, ...]] = None
     and_: Optional["ToolboxFilter"] = Field(alias="AND", default=None)
     or_: Optional["ToolboxFilter"] = Field(alias="OR", default=None)
+    not_: Optional["ToolboxFilter"] = Field(alias="NOT", default=None)
+    distinct: Optional[bool] = Field(alias="DISTINCT", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -616,6 +625,15 @@ class CancelInput(BaseModel):
     )
 
 
+class CollectInput(BaseModel):
+    """The input for collecting a shelved item in a drawer."""
+
+    drawers: Tuple[ID, ...]
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class InterruptInput(BaseModel):
     """The input for interrupting an assignation."""
 
@@ -689,12 +707,30 @@ class CreateTestResultInput(BaseModel):
     )
 
 
+class ShelveInMemoryDrawerInput(BaseModel):
+    """No documentation"""
+
+    instance_id: InstanceId = Field(alias="instanceId")
+    "The instance ID of the agent. This is used to identify the agent in the system."
+    identifier: Identifier
+    "The identifier of the drawer. This is used to identify the drawer in the system."
+    resource_id: str = Field(alias="resourceId")
+    "The resource ID of the drawer."
+    label: Optional[str] = None
+    "The label of the drawer. This is used to identify the drawer in the system."
+    description: Optional[str] = None
+    "The description of the drawer. This is used to identify the drawer in the system."
+    model_config = ConfigDict(
+        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
+    )
+
+
 class UnshelveMemoryDrawerInput(BaseModel):
     """No documentation"""
 
     instance_id: InstanceId = Field(alias="instanceId")
     "The instance ID of the agent. This is used to identify the agent in the system."
-    resource_id: str = Field(alias="resourceId")
+    id: str
     "The resource ID of the drawer."
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -814,76 +850,59 @@ class CreateShortcutInput(BaseModel):
     )
 
 
-class CollectInput(BaseModel):
-    """The input for collecting a shelved item in a drawer."""
-
-    drawers: Tuple[ID, ...]
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
-class ShelveInMemoryDrawerInput(BaseModel):
-    """No documentation"""
-
-    instance_id: InstanceId = Field(alias="instanceId")
-    "The instance ID of the agent. This is used to identify the agent in the system."
-    identifier: Identifier
-    "The identifier of the drawer. This is used to identify the drawer in the system."
-    resource_id: str = Field(alias="resourceId")
-    "The resource ID of the drawer."
-    label: Optional[str] = None
-    "The label of the drawer. This is used to identify the drawer in the system."
-    description: Optional[str] = None
-    "The description of the drawer. This is used to identify the drawer in the system."
-    model_config = ConfigDict(
-        frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
-    )
-
-
 class TestCaseAction(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     id: ID
+    "Unique ID of the action."
     model_config = ConfigDict(frozen=True)
 
 
 class TestCase(BaseModel):
-    """No documentation"""
+    """Defines a test case comparing expected behavior for actions."""
 
     typename: Literal["TestCase"] = Field(
         alias="__typename", default="TestCase", exclude=True
     )
     id: ID
+    "Unique ID of the test case."
     action: TestCaseAction
+    "Target action under test."
     is_benchmark: bool = Field(alias="isBenchmark")
+    "If true, measures performance rather than correctness."
     description: str
+    "Details of what this test case covers."
     name: str
+    "Short name for the test case."
     model_config = ConfigDict(frozen=True)
 
 
 class TestResultCase(BaseModel):
-    """No documentation"""
+    """Defines a test case comparing expected behavior for actions."""
 
     typename: Literal["TestCase"] = Field(
         alias="__typename", default="TestCase", exclude=True
     )
     id: ID
+    "Unique ID of the test case."
     model_config = ConfigDict(frozen=True)
 
 
 class TestResult(BaseModel):
-    """No documentation"""
+    """Result from executing a test case with specific implementations."""
 
     typename: Literal["TestResult"] = Field(
         alias="__typename", default="TestResult", exclude=True
     )
     id: ID
+    "ID of the test result."
     case: TestResultCase
+    "Associated test case."
     passed: bool
+    "True if test passed."
     model_config = ConfigDict(frozen=True)
 
 
@@ -891,9 +910,22 @@ class ChildPortNestedChildren(PortTrait, BaseModel):
     """No documentation"""
 
     typename: Literal["Port"] = Field(alias="__typename", default="Port", exclude=True)
+    key: str
     identifier: Optional[Identifier] = Field(default=None)
     nullable: bool
     kind: PortKind
+    model_config = ConfigDict(frozen=True)
+
+
+class ChildPortNestedChoices(BaseModel):
+    """No documentation"""
+
+    typename: Literal["Choice"] = Field(
+        alias="__typename", default="Choice", exclude=True
+    )
+    value: str
+    label: str
+    description: Optional[str] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
 
@@ -904,6 +936,7 @@ class ChildPortNested(PortTrait, BaseModel):
     key: str
     kind: PortKind
     children: Optional[Tuple[ChildPortNestedChildren, ...]] = Field(default=None)
+    choices: Optional[Tuple[ChildPortNestedChoices, ...]] = Field(default=None)
     identifier: Optional[Identifier] = Field(default=None)
     nullable: bool
     default: Optional[Any] = Field(default=None)
@@ -1039,54 +1072,64 @@ class ChoiceReturnWidget(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class AgentRegistryApp(BaseModel):
-    """No documentation"""
+class AgentRegistryClient(BaseModel):
+    """Represents a registered OAuth2 client."""
 
-    typename: Literal["App"] = Field(alias="__typename", default="App", exclude=True)
+    typename: Literal["Client"] = Field(
+        alias="__typename", default="Client", exclude=True
+    )
     id: ID
+    "Unique ID of the client."
     model_config = ConfigDict(frozen=True)
 
 
 class AgentRegistryUser(BaseModel):
-    """No documentation"""
+    """Represents an authenticated user."""
 
     typename: Literal["User"] = Field(alias="__typename", default="User", exclude=True)
-    id: ID
+    sub: ID
+    "The subject identifier of the user."
     model_config = ConfigDict(frozen=True)
 
 
 class AgentRegistry(BaseModel):
-    """No documentation"""
+    """Links a user and a client for registry tracking."""
 
     typename: Literal["Registry"] = Field(
         alias="__typename", default="Registry", exclude=True
     )
-    app: AgentRegistryApp
+    client: AgentRegistryClient
+    "The associated client."
     user: AgentRegistryUser
+    "The associated user."
     model_config = ConfigDict(frozen=True)
 
 
 class AgentMemoryshelve(BaseModel):
-    """No documentation"""
+    """A shelve for storing memory-based resources on an agent."""
 
     typename: Literal["MemoryShelve"] = Field(
         alias="__typename", default="MemoryShelve", exclude=True
     )
     id: ID
+    "ID of the memory shelve."
     model_config = ConfigDict(frozen=True)
 
 
 class Agent(BaseModel):
-    """No documentation"""
+    """Represents a compute agent that can execute implementations."""
 
     typename: Literal["Agent"] = Field(
         alias="__typename", default="Agent", exclude=True
     )
     id: ID
+    "Unique ID of the agent."
     registry: AgentRegistry
+    "Registry entry this agent belongs to."
     memory_shelve: Optional[AgentMemoryshelve] = Field(
         default=None, alias="memoryShelve"
     )
+    "Agent's associated memory shelve."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1101,12 +1144,13 @@ class PanelState(BaseModel):
 
 
 class PanelReservation(BaseModel):
-    """No documentation"""
+    """Reservation for planned assignment of implementations."""
 
     typename: Literal["Reservation"] = Field(
         alias="__typename", default="Reservation", exclude=True
     )
     id: ID
+    "ID of the reservation."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1123,41 +1167,6 @@ class Panel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class ReservationAction(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
-    id: ID
-    hash: ActionHash
-    model_config = ConfigDict(frozen=True)
-
-
-class ReservationWaiter(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Waiter"] = Field(
-        alias="__typename", default="Waiter", exclude=True
-    )
-    id: ID
-    model_config = ConfigDict(frozen=True)
-
-
-class Reservation(BaseModel):
-    """No documentation"""
-
-    typename: Literal["Reservation"] = Field(
-        alias="__typename", default="Reservation", exclude=True
-    )
-    id: ID
-    action: ReservationAction
-    waiter: ReservationWaiter
-    reference: str
-    updated_at: datetime = Field(alias="updatedAt")
-    model_config = ConfigDict(frozen=True)
-
-
 class DashboardUitreeChildBase(BaseModel):
     """No documentation"""
 
@@ -1167,6 +1176,9 @@ class DashboardUitreeChildBase(BaseModel):
 class DashboardUitreeChildBaseUIGrid(DashboardUitreeChildBase, BaseModel):
     """No documentation"""
 
+    typename: Literal["UIGrid"] = Field(
+        alias="__typename", default="UIGrid", exclude=True
+    )
     typename: Literal["UIGrid"] = Field(
         alias="__typename", default="UIGrid", exclude=True
     )
@@ -1225,12 +1237,13 @@ class DashboardPanelsState(BaseModel):
 
 
 class DashboardPanelsReservation(BaseModel):
-    """No documentation"""
+    """Reservation for planned assignment of implementations."""
 
     typename: Literal["Reservation"] = Field(
         alias="__typename", default="Reservation", exclude=True
     )
     id: ID
+    "ID of the reservation."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1260,105 +1273,145 @@ class Dashboard(BaseModel):
 
 
 class AssignationParent(BaseModel):
-    """No documentation"""
+    """Tracks the assignment of an implementation to a specific task."""
 
     typename: Literal["Assignation"] = Field(
         alias="__typename", default="Assignation", exclude=True
     )
     id: ID
+    "Unique ID of the assignation."
     model_config = ConfigDict(frozen=True)
 
 
 class AssignationEvents(BaseModel):
-    """No documentation"""
+    """An event that occurred during an assignation."""
 
     typename: Literal["AssignationEvent"] = Field(
         alias="__typename", default="AssignationEvent", exclude=True
     )
     id: ID
+    "Unique ID of the event."
     returns: Optional[Any] = Field(default=None)
-    level: Optional[LogLevel] = Field(default=None)
+    "Optional return values."
+    level: LogLevel
+    "Default log level."
     model_config = ConfigDict(frozen=True)
 
 
 class AssignationInstructs(BaseModel):
-    """No documentation"""
+    """An instruct event for a specific assignation."""
 
     typename: Literal["AssignationInstruct"] = Field(
         alias="__typename", default="AssignationInstruct", exclude=True
     )
     id: ID
+    "Unique ID of the instruct event."
     model_config = ConfigDict(frozen=True)
 
 
 class Assignation(BaseModel):
-    """No documentation"""
+    """Tracks the assignment of an implementation to a specific task."""
 
     typename: Literal["Assignation"] = Field(
         alias="__typename", default="Assignation", exclude=True
     )
     args: Any
+    "Arguments used in the assignation."
     id: ID
+    "Unique ID of the assignation."
     parent: Optional[AssignationParent] = Field(default=None)
-    "A parent assignation is the next assignation in the chain of assignations that caused this assignation to be created. Parents can be created by intent or by the system. If null, this assignation is the parent"
+    "Parent assignation that triggered this one."
     id: ID
+    "Unique ID of the assignation."
     latest_event_kind: AssignationEventKind = Field(alias="latestEventKind")
-    "The status of this assignation"
+    "Type of the latest event."
     events: Tuple[AssignationEvents, ...]
+    "List of recent events for this assignation."
     instructs: Tuple[AssignationInstructs, ...]
+    "List of recent instructions for this assignation."
     reference: Optional[str] = Field(default=None)
+    "Optional external reference for tracking."
     updated_at: datetime = Field(alias="updatedAt")
+    "Last update timestamp."
     model_config = ConfigDict(frozen=True)
 
 
 class AssignationEvent(BaseModel):
-    """No documentation"""
+    """An event that occurred during an assignation."""
 
     typename: Literal["AssignationEvent"] = Field(
         alias="__typename", default="AssignationEvent", exclude=True
     )
     id: ID
+    "Unique ID of the event."
     kind: AssignationEventKind
+    "Kind of assignation event."
     returns: Optional[Any] = Field(default=None)
+    "Optional return values."
     reference: str
+    "Reference string for the event."
     message: Optional[str] = Field(default=None)
+    "Optional message associated with the event."
     progress: Optional[int] = Field(default=None)
+    "Progress percentage."
     model_config = ConfigDict(frozen=True)
 
 
 class Toolbox(BaseModel):
-    """No documentation"""
+    """A collection of shortcuts grouped as a toolbox."""
 
     typename: Literal["Toolbox"] = Field(
         alias="__typename", default="Toolbox", exclude=True
     )
     id: ID
+    "Toolbox ID."
     name: str
+    "Name of the toolbox."
     description: str
+    "Description of the toolbox."
     model_config = ConfigDict(frozen=True)
 
 
 class ListToolbox(BaseModel):
-    """No documentation"""
+    """A collection of shortcuts grouped as a toolbox."""
 
     typename: Literal["Toolbox"] = Field(
         alias="__typename", default="Toolbox", exclude=True
     )
     id: ID
+    "Toolbox ID."
     name: str
+    "Name of the toolbox."
     description: str
+    "Description of the toolbox."
     model_config = ConfigDict(frozen=True)
 
 
 class PrimaryAction(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     name: str
+    "Name of the action."
     id: ID
+    "Unique ID of the action."
     hash: ActionHash
+    "Unique hash identifying the action definition."
+    description: Optional[str] = Field(default=None)
+    "Optional description of the action."
+    model_config = ConfigDict(frozen=True)
+
+
+class ChildPortChoices(BaseModel):
+    """No documentation"""
+
+    typename: Literal["Choice"] = Field(
+        alias="__typename", default="Choice", exclude=True
+    )
+    value: str
+    label: str
     description: Optional[str] = Field(default=None)
     model_config = ConfigDict(frozen=True)
 
@@ -1371,6 +1424,7 @@ class ChildPort(PortTrait, BaseModel):
     kind: PortKind
     identifier: Optional[Identifier] = Field(default=None)
     children: Optional[Tuple[ChildPortNested, ...]] = Field(default=None)
+    choices: Optional[Tuple[ChildPortChoices, ...]] = Field(default=None)
     nullable: bool
     default: Optional[Any] = Field(default=None)
     model_config = ConfigDict(frozen=True)
@@ -1627,6 +1681,18 @@ class PortReturnwidgetBaseCatchAll(PortReturnwidgetBase, BaseModel):
     typename: str = Field(alias="__typename", exclude=True)
 
 
+class PortChoices(BaseModel):
+    """No documentation"""
+
+    typename: Literal["Choice"] = Field(
+        alias="__typename", default="Choice", exclude=True
+    )
+    value: str
+    label: str
+    description: Optional[str] = Field(default=None)
+    model_config = ConfigDict(frozen=True)
+
+
 class PortValidators(BaseModel):
     """No documentation"""
 
@@ -1708,6 +1774,7 @@ class Port(PortTrait, BaseModel):
             PortReturnwidgetBaseCatchAll,
         ]
     ] = Field(default=None, alias="returnWidget")
+    choices: Optional[Tuple[PortChoices, ...]] = Field(default=None)
     validators: Optional[Tuple[PortValidators, ...]] = Field(default=None)
     effects: Optional[
         Tuple[
@@ -1725,31 +1792,42 @@ class Port(PortTrait, BaseModel):
 
 
 class ListShortcutAction(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     id: ID
+    "Unique ID of the action."
     hash: ActionHash
+    "Unique hash identifying the action definition."
     model_config = ConfigDict(frozen=True)
 
 
 class ListShortcut(BaseModel):
-    """No documentation"""
+    """Shortcut to an action with preset arguments."""
 
     typename: Literal["Shortcut"] = Field(
         alias="__typename", default="Shortcut", exclude=True
     )
     id: ID
+    "Shortcut ID."
     name: str
+    "Name of the shortcut."
     description: Optional[str] = Field(default=None)
+    "Optional description."
     action: ListShortcutAction
+    "The associated action."
     saved_args: Any = Field(alias="savedArgs")
+    "Saved arguments for the shortcut."
     args: Tuple[Port, ...]
+    "Input ports for the shortcut's action.dd"
     returns: Tuple[Port, ...]
+    "Return ports from the shortcut's action."
     allow_quick: bool = Field(alias="allowQuick")
+    "Allow quick execution without modification."
     use_returns: bool = Field(alias="useReturns")
+    "If true, shortcut uses return values."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1766,22 +1844,24 @@ class StateSchema(BaseModel):
 
 
 class DefinitionCollections(BaseModel):
-    """No documentation"""
+    """A grouping of actions."""
 
     typename: Literal["Collection"] = Field(
         alias="__typename", default="Collection", exclude=True
     )
     name: str
+    "Name of the collection."
     model_config = ConfigDict(frozen=True)
 
 
 class DefinitionIstestfor(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     id: ID
+    "Unique ID of the action."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1796,32 +1876,65 @@ class DefinitionPortgroups(BaseModel):
 
 
 class Definition(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     args: Tuple[Port, ...]
+    "Input arguments (ports) for the action."
     returns: Tuple[Port, ...]
+    "Output values (ports) returned by the action."
     kind: ActionKind
+    "The kind or category of the action."
     name: str
+    "Name of the action."
     description: Optional[str] = Field(default=None)
+    "Optional description of the action."
     interfaces: Tuple[str, ...]
+    "Interfaces implemented by the action."
     collections: Tuple[DefinitionCollections, ...]
+    "Collections to which this action belongs."
     is_dev: bool = Field(alias="isDev")
+    "Marks whether the action is in development."
     is_test_for: Tuple[DefinitionIstestfor, ...] = Field(alias="isTestFor")
+    "Actions for which this is a test."
     port_groups: Tuple[DefinitionPortgroups, ...] = Field(alias="portGroups")
+    "Port groups used in the action for organizing ports."
     stateful: bool
+    "Indicates whether the action maintains state."
+    model_config = ConfigDict(frozen=True)
+
+
+class ListAction(BaseModel):
+    """Represents an executable action in the system."""
+
+    typename: Literal["Action"] = Field(
+        alias="__typename", default="Action", exclude=True
+    )
+    id: ID
+    "Unique ID of the action."
+    name: str
+    "Name of the action."
+    description: Optional[str] = Field(default=None)
+    "Optional description of the action."
+    args: Tuple[Port, ...]
+    "Input arguments (ports) for the action."
+    returns: Tuple[Port, ...]
+    "Output values (ports) returned by the action."
+    stateful: bool
+    "Indicates whether the action maintains state."
     model_config = ConfigDict(frozen=True)
 
 
 class StateAgent(BaseModel):
-    """No documentation"""
+    """Represents a compute agent that can execute implementations."""
 
     typename: Literal["Agent"] = Field(
         alias="__typename", default="Agent", exclude=True
     )
     id: ID
+    "Unique ID of the agent."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1839,65 +1952,113 @@ class State(BaseModel):
 
 
 class Action(Definition, BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     hash: ActionHash
+    "Unique hash identifying the action definition."
     id: ID
+    "Unique ID of the action."
+    model_config = ConfigDict(frozen=True)
+
+
+class ReservationWaiter(BaseModel):
+    """Entity that waits for the completion of assignations."""
+
+    typename: Literal["Waiter"] = Field(
+        alias="__typename", default="Waiter", exclude=True
+    )
+    id: ID
+    "Unique ID of the waiter."
+    model_config = ConfigDict(frozen=True)
+
+
+class Reservation(BaseModel):
+    """Reservation for planned assignment of implementations."""
+
+    typename: Literal["Reservation"] = Field(
+        alias="__typename", default="Reservation", exclude=True
+    )
+    id: ID
+    "ID of the reservation."
+    action: Action
+    "Action this reservation is for."
+    waiter: ReservationWaiter
+    "Waiter associated with the reservation."
+    reference: str
+    "Reference string for identification."
+    updated_at: datetime = Field(alias="updatedAt")
+    "Last update timestamp."
     model_config = ConfigDict(frozen=True)
 
 
 class Shortcut(BaseModel):
-    """No documentation"""
+    """Shortcut to an action with preset arguments."""
 
     typename: Literal["Shortcut"] = Field(
         alias="__typename", default="Shortcut", exclude=True
     )
     id: ID
+    "Shortcut ID."
     name: str
+    "Name of the shortcut."
     description: Optional[str] = Field(default=None)
+    "Optional description."
     action: Action
+    "The associated action."
     saved_args: Any = Field(alias="savedArgs")
+    "Saved arguments for the shortcut."
     args: Tuple[Port, ...]
+    "Input ports for the shortcut's action.dd"
     returns: Tuple[Port, ...]
+    "Return ports from the shortcut's action."
     use_returns: bool = Field(alias="useReturns")
+    "If true, shortcut uses return values."
     model_config = ConfigDict(frozen=True)
 
 
 class ImplementationAgentRegistry(BaseModel):
-    """No documentation"""
+    """Links a user and a client for registry tracking."""
 
     typename: Literal["Registry"] = Field(
         alias="__typename", default="Registry", exclude=True
     )
     id: ID
+    "Unique identifier for the registry."
     model_config = ConfigDict(frozen=True)
 
 
 class ImplementationAgent(BaseModel):
-    """No documentation"""
+    """Represents a compute agent that can execute implementations."""
 
     typename: Literal["Agent"] = Field(
         alias="__typename", default="Agent", exclude=True
     )
     registry: ImplementationAgentRegistry
+    "Registry entry this agent belongs to."
     model_config = ConfigDict(frozen=True)
 
 
 class Implementation(BaseModel):
-    """No documentation"""
+    """Represents a concrete implementation of an action."""
 
     typename: Literal["Implementation"] = Field(
         alias="__typename", default="Implementation", exclude=True
     )
     id: ID
+    "Unique ID of the implementation."
     agent: ImplementationAgent
+    "Agent running this implementation."
     action: Action
+    "The action this implements."
     params: Any
+    "Arbitrary parameters for the implementation."
     extension: str
+    "Extension or module name."
     interface: str
+    "Interface string representing the implementation entrypoint."
     model_config = ConfigDict(frozen=True)
 
 
@@ -1905,11 +2066,13 @@ class Create_testcaseMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_test_case: TestCase = Field(alias="createTestCase")
+    "Create a new test case."
 
     class Arguments(BaseModel):
         """Arguments for create_testcase"""
 
         input: CreateTestCaseInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for create_testcase"""
@@ -1921,11 +2084,13 @@ class Create_testresultMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_test_result: TestResult = Field(alias="createTestResult")
+    "Create a test result record."
 
     class Arguments(BaseModel):
         """Arguments for create_testresult"""
 
         input: CreateTestResultInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for create_testresult"""
@@ -1937,59 +2102,67 @@ class SetStateMutation(BaseModel):
     """No documentation found for this operation."""
 
     set_state: State = Field(alias="setState")
+    "Set the value of a state object."
 
     class Arguments(BaseModel):
         """Arguments for SetState"""
 
         input: SetStateInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SetState"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation SetState($input: SetStateInput!) {\n  setState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class UpdateStateMutation(BaseModel):
     """No documentation found for this operation."""
 
     update_state: State = Field(alias="updateState")
+    "Update fields in a state object."
 
     class Arguments(BaseModel):
         """Arguments for UpdateState"""
 
         input: UpdateStateInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for UpdateState"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nfragment State on State {\n  id\n  value\n  stateSchema {\n    ...StateSchema\n    __typename\n  }\n  agent {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation UpdateState($input: UpdateStateInput!) {\n  updateState(input: $input) {\n    ...State\n    __typename\n  }\n}"
 
 
 class EnsureAgentMutation(BaseModel):
     """No documentation found for this operation."""
 
     ensure_agent: Agent = Field(alias="ensureAgent")
+    "Ensure agent record exists or is up to date."
 
     class Arguments(BaseModel):
         """Arguments for EnsureAgent"""
 
         input: AgentInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for EnsureAgent"""
 
-        document = "fragment Agent on Agent {\n  id\n  registry {\n    app {\n      id\n      __typename\n    }\n    user {\n      id\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation EnsureAgent($input: AgentInput!) {\n  ensureAgent(input: $input) {\n    ...Agent\n    __typename\n  }\n}"
+        document = "fragment Agent on Agent {\n  id\n  registry {\n    client {\n      id\n      __typename\n    }\n    user {\n      sub\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nmutation EnsureAgent($input: AgentInput!) {\n  ensureAgent(input: $input) {\n    ...Agent\n    __typename\n  }\n}"
 
 
 class CreatePanelMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_panel: Panel = Field(alias="createPanel")
+    "Create a user interface panel."
 
     class Arguments(BaseModel):
         """Arguments for CreatePanel"""
 
         input: CreatePanelInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreatePanel"""
@@ -2001,27 +2174,31 @@ class ReserveMutation(BaseModel):
     """No documentation found for this operation."""
 
     reserve: Reservation
+    "Reserve an implementation for future use."
 
     class Arguments(BaseModel):
         """Arguments for reserve"""
 
         input: ReserveInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for reserve"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nmutation reserve($input: ReserveInput!) {\n  reserve(input: $input) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Reservation on Reservation {\n  id\n  action {\n    ...Action\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nmutation reserve($input: ReserveInput!) {\n  reserve(input: $input) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class UnreserveMutation(BaseModel):
     """No documentation found for this operation."""
 
     unreserve: str
+    "Release a reserved implementation."
 
     class Arguments(BaseModel):
         """Arguments for unreserve"""
 
         input: UnreserveInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for unreserve"""
@@ -2033,27 +2210,31 @@ class CreateShortcutMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_shortcut: Shortcut = Field(alias="createShortcut")
+    "Create a shortcut to an action."
 
     class Arguments(BaseModel):
         """Arguments for CreateShortcut"""
 
         input: CreateShortcutInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateShortcut"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nmutation CreateShortcut($input: CreateShortcutInput!) {\n  createShortcut(input: $input) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class AssignMutation(BaseModel):
     """No documentation found for this operation."""
 
     assign: Assignation
+    "Assign a task to an agent."
 
     class Arguments(BaseModel):
         """Arguments for assign"""
 
         input: AssignInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for assign"""
@@ -2065,11 +2246,13 @@ class CancelMutation(BaseModel):
     """No documentation found for this operation."""
 
     cancel: Assignation
+    "Cancel an active assignation."
 
     class Arguments(BaseModel):
         """Arguments for cancel"""
 
         input: CancelInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for cancel"""
@@ -2081,11 +2264,13 @@ class InterruptMutation(BaseModel):
     """No documentation found for this operation."""
 
     interrupt: Assignation
+    "Interrupt the execution of an assignation."
 
     class Arguments(BaseModel):
         """Arguments for interrupt"""
 
         input: InterruptInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for interrupt"""
@@ -2097,12 +2282,13 @@ class CollectMutation(BaseModel):
     """No documentation found for this operation."""
 
     collect: Tuple[str, ...]
-    "Collect data from a assignation"
+    "Collect results from an assignation."
 
     class Arguments(BaseModel):
         """Arguments for collect"""
 
         input: CollectInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for collect"""
@@ -2116,11 +2302,13 @@ class CreateDashboardMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_dashboard: Dashboard = Field(alias="createDashboard")
+    "Create a dashboard layout."
 
     class Arguments(BaseModel):
         """Arguments for CreateDashboard"""
 
         input: CreateDashboardInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateDashboard"""
@@ -2144,11 +2332,13 @@ class ShelveMutation(BaseModel):
     shelve_in_memory_drawer: ShelveMutationShelveinmemorydrawer = Field(
         alias="shelveInMemoryDrawer"
     )
+    "Shelve data into a memory drawer."
 
     class Arguments(BaseModel):
         """Arguments for shelve"""
 
         input: ShelveInMemoryDrawerInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for shelve"""
@@ -2159,12 +2349,14 @@ class ShelveMutation(BaseModel):
 class UnshelveMutation(BaseModel):
     """No documentation found for this operation."""
 
-    unshelve_memory_drawer: str = Field(alias="unshelveMemoryDrawer")
+    unshelve_memory_drawer: ID = Field(alias="unshelveMemoryDrawer")
+    "Unshelve data from a memory drawer."
 
     class Arguments(BaseModel):
         """Arguments for unshelve"""
 
         input: UnshelveMemoryDrawerInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for unshelve"""
@@ -2176,32 +2368,36 @@ class CreateStateSchemaMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_state_schema: StateSchema = Field(alias="createStateSchema")
+    "Define a new state schema."
 
     class Arguments(BaseModel):
         """Arguments for CreateStateSchema"""
 
         input: CreateStateSchemaInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for CreateStateSchema"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment StateSchema on StateSchema {\n  id\n  name\n  ports {\n    ...Port\n    __typename\n  }\n  __typename\n}\n\nmutation CreateStateSchema($input: CreateStateSchemaInput!) {\n  createStateSchema(input: $input) {\n    ...StateSchema\n    __typename\n  }\n}"
 
 
 class CreateImplementationMutation(BaseModel):
     """No documentation found for this operation."""
 
     create_implementation: Implementation = Field(alias="createImplementation")
+    "Create a new implementation entry."
 
     class Arguments(BaseModel):
         """Arguments for createImplementation"""
 
         input: CreateImplementationInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for createImplementation"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createImplementation($input: CreateImplementationInput!) {\n  createImplementation(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation createImplementation($input: CreateImplementationInput!) {\n  createImplementation(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class SetExtensionImplementationsMutation(BaseModel):
@@ -2210,59 +2406,67 @@ class SetExtensionImplementationsMutation(BaseModel):
     set_extension_implementations: Tuple[Implementation, ...] = Field(
         alias="setExtensionImplementations"
     )
+    "Set implementations provided by an extension."
 
     class Arguments(BaseModel):
         """Arguments for SetExtensionImplementations"""
 
         input: SetExtensionImplementationsInput
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for SetExtensionImplementations"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {\n  setExtensionImplementations(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nmutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {\n  setExtensionImplementations(input: $input) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class WatchReservationsSubscription(BaseModel):
     """No documentation found for this operation."""
 
     reservations: Reservation
+    "Subscribe to updates on reservations."
 
     class Arguments(BaseModel):
         """Arguments for WatchReservations"""
 
         instance_id: InstanceId = Field(alias="instanceId")
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchReservations"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Reservation on Reservation {\n  id\n  action {\n    ...Action\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nsubscription WatchReservations($instanceId: InstanceId!) {\n  reservations(instanceId: $instanceId) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class WatchAssignationsSubscription(BaseModel):
     """No documentation found for this operation."""
 
     assignations: AssignationChangeEvent
+    "Subscribe to updates on assignations."
 
     class Arguments(BaseModel):
         """Arguments for WatchAssignations"""
 
         instance_id: InstanceId = Field(alias="instanceId")
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for WatchAssignations"""
 
-        document = "fragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  latestEventKind\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  instructs {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
+        document = "fragment Assignation on Assignation {\n  args\n  id\n  parent {\n    id\n    __typename\n  }\n  id\n  latestEventKind\n  events {\n    id\n    returns\n    level\n    __typename\n  }\n  instructs {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nfragment AssignationEvent on AssignationEvent {\n  id\n  kind\n  returns\n  reference\n  message\n  progress\n  __typename\n}\n\nfragment AssignationChangeEvent on AssignationChangeEvent {\n  create {\n    ...Assignation\n    __typename\n  }\n  event {\n    ...AssignationEvent\n    __typename\n  }\n  __typename\n}\n\nsubscription WatchAssignations($instanceId: InstanceId!) {\n  assignations(instanceId: $instanceId) {\n    ...AssignationChangeEvent\n    __typename\n  }\n}"
 
 
 class Get_testcaseQuery(BaseModel):
     """No documentation found for this operation."""
 
     test_case: TestCase = Field(alias="testCase")
+    "Retrieve test case by ID."
 
     class Arguments(BaseModel):
         """Arguments for get_testcase"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for get_testcase"""
@@ -2274,11 +2478,13 @@ class Get_testresultQuery(BaseModel):
     """No documentation found for this operation."""
 
     test_result: TestResult = Field(alias="testResult")
+    "Get test result by ID."
 
     class Arguments(BaseModel):
         """Arguments for get_testresult"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for get_testresult"""
@@ -2287,13 +2493,15 @@ class Get_testresultQuery(BaseModel):
 
 
 class Search_testcasesQueryOptions(BaseModel):
-    """No documentation"""
+    """Defines a test case comparing expected behavior for actions."""
 
     typename: Literal["TestCase"] = Field(
         alias="__typename", default="TestCase", exclude=True
     )
     label: str
+    "Short name for the test case."
     value: ID
+    "Unique ID of the test case."
     model_config = ConfigDict(frozen=True)
 
 
@@ -2301,12 +2509,14 @@ class Search_testcasesQuery(BaseModel):
     """No documentation found for this operation."""
 
     options: Tuple[Search_testcasesQueryOptions, ...]
+    "All test cases."
 
     class Arguments(BaseModel):
         """Arguments for search_testcases"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for search_testcases"""
@@ -2315,13 +2525,15 @@ class Search_testcasesQuery(BaseModel):
 
 
 class Search_testresultsQueryOptions(BaseModel):
-    """No documentation"""
+    """Result from executing a test case with specific implementations."""
 
     typename: Literal["TestResult"] = Field(
         alias="__typename", default="TestResult", exclude=True
     )
     label: datetime
+    "When the test was executed."
     value: ID
+    "ID of the test result."
     model_config = ConfigDict(frozen=True)
 
 
@@ -2329,12 +2541,14 @@ class Search_testresultsQuery(BaseModel):
     """No documentation found for this operation."""
 
     options: Tuple[Search_testresultsQueryOptions, ...]
+    "Test results associated with test cases."
 
     class Arguments(BaseModel):
         """Arguments for search_testresults"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for search_testresults"""
@@ -2343,13 +2557,15 @@ class Search_testresultsQuery(BaseModel):
 
 
 class GetMeActionsQueryActions(BaseModel):
-    """No documentation"""
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     id: ID
+    "Unique ID of the action."
     name: str
+    "Name of the action."
     model_config = ConfigDict(frozen=True)
 
 
@@ -2357,9 +2573,12 @@ class GetMeActionsQuery(BaseModel):
     """No documentation found for this operation."""
 
     actions: Tuple[GetMeActionsQueryActions, ...]
+    "List of all available actions."
 
     class Arguments(BaseModel):
         """Arguments for GetMeActions"""
+
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetMeActions"""
@@ -2371,27 +2590,31 @@ class GetAgentQuery(BaseModel):
     """No documentation found for this operation."""
 
     agent: Agent
+    "Retrieve an agent by ID."
 
     class Arguments(BaseModel):
         """Arguments for GetAgent"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetAgent"""
 
-        document = "fragment Agent on Agent {\n  id\n  registry {\n    app {\n      id\n      __typename\n    }\n    user {\n      id\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n    __typename\n  }\n}"
+        document = "fragment Agent on Agent {\n  id\n  registry {\n    client {\n      id\n      __typename\n    }\n    user {\n      sub\n      __typename\n    }\n    __typename\n  }\n  memoryShelve {\n    id\n    __typename\n  }\n  __typename\n}\n\nquery GetAgent($id: ID!) {\n  agent(id: $id) {\n    ...Agent\n    __typename\n  }\n}"
 
 
 class GetPanelQuery(BaseModel):
     """No documentation found for this operation."""
 
     panel: Panel
+    "Get a panel by ID."
 
     class Arguments(BaseModel):
         """Arguments for GetPanel"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetPanel"""
@@ -2403,38 +2626,43 @@ class Get_reservationQuery(BaseModel):
     """No documentation found for this operation."""
 
     reservation: Reservation
+    "Retrieve reservation by ID."
 
     class Arguments(BaseModel):
         """Arguments for get_reservation"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for get_reservation"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery get_reservation($id: ID!) {\n  reservation(id: $id) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Reservation on Reservation {\n  id\n  action {\n    ...Action\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery get_reservation($id: ID!) {\n  reservation(id: $id) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class ReservationsQuery(BaseModel):
     """No documentation found for this operation."""
 
     reservations: Tuple[Reservation, ...]
+    "List of all reservations."
 
     class Arguments(BaseModel):
         """Arguments for reservations"""
 
         instance_id: InstanceId
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for reservations"""
 
-        document = "fragment Reservation on Reservation {\n  id\n  action {\n    id\n    hash\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Reservation on Reservation {\n  id\n  action {\n    ...Action\n    __typename\n  }\n  waiter {\n    id\n    __typename\n  }\n  reference\n  updatedAt\n  __typename\n}\n\nquery reservations($instance_id: InstanceId!) {\n  reservations(instanceId: $instance_id) {\n    ...Reservation\n    __typename\n  }\n}"
 
 
 class ListShortcutsQuery(BaseModel):
     """No documentation found for this operation."""
 
     shortcuts: Tuple[ListShortcut, ...]
+    "List of shortcuts."
 
     class Arguments(BaseModel):
         """Arguments for ListShortcuts"""
@@ -2442,38 +2670,43 @@ class ListShortcutsQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
         filters: Optional[ShortcutFilter] = Field(default=None)
         order: Optional[ShortcutOrder] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ListShortcuts"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListShortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    id\n    hash\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  allowQuick\n  useReturns\n  __typename\n}\n\nquery ListShortcuts($pagination: OffsetPaginationInput, $filters: ShortcutFilter, $order: ShortcutOrder) {\n  shortcuts(order: $order, pagination: $pagination, filters: $filters) {\n    ...ListShortcut\n    __typename\n  }\n}"
 
 
 class GetShortcutQuery(BaseModel):
     """No documentation found for this operation."""
 
     shortcut: Shortcut
+    "Retrieve shortcut by ID."
 
     class Arguments(BaseModel):
         """Arguments for GetShortcut"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetShortcut"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Shortcut on Shortcut {\n  id\n  name\n  description\n  action {\n    ...Action\n    __typename\n  }\n  savedArgs\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  useReturns\n  __typename\n}\n\nquery GetShortcut($id: ID!) {\n  shortcut(id: $id) {\n    ...Shortcut\n    __typename\n  }\n}"
 
 
 class RequestsQuery(BaseModel):
     """No documentation found for this operation."""
 
     assignations: Tuple[Assignation, ...]
+    "Fetch assignations."
 
     class Arguments(BaseModel):
         """Arguments for requests"""
 
         instance_id: InstanceId
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for requests"""
@@ -2485,11 +2718,13 @@ class GetEventQuery(BaseModel):
     """No documentation found for this operation."""
 
     event: Tuple[AssignationEvent, ...]
+    "Fetch a specific event."
 
     class Arguments(BaseModel):
         """Arguments for GetEvent"""
 
         id: Optional[ID] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetEvent"""
@@ -2501,11 +2736,13 @@ class GetDashboardQuery(BaseModel):
     """No documentation found for this operation."""
 
     dashboard: Dashboard
+    "Get dashboard by ID."
 
     class Arguments(BaseModel):
         """Arguments for GetDashboard"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetDashboard"""
@@ -2517,6 +2754,7 @@ class ListToolboxesQuery(BaseModel):
     """No documentation found for this operation."""
 
     toolboxes: Tuple[ListToolbox, ...]
+    "List of toolboxes containing shortcuts."
 
     class Arguments(BaseModel):
         """Arguments for ListToolboxes"""
@@ -2524,6 +2762,7 @@ class ListToolboxesQuery(BaseModel):
         pagination: Optional[OffsetPaginationInput] = Field(default=None)
         filters: Optional[ToolboxFilter] = Field(default=None)
         order: Optional[ToolboxOrder] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for ListToolboxes"""
@@ -2535,11 +2774,13 @@ class GetToolboxQuery(BaseModel):
     """No documentation found for this operation."""
 
     toolbox: Toolbox
+    "Get toolbox by ID."
 
     class Arguments(BaseModel):
         """Arguments for GetToolbox"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for GetToolbox"""
@@ -2551,26 +2792,30 @@ class Get_implementationQuery(BaseModel):
     """No documentation found for this operation."""
 
     implementation: Implementation
+    "Get implementation by ID."
 
     class Arguments(BaseModel):
         """Arguments for get_implementation"""
 
         id: ID
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for get_implementation"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_implementation($id: ID!) {\n  implementation(id: $id) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery get_implementation($id: ID!) {\n  implementation(id: $id) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class Search_implementationsQueryOptions(BaseModel):
-    """No documentation"""
+    """Represents a concrete implementation of an action."""
 
     typename: Literal["Implementation"] = Field(
         alias="__typename", default="Implementation", exclude=True
     )
     label: str
+    "Constructed name for display, combining interface and agent name."
     value: ID
+    "Unique ID of the implementation."
     model_config = ConfigDict(frozen=True)
 
 
@@ -2578,12 +2823,14 @@ class Search_implementationsQuery(BaseModel):
     """No documentation found for this operation."""
 
     options: Tuple[Search_implementationsQueryOptions, ...]
+    "All registered implementations."
 
     class Arguments(BaseModel):
         """Arguments for search_implementations"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for search_implementations"""
@@ -2595,22 +2842,25 @@ class Implementations_forQuery(BaseModel):
     """No documentation found for this operation."""
 
     implementations: Tuple[Implementation, ...]
+    "All registered implementations."
 
     class Arguments(BaseModel):
         """Arguments for implementations_for"""
 
         hash: ActionHash
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for implementations_for"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery implementations_for($hash: ActionHash!) {\n  implementations(filters: {actionHash: $hash}) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery implementations_for($hash: ActionHash!) {\n  implementations(filters: {actionHash: $hash}) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class MyImplementationAtQuery(BaseModel):
     """No documentation found for this operation."""
 
     my_implementation_at: Implementation = Field(alias="myImplementationAt")
+    "Find your implementation at a specific interface."
 
     class Arguments(BaseModel):
         """Arguments for MyImplementationAt"""
@@ -2618,17 +2868,19 @@ class MyImplementationAtQuery(BaseModel):
         instance_id: str = Field(alias="instanceId")
         interface: Optional[str] = Field(default=None)
         action_id: Optional[ID] = Field(alias="actionId", default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for MyImplementationAt"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {\n  myImplementationAt(\n    instanceId: $instanceId\n    interface: $interface\n    actionId: $actionId\n  ) {\n    ...Implementation\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nfragment Implementation on Implementation {\n  id\n  agent {\n    registry {\n      id\n      __typename\n    }\n    __typename\n  }\n  action {\n    ...Action\n    __typename\n  }\n  params\n  extension\n  interface\n  __typename\n}\n\nquery MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {\n  myImplementationAt(\n    instanceId: $instanceId\n    interface: $interface\n    actionId: $actionId\n  ) {\n    ...Implementation\n    __typename\n  }\n}"
 
 
 class FindQuery(BaseModel):
     """No documentation found for this operation."""
 
     action: Action
+    "Fetch a specific action."
 
     class Arguments(BaseModel):
         """Arguments for find"""
@@ -2636,59 +2888,87 @@ class FindQuery(BaseModel):
         id: Optional[ID] = Field(default=None)
         implementation: Optional[ID] = Field(default=None)
         hash: Optional[ActionHash] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for find"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $implementation: ID, $hash: ActionHash) {\n  action(id: $id, implementation: $implementation, hash: $hash) {\n    ...Action\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery find($id: ID, $implementation: ID, $hash: ActionHash) {\n  action(id: $id, implementation: $implementation, hash: $hash) {\n    ...Action\n    __typename\n  }\n}"
 
 
 class RetrieveallQuery(BaseModel):
     """No documentation found for this operation."""
 
     actions: Tuple[Action, ...]
+    "List of all available actions."
 
     class Arguments(BaseModel):
         """Arguments for retrieveall"""
 
+        model_config = ConfigDict(populate_by_name=True)
+
     class Meta:
         """Meta class for retrieveall"""
 
-        document = "fragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  actions {\n    ...Action\n    __typename\n  }\n}"
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment Definition on Action {\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  kind\n  name\n  description\n  interfaces\n  collections {\n    name\n    __typename\n  }\n  isDev\n  isTestFor {\n    id\n    __typename\n  }\n  portGroups {\n    key\n    __typename\n  }\n  stateful\n  __typename\n}\n\nfragment Action on Action {\n  hash\n  id\n  ...Definition\n  __typename\n}\n\nquery retrieveall {\n  actions {\n    ...Action\n    __typename\n  }\n}"
 
 
-class Search_actionsQueryOptions(BaseModel):
-    """No documentation"""
+class SearchActionsQueryOptions(BaseModel):
+    """Represents an executable action in the system."""
 
     typename: Literal["Action"] = Field(
         alias="__typename", default="Action", exclude=True
     )
     label: str
+    "Name of the action."
     value: ID
+    "Unique ID of the action."
     model_config = ConfigDict(frozen=True)
 
 
-class Search_actionsQuery(BaseModel):
+class SearchActionsQuery(BaseModel):
     """No documentation found for this operation."""
 
-    options: Tuple[Search_actionsQueryOptions, ...]
+    options: Tuple[SearchActionsQueryOptions, ...]
+    "List of all available actions."
 
     class Arguments(BaseModel):
-        """Arguments for search_actions"""
+        """Arguments for SearchActions"""
 
         search: Optional[str] = Field(default=None)
         values: Optional[List[ID]] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
-        """Meta class for search_actions"""
+        """Meta class for SearchActions"""
 
-        document = "query search_actions($search: String, $values: [ID!]) {\n  options: actions(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
+        document = "query SearchActions($search: String, $values: [ID!]) {\n  options: actions(\n    filters: {name: {iContains: $search}, ids: $values}\n    pagination: {limit: 10}\n  ) {\n    label: name\n    value: id\n    __typename\n  }\n}"
+
+
+class ListActionsQuery(BaseModel):
+    """No documentation found for this operation."""
+
+    actions: Tuple[ListAction, ...]
+    "List of all available actions."
+
+    class Arguments(BaseModel):
+        """Arguments for ListActions"""
+
+        filters: Optional[ActionFilter] = Field(default=None)
+        pagination: Optional[OffsetPaginationInput] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
+
+    class Meta:
+        """Meta class for ListActions"""
+
+        document = "fragment SliderAssignWidget on SliderAssignWidget {\n  __typename\n  kind\n  min\n  max\n  step\n}\n\nfragment MessageEffect on MessageEffect {\n  __typename\n  kind\n  message\n}\n\nfragment SearchAssignWidget on SearchAssignWidget {\n  __typename\n  kind\n  query\n  ward\n  dependencies\n}\n\nfragment CustomEffect on CustomEffect {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment ChoiceReturnWidget on ChoiceReturnWidget {\n  __typename\n  choices {\n    label\n    value\n    description\n    __typename\n  }\n}\n\nfragment ChoiceAssignWidget on ChoiceAssignWidget {\n  __typename\n  kind\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n}\n\nfragment StringAssignWidget on StringAssignWidget {\n  __typename\n  kind\n  placeholder\n  asParagraph\n}\n\nfragment ChildPortNested on Port {\n  key\n  kind\n  children {\n    key\n    identifier\n    nullable\n    kind\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  identifier\n  nullable\n  default\n  __typename\n}\n\nfragment CustomReturnWidget on CustomReturnWidget {\n  __typename\n  kind\n  hook\n  ward\n}\n\nfragment CustomAssignWidget on CustomAssignWidget {\n  __typename\n  ward\n  hook\n}\n\nfragment PortAssignWidget on AssignWidget {\n  __typename\n  kind\n  ...StringAssignWidget\n  ...SearchAssignWidget\n  ...SliderAssignWidget\n  ...ChoiceAssignWidget\n  ...CustomAssignWidget\n}\n\nfragment PortEffect on Effect {\n  __typename\n  kind\n  dependencies\n  function\n  ...CustomEffect\n  ...MessageEffect\n}\n\nfragment ChildPort on Port {\n  key\n  kind\n  identifier\n  children {\n    ...ChildPortNested\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  nullable\n  default\n  __typename\n}\n\nfragment ReturnWidget on ReturnWidget {\n  __typename\n  kind\n  ...CustomReturnWidget\n  ...ChoiceReturnWidget\n}\n\nfragment Port on Port {\n  __typename\n  key\n  label\n  nullable\n  description\n  default\n  kind\n  identifier\n  children {\n    ...ChildPort\n    __typename\n  }\n  assignWidget {\n    ...PortAssignWidget\n    __typename\n  }\n  returnWidget {\n    ...ReturnWidget\n    __typename\n  }\n  choices {\n    value\n    label\n    description\n    __typename\n  }\n  validators {\n    function\n    errorMessage\n    dependencies\n    label\n    __typename\n  }\n  effects {\n    ...PortEffect\n    __typename\n  }\n}\n\nfragment ListAction on Action {\n  id\n  name\n  description\n  args {\n    ...Port\n    __typename\n  }\n  returns {\n    ...Port\n    __typename\n  }\n  stateful\n  __typename\n}\n\nquery ListActions($filters: ActionFilter, $pagination: OffsetPaginationInput) {\n  actions(filters: $filters, pagination: $pagination) {\n    ...ListAction\n    __typename\n  }\n}"
 
 
 class PrimaryActionsQuery(BaseModel):
     """No documentation found for this operation."""
 
     actions: Tuple[PrimaryAction, ...]
+    "List of all available actions."
 
     class Arguments(BaseModel):
         """Arguments for PrimaryActions"""
@@ -2697,6 +2977,7 @@ class PrimaryActionsQuery(BaseModel):
         identifier: Optional[str] = Field(default=None)
         order: Optional[ActionOrder] = Field(default=None)
         search: Optional[str] = Field(default=None)
+        model_config = ConfigDict(populate_by_name=True)
 
     class Meta:
         """Meta class for PrimaryActions"""
@@ -2713,6 +2994,7 @@ async def acreate_testcase(
 ) -> TestCase:
     """create_testcase
 
+    Create a new test case.
 
     Arguments:
         action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2749,6 +3031,7 @@ def create_testcase(
 ) -> TestCase:
     """create_testcase
 
+    Create a new test case.
 
     Arguments:
         action: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2784,6 +3067,7 @@ async def acreate_testresult(
 ) -> TestResult:
     """create_testresult
 
+    Create a test result record.
 
     Arguments:
         case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2823,6 +3107,7 @@ def create_testresult(
 ) -> TestResult:
     """create_testresult
 
+    Create a test result record.
 
     Arguments:
         case: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2858,6 +3143,7 @@ async def aset_state(
 ) -> State:
     """SetState
 
+    Set the value of a state object.
 
     Arguments:
         state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2891,6 +3177,7 @@ def set_state(
 ) -> State:
     """SetState
 
+    Set the value of a state object.
 
     Arguments:
         state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2922,6 +3209,7 @@ async def aupdate_state(
 ) -> State:
     """UpdateState
 
+    Update fields in a state object.
 
     Arguments:
         state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2955,6 +3243,7 @@ def update_state(
 ) -> State:
     """UpdateState
 
+    Update fields in a state object.
 
     Arguments:
         state_schema: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -2986,6 +3275,7 @@ async def aensure_agent(
 ) -> Agent:
     """EnsureAgent
 
+    Ensure agent record exists or is up to date.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
@@ -3019,6 +3309,7 @@ def ensure_agent(
 ) -> Agent:
     """EnsureAgent
 
+    Ensure agent record exists or is up to date.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
@@ -3052,6 +3343,7 @@ async def acreate_panel(
 ) -> Panel:
     """CreatePanel
 
+    Create a user interface panel.
 
     Arguments:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
@@ -3109,6 +3401,7 @@ def create_panel(
 ) -> Panel:
     """CreatePanel
 
+    Create a user interface panel.
 
     Arguments:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text. (required)
@@ -3150,7 +3443,7 @@ def create_panel(
 
 async def areserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3",
+    reference: Optional[str] = "e4c61070-e480-4109-83ac-df9aae5646d6",
     action: Optional[ID] = None,
     implementation: Optional[ID] = None,
     title: Optional[str] = None,
@@ -3161,6 +3454,7 @@ async def areserve(
 ) -> Reservation:
     """reserve
 
+    Reserve an implementation for future use.
 
     Arguments:
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -3198,7 +3492,7 @@ async def areserve(
 
 def reserve(
     instance_id: InstanceId,
-    reference: Optional[str] = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3",
+    reference: Optional[str] = "e4c61070-e480-4109-83ac-df9aae5646d6",
     action: Optional[ID] = None,
     implementation: Optional[ID] = None,
     title: Optional[str] = None,
@@ -3209,6 +3503,7 @@ def reserve(
 ) -> Reservation:
     """reserve
 
+    Reserve an implementation for future use.
 
     Arguments:
         reference: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -3245,6 +3540,7 @@ def reserve(
 async def aunreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
     """unreserve
 
+    Release a reserved implementation.
 
     Arguments:
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3263,6 +3559,7 @@ async def aunreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) ->
 def unreserve(reservation: ID, rath: Optional[RekuestNextRath] = None) -> str:
     """unreserve
 
+    Release a reserved implementation.
 
     Arguments:
         reservation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3289,6 +3586,7 @@ async def acreate_shortcut(
 ) -> Shortcut:
     """CreateShortcut
 
+    Create a shortcut to an action.
 
     Arguments:
         toolbox: The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox.
@@ -3337,6 +3635,7 @@ def create_shortcut(
 ) -> Shortcut:
     """CreateShortcut
 
+    Create a shortcut to an action.
 
     Arguments:
         toolbox: The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox.
@@ -3383,7 +3682,7 @@ async def aassign(
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "6b21fcac-8166-410e-be97-0638aa8d9cf7",
+    reference: Optional[str] = "d4066669-4632-4921-8609-9fd0ec725ac7",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3391,6 +3690,7 @@ async def aassign(
 ) -> Assignation:
     """assign
 
+    Assign a task to an agent.
 
     Arguments:
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
@@ -3455,7 +3755,7 @@ def assign(
     reservation: Optional[ID] = None,
     interface: Optional[str] = None,
     hooks: Optional[Iterable[HookInput]] = None,
-    reference: Optional[str] = "6b21fcac-8166-410e-be97-0638aa8d9cf7",
+    reference: Optional[str] = "d4066669-4632-4921-8609-9fd0ec725ac7",
     parent: Optional[ID] = None,
     is_hook: Optional[bool] = None,
     step: Optional[bool] = None,
@@ -3463,6 +3763,7 @@ def assign(
 ) -> Assignation:
     """assign
 
+    Assign a task to an agent.
 
     Arguments:
         instance_id: The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer (required)
@@ -3517,6 +3818,7 @@ async def acancel(
 ) -> Assignation:
     """cancel
 
+    Cancel an active assignation.
 
     Arguments:
         assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3535,6 +3837,7 @@ async def acancel(
 def cancel(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """cancel
 
+    Cancel an active assignation.
 
     Arguments:
         assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3553,6 +3856,7 @@ async def ainterrupt(
 ) -> Assignation:
     """interrupt
 
+    Interrupt the execution of an assignation.
 
     Arguments:
         assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3571,6 +3875,7 @@ async def ainterrupt(
 def interrupt(assignation: ID, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """interrupt
 
+    Interrupt the execution of an assignation.
 
     Arguments:
         assignation: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required)
@@ -3589,7 +3894,7 @@ async def acollect(
 ) -> Tuple[str, ...]:
     """collect
 
-    Collect data from a assignation
+    Collect results from an assignation.
 
     Arguments:
         drawers: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list) (required)
@@ -3608,7 +3913,7 @@ def collect(
 ) -> Tuple[str, ...]:
     """collect
 
-    Collect data from a assignation
+    Collect results from an assignation.
 
     Arguments:
         drawers: The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID. (required) (list) (required)
@@ -3628,6 +3933,7 @@ async def acreate_dashboard(
 ) -> Dashboard:
     """CreateDashboard
 
+    Create a dashboard layout.
 
     Arguments:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -3655,6 +3961,7 @@ def create_dashboard(
 ) -> Dashboard:
     """CreateDashboard
 
+    Create a dashboard layout.
 
     Arguments:
         name: The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.
@@ -3682,6 +3989,7 @@ async def ashelve(
 ) -> ShelveMutationShelveinmemorydrawer:
     """shelve
 
+    Shelve data into a memory drawer.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
@@ -3721,6 +4029,7 @@ def shelve(
 ) -> ShelveMutationShelveinmemorydrawer:
     """shelve
 
+    Shelve data into a memory drawer.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
@@ -3749,46 +4058,46 @@ def shelve(
 
 
 async def aunshelve(
-    instance_id: InstanceId, resource_id: str, rath: Optional[RekuestNextRath] = None
-) -> str:
+    instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None
+) -> ID:
     """unshelve
 
+    Unshelve data from a memory drawer.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
-        resource_id: The resource ID of the drawer.
+        id: The resource ID of the drawer.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        str
+        ID
     """
     return (
         await aexecute(
             UnshelveMutation,
-            {"input": {"instanceId": instance_id, "resourceId": resource_id}},
+            {"input": {"instanceId": instance_id, "id": id}},
             rath=rath,
         )
     ).unshelve_memory_drawer
 
 
 def unshelve(
-    instance_id: InstanceId, resource_id: str, rath: Optional[RekuestNextRath] = None
-) -> str:
+    instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None
+) -> ID:
     """unshelve
 
+    Unshelve data from a memory drawer.
 
     Arguments:
         instance_id: The instance ID of the agent. This is used to identify the agent in the system.
-        resource_id: The resource ID of the drawer.
+        id: The resource ID of the drawer.
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        str
+        ID
     """
     return execute(
-        UnshelveMutation,
-        {"input": {"instanceId": instance_id, "resourceId": resource_id}},
-        rath=rath,
+        UnshelveMutation, {"input": {"instanceId": instance_id, "id": id}}, rath=rath
     ).unshelve_memory_drawer
 
 
@@ -3797,6 +4106,7 @@ async def acreate_state_schema(
 ) -> StateSchema:
     """CreateStateSchema
 
+    Define a new state schema.
 
     Arguments:
         state_schema: The input for creating a state schema. (required)
@@ -3819,6 +4129,7 @@ def create_state_schema(
 ) -> StateSchema:
     """CreateStateSchema
 
+    Define a new state schema.
 
     Arguments:
         state_schema: The input for creating a state schema. (required)
@@ -3840,6 +4151,7 @@ async def acreate_implementation(
 ) -> Implementation:
     """createImplementation
 
+    Create a new implementation entry.
 
     Arguments:
         implementation: A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params. (required)
@@ -3873,6 +4185,7 @@ def create_implementation(
 ) -> Implementation:
     """createImplementation
 
+    Create a new implementation entry.
 
     Arguments:
         implementation: A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params. (required)
@@ -3905,6 +4218,7 @@ async def aset_extension_implementations(
 ) -> Tuple[Implementation, ...]:
     """SetExtensionImplementations
 
+    Set implementations provided by an extension.
 
     Arguments:
         implementations: The implementations to set. This is used to identify the implementations in the system.
@@ -3941,6 +4255,7 @@ def set_extension_implementations(
 ) -> Tuple[Implementation, ...]:
     """SetExtensionImplementations
 
+    Set implementations provided by an extension.
 
     Arguments:
         implementations: The implementations to set. This is used to identify the implementations in the system.
@@ -3971,6 +4286,7 @@ async def awatch_reservations(
 ) -> AsyncIterator[Reservation]:
     """WatchReservations
 
+    Subscribe to updates on reservations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -3990,6 +4306,7 @@ def watch_reservations(
 ) -> Iterator[Reservation]:
     """WatchReservations
 
+    Subscribe to updates on reservations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4009,6 +4326,7 @@ async def awatch_assignations(
 ) -> AsyncIterator[AssignationChangeEvent]:
     """WatchAssignations
 
+    Subscribe to updates on assignations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4028,6 +4346,7 @@ def watch_assignations(
 ) -> Iterator[AssignationChangeEvent]:
     """WatchAssignations
 
+    Subscribe to updates on assignations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4045,6 +4364,7 @@ def watch_assignations(
 async def aget_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
     """get_testcase
 
+    Retrieve test case by ID.
 
     Arguments:
         id (ID): No description
@@ -4059,6 +4379,7 @@ async def aget_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestC
 def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
     """get_testcase
 
+    Retrieve test case by ID.
 
     Arguments:
         id (ID): No description
@@ -4073,6 +4394,7 @@ def get_testcase(id: ID, rath: Optional[RekuestNextRath] = None) -> TestCase:
 async def aget_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult:
     """get_testresult
 
+    Get test result by ID.
 
     Arguments:
         id (ID): No description
@@ -4087,6 +4409,7 @@ async def aget_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> Tes
 def get_testresult(id: ID, rath: Optional[RekuestNextRath] = None) -> TestResult:
     """get_testresult
 
+    Get test result by ID.
 
     Arguments:
         id (ID): No description
@@ -4105,6 +4428,7 @@ async def asearch_testcases(
 ) -> Tuple[Search_testcasesQueryOptions, ...]:
     """search_testcases
 
+    All test cases.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4128,6 +4452,7 @@ def search_testcases(
 ) -> Tuple[Search_testcasesQueryOptions, ...]:
     """search_testcases
 
+    All test cases.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4149,6 +4474,7 @@ async def asearch_testresults(
 ) -> Tuple[Search_testresultsQueryOptions, ...]:
     """search_testresults
 
+    Test results associated with test cases.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4172,6 +4498,7 @@ def search_testresults(
 ) -> Tuple[Search_testresultsQueryOptions, ...]:
     """search_testresults
 
+    Test results associated with test cases.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4191,6 +4518,7 @@ async def aget_me_actions(
 ) -> Tuple[GetMeActionsQueryActions, ...]:
     """GetMeActions
 
+    List of all available actions.
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -4206,6 +4534,7 @@ def get_me_actions(
 ) -> Tuple[GetMeActionsQueryActions, ...]:
     """GetMeActions
 
+    List of all available actions.
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -4219,6 +4548,7 @@ def get_me_actions(
 async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
+    Retrieve an agent by ID.
 
     Arguments:
         id (ID): No description
@@ -4233,6 +4563,7 @@ async def aget_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
 def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
     """GetAgent
 
+    Retrieve an agent by ID.
 
     Arguments:
         id (ID): No description
@@ -4247,6 +4578,7 @@ def get_agent(id: ID, rath: Optional[RekuestNextRath] = None) -> Agent:
 async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
+    Get a panel by ID.
 
     Arguments:
         id (ID): No description
@@ -4261,6 +4593,7 @@ async def aget_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
 def get_panel(id: ID, rath: Optional[RekuestNextRath] = None) -> Panel:
     """GetPanel
 
+    Get a panel by ID.
 
     Arguments:
         id (ID): No description
@@ -4277,6 +4610,7 @@ async def aget_reservation(
 ) -> Reservation:
     """get_reservation
 
+    Retrieve reservation by ID.
 
     Arguments:
         id (ID): No description
@@ -4291,6 +4625,7 @@ async def aget_reservation(
 def get_reservation(id: ID, rath: Optional[RekuestNextRath] = None) -> Reservation:
     """get_reservation
 
+    Retrieve reservation by ID.
 
     Arguments:
         id (ID): No description
@@ -4307,6 +4642,7 @@ async def areservations(
 ) -> Tuple[Reservation, ...]:
     """reservations
 
+    List of all reservations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4325,6 +4661,7 @@ def reservations(
 ) -> Tuple[Reservation, ...]:
     """reservations
 
+    List of all reservations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4346,6 +4683,7 @@ async def alist_shortcuts(
 ) -> Tuple[ListShortcut, ...]:
     """ListShortcuts
 
+    List of shortcuts.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4373,6 +4711,7 @@ def list_shortcuts(
 ) -> Tuple[ListShortcut, ...]:
     """ListShortcuts
 
+    List of shortcuts.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4393,6 +4732,7 @@ def list_shortcuts(
 async def aget_shortcut(id: ID, rath: Optional[RekuestNextRath] = None) -> Shortcut:
     """GetShortcut
 
+    Retrieve shortcut by ID.
 
     Arguments:
         id (ID): No description
@@ -4407,6 +4747,7 @@ async def aget_shortcut(id: ID, rath: Optional[RekuestNextRath] = None) -> Short
 def get_shortcut(id: ID, rath: Optional[RekuestNextRath] = None) -> Shortcut:
     """GetShortcut
 
+    Retrieve shortcut by ID.
 
     Arguments:
         id (ID): No description
@@ -4423,6 +4764,7 @@ async def arequests(
 ) -> Tuple[Assignation, ...]:
     """requests
 
+    Fetch assignations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4441,6 +4783,7 @@ def requests(
 ) -> Tuple[Assignation, ...]:
     """requests
 
+    Fetch assignations.
 
     Arguments:
         instance_id (InstanceId): No description
@@ -4457,6 +4800,7 @@ async def aget_event(
 ) -> Tuple[AssignationEvent, ...]:
     """GetEvent
 
+    Fetch a specific event.
 
     Arguments:
         id (Optional[ID], optional): No description.
@@ -4473,6 +4817,7 @@ def get_event(
 ) -> Tuple[AssignationEvent, ...]:
     """GetEvent
 
+    Fetch a specific event.
 
     Arguments:
         id (Optional[ID], optional): No description.
@@ -4487,6 +4832,7 @@ def get_event(
 async def aget_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
     """GetDashboard
 
+    Get dashboard by ID.
 
     Arguments:
         id (ID): No description
@@ -4501,6 +4847,7 @@ async def aget_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dash
 def get_dashboard(id: ID, rath: Optional[RekuestNextRath] = None) -> Dashboard:
     """GetDashboard
 
+    Get dashboard by ID.
 
     Arguments:
         id (ID): No description
@@ -4520,6 +4867,7 @@ async def alist_toolboxes(
 ) -> Tuple[ListToolbox, ...]:
     """ListToolboxes
 
+    List of toolboxes containing shortcuts.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4547,6 +4895,7 @@ def list_toolboxes(
 ) -> Tuple[ListToolbox, ...]:
     """ListToolboxes
 
+    List of toolboxes containing shortcuts.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4567,6 +4916,7 @@ def list_toolboxes(
 async def aget_toolbox(id: ID, rath: Optional[RekuestNextRath] = None) -> Toolbox:
     """GetToolbox
 
+    Get toolbox by ID.
 
     Arguments:
         id (ID): No description
@@ -4581,6 +4931,7 @@ async def aget_toolbox(id: ID, rath: Optional[RekuestNextRath] = None) -> Toolbo
 def get_toolbox(id: ID, rath: Optional[RekuestNextRath] = None) -> Toolbox:
     """GetToolbox
 
+    Get toolbox by ID.
 
     Arguments:
         id (ID): No description
@@ -4597,6 +4948,7 @@ async def aget_implementation(
 ) -> Implementation:
     """get_implementation
 
+    Get implementation by ID.
 
     Arguments:
         id (ID): No description
@@ -4615,6 +4967,7 @@ def get_implementation(
 ) -> Implementation:
     """get_implementation
 
+    Get implementation by ID.
 
     Arguments:
         id (ID): No description
@@ -4633,6 +4986,7 @@ async def asearch_implementations(
 ) -> Tuple[Search_implementationsQueryOptions, ...]:
     """search_implementations
 
+    All registered implementations.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4656,6 +5010,7 @@ def search_implementations(
 ) -> Tuple[Search_implementationsQueryOptions, ...]:
     """search_implementations
 
+    All registered implementations.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4675,6 +5030,7 @@ async def aimplementations_for(
 ) -> Tuple[Implementation, ...]:
     """implementations_for
 
+    All registered implementations.
 
     Arguments:
         hash (ActionHash): No description
@@ -4693,6 +5049,7 @@ def implementations_for(
 ) -> Tuple[Implementation, ...]:
     """implementations_for
 
+    All registered implementations.
 
     Arguments:
         hash (ActionHash): No description
@@ -4712,6 +5069,7 @@ async def amy_implementation_at(
 ) -> Implementation:
     """MyImplementationAt
 
+    Find your implementation at a specific interface.
 
     Arguments:
         instance_id (str): No description
@@ -4739,6 +5097,7 @@ def my_implementation_at(
 ) -> Implementation:
     """MyImplementationAt
 
+    Find your implementation at a specific interface.
 
     Arguments:
         instance_id (str): No description
@@ -4764,6 +5123,7 @@ async def afind(
 ) -> Action:
     """find
 
+    Fetch a specific action.
 
     Arguments:
         id (Optional[ID], optional): No description.
@@ -4791,6 +5151,7 @@ def find(
 ) -> Action:
     """find
 
+    Fetch a specific action.
 
     Arguments:
         id (Optional[ID], optional): No description.
@@ -4809,6 +5170,7 @@ def find(
 async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Action, ...]:
     """retrieveall
 
+    List of all available actions.
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -4822,6 +5184,7 @@ async def aretrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Action, 
 def retrieveall(rath: Optional[RekuestNextRath] = None) -> Tuple[Action, ...]:
     """retrieveall
 
+    List of all available actions.
 
     Arguments:
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
@@ -4836,9 +5199,10 @@ async def asearch_actions(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_actionsQueryOptions, ...]:
-    """search_actions
+) -> Tuple[SearchActionsQueryOptions, ...]:
+    """SearchActions
 
+    List of all available actions.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4846,11 +5210,11 @@ async def asearch_actions(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_actionsQueryActions]
+        List[SearchActionsQueryActions]
     """
     return (
         await aexecute(
-            Search_actionsQuery, {"search": search, "values": values}, rath=rath
+            SearchActionsQuery, {"search": search, "values": values}, rath=rath
         )
     ).options
 
@@ -4859,9 +5223,10 @@ def search_actions(
     search: Optional[str] = None,
     values: Optional[List[ID]] = None,
     rath: Optional[RekuestNextRath] = None,
-) -> Tuple[Search_actionsQueryOptions, ...]:
-    """search_actions
+) -> Tuple[SearchActionsQueryOptions, ...]:
+    """SearchActions
 
+    List of all available actions.
 
     Arguments:
         search (Optional[str], optional): No description.
@@ -4869,11 +5234,57 @@ def search_actions(
         rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
 
     Returns:
-        List[Search_actionsQueryActions]
+        List[SearchActionsQueryActions]
     """
     return execute(
-        Search_actionsQuery, {"search": search, "values": values}, rath=rath
+        SearchActionsQuery, {"search": search, "values": values}, rath=rath
     ).options
+
+
+async def alist_actions(
+    filters: Optional[ActionFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Tuple[ListAction, ...]:
+    """ListActions
+
+    List of all available actions.
+
+    Arguments:
+        filters (Optional[ActionFilter], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[ListAction]
+    """
+    return (
+        await aexecute(
+            ListActionsQuery, {"filters": filters, "pagination": pagination}, rath=rath
+        )
+    ).actions
+
+
+def list_actions(
+    filters: Optional[ActionFilter] = None,
+    pagination: Optional[OffsetPaginationInput] = None,
+    rath: Optional[RekuestNextRath] = None,
+) -> Tuple[ListAction, ...]:
+    """ListActions
+
+    List of all available actions.
+
+    Arguments:
+        filters (Optional[ActionFilter], optional): No description.
+        pagination (Optional[OffsetPaginationInput], optional): No description.
+        rath (rekuest_next.rath.RekuestNextRath, optional): The arkitekt rath client
+
+    Returns:
+        List[ListAction]
+    """
+    return execute(
+        ListActionsQuery, {"filters": filters, "pagination": pagination}, rath=rath
+    ).actions
 
 
 async def aprimary_actions(
@@ -4885,6 +5296,7 @@ async def aprimary_actions(
 ) -> Tuple[PrimaryAction, ...]:
     """PrimaryActions
 
+    List of all available actions.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4919,6 +5331,7 @@ def primary_actions(
 ) -> Tuple[PrimaryAction, ...]:
     """PrimaryActions
 
+    List of all available actions.
 
     Arguments:
         pagination (Optional[OffsetPaginationInput], optional): No description.
@@ -4942,6 +5355,7 @@ def primary_actions(
     ).actions
 
 
+ActionFilter.model_rebuild()
 AssignInput.model_rebuild()
 AssignWidgetInput.model_rebuild()
 CreateDashboardInput.model_rebuild()

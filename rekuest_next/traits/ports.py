@@ -1,10 +1,10 @@
 """Traits for ports and widgets, especially for validating the input"""
 
-from typing import Callable, TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, field_validator, model_validator
-import uuid
-import random
 import re
+
+from rekuest_next.messages import JSONSerializable
 
 if TYPE_CHECKING:
     from rekuest_next.api.schema import (
@@ -24,18 +24,20 @@ class PortTrait(BaseModel):
     """
 
     @field_validator("default", check_fields=False)
-    def default_validator(cls, v: Any) -> Any:  # noqa: ANN401
+    def default_validator(cls, v: Any) -> JSONSerializable:  # noqa: ANN401
         """Validate the default value of the port"""
         # Check if the default value is JSON serializable
         if v is None:
             return v
 
         if not isinstance(v, (str, int, float, dict, list, bool)):
-            raise ValueError("Default value must be JSON serializable, got: " + str(v)) from None
+            raise ValueError(
+                "Default value must be JSON serializable, got: " + str(v)
+            ) from None
 
-        return v
+        return v  # type: ignore[return-value]
 
-    @model_validator(mode="after")
+    @model_validator(mode="after")  # type: ignore[override]
     def validate_portkind_nested(cls, self: "PortInput") -> "PortInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import PortKind
@@ -58,43 +60,11 @@ class PortTrait(BaseModel):
                 raise ValueError(
                     "When specifying a dict you need to provide a wrapped 'children' port"
                 )
-            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
+            assert len(self.children) == 1, (
+                "Dict can only one child (key is always strings)"
+            )
 
         return self
-
-    def mock(
-        self: "PortInput",
-        structure_generator: Callable = uuid.uuid4,
-        int_generator: Callable = lambda: random.randint(0, 100),
-        float_generator: Callable = lambda: random.random(),
-        string_generator: Callable = lambda: str("sss"),
-    ) -> Union[int, str, bool, dict, list, None]:
-        """
-        Mocks some serialized data for this port
-        """
-        from rekuest_next.api.schema import PortKind
-
-        kind = self.kind
-
-        if kind == PortKind.STRUCTURE:
-            return str(structure_generator())
-
-        if kind == PortKind.LIST:
-            return [self.children[0].mock()]
-
-        if kind == PortKind.DICT:
-            return {"hello": self.children[0].mock(), "world": self.children[0].mock()}
-
-        if kind == PortKind.STRING:
-            return string_generator()
-
-        if kind == PortKind.INT:
-            return int_generator()
-
-        if kind == PortKind.BOOL:
-            return float_generator()
-
-        return None
 
 
 class WidgetInputTrait(BaseModel):
@@ -104,8 +74,10 @@ class WidgetInputTrait(BaseModel):
 
     """
 
-    @model_validator(mode="after")
-    def validate_widgetkind_nested(cls, self: "AssignWidgetInput") -> "AssignWidgetInput":
+    @model_validator(mode="after")  # type: ignore[override]
+    def validate_widgetkind_nested(
+        cls, self: "AssignWidgetInput"
+    ) -> "AssignWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import AssignWidgetKind
 
@@ -136,13 +108,12 @@ class ReturnWidgetInputTrait(BaseModel):
 
     """
 
-    @model_validator(mode="after")
-    def validate_widgetkind_nested(cls, self: "ReturnWidgetInput") -> "ReturnWidgetInput":
+    @model_validator(mode="after")  # type: ignore[override]
+    def validate_widgetkind_nested(
+        cls, self: "ReturnWidgetInput"
+    ) -> "ReturnWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import ReturnWidgetKind
-
-        if self.kind is None:
-            raise ValueError("kind is required")
 
         if self.kind == ReturnWidgetKind.CUSTOM:
             if self.hook is None:
@@ -157,12 +128,14 @@ class ReturnWidgetInputTrait(BaseModel):
 class ValidatorInputTrait(BaseModel):
     """An addin trait for validating the input of a validator"""
 
-    @model_validator(mode="after")
+    @model_validator(mode="after")  # type: ignore[override]
     def validate_widgetkind_nested(cls, self: "ValidatorInput") -> "ValidatorInput":
         """Validate the function of the validator"""
         args_match = re.match(r"\((.*?)\)", self.function)
         if args_match:
-            args = [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
+            args = [
+                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
+            ]
             if not args:
                 raise ValueError("Function must have at least one argument")
 
@@ -170,7 +143,7 @@ class ValidatorInputTrait(BaseModel):
 
             if len(args) - 1 is not len(dependencies):
                 raise ValueError(
-                    f"The number of arguments in the function must match the number of dependencies, plus one for the input value. Found {len(args)} arguments and {len(self.dependencies)} dependencies"
+                    f"The number of arguments in the function must match the number of dependencies, plus one for the input value. Found {len(args)} arguments and {len(dependencies)} dependencies"
                 )
         else:
             raise ValueError("Function must have at least one argument")
@@ -181,10 +154,10 @@ class ValidatorInputTrait(BaseModel):
 class DefinitionInputTrait(BaseModel):
     """An addin trait for validating the input of a definition"""
 
-    @model_validator(mode="after")
-    def validate_validators(cls, self: "DefinitionInput") -> None:
+    @model_validator(mode="after")  # type: ignore[override]
+    def validate_validators(cls, self: "DefinitionInput") -> "DefinitionInput":
         """Validate the ports"""
-        all_arg_keys = []
+        all_arg_keys: list[str] = []
 
         for port in self.args:
             all_arg_keys.append(port.key)

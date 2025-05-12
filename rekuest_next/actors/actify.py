@@ -5,51 +5,36 @@ into an actor.
 """
 
 import inspect
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple
+from functools import partial
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
-from rekuest_next.agents.context import prepare_context_variables
-from rekuest_next.state.decorator import prepare_state_variables
-from rekuest_next.api.schema import ValidatorInput
 from rekuest_next.actors.functional import (
-    SerializingActor,
     FunctionalFuncActor,
     FunctionalGenActor,
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
+    SerializingActor,
 )
-from rekuest_next.actors.types import Actor, ActorBuilder
+from rekuest_next.actors.sync import SyncGroup
+from rekuest_next.actors.types import ActorBuilder, AnyFunction
+from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.api.schema import (
     DefinitionInput,
-    EffectInput,
     PortGroupInput,
-    AssignWidgetInput,
+    ValidatorInput,
 )
-from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.define import (
+    AssignWidgetMap,
+    EffectsMap,
+    ReturnWidgetMap,
+    prepare_definition,
+)
+from rekuest_next.state.utils import prepare_state_variables
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.actors.sync import SyncGroup
-
-
-def higher_order_builder(
-    builder: ActorBuilder, **params: Dict[str, object]
-) -> ActorBuilder:
-    """Higher order builder for actors#
-
-    This is a higher order builder for actors. It takes a Actor class and
-    returns a builder function that inserts the parameters into the class
-    constructor. Akin to a partial function.
-    """
-
-    def inside_builder(**kwargs: Dict[str, object]) -> Actor:
-        return builder(
-            **kwargs,
-            **params,
-        )
-
-    return inside_builder
 
 
 def reactify(
-    function: Callable,
+    function: AnyFunction,
     structure_registry: StructureRegistry,
     bypass_shrink: bool = False,
     bypass_expand: bool = False,
@@ -57,15 +42,17 @@ def reactify(
     on_unprovide: Optional[Callable[[SerializingActor], Awaitable[None]]] = None,
     stateful: bool = False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: List[str] = None,
-    effects: Dict[str, EffectInput] = None,
+    collections: List[str] | None = None,
+    effects: EffectsMap | None = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     is_test_for: Optional[List[str]] = None,
-    widgets: Dict[str, AssignWidgetInput] = None,
-    interfaces: List[str] = [],
+    widgets: AssignWidgetMap | None = None,
+    return_widgets: ReturnWidgetMap | None = None,
+    interfaces: List[str] | None = None,
     in_process: bool = False,
+    logo: str | None = None,
+    name: str | None = None,
     sync: Optional[SyncGroup] = None,
-    **params: Dict[str, object],
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Reactify a function
 
@@ -91,7 +78,9 @@ def reactify(
         validators=validators,
         effects=effects,
         is_test_for=is_test_for,
-        **params,
+        name=name,
+        return_widgets=return_widgets,
+        logo=logo,
     )
 
     is_coroutine = inspect.iscoroutinefunction(function)
@@ -101,7 +90,7 @@ def reactify(
     is_generatorfunction = inspect.isgeneratorfunction(function)
     is_function = inspect.isfunction(function)
 
-    actor_attributes = {
+    actor_attributes: dict[str, Any] = {
         "assign": function,
         "expand_inputs": not bypass_expand,
         "shrink_outputs": not bypass_shrink,
@@ -117,16 +106,12 @@ def reactify(
     }
 
     if is_coroutine:
-        return definition, higher_order_builder(FunctionalFuncActor, **actor_attributes)
+        return definition, partial(FunctionalFuncActor, **actor_attributes)
     elif is_asyncgen:
-        return definition, higher_order_builder(FunctionalGenActor, **actor_attributes)
+        return definition, partial(FunctionalGenActor, **actor_attributes)
     elif is_generatorfunction and not in_process:
-        return definition, higher_order_builder(
-            FunctionalThreadedGenActor, **actor_attributes
-        )
+        return definition, partial(FunctionalThreadedGenActor, **actor_attributes)
     elif (is_function or is_method) and not in_process:
-        return definition, higher_order_builder(
-            FunctionalThreadedFuncActor, **actor_attributes
-        )
+        return definition, partial(FunctionalThreadedFuncActor, **actor_attributes)
     else:
         raise NotImplementedError("No way of converting this to a function")

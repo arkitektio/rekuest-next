@@ -7,22 +7,22 @@ import pytest
 
 def test_search_widget_error_on_wrong_graphql() -> None:
     """Test the search widget error when the GraphQL query is wrong"""
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         SearchWidget(query="hallo", ward="mikro")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         SearchWidget(query="query search {}", ward="mikro")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         SearchWidget(query="query search($name: sss) {}", ward="mikro")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         SearchWidget(
             query="query search($search: String) {lala {value: x label: y}}",
             ward="mikro",
         )
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         SearchWidget(
             query="query search($search: String) {options: karl {x label: y}}",
             ward="mikro",

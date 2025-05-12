@@ -9,6 +9,30 @@ from .errors import (
 from rekuest_next.messages import ToAgentMessage
 
 
+class AgentTransport(Protocol):
+    """Protocol for transport."""
+
+    async def aconnect(self) -> None:
+        """Connect to the transport."""
+        ...
+
+    async def adisconnect(self) -> None:
+        """Disconnect from the transport."""
+        ...
+
+    async def asend(self, message: ToAgentMessage) -> None:
+        """Send a message to the transport."""
+        ...
+
+    def set_callback(self, callback: "TransportCallbacks") -> None:
+        """Set the callback for the transport."""
+        ...
+
+    async def areceive(self) -> ToAgentMessage:
+        """Receive a message from the transport."""
+        ...
+
+
 class TransportCallbacks(Protocol):
     """Protocol for transport callbacks."""
 
@@ -19,7 +43,7 @@ class TransportCallbacks(Protocol):
         """Broadcast a message to all agents."""
         ...
 
-    async def on_agent_error(self: AgentConnectionFail) -> None:
+    async def on_agent_error(self, error: AgentConnectionFail) -> None:
         """Handle an error from the agent."""
         ...
 

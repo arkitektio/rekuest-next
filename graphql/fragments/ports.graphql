@@ -2,9 +2,15 @@ fragment ChildPortNested on Port {
   key
   kind
   children {
+    key
     identifier
     nullable
     kind
+  }
+  choices {
+    value
+    label
+    description
   }
   identifier
   nullable
@@ -17,6 +23,11 @@ fragment ChildPort on Port {
   identifier
   children {
     ...ChildPortNested
+  }
+  choices {
+    value
+    label
+    description
   }
   nullable
   default
@@ -133,6 +144,11 @@ fragment Port on Port {
   }
   returnWidget {
     ...ReturnWidget
+  }
+  choices {
+    value
+    label
+    description
   }
   validators {
     function

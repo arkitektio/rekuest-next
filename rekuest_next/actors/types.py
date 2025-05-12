@@ -1,10 +1,19 @@
 """Types for the actors module"""
 
-from typing import Protocol, Self, runtime_checkable, Callable, Awaitable, Any
+import asyncio
+from typing import Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
+from rekuest_next.actors.sync import SyncGroup
+from rekuest_next.protocols import AnyFunction
+from rekuest_next.scalars import Identifier
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import PortGroupInput
-from rekuest_next.definition.define import DefinitionInput
+from rekuest_next.api.schema import PortGroupInput, ValidatorInput
+from rekuest_next.definition.define import (
+    AssignWidgetMap,
+    DefinitionInput,
+    EffectsMap,
+    ReturnWidgetMap,
+)
 from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel, Field
 import uuid
@@ -23,7 +32,7 @@ class Shelver(Protocol):
 
     async def aput_on_shelve(
         self,
-        identifier: str,
+        identifier: Identifier,
         value: Any,  # noqa: ANN401
     ) -> str:  # noqa: ANN401
         """Put a value on the shelve and return the key. This is used to store
@@ -40,10 +49,37 @@ class Shelver(Protocol):
 class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
-    async def asend(self: "Agent", actor: "Actor", message: messages.Assign) -> None:
+    instance_id: str
+
+    async def asend(
+        self: "Agent", actor: Any, message: messages.FromAgentMessage
+    ) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 
+        ...
+
+    async def aput_on_shelve(
+        self,
+        identifier: Identifier,
+        value: Any,  # noqa: ANN401
+    ) -> str:  # noqa: ANN401
+        """Put a value on the shelve and return the key. This is used to store
+        values on the shelve."""
+        ...
+
+    async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
+        """Get a value from the shelve. This is used to get values from the
+        shelve."""
+        ...
+
+    async def aprovide(
+        self,
+        instance_id: str | None = None,
+    ) -> None:
+        """Provide the provision. This method will provide the provision and
+        return None.
+        """
         ...
 
 
@@ -53,6 +89,11 @@ class Actor(Protocol):
 
     agent: Agent
 
+    async def abreak(self, assignation_id: str) -> bool:
+        """Break the actor. This method will break the actor and return None.
+        This is used to break the actor"""
+        ...
+
     async def asend(
         self: Self,
         message: messages.FromAgentMessage,
@@ -60,6 +101,50 @@ class Actor(Protocol):
         """Send a message to the actor. This method will send a message to the
         actor and return None.
         """
+        ...
+
+    async def apass(
+        self: Self,
+        message: messages.ToAgentMessage,
+    ) -> None:
+        """Pass a message to the actor. This method will pass a message to the
+        actor and return None.
+        """
+        ...
+
+    async def arun(self) -> asyncio.Task[None]:
+        """Run the actor. This method will run the actor and return None.
+        This is used to run the actor"""
+        ...
+
+    async def acheck_assignation(
+        self: Self,
+        assignation_id: str,
+    ) -> bool:
+        """Check the assignation. This method will check the assignation and
+        return None.
+        """
+        ...
+
+
+@runtime_checkable
+class OnProvide(Protocol):
+    """An on_provide is a function gets call when the actors gets first started"""
+
+    def __call__(
+        self,
+        passport: Passport,
+    ) -> Awaitable[Any]:
+        """Provide the provision. This method will provide the provision and"""
+        ...
+
+
+@runtime_checkable
+class OnUnprovide(Protocol):
+    """An on unprovide is a function gets call when the actors gets kills"""
+
+    def __call__(self) -> Awaitable[Any]:
+        """Unprovide the provision. This method will unprovide the provision and"""
         ...
 
 
@@ -89,35 +174,28 @@ class Actifier(Protocol):
 
     def __call__(
         self,
-        function: Callable,
+        function: AnyFunction,
         structure_registry: StructureRegistry,
+        bypass_shrink: bool = False,
+        bypass_expand: bool = False,
+        on_provide: OnProvide | None = None,
+        on_unprovide: OnUnprovide | None = None,
+        stateful: bool = False,
+        validators: Optional[Dict[str, List[ValidatorInput]]] = None,
+        collections: List[str] | None = None,
+        effects: EffectsMap | None = None,
         port_groups: Optional[List[PortGroupInput]] = None,
         is_test_for: Optional[List[str]] = None,
-        **kwargs: Any,  # noqa: ANN401
+        widgets: AssignWidgetMap | None = None,
+        return_widgets: ReturnWidgetMap | None = None,
+        interfaces: List[str] | None = None,
+        in_process: bool = False,
+        logo: str | None = None,
+        name: str | None = None,
+        sync: Optional[SyncGroup] = None,
     ) -> Tuple[DefinitionInput, ActorBuilder]:
         """A function that will inspect the function and return a definition and
         an actor builder. This method will inspect the function and return a
         definition and an actor builder.
         """
-        ...
-
-
-@runtime_checkable
-class OnProvide(Protocol):
-    """An on_provide is a function gets call when the actors gets first started"""
-
-    def __call__(
-        self,
-        passport: Passport,
-    ) -> Awaitable[Any]:
-        """Provide the provision. This method will provide the provision and"""
-        ...
-
-
-@runtime_checkable
-class OnUnprovide(Protocol):
-    """An on unprovide is a function gets call when the actors gets kills"""
-
-    def __call__(self) -> Awaitable[Any]:
-        """Unprovide the provision. This method will unprovide the provision and"""
         ...

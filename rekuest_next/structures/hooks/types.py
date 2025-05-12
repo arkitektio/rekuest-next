@@ -1,4 +1,4 @@
-"""General types for Hooks in Rekuest Next"""
+""" "General types for Hooks in Rekuest Next"""
 
 from typing import (
     Type,
@@ -18,14 +18,14 @@ class RegistryHook(Protocol):
 
     def is_applicable(
         self,
-        cls: Type,
+        cls: Type[object],
     ) -> bool:
         """Given a class, return True if this hook is applicable to it"""
         ...
 
     def apply(
         self,
-        cls: Type,
+        cls: Type[object],
     ) -> FullFilledType:
         """App a class, return True if this hook is applicable to it"""
         ...

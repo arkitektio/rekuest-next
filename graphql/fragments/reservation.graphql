@@ -1,8 +1,7 @@
 fragment Reservation on Reservation {
   id
   action {
-    id
-    hash
+    ...Action
   }
   waiter {
     id

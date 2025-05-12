@@ -34,3 +34,16 @@ fragment PrimaryAction on Action {
   hash
   description
 }
+
+fragment ListAction on Action {
+  id
+  name
+  description
+  args {
+    ...Port
+  }
+  returns {
+    ...Port
+  }
+  stateful
+}

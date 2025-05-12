@@ -1,9 +1,7 @@
 """The structure registry is a registry for all structures that are used in the system."""
 
-import contextvars
 from typing import (
     Any,
-    Awaitable,
     Callable,
     Dict,
     List,
@@ -24,6 +22,7 @@ from rekuest_next.api.schema import (
     ReturnWidgetInput,
     ValidatorInput,
 )
+from rekuest_next.structures.hooks.enum import enum_converter
 from rekuest_next.structures.utils import build_instance_predicate
 
 from .errors import (
@@ -34,15 +33,15 @@ from .hooks.default import get_default_hooks
 from .hooks.errors import HookError
 from .hooks.types import RegistryHook
 from .types import (
+    Expander,
     FullFilledStructure,
     FullFilledType,
     FullFilledEnum,
     FullFilledModel,
     FullFilledMemoryStructure,
     Predicator,
+    Shrinker,
 )
-
-current_structure_registry = contextvars.ContextVar("current_structure_registry")
 
 
 T = TypeVar("T")
@@ -75,16 +74,14 @@ class StructureRegistry(BaseModel):
     identifier_structure_map: Dict[str, FullFilledStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_enum_map: Dict[str, FullFilledStructure] = Field(default_factory=dict, exclude=True)
+    identifier_enum_map: Dict[str, FullFilledEnum] = Field(default_factory=dict, exclude=True)
     identifier_memory_structure_map: Dict[str, FullFilledMemoryStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_model_map: Dict[str, Type] = Field(default_factory=dict, exclude=True)
-    cls_fullfilled_type_map: Dict[Type, FullFilledType] = Field(
+    identifier_model_map: Dict[str, FullFilledModel] = Field(default_factory=dict, exclude=True)
+    cls_fullfilled_type_map: Dict[Type[Any], FullFilledType] = Field(
         default_factory=dict, exclude=True
     )  # Map from class to fullfilled type
-
-    _token: contextvars.Token = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -104,7 +101,7 @@ class StructureRegistry(BaseModel):
         """Get the fullfilled memory structure for a given identifier."""
         return self.identifier_memory_structure_map[identifier]
 
-    def auto_register(self, cls: Type) -> FullFilledType:
+    def auto_register(self, cls: Type[Any]) -> FullFilledType:
         """Auto register a class.
 
         This uses the registry hooks to find a hook that is able to register the class.
@@ -140,7 +137,7 @@ class StructureRegistry(BaseModel):
             f"No hook was able to register {cls}. Please make sure to register this type beforehand or set allow_auto_register to True"
         )
 
-    def get_identifier_for_cls(self, cls: Type) -> str:
+    def get_identifier_for_cls(self, cls: Type[Any]) -> str:
         """Get the identifier for a given class.
 
         This will use the structure registry to find the correct
@@ -160,9 +157,10 @@ class StructureRegistry(BaseModel):
 
     def register_as_model(
         self,
-        cls: Type,
+        cls: Type[Any],
         identifier: str,
         predicate: Predicator | None = None,
+        description: Optional[str] = None,
     ) -> None:
         """Register a class as a model."""
 
@@ -170,39 +168,40 @@ class StructureRegistry(BaseModel):
             cls=cls,
             identifier=identifier,
             predicate=predicate or build_instance_predicate(cls),
+            description=description,
         )
 
         self.fullfill_registration(fullfile_type)
 
-    def register_as_enum(self, cls: Type, identifier: str, choices: list[ChoiceInput]) -> None:
+    def register_as_enum(
+        self,
+        cls: Type[Any],
+        identifier: str,
+        choices: list[ChoiceInput],
+        description: Optional[str] = None,
+        default_widget: Optional[AssignWidgetInput] = None,
+        default_returnwidget: Optional[ReturnWidgetInput] = None,
+    ) -> None:
         """Register a class as an enum."""
         fullfile_type = FullFilledEnum(
             cls=cls,
             identifier=identifier,
             choices=choices,
             predicate=build_instance_predicate(cls),
+            description=description,
+            default_widget=default_widget,
+            convert_default=enum_converter,
+            default_returnwidget=default_returnwidget,
         )
 
         self.fullfill_registration(fullfile_type)
 
     def register_as_structure(
         self,
-        cls: Type,
+        cls: Type[object],
         identifier: str,
-        aexpand: Callable[
-            [
-                str,
-            ],
-            Awaitable[Any],
-        ]
-        | None = None,
-        ashrink: Callable[
-            [
-                Any,
-            ],
-            Awaitable[str],
-        ]
-        | None = None,
+        aexpand: Expander,
+        ashrink: Shrinker,
         predicate: Callable[[Any], bool] | None = None,
         convert_default: Callable[[Any], str] | None = None,
         description: Optional[str] = None,
@@ -230,6 +229,7 @@ class StructureRegistry(BaseModel):
         Returns:
             FullFilledStructure: The fullfilled structure that was created
         """
+
         fs = FullFilledStructure(
             cls=cls,
             identifier=identifier,
@@ -244,7 +244,7 @@ class StructureRegistry(BaseModel):
         self.fullfill_registration(fs)
         return fs
 
-    def get_fullfilled_type_for_cls(self, cls: Type) -> FullFilledType:
+    def get_fullfilled_type_for_cls(self, cls: Type[Any]) -> FullFilledType:
         """Get the fullfilled structure for a given class.
         This will use the structure registry to find the correct
         structure for the given class.
@@ -293,7 +293,7 @@ class StructureRegistry(BaseModel):
             self.identifier_memory_structure_map[fullfilled_type.identifier] = fullfilled_type
             return
 
-        if isinstance(fullfilled_type, FullFilledStructure):
+        if isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
             self.identifier_structure_map[fullfilled_type.identifier] = fullfilled_type
             return
 
@@ -304,7 +304,7 @@ class StructureRegistry(BaseModel):
 
     def get_port_for_cls(
         self,
-        cls: Type,
+        cls: Type[Any],
         key: str,
         nullable: bool = False,
         description: Optional[str] = None,
@@ -333,11 +333,11 @@ class StructureRegistry(BaseModel):
                 returnWidget=return_widget,
                 key=key,
                 label=label,
-                default=fullfilled_type.convert_default(default) if default is not None else None,
+                default=None,
                 nullable=nullable,
-                effects=effects or [],
+                effects=tuple(effects or []),
                 description=fullfilled_type.description,
-                validators=validators or [],
+                validators=tuple(validators or []),
             )
 
         elif isinstance(fullfilled_type, FullFilledEnum):
@@ -346,14 +346,14 @@ class StructureRegistry(BaseModel):
                 identifier=fullfilled_type.identifier,
                 assignWidget=assign_widget,
                 returnWidget=return_widget,
-                choices=fullfilled_type.choices,
+                choices=tuple(fullfilled_type.choices),
                 key=key,
                 label=label,
                 default=fullfilled_type.convert_default(default) if default is not None else None,
                 nullable=nullable,
-                effects=effects or [],
+                effects=tuple(effects or []),
                 description=fullfilled_type.description,
-                validators=validators or [],
+                validators=tuple(validators or []),
             )
 
         elif isinstance(fullfilled_type, FullFilledMemoryStructure):
@@ -364,14 +364,14 @@ class StructureRegistry(BaseModel):
                 returnWidget=return_widget,
                 key=key,
                 label=label,
-                default=fullfilled_type.convert_default(default) if default is not None else None,
+                default=None,
                 nullable=nullable,
-                effects=effects or [],
+                effects=tuple(effects or []),
                 description=fullfilled_type.description,
-                validators=validators or [],
+                validators=tuple(validators or []),
             )
 
-        elif isinstance(fullfilled_type, FullFilledStructure):
+        elif isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
             return PortInput(
                 kind=PortKind.STRUCTURE,
                 identifier=fullfilled_type.identifier,
@@ -379,11 +379,11 @@ class StructureRegistry(BaseModel):
                 returnWidget=return_widget or fullfilled_type.default_returnwidget,
                 key=key,
                 label=label,
-                default=fullfilled_type.convert_default(default) if default is not None else None,
+                default=None,
                 nullable=nullable,
-                effects=effects or [],
-                description=description or fullfilled_type.description,
-                validators=validators or [],
+                effects=tuple(effects or []),
+                description=fullfilled_type.description,
+                validators=tuple(validators or []),
             )
 
         else:

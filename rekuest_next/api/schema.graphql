@@ -1,11 +1,3 @@
-"""Make string uppercase"""
-directive @upper on FIELD
-
-directive @replace(old: String!, new: String!) on FIELD
-
-"""Make get stuff uppercase"""
-directive @relation(on: String!) on FIELD
-
 type SliderAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
@@ -211,61 +203,148 @@ type UIState implements UIChild {
   state: String!
 }
 
+"""Root query type for fetching entities in the system."""
 type Query {
-  clients(filters: AppFilter, order: AppOrder, pagination: OffsetPaginationInput): [App!]!
+  """List all registered clients."""
+  clients(filters: ClientFilter, order: ClientOrder, pagination: OffsetPaginationInput): [Client!]!
+
+  """List of all hardware records."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+
+  """Retrieve all compute agents."""
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
+
+  """List of all available actions."""
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+
+  """Retrieve protocols grouping actions."""
   protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+
+  """All registered implementations."""
   implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+
+  """Test results associated with test cases."""
   testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
+
+  """All test cases."""
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
+
+  """List of all reservations."""
   reservations(instanceId: InstanceId = null): [Reservation!]!
+
+  """Reservations made by the current user."""
   myreservations(instanceId: InstanceId = null): [Reservation!]!
+
+  """List of shortcuts."""
   shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
+
+  """List of toolboxes containing shortcuts."""
   toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
+
+  """All dashboards."""
   dashboards: [Dashboard!]!
+
+  """All states from agents."""
   states: [State!]!
+
+  """List of UI panels."""
   panels: [Panel!]!
+
+  """Available state schemas."""
   stateSchemas: [StateSchema!]!
+
+  """All memory shelves."""
   memoryShelves(filters: MemoryShelveFilter, order: MemoryShelveOrder, pagination: OffsetPaginationInput): [MemoryShelve!]!
+
+  """All memory drawers."""
+  memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
+
+  """Fetch a specific action."""
   action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null): Action!
+
+  """Fetch assignations."""
   assignations(instanceId: InstanceId = null): [Assignation!]!
+
+  """Fetch a specific event."""
   event(id: ID = null): [AssignationEvent!]!
+
+  """Find implementation at given interface."""
   implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null): Implementation!
+
+  """Find your implementation at a specific interface."""
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
+
+  """Retrieve state for a specific context."""
   stateFor(implementation: ID = null, agent: ID = null, stateHash: String = null): State!
+
+  """Get a specific state by ID."""
   state(id: ID!): State!
+
+  """Fetch a memory shelve by ID."""
   memoryShelve(id: ID!): MemoryShelve!
+
+  """Get a panel by ID."""
   panel(id: ID!): Panel!
+
+  """Retrieve a state schema by ID."""
   stateSchema(id: ID!): StateSchema!
+
+  """Get toolbox by ID."""
   toolbox(id: ID!): Toolbox!
+
+  """Retrieve shortcut by ID."""
   shortcut(id: ID!): Shortcut!
+
+  """Get hardware record by ID."""
   hardwareRecord(id: ID!): HardwareRecord!
+
+  """Retrieve an agent by ID."""
   agent(id: ID!): Agent!
+
+  """Get dashboard by ID."""
   dashboard(id: ID!): Dashboard!
+
+  """Fetch a dependency by ID."""
   dependency(id: ID!): Dependency!
+
+  """Retrieve test case by ID."""
   testCase(id: ID!): TestCase!
+
+  """Get test result by ID."""
   testResult(id: ID!): TestResult!
+
+  """Retrieve reservation by ID."""
   reservation(id: ID!): Reservation!
+
+  """Get implementation by ID."""
   implementation(id: ID!): Implementation!
+
+  """Fetch assignation by ID."""
   assignation(id: ID!): Assignation!
 }
 
-type App {
+"""Represents a registered OAuth2 client."""
+type Client {
+  """Unique ID of the client."""
   id: ID!
+
+  """Name of the client."""
   name: String!
+
+  """OAuth2 client ID."""
   clientId: String!
 }
 
 """A way to filter apps"""
-input AppFilter {
+input ClientFilter {
   interface: StrFilterLookup
   ids: [ID!]
   hasImplementationsFor: [ActionHash!]
   mine: Boolean
-  AND: AppFilter
-  OR: AppFilter
+  AND: ClientFilter
+  OR: ClientFilter
+  NOT: ClientFilter
+  DISTINCT: Boolean
 }
 
 input StrFilterLookup {
@@ -286,23 +365,6 @@ input StrFilterLookup {
   isNull: Boolean
   regex: String
   iRegex: String
-  nExact: String
-  nIExact: String
-  nContains: String
-  nIContains: String
-  nInList: [String!]
-  nGt: String
-  nGte: String
-  nLt: String
-  nLte: String
-  nStartsWith: String
-  nIStartsWith: String
-  nEndsWith: String
-  nIEndsWith: String
-  nRange: [String!]
-  nIsNull: Boolean
-  nRegex: String
-  nIRegex: String
 }
 
 """
@@ -311,48 +373,98 @@ The `ArrayLike` scalar type represents a reference to a store previously created
 scalar ActionHash
 
 """A way to order apps"""
-input AppOrder {
+input ClientOrder {
   definedAt: Ordering
 }
 
 enum Ordering {
   ASC
+  ASC_NULLS_FIRST
+  ASC_NULLS_LAST
   DESC
+  DESC_NULLS_FIRST
+  DESC_NULLS_LAST
 }
 
 input OffsetPaginationInput {
   offset: Int! = 0
-  limit: Int! = -1
+  limit: Int
 }
 
+"""Represents a record of an agent's hardware configuration."""
 type HardwareRecord {
+  """Unique ID of the hardware record."""
   id: ID!
+
+  """Number of CPU cores available."""
   cpuCount: Int!
+
+  """Vendor of the CPU."""
   cpuVendorName: String!
+
+  """Clock speed of the CPU in GHz."""
   cpuFrequency: Float!
+
+  """Timestamp when this record was created."""
   createdAt: DateTime!
+
+  """The agent to which this hardware belongs."""
   agent: Agent!
 }
 
 """Date with time (isoformat)"""
 scalar DateTime
 
+"""Represents a compute agent that can execute implementations."""
 type Agent {
+  """Unique ID of the agent."""
   id: ID!
+
+  """Unique instance identifier on the agent."""
   instanceId: InstanceId!
+
+  """Registry entry this agent belongs to."""
   registry: Registry!
+
+  """Historical records of agent's hardware."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+
+  """Implementations the agent can run."""
   implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+
+  """Agent's associated memory shelve."""
   memoryShelve: MemoryShelve
+
+  """Filesystem shelves available on the agent."""
   fileSystemShelves(filters: FilesystemShelveFilter, pagination: OffsetPaginationInput): [FilesystemShelve!]!
+
+  """Last timestamp this agent was seen."""
   lastSeen: DateTime
+
+  """Is the agent currently connected."""
   connected: Boolean!
+
+  """List of installed agent extensions."""
   extensions: [String!]!
+
+  """Agent name."""
   name: String!
+
+  """Current and historical states associated with the agent."""
   states: [State!]!
+
+  """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
+
+  """
+  Determine if the agent is currently active based on last seen timestamp.
+  """
   active: Boolean!
+
+  """Retrieve the latest hardware record for this agent."""
   latestHardwareRecord: HardwareRecord
+
+  """Check if this agent is pinned by the current user."""
   pinned: Boolean!
 }
 
@@ -361,15 +473,25 @@ The `ArrayLike` scalar type represents a reference to a store previously created
 """
 scalar InstanceId
 
+"""Links a user and a client for registry tracking."""
 type Registry {
+  """Unique identifier for the registry."""
   id: ID!
-  app: App!
+
+  """The associated client."""
+  client: Client!
+
+  """The associated user."""
   user: User!
+
+  """Agents registered under this registry."""
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
 }
 
+"""Represents an authenticated user."""
 type User {
-  id: ID!
+  """The subject identifier of the user."""
+  sub: ID!
 }
 
 """A way to filter agents"""
@@ -400,6 +522,8 @@ input AgentFilter {
   distinct: Boolean
   AND: AgentFilter
   OR: AgentFilter
+  NOT: AgentFilter
+  DISTINCT: Boolean
 }
 
 input AgentOrder {
@@ -411,45 +535,109 @@ input HardwareRecordFilter {
   cpuVendorName: String
   AND: HardwareRecordFilter
   OR: HardwareRecordFilter
+  NOT: HardwareRecordFilter
+  DISTINCT: Boolean
 }
 
+"""Represents a concrete implementation of an action."""
 type Implementation {
+  """Unique ID of the implementation."""
   id: ID!
+
+  """Interface string representing the implementation entrypoint."""
   interface: String!
+
+  """Extension or module name."""
   extension: String!
+
+  """Agent running this implementation."""
   agent: Agent!
+
+  """The action this implements."""
   action: Action!
+
+  """Arbitrary parameters for the implementation."""
   params: AnyDefault!
+
+  """Dependencies required by this implementation."""
   dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
-  dependencyGraph: DependencyGraph!
+
+  """Constructed name for display, combining interface and agent name."""
   name: String!
+
+  """Check if this implementation is pinned by the current user."""
   pinned: Boolean!
+
+  """Get the latest completed assignation created by the current user."""
   myLatestAssignation: Assignation
 }
 
+"""Represents an executable action in the system."""
 type Action {
+  """Unique ID of the action."""
   id: ID!
+
+  """Unique hash identifying the action definition."""
   hash: ActionHash!
+
+  """Name of the action."""
   name: String!
+
+  """The kind or category of the action."""
   kind: ActionKind!
+
+  """Indicates whether the action maintains state."""
   stateful: Boolean!
+
+  """Optional description of the action."""
   description: String
+
+  """Collections to which this action belongs."""
   collections: [Collection!]!
+
+  """List of implementations for this action."""
   implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+
+  """Scope of the action, e.g., user or system."""
   scope: ActionScope!
+
+  """Actions for which this is a test."""
   isTestFor(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+
+  """Marks whether the action is in development."""
   isDev: Boolean!
+
+  """List of tests associated with the action."""
   tests(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+
+  """Interfaces implemented by the action."""
   interfaces: [String!]!
+
+  """Protocols associated with the action."""
   protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+
+  """Timestamp when the action was defined."""
   definedAt: DateTime!
+
+  """Reservations related to this action."""
   reservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]
+
+  """Test cases for this action."""
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]
+
+  """Retrieve assignations where this action has run."""
   runs: [Assignation!]
-  dependencyGraph: DependencyGraph!
+
+  """Input arguments (ports) for the action."""
   args: [Port!]!
+
+  """Output values (ports) returned by the action."""
   returns: [Port!]!
+
+  """Port groups used in the action for organizing ports."""
   portGroups: [PortGroup!]!
+
+  """Check if the current user has pinned this action."""
   pinned: Boolean!
 }
 
@@ -459,9 +647,15 @@ enum ActionKind {
   GENERATOR
 }
 
+"""A grouping of actions."""
 type Collection {
+  """Collection ID."""
   id: ID!
+
+  """Name of the collection."""
   name: String!
+
+  """Actions included in this collection."""
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
 }
 
@@ -474,6 +668,8 @@ input ActionFilter {
   kind: ActionKind
   AND: ActionFilter
   OR: ActionFilter
+  NOT: ActionFilter
+  DISTINCT: Boolean
 }
 
 """The input for creating a port demand."""
@@ -540,6 +736,8 @@ input ImplementationFilter {
   parameters: [ParamPair!]
   AND: ImplementationFilter
   OR: ImplementationFilter
+  NOT: ImplementationFilter
+  DISTINCT: Boolean
 }
 
 input ImplementationActionFilter {
@@ -551,6 +749,8 @@ input ImplementationActionFilter {
   kind: ActionKind
   AND: ImplementationActionFilter
   OR: ImplementationActionFilter
+  NOT: ImplementationActionFilter
+  DISTINCT: Boolean
 }
 
 input ImplementationAgentFilter {
@@ -562,6 +762,8 @@ input ImplementationAgentFilter {
   hasStates: [String!]
   AND: ImplementationAgentFilter
   OR: ImplementationAgentFilter
+  NOT: ImplementationAgentFilter
+  DISTINCT: Boolean
 }
 
 input ParamPair {
@@ -576,9 +778,15 @@ enum ActionScope {
   BRIDGE_LOCAL_TO_GLOBAL
 }
 
+"""A set of related actions forming a protocol."""
 type Protocol {
+  """Protocol ID."""
   id: ID!
+
+  """Name of the protocol."""
   name: String!
+
+  """Associated actions."""
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
 }
 
@@ -588,33 +796,68 @@ input ProtocolFilter {
   ids: [ID!]
   AND: ProtocolFilter
   OR: ProtocolFilter
+  NOT: ProtocolFilter
+  DISTINCT: Boolean
 }
 
 input ProtocolOrder {
   name: Ordering
 }
 
+"""Reservation for planned assignment of implementations."""
 type Reservation {
+  """ID of the reservation."""
   id: ID!
+
+  """Name of the reservation."""
   name: String!
+
+  """Waiter associated with the reservation."""
   waiter: Waiter!
+
+  """Optional title."""
   title: String
+
+  """Action this reservation is for."""
   action: Action!
+
+  """Last update timestamp."""
   updatedAt: DateTime!
+
+  """Reference string for identification."""
   reference: String!
+
+  """Available implementations for the reservation."""
   implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+
+  """Bind configuration for the reservation."""
   binds: Binds
+
+  """Dependency that triggered the reservation."""
   causingDependency: Dependency
+
+  """Reservation strategy applied."""
   strategy: ReservationStrategy!
+
+  """Is the reservation currently viable."""
   viable: Boolean!
+
+  """Did the reservation succeed."""
   happy: Boolean!
+
+  """Chosen implementation."""
   implementation: Implementation
-  dependencyGraph: DependencyGraph!
 }
 
+"""Entity that waits for the completion of assignations."""
 type Waiter {
+  """Unique ID of the waiter."""
   id: ID!
+
+  """Instance ID associated with the waiter."""
   instanceId: InstanceId!
+
+  """Registry the waiter belongs to."""
   registry: Registry!
 }
 
@@ -624,15 +867,33 @@ type Binds {
   desiredInstances: Int!
 }
 
+"""Represents a dependency between implementations and actions."""
 type Dependency {
+  """Unique ID of the dependency."""
   id: ID!
+
+  """Implementation this dependency belongs to."""
   implementation: Implementation!
+
+  """Optional action this dependency refers to."""
   action: Action
+
+  """Current hash of the dependency."""
   hash: ActionHash!
+
+  """Original hash when the dependency was created."""
   initialHash: ActionHash!
+
+  """Optional string identifier or tag for reference."""
   reference: String
+
+  """Indicates if the dependency is optional."""
   optional: Boolean!
+
+  """Binds information attached to the dependency."""
   binds: Binds
+
+  """Check if this dependency can be resolved by a connected agent."""
   resolvable: Boolean!
 }
 
@@ -646,57 +907,6 @@ enum ReservationStrategy {
   DIRECT
 }
 
-type DependencyGraph {
-  actions: [ActionActionInvalidActionImplementationAction!]!
-  edges: [DependencyEdgeImplementationEdge!]!
-}
-
-union ActionActionInvalidActionImplementationAction = ActionAction | InvalidAction | ImplementationAction
-
-type ActionAction {
-  id: String!
-  actionId: String!
-  name: String!
-  status: String
-  reservationId: String
-}
-
-type InvalidAction {
-  id: String!
-  initialHash: String!
-}
-
-type ImplementationAction {
-  id: String!
-  implementationId: String!
-  interface: String!
-  clientId: String!
-  status: String
-  provisionId: String
-  reservationId: String
-  linked: Boolean!
-  active: Boolean!
-}
-
-union DependencyEdgeImplementationEdge = DependencyEdge | ImplementationEdge
-
-type DependencyEdge {
-  id: String!
-  source: String!
-  target: String!
-  optional: Boolean!
-  depId: String!
-  reservationId: String
-}
-
-type ImplementationEdge {
-  id: String!
-  source: String!
-  target: String!
-  reservationId: String
-  linked: Boolean!
-}
-
 """A way to filter reservations"""
 input ReservationFilter {
   waiter: WaiterFilter
@@ -704,6 +914,8 @@ input ReservationFilter {
   status: [ReservationStatus!]
   AND: ReservationFilter
   OR: ReservationFilter
+  NOT: ReservationFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter waiters"""
@@ -712,6 +924,8 @@ input WaiterFilter {
   ids: [ID!]
   AND: WaiterFilter
   OR: WaiterFilter
+  NOT: WaiterFilter
+  DISTINCT: Boolean
 }
 
 enum ReservationStatus {
@@ -723,23 +937,51 @@ enum ReservationStatus {
   ENDED
 }
 
+"""Defines a test case comparing expected behavior for actions."""
 type TestCase {
+  """Unique ID of the test case."""
   id: ID!
+
+  """Action used to perform the test."""
   tester: Action!
+
+  """Target action under test."""
   action: Action!
+
+  """If true, measures performance rather than correctness."""
   isBenchmark: Boolean!
+
+  """Details of what this test case covers."""
   description: String!
+
+  """Short name for the test case."""
   name: String!
+
+  """Results from running this test case."""
   results(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
 }
 
+"""Result from executing a test case with specific implementations."""
 type TestResult {
+  """ID of the test result."""
   id: ID!
+
+  """Implementation under test."""
   implementation: Implementation!
+
+  """Implementation running the test."""
   tester: Implementation!
+
+  """Associated test case."""
   case: TestCase!
+
+  """True if test passed."""
   passed: Boolean!
+
+  """When the test was executed."""
   createdAt: DateTime!
+
+  """When the test result was last updated."""
   updatedAt: DateTime!
 }
 
@@ -749,6 +991,8 @@ input TestResultFilter {
   ids: [ID!]
   AND: TestResultFilter
   OR: TestResultFilter
+  NOT: TestResultFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter test cases"""
@@ -757,53 +1001,67 @@ input TestCaseFilter {
   ids: [ID!]
   AND: TestCaseFilter
   OR: TestCaseFilter
+  NOT: TestCaseFilter
+  DISTINCT: Boolean
 }
 
+"""Tracks the assignment of an implementation to a specific task."""
 type Assignation {
+  """Unique ID of the assignation."""
   id: ID!
+
+  """Optional external reference for tracking."""
   reference: String
+
+  """Indicates if the assignation is completed."""
   isDone: Boolean!
+
+  """Arguments used in the assignation."""
   args: AnyDefault!
 
-  """
-  A root assignation is the root assignation that caused this assignation to be created. This mother is always created by intent (e.g a user action). If null, this assignation is the mother
-  """
+  """Root assignation in the creation chain."""
   root: Assignation
 
-  """
-  A parent assignation is the next assignation in the chain of assignations that caused this assignation to be created. Parents can be created by intent or by the system. If null, this assignation is the parent
-  """
+  """Parent assignation that triggered this one."""
   parent: Assignation
 
-  """
-  If this assignation is the result of a reservation, this field will contain the reservation that caused this assignation to be created
-  """
+  """Reservation that caused this assignation."""
   reservation: Reservation
 
-  """The action that this assignation is assigned to"""
+  """Action assigned."""
   action: Action!
 
-  """The implementation that this assignation is assigned to"""
+  """Implementation assigned to execute."""
   implementation: Implementation!
 
-  """The status of this assignation"""
+  """Type of the latest event."""
   latestEventKind: AssignationEventKind!
 
-  """The latest instruct that was sent to this assignation"""
+  """Last instruction type."""
   latestInstructKind: AssignationInstructKind!
+
+  """Current status message."""
   statusMessage: String
 
-  """The Waiter that this assignation was created by"""
+  """Waiter responsible for this assignation."""
   waiter: Waiter!
+
+  """Creation timestamp."""
   createdAt: DateTime!
+
+  """Last update timestamp."""
   updatedAt: DateTime!
 
-  """
-  If true, this assignation will be deleted after the assignation is completed
-  """
+  """Indicates if the assignation should be deleted after completion."""
   ephemeral: Boolean!
+
+  """List of recent events for this assignation."""
   events: [AssignationEvent!]!
+
+  """List of recent instructions for this assignation."""
   instructs: [AssignationInstruct!]!
+
+  """Get a specific argument by key."""
   arg(key: String!): Args
 }
 
@@ -836,16 +1094,36 @@ enum AssignationInstructKind {
   COLLECT
 }
 
+"""An event that occurred during an assignation."""
 type AssignationEvent {
+  """Unique ID of the event."""
   id: ID!
+
+  """Name of the event."""
   name: String!
+
+  """Optional return values."""
   returns: AnyDefault
+
+  """Associated assignation."""
   assignation: Assignation!
+
+  """Kind of assignation event."""
   kind: AssignationEventKind!
+
+  """Optional message associated with the event."""
   message: String
-  level: LogLevel
+
+  """Progress percentage."""
   progress: Int
+
+  """Time when event was created."""
   createdAt: DateTime!
+
+  """Default log level."""
+  level: LogLevel!
+
+  """Reference string for the event."""
   reference: String!
 }
 
@@ -857,10 +1135,18 @@ enum LogLevel {
   CRITICAL
 }
 
+"""An instruct event for a specific assignation."""
 type AssignationInstruct {
+  """Unique ID of the instruct event."""
   id: ID!
+
+  """Assignation the instruction relates to."""
   assignation: Assignation!
+
+  """Type of instruction."""
   kind: AssignationInstructKind!
+
+  """Time when instruction was issued."""
   createdAt: DateTime!
 }
 
@@ -879,13 +1165,25 @@ input DependencyFilter {
   ids: [ID!]
   AND: DependencyFilter
   OR: DependencyFilter
+  NOT: DependencyFilter
+  DISTINCT: Boolean
 }
 
+"""A shelve for storing memory-based resources on an agent."""
 type MemoryShelve {
+  """ID of the memory shelve."""
   id: ID!
+
+  """Agent that owns this memory shelve."""
   agent: Agent!
+
+  """Name of the shelve."""
   name: String!
+
+  """Optional description of the shelve."""
   description: String
+
+  """List of memory drawers within the shelve."""
   drawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
 }
 
@@ -894,31 +1192,51 @@ type MemoryDrawer {
   resourceId: String!
   shelve: MemoryShelve!
   identifier: String!
-  label: String
   description: String
   createdAt: DateTime!
+
+  """Get the latest value stored in this drawer."""
+  label: String!
 }
 
 """A way to filter shelved items"""
 input MemoryDrawerFilter {
   shelve: ID
   agent: ID
+  implementation: ID
   identifier: String
   ids: [ID!]
+  search: String
   AND: MemoryDrawerFilter
   OR: MemoryDrawerFilter
+  NOT: MemoryDrawerFilter
+  DISTINCT: Boolean
 }
 
+"""Shelve on an agent for filesystem-based resources."""
 type FilesystemShelve {
+  """ID of the filesystem shelve."""
   id: ID!
+
+  """List of file drawers in the shelve."""
   drawers(filters: FileDrawerFilter, pagination: OffsetPaginationInput): [FileDrawer!]!
 }
 
+"""Represents a file-based drawer within a filesystem shelve."""
 type FileDrawer {
+  """ID of the file drawer."""
   id: ID!
+
+  """External resource identifier."""
   resourceId: String!
+
+  """Agent owning the drawer."""
   agent: Agent!
+
+  """Unique string identifying the drawer."""
   identifier: String!
+
+  """Creation timestamp of the drawer."""
   createdAt: DateTime!
 }
 
@@ -930,6 +1248,8 @@ input FileDrawerFilter {
   ids: [ID!]
   AND: FileDrawerFilter
   OR: FileDrawerFilter
+  NOT: FileDrawerFilter
+  DISTINCT: Boolean
 }
 
 """A way to filter shelved items"""
@@ -937,6 +1257,8 @@ input FilesystemShelveFilter {
   ids: [ID!]
   AND: FilesystemShelveFilter
   OR: FilesystemShelveFilter
+  NOT: FilesystemShelveFilter
+  DISTINCT: Boolean
 }
 
 type State {
@@ -963,24 +1285,54 @@ type HistoricalState {
   archivedAt: DateTime!
 }
 
+"""Shortcut to an action with preset arguments."""
 type Shortcut {
+  """Shortcut ID."""
   id: ID!
+
+  """Name of the shortcut."""
   name: String!
+
+  """Optional description."""
   description: String
+
+  """The associated action."""
   action: Action!
+
+  """Implementation of the action."""
   implementation: Implementation
+
+  """Toolboxes that contain this shortcut."""
   toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
+
+  """Saved arguments for the shortcut."""
   savedArgs: AnyDefault!
+
+  """Allow quick execution without modification."""
   allowQuick: Boolean!
+
+  """If true, shortcut uses return values."""
   useReturns: Boolean!
+
+  """Input ports for the shortcut's action.dd"""
   args: [Port!]!
+
+  """Return ports from the shortcut's action."""
   returns: [Port!]!
 }
 
+"""A collection of shortcuts grouped as a toolbox."""
 type Toolbox {
+  """Toolbox ID."""
   id: ID!
+
+  """Name of the toolbox."""
   name: String!
+
+  """Description of the toolbox."""
   description: String!
+
+  """List of shortcuts in this toolbox."""
   shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
 }
 
@@ -991,6 +1343,8 @@ input ShortcutFilter {
   toolbox: ID
   AND: ShortcutFilter
   OR: ShortcutFilter
+  NOT: ShortcutFilter
+  DISTINCT: Boolean
 }
 
 input ShortcutOrder {
@@ -1003,6 +1357,8 @@ input ToolboxFilter {
   ids: [ID!]
   AND: ToolboxFilter
   OR: ToolboxFilter
+  NOT: ToolboxFilter
+  DISTINCT: Boolean
 }
 
 input ToolboxOrder {
@@ -1042,55 +1398,111 @@ input MemoryShelveFilter {
   ids: [ID!]
   AND: MemoryShelveFilter
   OR: MemoryShelveFilter
+  NOT: MemoryShelveFilter
+  DISTINCT: Boolean
 }
 
 input MemoryShelveOrder {
   name: Ordering
 }
 
+"""Root mutation type for executing write operations on the API."""
 type Mutation {
+  """Create a new implementation entry."""
   createImplementation(input: CreateImplementationInput!): Implementation!
+
+  """Register an external implementation."""
   createForeignImplementation(input: CreateForeignImplementationInput!): Implementation!
+
+  """Set implementations provided by an extension."""
   setExtensionImplementations(input: SetExtensionImplementationsInput!): [Implementation!]!
+
+  """Acknowledge an assignation."""
   ack(input: AckInput!): Assignation!
+
+  """Assign a task to an agent."""
   assign(input: AssignInput!): Assignation!
+
+  """Cancel an active assignation."""
   cancel(input: CancelInput!): Assignation!
 
-  """Step a assignation"""
+  """Advance an assignation one step."""
   step(input: StepInput!): Assignation!
 
-  """Pause a assignation"""
+  """Pause an ongoing assignation."""
   pause(input: PauseInput!): Assignation!
 
-  """Resume a assignation"""
+  """Resume a paused assignation."""
   resume(input: ResumeInput!): Assignation!
+
+  """Collect results from an assignation."""
+  collect(input: CollectInput!): [String!]!
+
+  """Interrupt the execution of an assignation."""
   interrupt(input: InterruptInput!): Assignation!
+
+  """Reinitialize the assignation or agent."""
+  reinit(input: ReInitInput!): String!
+
+  """Reserve an implementation for future use."""
   reserve(input: ReserveInput!): Reservation!
+
+  """Release a reserved implementation."""
   unreserve(input: UnreserveInput!): String!
 
-  """Delete a implementation"""
+  """Delete a registered implementation."""
   deleteImplementation(input: DeleteImplementationInput!): String!
-  ensureAgent(input: AgentInput!): Agent!
-  createTestCase(input: CreateTestCaseInput!): TestCase!
-  createTestResult(input: CreateTestResultInput!): TestResult!
-  unshelveMemoryDrawer(input: UnshelveMemoryDrawerInput!): String!
-  createDashboard(input: CreateDashboardInput!): Dashboard!
-  createStateSchema(input: CreateStateSchemaInput!): StateSchema!
-  createPanel(input: CreatePanelInput!): Panel!
-  setState(input: SetStateInput!): State!
-  updateState(input: UpdateStateInput!): State!
-  archiveState(input: ArchiveStateInput!): StateSchema!
-  pinAgent(input: PinInput!): Agent!
-  pinImplementation(input: PinInput!): Implementation!
-  createShortcut(input: CreateShortcutInput!): Shortcut!
-  deleteShortcut(input: DeleteShortcutInput!): String!
-  createToolbox(input: CreateToolboxInput!): Toolbox!
 
-  """Collect data from a assignation"""
-  collect(input: CollectInput!): [String!]!
-  reinit(input: ReInitInput!): String!
+  """Ensure agent record exists or is up to date."""
+  ensureAgent(input: AgentInput!): Agent!
+
+  """Create a new test case."""
+  createTestCase(input: CreateTestCaseInput!): TestCase!
+
+  """Create a test result record."""
+  createTestResult(input: CreateTestResultInput!): TestResult!
+
+  """Shelve data into a memory drawer."""
   shelveInMemoryDrawer(input: ShelveInMemoryDrawerInput!): MemoryDrawer!
+
+  """Unshelve data from a memory drawer."""
+  unshelveMemoryDrawer(input: UnshelveMemoryDrawerInput!): ID!
+
+  """Create a dashboard layout."""
+  createDashboard(input: CreateDashboardInput!): Dashboard!
+
+  """Define a new state schema."""
+  createStateSchema(input: CreateStateSchemaInput!): StateSchema!
+
+  """Create a user interface panel."""
+  createPanel(input: CreatePanelInput!): Panel!
+
+  """Set the value of a state object."""
+  setState(input: SetStateInput!): State!
+
+  """Update fields in a state object."""
+  updateState(input: UpdateStateInput!): State!
+
+  """Archive a state schema."""
+  archiveState(input: ArchiveStateInput!): State!
+
+  """Pin an agent to the user."""
+  pinAgent(input: PinInput!): Agent!
+
+  """Pin an implementation to the user."""
+  pinImplementation(input: PinInput!): Implementation!
+
+  """Delete an agent record."""
   deleteAgent(input: DeleteAgentInput!): ID!
+
+  """Create a shortcut to an action."""
+  createShortcut(input: CreateShortcutInput!): Shortcut!
+
+  """Delete a shortcut."""
+  deleteShortcut(input: DeleteShortcutInput!): ID!
+
+  """Create a new toolbox with shortcuts."""
+  createToolbox(input: CreateToolboxInput!): Toolbox!
 }
 
 """The input for creating a implementation."""
@@ -1191,22 +1603,22 @@ input EffectInput {
   dependencies: [String!] = []
   message: String = null
   kind: EffectKind!
-  hook: String = null
-  ward: String = null
+  hook: String
+  ward: String
 }
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input PortInput {
-  validators: [ValidatorInput!] = null
+  validators: [ValidatorInput!]
   key: String!
   label: String = null
   kind: PortKind!
   description: String = null
   identifier: String = null
   nullable: Boolean! = false
-  effects: [EffectInput!] = null
+  effects: [EffectInput!]
   default: AnyDefault = null
-  children: [PortInput!] = null
+  children: [PortInput!]
   choices: [ChoiceInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
@@ -1224,8 +1636,8 @@ input ValidatorInput {
 input ChoiceInput {
   value: AnyDefault!
   label: String!
-  image: String = null
-  description: String = null
+  image: String
+  description: String
 }
 
 input AssignWidgetInput {
@@ -1244,7 +1656,7 @@ input AssignWidgetInput {
   ward: String = null
   fallback: AssignWidgetInput = null
   filters: [PortInput!] = null
-  dependencies: [String!] = null
+  dependencies: [String!] = []
 }
 
 """
@@ -1271,15 +1683,15 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input DependencyInput {
   hash: ActionHash
-  reference: String = null
-  binds: BindsInput = null
+  reference: String
+  binds: BindsInput
   optional: Boolean! = false
-  viableInstances: Int = null
+  viableInstances: Int
 }
 
 input BindsInput {
-  implementations: [String!] = null
-  clients: [String!] = null
+  implementations: [String!]
+  clients: [String!]
   desiredInstances: Int! = 1
 }
 
@@ -1319,7 +1731,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "6b21fcac-8166-410e-be97-0638aa8d9cf7"
+  reference: String = "d4066669-4632-4921-8609-9fd0ec725ac7"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1363,14 +1775,23 @@ input ResumeInput {
   assignation: ID!
 }
 
+"""The input for collecting a shelved item in a drawer."""
+input CollectInput {
+  drawers: [ID!]!
+}
+
 """The input for interrupting an assignation."""
 input InterruptInput {
   assignation: ID!
 }
 
+input ReInitInput {
+  agent: ID = null
+}
+
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "027d7ed7-804b-4683-a6ef-9cd5161fc8b3"
+  reference: String = "e4c61070-e480-4109-83ac-df9aae5646d6"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1421,6 +1842,31 @@ input CreateTestResultInput {
   result: String = null
 }
 
+input ShelveInMemoryDrawerInput {
+  """
+  The instance ID of the agent. This is used to identify the agent in the system.
+  """
+  instanceId: InstanceId!
+
+  """
+  The identifier of the drawer. This is used to identify the drawer in the system.
+  """
+  identifier: Identifier!
+
+  """The resource ID of the drawer."""
+  resourceId: String!
+
+  """
+  The label of the drawer. This is used to identify the drawer in the system.
+  """
+  label: String = null
+
+  """
+  The description of the drawer. This is used to identify the drawer in the system.
+  """
+  description: String = null
+}
+
 input UnshelveMemoryDrawerInput {
   """
   The instance ID of the agent. This is used to identify the agent in the system.
@@ -1428,7 +1874,7 @@ input UnshelveMemoryDrawerInput {
   instanceId: InstanceId!
 
   """The resource ID of the drawer."""
-  resourceId: String!
+  id: String!
 }
 
 """The input for creating a dashboard."""
@@ -1446,9 +1892,9 @@ input UIChildInput {
   state: String = null
   kind: UIChildKind!
   hidden: Boolean
-  children: [UIChildInput!] = null
-  left: UIChildInput = null
-  right: UIChildInput = null
+  children: [UIChildInput!]
+  left: UIChildInput
+  right: UIChildInput
 }
 
 """The input for creating a state schema."""
@@ -1501,6 +1947,13 @@ input PinInput {
   pin: Boolean!
 }
 
+input DeleteAgentInput {
+  """
+  The ID of the agent to delete. This is used to identify the agent in the system.
+  """
+  id: ID!
+}
+
 """The input for creating a shortcut."""
 input CreateShortcutInput {
   """
@@ -1527,55 +1980,30 @@ input CreateToolboxInput {
   description: String
 }
 
-"""The input for collecting a shelved item in a drawer."""
-input CollectInput {
-  drawers: [ID!]!
-}
-
-input ReInitInput {
-  agent: ID = null
-}
-
-input ShelveInMemoryDrawerInput {
-  """
-  The instance ID of the agent. This is used to identify the agent in the system.
-  """
-  instanceId: InstanceId!
-
-  """
-  The identifier of the drawer. This is used to identify the drawer in the system.
-  """
-  identifier: Identifier!
-
-  """The resource ID of the drawer."""
-  resourceId: String!
-
-  """
-  The label of the drawer. This is used to identify the drawer in the system.
-  """
-  label: String = null
-
-  """
-  The description of the drawer. This is used to identify the drawer in the system.
-  """
-  description: String = null
-}
-
-input DeleteAgentInput {
-  """
-  The ID of the agent to delete. This is used to identify the agent in the system.
-  """
-  id: ID!
-}
-
+"""Root subscription type for real-time event streams from the system."""
 type Subscription {
+  """Subscribe to notifications when new actions are created."""
   newActions(cage: ID!): Action!
+
+  """Subscribe to updates on assignations."""
   assignations(instanceId: InstanceId!): AssignationChangeEvent!
+
+  """Subscribe to updates on reservations."""
   reservations(instanceId: InstanceId!): Reservation!
+
+  """Subscribe to events related to assignations."""
   assignationEvents(instanceId: InstanceId!): AssignationEvent!
+
+  """Subscribe to updates on agent connections and statuses."""
   agents: AgentChangeEvent!
+
+  """Subscribe to changes in implementations."""
   implementationChange(implementation: ID!): Implementation!
+
+  """Subscribe to creation or updates of implementations."""
   implementations(agent: ID!): ImplementationUpdate!
+
+  """Subscribe to updates of state values and patches."""
   stateUpdateEvents(stateId: ID!): State!
 }
 

@@ -1,6 +1,7 @@
 """The base graphql client for rekuest next"""
 
 from types import TracebackType
+from typing import Optional
 from pydantic import Field
 from rath import rath
 import contextvars
@@ -12,14 +13,17 @@ from rath.links.shrink import ShrinkingLink
 from rath.links.split import SplitLink
 from rath.links.retry import RetryLink
 
-current_rekuest_next_rath = contextvars.ContextVar("current_rekuest_next_rath", default=None)
+current_rekuest_next_rath: contextvars.ContextVar[Optional["RekuestNextRath"]] = (
+    contextvars.ContextVar("current_rekuest_next_rath", default=None)
+)
 
 
 class RekuestNextLinkComposition(TypedComposedLink):
     """A composition of links for Rekuest Next."""
 
     shrink: ShrinkingLink = Field(
-        default_factory=ShrinkingLink, description="Shrinks potential structures in the request."
+        default_factory=ShrinkingLink,
+        description="Shrinks potential structures in the request.",
     )
     dicting: DictingLink = Field(
         default_factory=DictingLink, description="Dicts the request and response."
@@ -39,10 +43,6 @@ class RekuestNextRath(rath.Rath):
     for authentication, retrying, and shrinking of requests.
 
     """
-
-    link: RekuestNextLinkComposition = Field(
-        default_factory=RekuestNextLinkComposition, description="Link composition for Rekuest Next."
-    )
 
     async def __aenter__(self) -> "RekuestNextRath":
         """Set the current Rekuest Next Rath client in the context variable."""

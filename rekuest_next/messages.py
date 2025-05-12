@@ -1,10 +1,36 @@
 """Messages that are used to communicate between the rekuest backend and the agent"""
 
 from typing import Any, Optional, Literal, Union, Dict
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from pydantic import Field
 import uuid
+
+
+JSONSerializable = Union[
+    str, int, float, bool, None, dict[str, "JSONSerializable"], list["JSONSerializable"]
+]
+
+
+ShallowJSONSerializable = Union[str, int, float, bool, None, dict[str, Any], list[Any]]  # type: ignore
+
+LogLevelLiteral = Literal[
+    "DEBUG",
+    "INFO",
+    "ERROR",
+    "WARN",
+    "CRITICAL",
+]
+
+
+class LogLevel(str, Enum):
+    """No documentation"""
+
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    ERROR = "ERROR"
+    WARN = "WARN"
+    CRITICAL = "CRITICAL"
 
 
 class ToAgentMessageType(str, Enum):
@@ -47,6 +73,7 @@ class Message(BaseModel):
     """A base message class"""
 
     # This is the local mapping of the message, reply messages should have the same id
+    model_config = ConfigDict(use_enum_values=True, frozen=True)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 
@@ -81,12 +108,12 @@ class Assign(Message):
     reference: Optional[str] = Field(
         default=None, description="A reference that the assinger provided"
     )
-    args: Optional[Dict[str, Any]] = Field(
-        default=None, description="The arguments that was sendend"
+    args: Dict[str, ShallowJSONSerializable] = Field(
+        description="The arguments that was sendend"
     )
     message: Optional[str] = None
-    user: Optional[str] = Field(default=None, description="The assining user that was sendend")
-    app: Optional[str] = Field(default=None, description="The assinging app")
+    user: str = Field(description="The assining user that was sendend")
+    app: str = Field(description="The assinging app")
 
     @property
     def actor_id(self) -> str:
@@ -102,7 +129,7 @@ class Step(Message):
     """
 
     type: Literal[ToAgentMessageType.STEP] = ToAgentMessageType.STEP
-    assignation: int
+    assignation: str
 
 
 class Heartbeat(Message):
@@ -128,7 +155,7 @@ class Pause(Message):
     """
 
     type: Literal[ToAgentMessageType.PAUSE] = ToAgentMessageType.PAUSE
-    assignation: int
+    assignation: str
 
 
 class Resume(Message):
@@ -137,7 +164,7 @@ class Resume(Message):
     A resume call unpauses the pause"""
 
     type: Literal[ToAgentMessageType.RESUME] = ToAgentMessageType.RESUME
-    assignation: int
+    assignation: str
 
 
 class Cancel(Message):
@@ -157,7 +184,7 @@ class Cancel(Message):
     """
 
     type: Literal[ToAgentMessageType.CANCEL] = ToAgentMessageType.CANCEL
-    assignation: int
+    assignation: str
 
 
 class Collect(Message):
@@ -180,7 +207,7 @@ class Interrupt(Message):
     """A interrupt"""
 
     type: Literal[ToAgentMessageType.INTERRUPT] = ToAgentMessageType.INTERRUPT
-    assignation: int
+    assignation: str
 
 
 class CancelledEvent(Message):
@@ -253,6 +280,8 @@ class LogEvent(Message):
     type: Literal[FromAgentMessageType.LOG] = FromAgentMessageType.LOG
     assignation: str
     message: str
+    level: LogLevelLiteral = "INFO"
+    """The log level of the message"""
 
 
 class ProgressEvent(Message):
@@ -330,7 +359,9 @@ class HeartbeatEvent(Message):
     heartbeat events, but only reply to them.
     """
 
-    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = FromAgentMessageType.HEARTBEAT_ANSWER
+    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
+        FromAgentMessageType.HEARTBEAT_ANSWER
+    )
 
 
 class AssignInquiry(BaseModel):
@@ -368,13 +399,14 @@ class Init(Message):
     """
 
     type: Literal[ToAgentMessageType.INIT] = ToAgentMessageType.INIT
-    instance_id: str = None
-    agent: str = None
-    registry: str = None
+    instance_id: str
+    agent: str
     inquiries: list[AssignInquiry] = []
 
 
-ToAgentMessage = Union[Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect]
+ToAgentMessage = Union[
+    Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect
+]
 FromAgentMessage = Union[
     CriticalEvent,
     LogEvent,

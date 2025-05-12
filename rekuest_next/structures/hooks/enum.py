@@ -1,6 +1,7 @@
 """Tries to convert an enum to a structure"""
 
 from typing import (
+    Any,
     Callable,
     Type,
 )
@@ -19,28 +20,14 @@ from enum import Enum
 from rekuest_next.structures.utils import build_instance_predicate
 
 
-def build_enum_shrink_expand(cls: Type[Enum]) -> tuple[Callable, Callable]:
-    """Builds the shrink and expand functions for an enum class."""
-
-    async def shrink(s: Enum) -> str:
-        """Convert an enum value to its string representation."""
-        return s.name
-
-    async def expand(v: str) -> Enum:
-        """Convert a string representation back to the enum value."""
-        return cls.__members__[v]
-
-    return shrink, expand
-
-
 def cls_to_identifier(cls: Type[Enum]) -> Identifier:
     """Convert a enum class to an identifier string."""
-    return f"{cls.__module__.lower()}.{cls.__name__.lower()}"
+    return Identifier.validate(f"{cls.__module__.lower()}.{cls.__name__.lower()}")
 
 
-def enum_converter(x: Enum) -> str:
+def enum_converter(value: Enum) -> str:
     """Convert an enum value to its string representation."""
-    return x.name
+    return value.name
 
 
 class EnumHook(BaseModel):
@@ -56,18 +43,21 @@ class EnumHook(BaseModel):
 
     """
 
-    cls_to_identifier: Callable[[Type], Identifier] = cls_to_identifier
+    cls_to_identifier: Callable[[Type[Enum]], Identifier] = cls_to_identifier
     """A hook that can be registered to the structure registry"""
 
-    def is_applicable(self, cls: Type) -> bool:
+    def is_applicable(self, cls: Type[Any]) -> bool:
         """Given a class, return True if this hook is applicable to it"""
         if inspect.isclass(cls):
             if issubclass(cls, Enum):
                 return True
         return False
 
-    def apply(self, cls: Type) -> FullFilledEnum:
+    def apply(self, cls: Type[object]) -> FullFilledEnum:
         """Apply the hook to the class and return a FullFilledStructure"""
+        if not issubclass(cls, Enum):
+            raise TypeError(f"{cls} is not a subclass of Enum")
+
         identifier = self.cls_to_identifier(cls)
         predicate = build_instance_predicate(cls)
 
@@ -93,12 +83,10 @@ class EnumHook(BaseModel):
         return FullFilledEnum(
             cls=cls,
             identifier=identifier,
-            choices=tuple(
-                [
-                    ChoiceInput(label=key, value=key, description=value.__doc__)
-                    for key, value in cls.__members__.items()
-                ]
-            ),
+            choices=[
+                ChoiceInput(label=key, value=key, description=value.__doc__)
+                for key, value in cls.__members__.items()
+            ],
             predicate=predicate,
             description=cls.__doc__,
             convert_default=enum_converter,

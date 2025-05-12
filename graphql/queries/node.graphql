@@ -10,13 +10,19 @@ query retrieveall {
   }
 }
 
-query search_actions($search: String, $values: [ID!]) {
+query SearchActions($search: String, $values: [ID!]) {
   options: actions(
     filters: { name: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }
   ) {
     label: name
     value: id
+  }
+}
+
+query ListActions($filters: ActionFilter, $pagination: OffsetPaginationInput) {
+  actions(filters: $filters, pagination: $pagination) {
+    ...ListAction
   }
 }
 

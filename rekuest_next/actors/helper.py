@@ -22,7 +22,9 @@ class AssignmentHelper(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
 
-    async def alog(self: Self, level: LogLevel, message: str) -> None:
+    async def alog(
+        self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
+    ) -> None:
         """Send a log message to the actor.
 
         Args:
@@ -32,7 +34,7 @@ class AssignmentHelper(BaseModel):
         await self.actor.asend(
             message=messages.LogEvent(
                 assignation=self.assignment.assignation,
-                level=level,
+                level=level.value if isinstance(level, LogLevel) else level,
                 message=message,
             )
         )
@@ -55,12 +57,12 @@ class AssignmentHelper(BaseModel):
             )
         )
 
-    async def abreakpoint(self) -> None:
+    async def abreakpoint(self) -> bool:
         """Check if the actor needs to break"""
-        await self.actor.abreak(self.assignment.assignation)
+        return await self.actor.abreak(self.assignment.assignation)
         # await self.actor.acheck_needs_break()
 
-    def breakpoint(self) -> None:
+    def breakpoint(self) -> bool:
         """Check if the actor needs to break
 
         This is a blocking call, and should be
@@ -111,7 +113,10 @@ class AssignmentHelper(BaseModel):
         return self
 
     def __exit__(
-        self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[type]
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[type],
     ) -> None:
         """Exit the context manager
 
@@ -120,7 +125,8 @@ class AssignmentHelper(BaseModel):
             exc_val (Optional[Exception]): The exception value
             exc_tb (Optional[type]): The traceback
         """
-        current_assignation_helper.reset(self._token)
+        if self._token:
+            current_assignation_helper.reset(self._token)
 
     async def __aenter__(self) -> Self:
         """Set the current assignation helper to this instance.
@@ -131,7 +137,10 @@ class AssignmentHelper(BaseModel):
         return self.__enter__()
 
     async def __aexit__(
-        self, exc_type: Optional[type], exc_val: Optional[Exception], exc_tb: Optional[type]
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[type],
     ) -> None:
         """Exit the async context manager
 

@@ -5,7 +5,7 @@ from rekuest_next.api.schema import (
     Implementation,
     Action,
     Search_implementationsQuery,
-    Search_actionsQuery,
+    SearchActionsQuery,
     Search_testcasesQuery,
     Search_testresultsQuery,
     TestCase,
@@ -33,7 +33,7 @@ structure_reg.register_as_structure(
     "@rekuest/action",
     aexpand=afind,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=Search_actionsQuery.Meta.document, ward="rekuest"),
+    default_widget=SearchWidget(query=SearchActionsQuery.Meta.document, ward="rekuest"),
 )
 
 structure_reg.register_as_structure(

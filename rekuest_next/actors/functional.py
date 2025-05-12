@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncGenerator, Callable, Dict, Self
-from koil.helpers import iterate_spawned, run_spawned
+from koil.helpers import iterate_spawned, run_spawned  # type: ignore
 from pydantic import BaseModel, Field
 from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
@@ -61,8 +61,8 @@ class AsyncFuncActor(SerializingActor):
         await self.asend(
             message=messages.ProgressEvent(
                 assignation=assignment.assignation,
-                percentage=0,
-                messages="Queued for running",
+                progress=0,
+                message="Queued for running",
             )
         )
 
@@ -71,8 +71,8 @@ class AsyncFuncActor(SerializingActor):
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
-                        percentage=0,
-                        messages="Queued for running",
+                        progress=0,
+                        message="Queued for running",
                     )
                 )
 
@@ -89,8 +89,8 @@ class AsyncFuncActor(SerializingActor):
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
-                        percentage=0,
-                        messages="Queued for running",
+                        progress=0,
+                        message="Queued for running",
                     )
                 )
 
@@ -151,9 +151,12 @@ class AsyncGenActor(SerializingActor):
 
     async def assign(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
         """This method should be implemented by the actor"""
+
         raise NotImplementedError("This method should be implemented by the actor")
+        yield None  # type: ignore[unreachable]
 
     async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
+        print("Yield func", kwargs)
         async for returns in self.assign(**kwargs):
             yield returns
 
@@ -162,11 +165,12 @@ class AsyncGenActor(SerializingActor):
         assignment: Assign,
     ) -> None:
         """This method is called when the actor is assigned to a task"""
+        print("On assign", assignment)
         await self.asend(
             message=messages.ProgressEvent(
                 assignation=assignment.assignation,
-                percentage=0,
-                messages="Queued for running",
+                progress=0,
+                message="Queued for running",
             )
         )
 
@@ -185,8 +189,8 @@ class AsyncGenActor(SerializingActor):
                 await self.asend(
                     message=messages.ProgressEvent(
                         assignation=assignment.assignation,
-                        percentage=0,
-                        messages="Queued for running",
+                        progress=0,
+                        message="Queued for running",
                     )
                 )
 
@@ -195,6 +199,7 @@ class AsyncGenActor(SerializingActor):
                     actor=self,
                 ):
                     async for returns in self._yield_func(**params):
+                        print("Yielding returns", returns)
                         returns = await shrink_outputs(
                             self.definition,
                             returns,
@@ -207,14 +212,12 @@ class AsyncGenActor(SerializingActor):
                             message=messages.YieldEvent(
                                 assignation=assignment.assignation,
                                 returns=returns,
-                                messages="Queued for running",
                             )
                         )
 
                 await self.asend(
                     message=messages.DoneEvent(
                         assignation=assignment.assignation,
-                        messages="Queued for running",
                     )
                 )
 
@@ -266,7 +269,8 @@ class ThreadedFuncActor(AsyncFuncActor):
         It should allow to inject some additional logic to the assign function"""
         # run the function in a thread pool
         returns = await run_spawned(
-            self.assign, **kwargs, executor=self.executor, pass_context=True
+            self.assign,
+            **kwargs,  # type: ignore[no-untyped-call]
         )
         return returns
 
@@ -277,8 +281,10 @@ class ThreadedGenActor(AsyncGenActor):
     executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(4))
 
     async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        async for returns in iterate_spawned(
-            self.assign, **kwargs, executor=self.executor, pass_context=True
+        print("Yield func", kwargs)
+        async for returns in iterate_spawned(  # type: ignore
+            self.assign,  # type: ignore[no-untyped-call]
+            **kwargs,
         ):
             yield returns
 
