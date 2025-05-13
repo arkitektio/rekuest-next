@@ -13,10 +13,10 @@ dependencies = [
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=3.2",
+    "rath>=3.4",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil>=1.0.2",
+    "koil>=2.0.3",
 ]
 
 [project.optional-dependencies]

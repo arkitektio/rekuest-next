@@ -17,11 +17,7 @@ from .state.decorator import state
 try:
     from .arkitekt import RekuestNextService
 except ImportError as e:
-    RekuestNextService = None
-    print(
-        "RekuestNextService not available. Please install arkitekt_next to use this feature."
-    )
-    print(f"Error: {e}")
+    pass
 from .structure import structure_reg
 
 __version__ = "0.4.1"

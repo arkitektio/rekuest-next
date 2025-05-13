@@ -1,6 +1,7 @@
 """The base client for rekuest next"""
 
-from koil.helpers import KoilTask, unkoil_task
+from koil.helpers import unkoil_task
+from koil import KoilFuture
 from rekuest_next.rath import RekuestNextRath
 
 from rekuest_next.actors.types import Agent
@@ -30,7 +31,7 @@ class RekuestNext(Composition):
         """
         return unkoil(self.arun, instance_id=instance_id)
 
-    def run_detached(self, instance_id: str | None = None) -> KoilTask[None]:
+    def run_detached(self, instance_id: str | None = None) -> KoilFuture[None]:
         """
         Run the application detached.
         """
