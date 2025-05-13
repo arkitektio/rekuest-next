@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.7.0 (2025-05-13)
+
+### Features
+
+- Update to koil > 2 and rath 3.4
+  ([`3de9370`](https://github.com/arkitektio/rekuest-next/commit/3de93709607659686b78463b92097acaf566832b))
+
+
 ## v0.6.0 (2025-05-12)
 
 ### Bug Fixes
