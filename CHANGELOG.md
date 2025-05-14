@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.8.1 (2025-05-14)
+
+### Bug Fixes
+
+- Update background task handling and improve protocol type definitions
+  ([`deb17bc`](https://github.com/arkitektio/rekuest-next/commit/deb17bccd50a9b7f7e5a4e2e34dc948c45b12796))
+
+
 ## v0.8.0 (2025-05-14)
 
 ### Features
