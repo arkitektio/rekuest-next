@@ -1,6 +1,26 @@
 # CHANGELOG
 
 
+## v0.8.0 (2025-05-14)
+
+### Features
+
+- Updated state handlers and context to map to rekuest_next latest
+  ([`15518ad`](https://github.com/arkitektio/rekuest-next/commit/15518adf86a5928e234f3ac97a4e71d28562fe46))
+
+- Updated `protocols.py` to introduce new protocols for context and background functions, enhancing
+  type safety and clarity. - Modified `builders.py` to remove unused imports and streamline the
+  code. - Enhanced `register.py` with improved type hints and documentation for better usability and
+  clarity. - Refactored `rekuest.py` to integrate the new registration method, allowing for more
+  flexible function registration. - Updated `remote.py` to improve argument annotations and ensure
+  consistency across async call functions. - Adjusted `scalars.py` to refine validation logic for
+  search queries. - Improved state management in `decorator.py` and `registry.py`, ensuring better
+  interface handling and registration. - Enhanced serialization protocols in `protocols.py` for
+  better clarity and functionality. - Updated `types.py` to refine class definitions and improve
+  type hints. - Updated dependencies in `uv.lock` and added `qtpy` as a new requirement. - Added
+  `py.typed` file to indicate that the package supports type hints.
+
+
 ## v0.7.0 (2025-05-13)
 
 ### Features
