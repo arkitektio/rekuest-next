@@ -43,7 +43,7 @@ class BackgroundFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState,AnyContext]) -> Awaitable[None] | None:
+    def __call__(self,  *args: Any, **kwargs: Any) -> Awaitable[None] | None:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -63,7 +63,7 @@ class AsyncBackgroundFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState,AnyContext]) -> Awaitable[None]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None]:
         """Create the actor and return it. This method will create the actor and
         return it.
         """

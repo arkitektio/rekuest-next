@@ -102,7 +102,7 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return await run_spawned(
-            self.func, **kwargs, executor=self.thread_pool, pass_context=True
+            self.func, **kwargs # type: ignore[arg-type]
         )
 
 
