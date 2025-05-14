@@ -10,4 +10,8 @@ mutation UpdateState($input: UpdateStateInput!) {
   }
 }
 
-
+mutation SetAgentStates($input: SetAgentStatesInput!) {
+  setAgentStates(input: $input) {
+    ...State
+  }
+}

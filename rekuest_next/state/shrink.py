@@ -5,12 +5,13 @@ from typing import Dict, Any
 from rekuest_next.actors.types import Shelver
 from rekuest_next.api.schema import StateSchemaInput
 from rekuest_next.messages import JSONSerializable
+from rekuest_next.protocols import AnyState
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.serialization.actor import ashrink_return
 
 
 async def ashrink_state(
-    state: Any,  # noqa: ANN401
+    state: AnyState,  # noqa: ANN401
     schema: StateSchemaInput,
     structure_reg: StructureRegistry,  # noqa: ANN401
     shelver: Shelver,

@@ -2,7 +2,7 @@
 
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 from rath.links.split import SplitLink
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
@@ -106,7 +106,7 @@ class RekuestNextService(BaseArkitektService):
         with open(schema_graphql_path) as f:
             return f.read()
 
-    def get_turms_project(self):
+    def get_turms_project(self) -> Dict[str, Any]:
         """Get the turms project for this service."""
         turms_prject = build_relative_path("api", "project.json")
         with open(turms_prject) as f:

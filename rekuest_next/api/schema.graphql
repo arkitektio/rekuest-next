@@ -1266,6 +1266,7 @@ type State {
   stateSchema: StateSchema!
   value: Args!
   agent: Agent!
+  interface: String!
   createdAt: DateTime!
   updatedAt: DateTime!
   historicalStates: [HistoricalState!]!
@@ -1503,6 +1504,9 @@ type Mutation {
 
   """Create a new toolbox with shortcuts."""
   createToolbox(input: CreateToolboxInput!): Toolbox!
+
+  """Set states for an agent."""
+  setAgentStates(input: SetAgentStatesInput!): [State!]!
 }
 
 """The input for creating a implementation."""
@@ -1731,7 +1735,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "d4066669-4632-4921-8609-9fd0ec725ac7"
+  reference: String = "6ccd547c-8e54-4b23-9809-5ba5fc602943"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1791,7 +1795,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "e4c61070-e480-4109-83ac-df9aae5646d6"
+  reference: String = "65f921bf-90e7-4194-b8dc-b2f69b4caca7"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1924,14 +1928,14 @@ input CreatePanelInput {
 
 """The input for setting a state schema."""
 input SetStateInput {
-  stateSchema: ID!
+  interface: String!
   instanceId: InstanceId!
   value: Args!
 }
 
 """The input for updating a state schema."""
 input UpdateStateInput {
-  stateSchema: ID!
+  interface: String!
   instanceId: InstanceId!
   patches: [Args!]!
 }
@@ -1978,6 +1982,19 @@ input DeleteShortcutInput {
 input CreateToolboxInput {
   name: String!
   description: String
+}
+
+"""The input for setting a state schema to an agent."""
+input SetAgentStatesInput {
+  implementations: [StateImplementationInput!]!
+  instanceId: InstanceId!
+}
+
+"""The input for initializing a state schema."""
+input StateImplementationInput {
+  interface: String!
+  stateSchema: StateSchemaInput!
+  initial: Args!
 }
 
 """Root subscription type for real-time event streams from the system."""

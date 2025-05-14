@@ -2,9 +2,7 @@
 
 import collections
 from enum import Enum
-from typing import List, Union, get_type_hints
-
-from rekuest_next.actors.types import AnyFunction
+from typing import Callable, List, Union, get_type_hints
 from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
@@ -258,22 +256,9 @@ def convert_object_to_port(
         real_type, *annotations = get_args(cls)
 
         (
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
-            default,
-            label,
-            description,
+            default, label, description, assign_widget, return_widget, validators, effects
         ) = extract_annotations(
-            annotations,
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
-            default,
-            label,
-            description,
+            annotations, default, label, description, assign_widget, return_widget, validators, effects
         )
 
         return convert_object_to_port(
@@ -461,7 +446,7 @@ def snake_to_title_case(snake_str: str) -> str:
 
 
 def prepare_definition(
-    function: AnyFunction,
+    function: Callable[[Any], Any],
     structure_registry: StructureRegistry,
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,

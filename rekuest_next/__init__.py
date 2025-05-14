@@ -16,7 +16,7 @@ from .state.decorator import state
 
 try:
     from .arkitekt import RekuestNextService
-except ImportError as e:
+except ImportError:
     pass
 from .structure import structure_reg
 

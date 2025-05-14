@@ -1,3 +1,5 @@
+""" Errors for hooks """
+
 from rekuest_next.agents.errors import AgentException
 
 

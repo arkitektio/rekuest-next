@@ -166,9 +166,9 @@ class SearchQuery(str):
         return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: Union[str, DocumentNode, Any]) -> "SearchQuery":
+    def validate(cls, v: Union[str, DocumentNode]) -> "SearchQuery":
         """Validate the search query"""
-        if not isinstance(v, str) and not isinstance(v, DocumentNode):
+        if not isinstance(v, str) and not isinstance(v, DocumentNode): # type: ignore
             raise ValueError("Search query must be either a str or a graphql DocumentAction")
         if isinstance(v, str):
             v = parse_or_raise(v)

@@ -1,7 +1,8 @@
 """Utils for Rekuest Next"""
 
 import logging
-from typing import Any
+from typing import Any, Callable, TypeAlias
+
 from rekuest_next.agents.context import is_context
 from rekuest_next.api.schema import (
     AssignWidgetInput,
@@ -12,170 +13,154 @@ from rekuest_next.api.schema import (
 from rekuest_next.definition.errors import DefinitionError
 from rekuest_next.state.predicate import is_state
 
-parsers = []
+# Type alias for annotation parser return type
+AnnotationResult: TypeAlias = tuple[
+    Any | None,
+    str | None,
+    str | None,
+    AssignWidgetInput | None,
+    ReturnWidgetInput | None,
+    list[ValidatorInput],
+    list[EffectInput],
+]
 
+# Registered parsers
+parsers: list[Callable[[list[Any], *AnnotationResult], AnnotationResult]] = []
+
+
+def is_local_var(type_: Any) -> bool: # noqa: ANN401
+    """Check if the type is a local variable (context or state)."""
+    return is_context(type_) or is_state(type_)
+
+
+def extract_basic_annotations(
+    annotations: list[Any],
+    default: Any | None,
+    label: str | None,
+    description: str | None,
+    assign_widget: AssignWidgetInput | None,
+    return_widget: ReturnWidgetInput | None,
+    validators: list[ValidatorInput],
+    effects: list[EffectInput],
+) -> AnnotationResult:
+    """Extracts basic Rekuest annotations like widgets, validators, and strings."""
+    str_annotation_count = 0
+
+    for annotation in annotations:
+        match annotation:
+            case AssignWidgetInput():
+                if assign_widget:
+                    raise DefinitionError("Multiple AssignWidgets found")
+                assign_widget = annotation
+
+            case ReturnWidgetInput():
+                if return_widget:
+                    raise DefinitionError("Multiple ReturnWidgets found")
+                return_widget = annotation
+
+            case ValidatorInput():
+                validators.append(annotation)
+
+            case EffectInput():
+                effects.append(annotation)
+
+            case str():
+                if str_annotation_count == 0:
+                    label = annotation
+                else:
+                    description = annotation
+                str_annotation_count += 1
+
+            case _:
+                pass
+
+    return default, label, description, assign_widget, return_widget, validators, effects
+
+
+# Register built-in parser
+parsers.append(extract_basic_annotations)
+
+
+# Optional: parser using `annotated_types`
 try:
     from annotated_types import Le, Gt, Len
 
     def extract_annotated_types(
-        annotations: list[Any],  # noqa: ANN201
+        annotations: list[Any],
+        default: Any | None, # noqa: ANN401
+        label: str | None,
+        description: str | None,
         assign_widget: AssignWidgetInput | None,
         return_widget: ReturnWidgetInput | None,
-        validators: list[ValidatorInput] | None,
-        effects: list[EffectInput] | None,
-        default: Any | None,  # noqa: ANN201, ANN401
-        label: str | None,  # noqa: ANN201
-        description: str | None,  # noqa: ANN201
-    ) -> tuple[
-        AssignWidgetInput | None,
-        ReturnWidgetInput | None,
-        list[ValidatorInput] | None,
-        list[EffectInput] | None,
-        Any | None,  # noqa: ANN201, ANN401
-        str | None,  # noqa: ANN201
-        str | None,  # noqa: ANN201
-    ]:
-        """Extracts the annotated types from the list of annotations."""
-        for annotation in annotations:
-            if isinstance(annotation, Gt):
-                validators.append(
-                    ValidatorInput(
-                        function=f"(x) => x > {annotation.gt}",
-                        label=f"Must be greater than {annotation.gt}",
-                        errorMessage=f"Must be greater than {annotation.gt}",
-                    )
-                )
-            if isinstance(annotation, Len):
-                validators.append(
-                    ValidatorInput(
-                        function=f"(x) => x.length > {annotation.max_length} && x.length < {annotation.min_length}",
-                        label=f"Must have length inbetween {annotation.max_length} and {annotation.min_length}",
-                        errorMessage=f"Must have length inbetween {annotation.max_length} and {annotation.min_length}",
-                    )
-                )
-            if isinstance(annotation, Le):
-                validators.append(
-                    ValidatorInput(
-                        function=f"(x) => x <= {annotation.le}",
-                        label=f"Must be less than {annotation.le}",
-                        errorMessage=f"Must be less than {annotation.le}",
-                    )
-                )
+        validators: list[ValidatorInput],
+        effects: list[EffectInput],
+    ) -> AnnotationResult:
+        """Extracts annotated types from `annotated_types`."""
 
-        return assign_widget, return_widget, validators, effects, default, label, description
+        for annotation in annotations:
+            match annotation:
+                case Gt(gt):
+                    validators.append(
+                        ValidatorInput(
+                            function=f"(x) => x > {gt}", #type: ignore
+                            label=f"Must be greater than {gt}",
+                            errorMessage=f"Must be greater than {gt}",
+                        )
+                    )
+                case Le(le):
+                    validators.append(
+                        ValidatorInput(
+                            function=f"(x) => x <= {le}", #type: ignore
+                            label=f"Must be less than {le}",
+                            errorMessage=f"Must be less than {le}",
+                        )
+                    )
+                case Len(min_length=min_len, max_length=max_len):
+                    validators.append(
+                        ValidatorInput(
+                            function=f"(x) => x.length >= {min_len} && x.length <= {max_len}", #type: ignore
+                            label=f"Must have length between {min_len} and {max_len}",
+                            errorMessage=f"Must have length between {min_len} and {max_len}",
+                        )
+                    )
+                case _:
+                    pass
+
+        return default, label, description, assign_widget, return_widget, validators, effects
 
     parsers.append(extract_annotated_types)
 
 except ImportError:
-    pass
+    logging.info("annotated_types not available, skipping related parser.")
 
 
-def is_local_var(type: Any) -> bool:  # noqa: ANN401
-    """Check if the type is a local variable."""
-    return is_context(type) or is_state(type)
+def extract_annotations(
+    annotations: list[Any],
+    default: Any | None = None, # noqa: ANN401
+    label: str | None = None,
+    description: str | None = None,
+    assign_widget: AssignWidgetInput | None = None,
+    return_widget: ReturnWidgetInput | None = None,
+    validators: list[ValidatorInput] | None = None,
+    effects: list[EffectInput] | None = None,
+) -> AnnotationResult:
+    """Runs all registered parsers to extract semantic Rekuest annotations."""
+    validators = validators or []
+    effects = effects or []
 
-
-def extract_basic_annotations(
-    annotations: list[Any],  # noqa: ANN201
-    assign_widget: AssignWidgetInput | None,
-    return_widget: ReturnWidgetInput | None,
-    validators: list[ValidatorInput] | None,
-    effects: list[EffectInput] | None,
-    default: Any | None,  # noqa: ANN201, ANN401
-    label: str | None,  # noqa: ANN201
-    description: str | None,  # noqa: ANN201
-) -> tuple[
-    AssignWidgetInput | None,
-    ReturnWidgetInput | None,
-    list[ValidatorInput] | None,
-    list[EffectInput] | None,
-    Any | None,  # noqa: ANN201, ANN401
-    str | None,  # noqa: ANN201
-    str | None,  # noqa: ANN201
-]:
-    """Extracts the basic annotations from the list of annotations.
-    This includes the AssignWidget, ReturnWidget, Validators, Effects, Default,
-    Label, and Description.
-    """
-
-    str_annotation_count = 0
-
-    for annotation in annotations:
-        if isinstance(annotation, AssignWidgetInput):
-            if assign_widget:
-                raise DefinitionError("Multiple AssignWidgets found")
-            assign_widget = annotation
-        elif isinstance(annotation, ReturnWidgetInput):
-            if return_widget:
-                raise DefinitionError("Multiple ReturnWidgets found")
-            return_widget = annotation
-        elif isinstance(annotation, ValidatorInput):
-            validators.append(annotation)
-        elif isinstance(annotation, EffectInput):
-            effects.append(annotation)
-
-        elif hasattr(annotation, "get_assign_widget"):
-            if assign_widget:
-                raise DefinitionError("Multiple AssignWidgets found")
-            assign_widget = annotation.get_assign_widget()
-        elif hasattr(annotation, "get_return_widget"):
-            if return_widget:
-                raise DefinitionError("Multiple ReturnWidgets found")
-            return_widget = annotation.get_return_widget()
-        elif hasattr(annotation, "get_effects"):
-            effects += annotation.get_effects()
-        elif hasattr(annotation, "get_default"):
-            if default:
-                raise DefinitionError("Multiple Defaults found")
-
-            default = annotation.get_default()
-        elif hasattr(annotation, "get_validators"):
-            validators += annotation.get_validators()
-        elif isinstance(annotation, str):
-            if str_annotation_count > 0:
-                description = annotation
-            else:
-                label = annotation
-
-            str_annotation_count += 1
-
-        else:
-            logging.warning(f"Unrecognized annotation {annotation}")
-
-    return assign_widget, return_widget, validators, effects, default, label, description
-
-
-parsers.append(extract_basic_annotations)
-
-
-def extract_annotations(  # noqa: ANN201, D103
-    annotations: list[Any],  # noqa: ANN201
-    assign_widget: AssignWidgetInput | None,
-    return_widget: ReturnWidgetInput | None,
-    validators: list[ValidatorInput] | None,
-    effects: list[EffectInput] | None,
-    default: Any | None,  # noqa: ANN201, ANN401
-    label: str | None,  # noqa: ANN201
-    description: str | None,  # noqa: ANN201
-) -> tuple[
-    AssignWidgetInput | None,
-    ReturnWidgetInput | None,
-    list[ValidatorInput] | None,
-    list[EffectInput] | None,
-    Any | None,  # noqa: ANN201, ANN401
-    str | None,  # noqa: ANN201
-    str | None,  # noqa: ANN201
-]:
     for parser in parsers:
-        assign_widget, return_widget, validators, effects, default, label, description = parser(
+        default, label, description, assign_widget, return_widget, validators, effects = parser(
             annotations,
+            default,
+            label,
+            description,
             assign_widget,
             return_widget,
             validators,
             effects,
-            default,
-            label,
-            description,
         )
-
-    return assign_widget, return_widget, validators, effects, default, label, description
+        
+        
+        
+        
+    return default, label, description, assign_widget, return_widget, validators, effects

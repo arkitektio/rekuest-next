@@ -6,17 +6,16 @@ into an actor.
 
 import inspect
 from functools import partial
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from rekuest_next.actors.functional import (
     FunctionalFuncActor,
     FunctionalGenActor,
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
-    SerializingActor,
 )
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import ActorBuilder, AnyFunction
+from rekuest_next.actors.types import ActorBuilder, AnyFunction, OnProvide, OnUnprovide
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.api.schema import (
     DefinitionInput,
@@ -38,8 +37,8 @@ def reactify(
     structure_registry: StructureRegistry,
     bypass_shrink: bool = False,
     bypass_expand: bool = False,
-    on_provide: Optional[Callable[[SerializingActor], Awaitable[None]]] = None,
-    on_unprovide: Optional[Callable[[SerializingActor], Awaitable[None]]] = None,
+    on_provide: Optional[OnProvide] = None,
+    on_unprovide: Optional[OnUnprovide] = None,
     stateful: bool = False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] | None = None,

@@ -1,21 +1,30 @@
-"""Register a function or actor with the definition registry"""
+"""Register a function or actor with the definition registry."""
 
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+    cast,
+)
+import inflection
+
+from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import Actifier, ActorBuilder, OnUnprovide, OnProvide
+from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnprovide
 from rekuest_next.definition.define import AssignWidgetMap
 from rekuest_next.definition.hash import hash_definition
-from rekuest_next.protocols import AnyFunction
-from rekuest_next.structures.registry import (
-    StructureRegistry,
-)
-from rekuest_next.structures.default import (
-    get_default_structure_registry,
-)
 from rekuest_next.definition.registry import (
     DefinitionRegistry,
     get_default_definition_registry,
 )
-from typing import cast
+from rekuest_next.protocols import AnyFunction
+from rekuest_next.structures.default import get_default_structure_registry
+from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     DefinitionInput,
@@ -25,68 +34,63 @@ from rekuest_next.api.schema import (
     ImplementationInput,
     ValidatorInput,
 )
-from typing import (
-    Dict,
-    List,
-    Callable,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-    overload,
-)
-import inflection
-from rekuest_next.actors.actify import reactify
 
 
 def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
     definition_registry: DefinitionRegistry,
-    interface: str | None = None,
-    name: str | None = None,
+    interface: Optional[str] = None,
+    name: Optional[str] = None,
     actifier: Actifier = reactify,
-    dependencies: List[DependencyInput] | None = None,
+    dependencies: Optional[List[DependencyInput]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: List[str] | None = None,
+    collections: Optional[List[str]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    widgets: AssignWidgetMap | None = None,
-    effects: Dict[str, List[EffectInput]] | None = None,
-    interfaces: List[str] | None = None,
-    on_provide: OnProvide | None = None,
-    on_unprovide: OnUnprovide | None = None,
+    widgets: Optional[AssignWidgetMap] = None,
+    effects: Optional[Dict[str, List[EffectInput]]] = None,
+    interfaces: Optional[List[str]] = None,
+    on_provide: Optional[OnProvide] = None,
+    on_unprovide: Optional[OnUnprovide] = None,
     dynamic: bool = False,
     in_process: bool = False,
     sync: Optional[SyncGroup] = None,
     stateful: bool = False,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
-    """Register a function or actor with the definition registry
+    """Register a function or actor with the provided definition registry.
 
-    Register a function or actor with the definition registry. This will
-    create a definition for the function or actor and register it with the
-    definition registry.
-
-    If first parameter is a function, it will be wrapped in an actorBuilder
-    through the actifier. If the first parameter is an actor, it will be
-    used as the actorBuilder (needs to have the dunder __definition__) to be
-    detected as such.
+    This function wraps a callable or actor into an ActorBuilder and registers it with a
+    DefinitionRegistry instance, using an optionally provided or inferred interface name.
 
     Args:
-        function_or_actor (Union[Actor, Callable]): _description_
-        actifier (Actifier, optional): _description_. Defaults to None.
-        interface (str, optional): _description_. Defaults to None.
-        widgets (Dict[str, WidgetInput], optional): _description_. Defaults to {}.
-        interfaces (List[str], optional): _description_. Defaults to [].
-        on_provide (_type_, optional): _description_. Defaults to None.
-        on_unprovide (_type_, optional): _description_. Defaults to None.
-        structure_registry (StructureRegistry, optional): _description_. Defaults to None.
-    """
+        function_or_actor (AnyFunction): A function or actor to be registered.
+        structure_registry (StructureRegistry): The registry used for structuring inputs.
+        definition_registry (DefinitionRegistry): The registry where definitions are stored.
+        interface (Optional[str], optional): Interface name. Inferred if not provided.
+        name (Optional[str], optional): Optional display name.
+        actifier (Actifier, optional): Callable converting functions to actors. Defaults to reactify.
+        dependencies (Optional[List[DependencyInput]], optional): External dependencies.
+        port_groups (Optional[List[PortGroupInput]], optional): Port group specifications.
+        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validator mappings.
+        collections (Optional[List[str]], optional): Collection groupings.
+        is_test_for (Optional[List[str]], optional): Interfaces this definition tests.
+        logo (Optional[str], optional): Optional logo URL.
+        widgets (Optional[AssignWidgetMap], optional): Widget mappings.
+        effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effect configurations.
+        interfaces (Optional[List[str]], optional): Interfaces implemented by this actor.
+        on_provide (Optional[OnProvide], optional): Provision hook.
+        on_unprovide (Optional[OnUnprovide], optional): Unprovision hook.
+        dynamic (bool, optional): Whether the definition is dynamically changeable.
+        in_process (bool, optional): Whether to run in the same process.
+        sync (Optional[SyncGroup], optional): Synchronization group, if any.
+        stateful (bool, optional): Indicates whether the actor is stateful.
 
-    interface = interface or inflection.underscore(
-        function_or_actor.__name__
-    )  # convert this to camelcase
+    Returns:
+        Tuple[DefinitionInput, ActorBuilder]: Registered definition and its actor builder.
+    """
+    interface = interface or inflection.underscore(function_or_actor.__name__)
 
     definition, actor_builder = actifier(
         function_or_actor,
@@ -122,14 +126,42 @@ def register_func(
     return definition, actor_builder
 
 
+
+
 T = TypeVar("T", bound=AnyFunction)
 
 
 @overload
-def register(
-    func: T,
-) -> T:
-    """Register a function or actor to the default definition registry."""
+def register(func: T) -> T:
+    """Register a function or actor with optional configuration parameters.
+
+    This overload supports usage of `@register(...)` as a configurable decorator.
+
+    Args:
+        func (T): Function to register.
+        actifier (Actifier, optional): Function to wrap callables into actors.
+        interface (Optional[str], optional): Interface name override.
+        stateful (bool, optional): Whether the actor maintains internal state.
+        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Mapping of parameter names to widgets.
+        dependencies (Optional[List[DependencyInput]], optional): List of external dependencies.
+        interfaces (Optional[List[str]], optional): Additional interfaces implemented.
+        collections (Optional[List[str]], optional): Groupings for organizational purposes.
+        port_groups (Optional[List[PortGroupInput]], optional): Port group assignments.
+        effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
+        is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
+        logo (Optional[str], optional): URL or identifier for the actor's logo.
+        on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
+        on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
+        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
+        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
+        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+        in_process (bool, optional): Execute actor in the same process.
+        dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
+        sync (Optional[SyncGroup], optional): Optional synchronization group.
+
+    Returns:
+        Callable[[T], T]: A decorator that registers the given function or actor.
+    """
     ...
 
 
@@ -137,90 +169,120 @@ def register(
 def register(
     *,
     actifier: Actifier = reactify,
-    interface: str | None = None,
+    interface: Optional[str] = None,
     stateful: bool = False,
-    widgets: Dict[str, AssignWidgetInput] | None = None,
-    dependencies: List[DependencyInput] | None = None,
-    interfaces: List[str] = [],
-    collections: List[str] | None = None,
+    widgets: Optional[Dict[str, AssignWidgetInput]] = None,
+    dependencies: Optional[List[DependencyInput]] = None,
+    interfaces: Optional[List[str]] = None,
+    collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
-    effects: Dict[str, List[EffectInput]] | None = None,
+    effects: Optional[Dict[str, List[EffectInput]]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide: OnProvide | None = None,
-    on_unprovide: OnUnprovide | None = None,
+    on_provide: Optional[OnProvide] = None,
+    on_unprovide: Optional[OnUnprovide] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    structure_registry: StructureRegistry | None = None,
-    definition_registry: DefinitionRegistry | None = None,
+    structure_registry: Optional[StructureRegistry] = None,
+    definition_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
 ) -> Callable[[T], T]:
-    """Register a function or actor to the default definition registry.
+    """Register a function or actor with optional configuration parameters.
 
-    You can use this decorator to register a function or actor to the default
-    definition registry. There is also a function version of this decorator,
-    which is more convenient to use.
+    This overload supports usage of `@register(...)` as a configurable decorator.
 
-    Example:
-        >>> @register
-        >>> def hello_world(string: str):
+    Args:
+        actifier (Actifier, optional): Function to wrap callables into actors.
+        interface (Optional[str], optional): Interface name override.
+        stateful (bool, optional): Whether the actor maintains internal state.
+        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Mapping of parameter names to widgets.
+        dependencies (Optional[List[DependencyInput]], optional): List of external dependencies.
+        interfaces (Optional[List[str]], optional): Additional interfaces implemented.
+        collections (Optional[List[str]], optional): Groupings for organizational purposes.
+        port_groups (Optional[List[PortGroupInput]], optional): Port group assignments.
+        effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
+        is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
+        logo (Optional[str], optional): URL or identifier for the actor's logo.
+        on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
+        on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
+        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
+        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
+        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+        in_process (bool, optional): Execute actor in the same process.
+        dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
+        sync (Optional[SyncGroup], optional): Optional synchronization group.
 
-        >>> @register(interface="hello_world")
-        >>> def hello_world(string: str):
-
-
-
+    Returns:
+        Callable[[T], T]: A decorator that registers the given function or actor.
     """
-
     ...
 
 
-def register(
+def register( #type: ignore[valid-type]
     *func: T,
     actifier: Actifier = reactify,
-    interface: str | None = None,
+    interface: Optional[str] = None,
     stateful: bool = False,
-    widgets: Dict[str, AssignWidgetInput] | None = None,
-    dependencies: List[DependencyInput] | None = None,
-    interfaces: List[str] | None = None,
-    collections: List[str] | None = None,
+    widgets: Optional[Dict[str, AssignWidgetInput]] = None,
+    dependencies: Optional[List[DependencyInput]] = None,
+    interfaces: Optional[List[str]] = None,
+    collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
-    effects: Dict[str, List[EffectInput]] | None = None,
+    effects: Optional[Dict[str, List[EffectInput]]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide: OnProvide | None = None,
-    on_unprovide: OnUnprovide | None = None,
+    on_provide: Optional[OnProvide] = None,
+    on_unprovide: Optional[OnUnprovide] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    structure_registry: StructureRegistry | None = None,
-    definition_registry: DefinitionRegistry | None = None,
+    structure_registry: Optional[StructureRegistry] = None,
+    definition_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
 ) -> Union[T, Callable[[T], T]]:
-    """Register a function or actor to the default definition registry.
+    """Register a function or actor to the default definition and structure registries.
 
-    You can use this decorator to register a function or actor to the default
-    definition registry. There is also a function version of this decorator,
-    which is more convenient to use.
+    This function serves as both a decorator and a direct-call function to register
+    actors or callables. It supports detailed customization of the registration
+    process including dependency tracking, custom widgets, interface annotations,
+    validation, and lifecycle hooks.
 
-    Example:
-        >>> @register
-        >>> def hello_world(string: str):
+    Use this as:
+        @register
+        def my_function(...): ...
+    
+    Or with arguments:
+        @register(interface="custom_interface", dependencies=[...])
+        def my_function(...): ...
 
-        >>> @register(interface="hello_world")
-        >>> def hello_world(string: str):
+    Or as a direct call:
+        register(my_function, interface="custom_interface", ...)
 
     Args:
-        function_or_actor (Union[Callable, Actor]): The function or Actor
-        builder (ActorBuilder, optional): An actor builder (see ActorBuilder). Defaults to None.
-        package (str, optional): The package you want to register this function in. Defaults to standard app package    .
-        interface (str, optional): The name of the function. Defaults to the functions name.
-        widgets (Dict[str, WidgetInput], optional): A dictionary of parameter key and a widget. Defaults to the default widgets as registered in the structure registry .
-        interfaces (List[str], optional): Interfaces that this action adheres to. Defaults to [].
-        on_provide (Callable[[Provision], Awaitable[dict]], optional): Function that shall be called on provide (in the async eventloop). Defaults to None.
-        on_unprovide (Callable[[], Awaitable[dict]], optional): Function that shall be called on unprovide (in the async eventloop). Defaults to None.
-        structure_registry (StructureRegistry, optional): The structure registry to use for this Actor (used to shrink and expand inputs). Defaults to None.
+        *func (T): Function to register if using direct-call mode.
+        actifier (Actifier, optional): Function to transform a callable into an actor.
+        interface (Optional[str], optional): Interface name; inferred from function if not provided.
+        stateful (bool, optional): Whether the actor maintains internal state.
+        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Optional widget configurations.
+        dependencies (Optional[List[DependencyInput]], optional): External dependencies required.
+        interfaces (Optional[List[str]], optional): Interfaces this actor complies with.
+        collections (Optional[List[str]], optional): Groupings for organizing definitions.
+        port_groups (Optional[List[PortGroupInput]], optional): Input/output port groupings.
+        effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effects mapping.
+        is_test_for (Optional[List[str]], optional): Indicates the actor is a test for given interfaces.
+        logo (Optional[str], optional): Optional logo or image identifier.
+        on_provide (Optional[OnProvide], optional): Async hook called on provisioning.
+        on_unprovide (Optional[OnUnprovide], optional): Async hook called on unprovisioning.
+        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validation configuration.
+        structure_registry (Optional[StructureRegistry], optional): Overrides default structure registry.
+        definition_registry (Optional[DefinitionRegistry], optional): Overrides default definition registry.
+        in_process (bool, optional): Execute actor in the current process.
+        dynamic (bool, optional): Enables dynamic redefinition.
+        sync (Optional[SyncGroup], optional): Synchronization group instance.
+
+    Returns:
+        Union[T, Callable[[T], T]]: The registered function or a decorator.
     """
     definition_registry = definition_registry or get_default_definition_registry()
     structure_registry = structure_registry or get_default_structure_registry()

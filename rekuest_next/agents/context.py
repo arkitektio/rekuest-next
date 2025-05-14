@@ -1,13 +1,15 @@
 """Context management for Rekuest Next."""
 
-from typing import Tuple, Type, TypeVar, Callable
-from typing import Dict, Any, overload
+from typing import Tuple, Type, TypeVar
+from typing import Dict, Any
 import inspect
+
+import inflection
 
 from rekuest_next.protocols import AnyContext, AnyFunction
 
 
-T = TypeVar("T", bound=AnyContext)
+T = TypeVar("T", bound=Type[AnyContext])
 
 
 def is_context(cls: Type[T]) -> bool:
@@ -24,49 +26,16 @@ def get_context_name(cls: Type[T]) -> str:
     return x
 
 
-@overload
-def context(*clss: Type[T]) -> Type[T]:
-    """Decorator to mark a class as a context.
 
-    Args:
-        cls (Type[T]): The class to mark as a context.
-        name (str): The name of the context. If not provided, the class name will be used.
-    """
-    ...
+def context(cls: T) -> T:
+    """Mark a class as a model. This is used to
+    identify the model in the rekuest_next system."""
 
+    setattr(cls, "__rekuest_context__", inflection.underscore(cls.__name__))
 
-@overload
-def context(*, name: str | None = None) -> Callable[[Type[T]], Type[T]]:
-    """Decorator to mark a class as a context.
-
-    Args:
-        name (str): The name of the context. If not provided, the class name will be used.
-    """
-    ...
+    return cls
 
 
-def context(
-    *clss: Type[T], name: str | None = None
-) -> Type[T] | Callable[[Type[T]], Type[T]]:
-    """Decorator to mark a class as a context.
-
-    Args:
-        cls (Type[T]): The class to mark as a context.
-        name (str): The name of the context. If not provided, the class name will be used.
-    """
-    if len(clss) == 1 and not isinstance(clss[0], str):
-        cls = clss[0]
-        setattr(cls, "__rekuest_context__", cls.__name__)  # type: ignore
-
-        return cls
-
-    else:
-
-        def wrapper(cls: Type[T]) -> Type[T]:
-            setattr(cls, "__rekuest_context__", name)
-            return cls
-
-        return wrapper
 
 
 def prepare_context_variables(

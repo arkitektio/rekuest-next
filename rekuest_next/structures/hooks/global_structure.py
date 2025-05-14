@@ -23,6 +23,9 @@ class GlobalStructureHookError(HookError):
 
 
 class Identifiable(Protocol):
+    """ A protocol for objects that can be identified as a global structure."""
+    
+    
     @classmethod
     def get_identifier(cls) -> Identifier:
         """Get the identifier of the object."""

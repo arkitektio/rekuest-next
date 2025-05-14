@@ -1,18 +1,20 @@
 """Transport types for agents."""
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from .errors import (
     DefiniteConnectionFail,
     CorrectableConnectionFail,
     AgentConnectionFail,
 )
-from rekuest_next.messages import ToAgentMessage
+from rekuest_next.messages import ToAgentMessage, FromAgentMessage
 
 
+
+@runtime_checkable
 class AgentTransport(Protocol):
     """Protocol for transport."""
 
-    async def aconnect(self) -> None:
+    async def aconnect(self, instance_id: str) -> None:
         """Connect to the transport."""
         ...
 
@@ -20,7 +22,7 @@ class AgentTransport(Protocol):
         """Disconnect from the transport."""
         ...
 
-    async def asend(self, message: ToAgentMessage) -> None:
+    async def asend(self, message: FromAgentMessage) -> None:
         """Send a message to the transport."""
         ...
 
@@ -28,9 +30,7 @@ class AgentTransport(Protocol):
         """Set the callback for the transport."""
         ...
 
-    async def areceive(self) -> ToAgentMessage:
-        """Receive a message from the transport."""
-        ...
+    
 
 
 class TransportCallbacks(Protocol):

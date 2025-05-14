@@ -7,7 +7,7 @@ This allow the async patterns of actors to extend to the Qt world.
 import inspect
 from typing import Any, AsyncGenerator, Callable, Tuple, get_args, get_origin
 from qtpy import QtCore, QtWidgets
-from koil.qt import QtCoro, QtGenerator, QtFuture, QtYielder
+from koil.qt import QtGenerator, QtFuture
 from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
 
 from rekuest_next.definition.define import prepare_definition, DefinitionInput
@@ -175,6 +175,9 @@ def qtinloopactifier(
     )
 
     return definition, in_loop_instance.build
+
+
+
 
 
 def qtwithfutureactifier(

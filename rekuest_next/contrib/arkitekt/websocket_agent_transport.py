@@ -1,13 +1,11 @@
 """Transport for Arkitekt using Websockets."""
 
-from typing import Optional
 from fakts_next import Fakts
 from fakts_next.protocols import FaktValue
 from herre_next import Herre
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
-from pydantic import Field, BaseModel
+from pydantic import BaseModel
 
-from typing import Any, Awaitable, Callable, Dict
 
 
 class WebsocketAgentTransportConfig(BaseModel):
@@ -17,7 +15,7 @@ class WebsocketAgentTransportConfig(BaseModel):
     instance_id: str = "default"
 
 
-async def fake_token_loader(*args, **kwargs) -> str:  # noqa: ANN002, ANN003
+async def fake_token_loader() -> str:  # noqa: ANN002, ANN003
     """Fake token loader for testing purposes."""
     raise NotImplementedError("You did not set a token loader")
 

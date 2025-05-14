@@ -73,9 +73,11 @@ class DefinitionRegistry(BaseModel):
 
         for impl in self.implementations.values():
             serialized_values.append(
-                impl.definition.model_dump_json(
-                    exclude_none=True,
-                    exclude_unset=True,
+                json.loads(
+                    impl.model_dump_json(
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
                 )
             )
 

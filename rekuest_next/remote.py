@@ -172,7 +172,7 @@ async def aiterate_raw(
 
 async def acall(
     action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN002
+    *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -180,7 +180,7 @@ async def acall(
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
-    **kwargs: Any,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN401
 ) -> tuple[Any]:
     """Call the assignation function"""
     action = None
@@ -230,14 +230,14 @@ async def acall(
 
 async def aiterate(
     action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN002
+    *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
-    **kwargs: Any,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[tuple[Any], None]:
     """Async generator that yields the results of the assignation"""
     action = None
@@ -288,7 +288,7 @@ async def aiterate(
 
 def call(
     action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN002
+    *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -296,7 +296,7 @@ def call(
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
-    **kwargs: Any,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN002, ANN003, ANN401
     """Call the assignation function"""
     return unkoil(
@@ -316,14 +316,14 @@ def call(
 
 def iterate(
     action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN002
+    *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
-    **kwargs: Any,  # noqa: ANN003
+    **kwargs: Any,  # noqa: ANN401
 ) -> Generator[Any, None, None]:
     """Iterate over the results of the assignation"""
     return unkoil_gen(

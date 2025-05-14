@@ -7,4 +7,5 @@ fragment State on State {
   agent {
     id
   }
+  interface
 }

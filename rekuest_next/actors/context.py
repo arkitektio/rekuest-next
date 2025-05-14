@@ -6,6 +6,32 @@ from rekuest_next.actors.vars import (
 from rekuest_next.api.schema import LogLevel
 from typing import Optional
 from rekuest_next import messages
+from rekuest_next.protocols import AnyState
+from koil import unkoil
+
+
+async def apublish(state: AnyState) -> None:
+    """Publish a state
+
+    This function is used to publish a state to the actor.
+
+    Args:
+        state (AnyState): The state to publish.
+    """
+    await get_current_assignation_helper().apublish_state(state)
+    
+    
+def publish(state: AnyState) -> None:
+
+    """Publish a state
+
+    This function is used to publish a state to the actor.
+
+    Args:
+        state (AnyState): The state to publish.
+    """
+    return unkoil(apublish, state)
+
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:

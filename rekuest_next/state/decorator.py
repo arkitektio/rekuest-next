@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from rekuest_next.api.schema import PortInput
-from rekuest_next.actors.types import AnyFunction
 from typing import Optional, Type, TypeVar, Callable, overload
 from fieldz import fields  # type: ignore
 from rekuest_next.protocols import AnyState
@@ -22,7 +21,7 @@ T = TypeVar("T", bound=AnyState)
 
 def inspect_state_schema(
     cls: Type[T], structure_registry: StructureRegistry
-) -> Optional[StateSchemaInput]:
+) -> StateSchemaInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
@@ -57,7 +56,7 @@ def state(
 ) -> Callable[[T], T]: ...
 
 
-def state(
+def state( #type: ignore[valid-type]
     *function: Type[T],
     local_only: bool = False,
     name: Optional[str] = None,
@@ -99,7 +98,7 @@ def state(
 
             state_schema = inspect_state_schema(cls, structure_registry)
 
-            registry.register_at_name(name, state_schema, structure_registry)
+            registry.register_at_interface(name or cls.__name__, cls, state_schema, structure_registry)
 
             return cls
 

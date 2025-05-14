@@ -3,10 +3,11 @@
 from rekuest_next.api.schema import (
     StateSchemaInput,
 )
-from typing import Any, Dict
+from typing import Any, Dict, Type
 from pydantic import Field
 from koil.composition import KoiledModel
 import json
+from rekuest_next.protocols import AnyState
 from rekuest_next.structures.registry import StructureRegistry
 import hashlib
 from rekuest_next.structures.types import JSONSerializable
@@ -24,18 +25,38 @@ class StateRegistry(KoiledModel):
     registry_schemas: Dict[str, StructureRegistry] = Field(
         default_factory=dict, exclude=True
     )
+    interface_classes: Dict[str, AnyState] = Field(
+        default_factory=dict, exclude=True
+    )
+    classes_interfaces: Dict[Type[AnyState], str] = Field(
+        default_factory=dict, exclude=True
+    )
 
-    def register_at_name(
-        self, name: str, state_schema: StateSchemaInput, registry: StructureRegistry
+    def register_at_interface(
+        self, interface: str, cls: Type[AnyState],  state_schema: StateSchemaInput, registry: StructureRegistry
     ) -> None:
         """Register a state schema at a name."""
-        self.state_schemas[name] = state_schema
-        self.registry_schemas[name] = registry
+        self.state_schemas[interface] = state_schema
+        self.registry_schemas[interface] = registry
+        self.classes_interfaces[cls] = interface
+        self.interface_classes[interface] = cls
 
-    def get_schema_for_name(self, name: str) -> StateSchemaInput:
+    def get_schema_for_interface(self, interface: str) -> StateSchemaInput:
         """Get the schema for a name."""
-        assert name in self.state_schemas, "No definition for interface"
-        return self.state_schemas[name]
+        assert interface in self.state_schemas, "No definition for interface"
+        return self.state_schemas[interface]
+    
+    def get_registry_for_interface(self, interface: str) -> StructureRegistry:
+        """Get the registry for a name."""
+        assert interface in self.registry_schemas, "No definition for interface"
+        return self.registry_schemas[interface]
+    
+    def get_interface_for_class(self, cls: Type[AnyState]) -> str:
+        """Get the interface for a class."""
+        assert cls in self.classes_interfaces, "No definition for class"
+        return self.classes_interfaces[cls]
+    
+    
 
     async def __aenter__(self) -> "StateRegistry":
         """Enter the state registry context manager."""

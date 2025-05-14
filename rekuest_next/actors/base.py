@@ -1,15 +1,17 @@
 """The base class for all actors."""
 
 import asyncio
+from copy import deepcopy
 import logging
 from typing import (
     Any,
     Dict,
+    Mapping,
     Optional,
     Self,
+    Tuple,
 )
 import uuid
-
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from rekuest_next.actors.errors import UnknownMessageError
@@ -17,6 +19,7 @@ from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent
 from rekuest_next import messages
 from rekuest_next.definition.define import DefinitionInput
+from rekuest_next.protocols import AnyContext, AnyState
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.actors.sync import SyncGroup
@@ -311,6 +314,16 @@ class Actor(BaseModel):
                 )
         else:
             raise UnknownMessageError(f"{message}")
+        
+        
+    async def apublish_state(self: Self, state: AnyState) -> None:
+        """A function to publish the state of the actor. This is used to publish the
+        state of the actor to the agent.
+
+        Args:
+            state (AnyState): The state to publish.
+        """
+        await self.agent.apublish_state(state)
 
     async def alisten(self: Self) -> None:
         """A function to listen for messages from the agent. This is used to
@@ -415,31 +428,56 @@ class SerializingActor(Actor):
         default_factory=dict, description="The state variables of the actor"
     )
     context_variables: Dict[str, Any] = Field(default_factory=dict)
-    contexts: Dict[str, Any] = Field(default_factory=dict)
-    proxies: Dict[str, Any] = Field(default_factory=dict)
+    
+    
 
-    async def add_local_variables(self: Self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        """A function to add local variables to the kwargs.
-
-        This will be invoked after the arguments have been expanded and
-        before the arguments are passed to the function. It allows us to
-        hook in some state and local variables to the function call.
+    async def aget_locals(self: Self) -> Tuple[Mapping[str, AnyContext], Mapping[str, AnyState]]:
+        """A function to for locals
 
         """
 
-        for key, value in self.context_variables.items():
+        state_kwargs: Mapping[str, AnyContext | AnyState] = {}
+        context_kwargs: Mapping[str, AnyContext] = {}
+
+        for key, interface in self.context_variables.items():
             try:
-                kwargs[key] = self.contexts[value]
+                context_kwargs[key] = await self.agent.aget_context(interface)
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        for key, value in self.state_variables.items():
+        for key, interface in self.state_variables.items():
             try:
-                kwargs[key] = self.proxies[value]
+                state_kwargs[key] = deepcopy(await self.agent.aget_state(interface)) # TODO: Should unshrin the shrunk state?, that would be a bit weird no?
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        return kwargs
+        return context_kwargs, state_kwargs
+    
+    
+    async def async_locals(self: Self, state_params: Mapping[str, AnyState]) -> None:
+        """ A function to again sync the state of the actor with the state params
+        Args:
+            state_params (Mapping[str, AnyState]): The state params to sync with
+        """
+        for key, _ in self.state_variables.items():
+            if key in state_params:
+                state = state_params[key]
+                await self.agent.apublish_state(
+                    state,
+                )
+            else:
+                logger.warning(f"State {key} not found in state params")
+                
+                
+   
+            
+            
+            
+            
+   
+        
+        
+        
 
 
 Actor.model_rebuild()

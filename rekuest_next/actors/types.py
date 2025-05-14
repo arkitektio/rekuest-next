@@ -4,7 +4,7 @@ import asyncio
 from typing import Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.protocols import AnyFunction
+from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import PortGroupInput, ValidatorInput
@@ -50,9 +50,10 @@ class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
     instance_id: str
+    
 
     async def asend(
-        self: "Agent", actor: Any, message: messages.FromAgentMessage
+        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
     ) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
@@ -71,6 +72,21 @@ class Agent(Protocol):
     async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
         shelve."""
+        ...
+        
+    async def apublish_state(self, state: AnyState) -> None:  # noqa: ANN401
+        """Publish a state to the agent. This is used to publish states to the
+        agent from the actor."""
+        ...
+        
+    async def aget_state(self, interface: str) -> AnyState:  # noqa: ANN401
+        """Get a state from the agent. This is used to get states from the
+        agent from the actor."""
+        ...
+        
+    async def aget_context(self, context: str) -> Any:  # noqa: ANN401
+        """ Get a context from the agent. This is used to get contexts from the
+        agent from the actor."""
         ...
 
     async def aprovide(
@@ -125,6 +141,15 @@ class Actor(Protocol):
         return None.
         """
         ...
+        
+    async def apublish_state(self: Self, state: AnyState) -> None:
+        """A function to publish the state of the actor. This is used to publish the
+        state of the actor to the agent.
+
+        Args:
+            state (AnyState): The state to publish.
+        """
+        ...
 
 
 @runtime_checkable
@@ -157,8 +182,6 @@ class ActorBuilder(Protocol):
     def __call__(
         self,
         agent: Agent,
-        contexts: Dict[str, Any],
-        proxies: Dict[str, Any],
     ) -> Actor:
         """Create the actor and return it. This method will create the actor and"""
 
@@ -178,8 +201,8 @@ class Actifier(Protocol):
         structure_registry: StructureRegistry,
         bypass_shrink: bool = False,
         bypass_expand: bool = False,
-        on_provide: OnProvide | None = None,
-        on_unprovide: OnUnprovide | None = None,
+        on_provide: Optional[OnProvide] = None,
+        on_unprovide: Optional[OnUnprovide] = None,
         stateful: bool = False,
         validators: Optional[Dict[str, List[ValidatorInput]]] = None,
         collections: List[str] | None = None,

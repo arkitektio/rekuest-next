@@ -68,15 +68,7 @@ class AsyncFuncActor(SerializingActor):
 
         async with self.sync:
             try:
-                await self.asend(
-                    message=messages.ProgressEvent(
-                        assignation=assignment.assignation,
-                        progress=0,
-                        message="Queued for running",
-                    )
-                )
-
-                params = await expand_inputs(
+                input_kwargs = await expand_inputs(
                     self.definition,
                     assignment.args,
                     structure_registry=self.structure_registry,
@@ -84,7 +76,17 @@ class AsyncFuncActor(SerializingActor):
                     skip_expanding=not self.expand_inputs,
                 )
 
-                params = await self.add_local_variables(params)
+                context_kwargs, state_kwargs = await self.aget_locals()
+
+                await self.asend(
+                    message=messages.ProgressEvent(
+                        assignation=assignment.assignation,
+                        progress=0,
+                        message="Queued for running",
+                    )
+                )
+                
+                params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
 
                 await self.asend(
                     message=messages.ProgressEvent(
@@ -104,6 +106,9 @@ class AsyncFuncActor(SerializingActor):
                     shelver=self.agent,
                     skip_shrinking=not self.shrink_outputs,
                 )
+                
+                await self.async_locals(state_kwargs)
+                
 
                 await self.asend(
                     message=messages.YieldEvent(
@@ -176,7 +181,7 @@ class AsyncGenActor(SerializingActor):
 
         async with self.sync:
             try:
-                params = await expand_inputs(
+                input_kwargs = await expand_inputs(
                     self.definition,
                     assignment.args,
                     structure_registry=self.structure_registry,
@@ -184,7 +189,7 @@ class AsyncGenActor(SerializingActor):
                     skip_expanding=not self.expand_inputs,
                 )
 
-                params = await self.add_local_variables(params)
+                context_kwargs, state_kwargs = await self.aget_locals()
 
                 await self.asend(
                     message=messages.ProgressEvent(
@@ -193,6 +198,8 @@ class AsyncGenActor(SerializingActor):
                         message="Queued for running",
                     )
                 )
+                
+                params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
 
                 async with AssignmentHelper(
                     assignment=assignment,
@@ -214,6 +221,8 @@ class AsyncGenActor(SerializingActor):
                                 returns=returns,
                             )
                         )
+                        
+                        await self.async_locals(state_kwargs)
 
                 await self.asend(
                     message=messages.DoneEvent(

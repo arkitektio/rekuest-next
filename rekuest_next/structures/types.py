@@ -26,7 +26,7 @@ JSONSerializable = Union[
 class Expandable(Protocol):
     """A callable that takes a set of keyword arguments to initialize the object."""
 
-    def __init__(self, **value: Any) -> None:
+    def __init__(self, value: Any) -> None: # noqa: ANN401
         """Initialize the Expandable with the value."""
         ...
 
@@ -111,7 +111,7 @@ class FullFilledEnum(BaseModel):
 class FullFilledMemoryStructure(BaseModel):
     """A fullfiled memory structure that can be used to serialize and deserialize"""
 
-    cls: Type[Any]
+    cls: Any
     identifier: str
     predicate: Predicator
     description: Optional[str]

@@ -9,6 +9,7 @@ from rekuest_next.actors.vars import (
     current_assignation_helper,
 )
 from rekuest_next.actors.types import Actor
+from rekuest_next.protocols import AnyState
 
 
 class AssignmentHelper(BaseModel):
@@ -56,6 +57,16 @@ class AssignmentHelper(BaseModel):
                 message=message,
             )
         )
+        
+    async def apublish_state(
+        self: Self, state: AnyState
+    ) -> None:
+        """Publish the state of the actor.
+
+        Args:
+            state (AnyState): The state to publish.
+        """
+        await self.actor.apublish_state(state)
 
     async def abreakpoint(self) -> bool:
         """Check if the actor needs to break"""

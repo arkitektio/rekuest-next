@@ -8,6 +8,7 @@ from typing import (
     Dict,
     Optional,
     TypeVar,
+    cast,
     overload,
 )
 import asyncio
@@ -24,6 +25,8 @@ from rekuest_next.agents.hooks.registry import (
 )
 from rekuest_next.protocols import (
     BackgroundFunction,
+    ThreadedBackgroundFunction,
+    AsyncBackgroundFunction,
 )
 from rekuest_next.state.utils import prepare_state_variables
 
@@ -31,7 +34,7 @@ from rekuest_next.state.utils import prepare_state_variables
 class WrappedBackgroundTask(BackgroundTask):
     """Background task that runs in the event loop"""
 
-    def __init__(self, func: BackgroundFunction) -> None:
+    def __init__(self, func: AsyncBackgroundFunction) -> None:
         """Initialize the background task
         Args:
             func (Callable): The function to run in the background async
@@ -67,7 +70,7 @@ class WrappedBackgroundTask(BackgroundTask):
 class WrappedThreadedBackgroundTask(BackgroundTask):
     """Background task that runs in a thread pool"""
 
-    def __init__(self, func: BackgroundFunction) -> None:
+    def __init__(self, func: ThreadedBackgroundFunction) -> None:
         """Initialize the background task
         Args:
             func (Callable): The function to run in the background
@@ -134,12 +137,13 @@ def background(  # noqa: ANN201
         function = args[0]
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
-        if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-            function
-        ):
+        if asyncio.iscoroutinefunction(function):
+            
             registry.register_background(name, WrappedBackgroundTask(function))
         else:
-            registry.register_background(name, WrappedThreadedBackgroundTask(function))
+            assert inspect.isfunction(function), "Function must be a async function or a sync function"
+            t = cast(ThreadedBackgroundFunction, function)
+            registry.register_background(name, WrappedThreadedBackgroundTask(t))
 
         return function
 
@@ -150,15 +154,16 @@ def background(  # noqa: ANN201
 
             name = name or function.__name__
             registry = registry or get_default_hook_registry()
-            if asyncio.iscoroutinefunction(function) or inspect.isasyncgenfunction(
-                function
-            ):
+            if asyncio.iscoroutinefunction(function):
                 registry.register_background(name, WrappedBackgroundTask(function))
             else:
+                assert inspect.isfunction(function), "Function must be a async function or a sync function"
+                t = cast(ThreadedBackgroundFunction, function)
+                
                 registry.register_background(
-                    name, WrappedThreadedBackgroundTask(function)
+                    name, WrappedThreadedBackgroundTask(t)
                 )
 
             return function
 
-        return real_decorator
+        return real_decorator # type: ignore[return-value]

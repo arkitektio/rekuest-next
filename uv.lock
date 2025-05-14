@@ -544,15 +544,15 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "2.0.3"
+version = "2.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "janus" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/3c/28621ba03dad7b355b072dd1161363b89ed1c7acde4b0fed750d4dae5240/koil-2.0.3.tar.gz", hash = "sha256:1dd9efe0dc39fe651137d5d7728903969f46d195725cf2435ab7cd6cc494c243", size = 15671 }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/65/66a1e16e6565bcbf168d09c9275e2672c96cb0b8195dc8ba2d730c9fdd7e/koil-2.0.4.tar.gz", hash = "sha256:862a4d4e1ccccb29576f8a6a1e30c9f955b5549efb37b3747d48a0718736320a", size = 15677 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/31/8f9c27ad3c3087e3fe27f300e89a59a59a2a4a791553bdd77602578dcd3d/koil-2.0.3-py3-none-any.whl", hash = "sha256:e002be1440ec25ee9ec1e7d7268ecc011de51750353aae5a8174de8dee950d47", size = 19241 },
+    { url = "https://files.pythonhosted.org/packages/42/ab/81bae99a8523476642f6bed8283d71068eec3f83d730fcab4272deb94391/koil-2.0.4-py3-none-any.whl", hash = "sha256:a1cf12471446a8f95966269bec0ba1410f350fbd4709575643328b49dfa778b6", size = 19241 },
 ]
 
 [[package]]
@@ -1025,6 +1025,18 @@ wheels = [
 ]
 
 [[package]]
+name = "qtpy"
+version = "2.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/01/392eba83c8e47b946b929d7c46e0f04b35e9671f8bb6fc36b6f7945b4de8/qtpy-2.4.3.tar.gz", hash = "sha256:db744f7832e6d3da90568ba6ccbca3ee2b3b4a890c3d6fbbc63142f6e4cdf5bb", size = 66982 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/76/37c0ccd5ab968a6a438f9c623aeecc84c202ab2fabc6a8fd927580c15b5a/QtPy-2.4.3-py3-none-any.whl", hash = "sha256:72095afe13673e017946cc258b8d5da43314197b741ed2890e563cf384b51aa1", size = 95045 },
+]
+
+[[package]]
 name = "rath"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1040,7 +1052,7 @@ wheels = [
 
 [[package]]
 name = "rekuest-next"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },
@@ -1068,6 +1080,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "python-semantic-release" },
+    { name = "qtpy" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -1079,7 +1092,7 @@ requires-dist = [
     { name = "fieldz", specifier = ">=0.0.2" },
     { name = "inflection", specifier = ">=0.5.1" },
     { name = "jsonpatch", specifier = ">=1.33" },
-    { name = "koil", specifier = ">=2.0.3" },
+    { name = "koil", specifier = ">=2.0.4" },
     { name = "pydantic", specifier = ">=2" },
     { name = "rath", specifier = ">=3.4" },
     { name = "websockets", specifier = ">=12.0" },
@@ -1095,6 +1108,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
     { name = "python-semantic-release", specifier = ">=9.21.0" },
+    { name = "qtpy", specifier = ">=2.4.3" },
     { name = "ruff", specifier = ">0.11" },
     { name = "testcontainers", specifier = "==3.7.0" },
 ]
