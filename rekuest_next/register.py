@@ -43,6 +43,7 @@ def register_func(
     interface: Optional[str] = None,
     name: Optional[str] = None,
     actifier: Actifier = reactify,
+    description: Optional[str] = None,
     dependencies: Optional[List[DependencyInput]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
@@ -102,6 +103,7 @@ def register_func(
         collections=collections,
         logo=logo,
         name=name,
+        description=description,
         stateful=stateful,
         port_groups=port_groups,
         effects=effects,
@@ -124,8 +126,6 @@ def register_func(
     )
 
     return definition, actor_builder
-
-
 
 
 T = TypeVar("T", bound=AnyFunction)
@@ -168,6 +168,8 @@ def register(func: T) -> T:
 @overload
 def register(
     *,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
     actifier: Actifier = reactify,
     interface: Optional[str] = None,
     stateful: bool = False,
@@ -219,8 +221,9 @@ def register(
     ...
 
 
-def register( #type: ignore[valid-type]
+def register(  # type: ignore[valid-type]
     *func: T,
+    name: Optional[str] = None,
     actifier: Actifier = reactify,
     interface: Optional[str] = None,
     stateful: bool = False,
@@ -251,7 +254,7 @@ def register( #type: ignore[valid-type]
     Use this as:
         @register
         def my_function(...): ...
-    
+
     Or with arguments:
         @register(interface="custom_interface", dependencies=[...])
         def my_function(...): ...
@@ -294,6 +297,7 @@ def register( #type: ignore[valid-type]
 
         definition, _ = register_func(
             function_or_actor,
+            name=name,
             structure_registry=structure_registry,
             definition_registry=definition_registry,
             dependencies=dependencies,

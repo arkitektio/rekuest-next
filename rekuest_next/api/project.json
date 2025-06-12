@@ -121,6 +121,10 @@
                 },
                 {
                     "type": "turms.plugins.funcs.FuncsPlugin",
+                    "coercible_scalars": {
+                        "SearchQuery": "rekuest_next.scalars.SearchQueryCoercible",
+                        "ID": "rath.scalars.IDCoercible"
+                    },
                     "expand_input_types": [
                         "input"
                     ],

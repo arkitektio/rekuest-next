@@ -269,13 +269,13 @@ type Query {
   event(id: ID = null): [AssignationEvent!]!
 
   """Find implementation at given interface."""
-  implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null): Implementation!
+  implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
 
   """Find your implementation at a specific interface."""
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
 
   """Retrieve state for a specific context."""
-  stateFor(implementation: ID = null, agent: ID = null, stateHash: String = null): State!
+  stateFor(agent: ID!, stateHash: String = null, demand: SchemaDemandInput = null): State!
 
   """Get a specific state by ID."""
   state(id: ID!): State!
@@ -520,10 +520,82 @@ input AgentFilter {
   """Filter by name of the agents"""
   search: String = null
   distinct: Boolean
+  actionDemands: [ActionDemandInput!]
+  stateDemands: [SchemaDemandInput!]
   AND: AgentFilter
   OR: AgentFilter
   NOT: AgentFilter
   DISTINCT: Boolean
+}
+
+"""The input for creating a action demand."""
+input ActionDemandInput {
+  """
+  The hash of the action. This is used to identify the action in the system.
+  """
+  hash: ActionHash = null
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
+  argMatches: [PortMatchInput!] = null
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
+  returnMatches: [PortMatchInput!] = null
+
+  """
+  The protocols that the action has to implement. This is used to identify the demand in the system.
+  """
+  protocols: [ID!] = null
+
+  """
+  Require that the action has a specific number of args. This is used to identify the demand in the system.
+  """
+  forceArgLength: Int = null
+
+  """
+  Require that the action has a specific number of returns. This is used to identify the demand in the system.
+  """
+  forceReturnLength: Int = null
+}
+
+"""The input for creating a port match."""
+input PortMatchInput {
+  """The index of the port to match. """
+  at: Int = null
+
+  """The key of the port to match."""
+  key: String = null
+
+  """The kind of the port to match. """
+  kind: PortKind = null
+
+  """The identifier of the port to match. """
+  identifier: String = null
+
+  """Whether the port is nullable. """
+  nullable: Boolean = null
+
+  """The matches for the children of the port to match. """
+  children: [PortMatchInput!] = null
+}
+
+"""The input for creating a action demand."""
+input SchemaDemandInput {
+  """The hash of the state."""
+  hash: ActionHash = null
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
+  matches: [PortMatchInput!] = null
+
+  """
+  The protocols that the action has to implement. This is used to identify the demand in the system.
+  """
+  protocols: [ID!] = null
 }
 
 input AgentOrder {
@@ -699,27 +771,6 @@ input PortDemandInput {
 enum DemandKind {
   ARGS
   RETURNS
-}
-
-"""The input for creating a port match."""
-input PortMatchInput {
-  """The index of the port to match. """
-  at: Int = null
-
-  """The key of the port to match."""
-  key: String = null
-
-  """The kind of the port to match. """
-  kind: PortKind = null
-
-  """The identifier of the port to match. """
-  identifier: String = null
-
-  """Whether the port is nullable. """
-  nullable: Boolean = null
-
-  """The matches for the children of the port to match. """
-  children: [PortMatchInput!] = null
 }
 
 input ActionOrder {
@@ -1613,16 +1664,16 @@ input EffectInput {
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input PortInput {
-  validators: [ValidatorInput!]
+  validators: [ValidatorInput!] = null
   key: String!
   label: String = null
   kind: PortKind!
   description: String = null
   identifier: String = null
   nullable: Boolean! = false
-  effects: [EffectInput!]
+  effects: [EffectInput!] = null
   default: AnyDefault = null
-  children: [PortInput!]
+  children: [PortInput!] = null
   choices: [ChoiceInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
@@ -1640,8 +1691,8 @@ input ValidatorInput {
 input ChoiceInput {
   value: AnyDefault!
   label: String!
-  image: String
-  description: String
+  image: String = null
+  description: String = null
 }
 
 input AssignWidgetInput {
@@ -1735,7 +1786,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "6ccd547c-8e54-4b23-9809-5ba5fc602943"
+  reference: String = "a39dfa1a-c76d-4390-ae7d-0b0f822be57a"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1795,7 +1846,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "65f921bf-90e7-4194-b8dc-b2f69b4caca7"
+  reference: String = "15304dd9-7933-4316-9327-02222d805ead"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

@@ -155,6 +155,11 @@ class SearchQuery(str):
     - Multiple variables of arribtary type that will be validated against
     the dependencies of the widget.
     """
+    
+    def __get__(self, instance, owner) -> "SearchQuery": ...
+        
+        
+    def __set__(self, instance, value: "SearchQueryCoercible") -> None: ...
 
     @classmethod
     def __get_pydantic_core_schema__(  # noqa: D105
@@ -245,3 +250,6 @@ class SearchQuery(str):
             )
 
         return SearchQuery(print_ast(v))
+
+
+SearchQueryCoercible = str | SearchQuery | DocumentNode

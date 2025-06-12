@@ -5,6 +5,7 @@ allow you to execute queries and mutations using thre rekuest-rath client.
 
 """
 
+from math import e
 from typing import Any, Dict, Generator, AsyncGenerator, Type
 from rekuest_next.rath import RekuestNextRath, current_rekuest_next_rath
 from koil import unkoil, unkoil_gen
@@ -35,7 +36,7 @@ async def aexecute(
 
     x = await rath.aquery(
         operation.Meta.document,
-        operation.Arguments(**variables).model_dump(by_alias=True),
+        operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True),
     )
     return operation(**x.data)
 

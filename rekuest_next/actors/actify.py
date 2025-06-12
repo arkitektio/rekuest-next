@@ -39,6 +39,7 @@ def reactify(
     bypass_expand: bool = False,
     on_provide: Optional[OnProvide] = None,
     on_unprovide: Optional[OnUnprovide] = None,
+    description: str | None = None,
     stateful: bool = False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: List[str] | None = None,
@@ -78,6 +79,7 @@ def reactify(
         effects=effects,
         is_test_for=is_test_for,
         name=name,
+        description=description,
         return_widgets=return_widgets,
         logo=logo,
     )

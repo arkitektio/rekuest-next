@@ -28,11 +28,10 @@ async def ashrink_state(
 
     """
 
-    state_dict = asdict(state)
     shrinked: Dict[str, JSONSerializable] = {}
     for port in schema.ports:
         shrinked[port.key] = await ashrink_return(
-            port, state_dict[port.key], structure_reg, shelver=shelver
+            port, getattr(state, port.key), structure_reg, shelver=shelver
         )
 
     return shrinked

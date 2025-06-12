@@ -24,7 +24,7 @@ class BackgroundTask(Protocol):
         """Initialize the background task"""
         pass
 
-    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]) -> None:
+    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
         """Run the background task in the event loop
         Args:
             contexts (Dict[str, Any]): The contexts of the agent
@@ -75,6 +75,8 @@ class HooksRegistry(BaseModel):
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 
     _background_tasks: Dict[str, asyncio.Task[None]] = {}
+    startup_timeout: float | None = 3
+    """Timeout for the startup hooks, if None, no timeout is set"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -104,7 +106,13 @@ class HooksRegistry(BaseModel):
 
         for key, hook in self.startup_hooks.items():
             try:
-                answer = await hook.arun(instance_id)
+                answer = (
+                    await asyncio.wait_for(
+                        hook.arun(instance_id), timeout=self.startup_timeout
+                    )
+                    if self.startup_timeout
+                    else await hook.arun(instance_id)
+                )
                 for i in answer.states:
                     if i in states:
                         raise StartupHookError(f"State {i} already defined")
@@ -117,6 +125,7 @@ class HooksRegistry(BaseModel):
 
             except Exception as e:
                 raise StartupHookError(f"Startup hook {key} failed") from e
+
         return StartupHookReturns(states=states, contexts=contexts)
 
     def reset(self) -> None:

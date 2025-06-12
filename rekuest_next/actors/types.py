@@ -50,7 +50,6 @@ class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
     instance_id: str
-    
 
     async def asend(
         self: "Agent", actor: "Actor", message: messages.FromAgentMessage
@@ -73,19 +72,19 @@ class Agent(Protocol):
         """Get a value from the shelve. This is used to get values from the
         shelve."""
         ...
-        
+
     async def apublish_state(self, state: AnyState) -> None:  # noqa: ANN401
         """Publish a state to the agent. This is used to publish states to the
         agent from the actor."""
         ...
-        
+
     async def aget_state(self, interface: str) -> AnyState:  # noqa: ANN401
         """Get a state from the agent. This is used to get states from the
         agent from the actor."""
         ...
-        
+
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
-        """ Get a context from the agent. This is used to get contexts from the
+        """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
         ...
 
@@ -141,7 +140,7 @@ class Actor(Protocol):
         return None.
         """
         ...
-        
+
     async def apublish_state(self: Self, state: AnyState) -> None:
         """A function to publish the state of the actor. This is used to publish the
         state of the actor to the agent.
@@ -213,6 +212,7 @@ class Actifier(Protocol):
         return_widgets: ReturnWidgetMap | None = None,
         interfaces: List[str] | None = None,
         in_process: bool = False,
+        description: str | None = None,
         logo: str | None = None,
         name: str | None = None,
         sync: Optional[SyncGroup] = None,

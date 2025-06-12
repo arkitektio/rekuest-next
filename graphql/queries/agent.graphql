@@ -3,3 +3,10 @@ query GetAgent($id: ID!) {
     ...Agent
   }
 }
+
+
+query ListAgents($filters: AgentFilter, $pagination: OffsetPaginationInput) {
+  agents(filters: $filters, pagination: $pagination) {
+    ...Agent
+  }
+}

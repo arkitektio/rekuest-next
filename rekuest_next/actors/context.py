@@ -19,10 +19,9 @@ async def apublish(state: AnyState) -> None:
         state (AnyState): The state to publish.
     """
     await get_current_assignation_helper().apublish_state(state)
-    
-    
-def publish(state: AnyState) -> None:
 
+
+def publish(state: AnyState) -> None:
     """Publish a state
 
     This function is used to publish a state to the actor.
@@ -31,7 +30,6 @@ def publish(state: AnyState) -> None:
         state (AnyState): The state to publish.
     """
     return unkoil(apublish, state)
-
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
@@ -102,7 +100,6 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
     Raises:
         ValueError: If the percentage is not between 0 and 100
     """
-
     helper = get_current_assignation_helper()
     await helper.aprogress(int(percentage), message=message)
 

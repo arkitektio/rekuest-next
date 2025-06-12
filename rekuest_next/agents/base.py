@@ -27,7 +27,11 @@ from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next.actors.types import Passport, Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
-from rekuest_next.agents.hooks.registry import HooksRegistry, StartupHookReturns, get_default_hook_registry
+from rekuest_next.agents.hooks.registry import (
+    HooksRegistry,
+    StartupHookReturns,
+    get_default_hook_registry,
+)
 from rekuest_next.agents.registry import (
     ExtensionRegistry,
     get_default_extension_registry,
@@ -108,7 +112,7 @@ class BaseAgent(KoiledModel):
         default_factory=dict,
         description="Maps the state key to the state value. This is used to store the states of the agent.",
     )
-    
+
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
     interface_implementation_map: Dict[str, Implementation] = Field(
         default_factory=dict
@@ -123,22 +127,24 @@ class BaseAgent(KoiledModel):
         default_factory=dict,
         description="Maps actor id to the task that is running the actor",
     )
-    
-    
+
     _inqueue: Optional[asyncio.Queue[messages.ToAgentMessage]] = None
     _errorfuture: Optional[asyncio.Future[Exception]] = None
     _agent: Optional[Agent] = None
-    
 
-    _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(default_factory=dict)
+    _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(
+        default_factory=dict
+    )
     _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=dict)
-    _interface_stateschema_map: Dict[str, StateSchema] = PrivateAttr(default_factory=dict)
-    _interface_stateschema_input_map: Dict[str, StateSchemaInput] = PrivateAttr(default_factory=dict)
-    
+    _interface_stateschema_map: Dict[str, StateSchema] = PrivateAttr(
+        default_factory=dict
+    )
+    _interface_stateschema_input_map: Dict[str, StateSchemaInput] = PrivateAttr(
+        default_factory=dict
+    )
+
     _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=dict)
-    
-    
-    
+
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -381,11 +387,9 @@ class BaseAgent(KoiledModel):
 
         for extension in self.extension_registry.agent_extensions.values():
             await extension.atear_down()
-            
-            
+
         await self.astop_background()
         await self.transport.adisconnect()
-
 
     async def aregister_definitions(self, instance_id: str) -> None:
         """Register all implementations that are handled by extensiosn
@@ -429,28 +433,19 @@ class BaseAgent(KoiledModel):
         agent from the actor. The agent will then send the message to the transport.
         """
         await self.transport.asend(message)
-        
-        
+
     async def aregister_state_schemas(self) -> Dict[str, StateSchema]:
         """Register the state schemas for the agent. This will be called when the agent starts"""
-       
-        
-        
+
         for interface, state_schema_input in self.state_registry.state_schemas.items():
             self._interface_stateschema_map[interface] = await acreate_state_schema(
                 state_schema=state_schema_input
             )
             self._interface_stateschema_input_map[interface] = state_schema_input
-            
-            
-            
-            
+
         return self._interface_stateschema_map
-            
-            
-    async def ashrink_state(
-        self, interface: str, state: AnyState
-    ) -> Any:  # noqa: ANN401
+
+    async def ashrink_state(self, interface: str, state: AnyState) -> Any:  # noqa: ANN401
         """Shrink the state to the schema. This will be called when the agent starts"""
         if interface not in self._interface_stateschema_input_map:
             raise AgentException(f"State {interface} not found in agent {self.name}")
@@ -461,7 +456,7 @@ class BaseAgent(KoiledModel):
         # Shrink the value to the schema
         shrinked_state = await ashrink_state(
             state,
-            schema, 
+            schema,
             structure_reg=structure_registry,
             shelver=self,
         )
@@ -469,80 +464,66 @@ class BaseAgent(KoiledModel):
 
     async def ainit_states(self, hook_return: StartupHookReturns) -> tuple[State, ...]:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
-        
-        
+
         if not self.instance_id:
-            raise AgentException(
-                "Instance id is not set. The agent is not initialized"
-            )
-        
-        
+            raise AgentException("Instance id is not set. The agent is not initialized")
+
         state_schemas = self.state_registry.state_schemas
         implementations: list[StateImplementationInput] = []
 
         for interface, startup_value in hook_return.states.items():
-            
-            
             # Set the actual state value
             self.states[interface] = startup_value
 
             # Set the state schema that is needed to shrink the state
             self._interface_stateschema_input_map[interface] = state_schemas[interface]
-            
+
             # Shrink the state to the schema
             startup_shrunk_value = await self.ashrink_state(
                 interface=interface, state=startup_value
             )
-            
+
             # Set the shrunk state value
             self._current_shrunk_states[interface] = startup_shrunk_value
 
+            implementations.append(
+                StateImplementationInput(
+                    interface=interface,
+                    stateSchema=state_schemas[interface],
+                    initial=startup_shrunk_value,
+                )
+            )
 
-
-
-            implementations.append(StateImplementationInput(
-                interface=interface,
-                stateSchema=state_schemas[interface],
-                initial=startup_shrunk_value,
-            ))
-            
-         
-        states =  await aset_agent_states(
+        states = await aset_agent_states(
             instance_id=self.instance_id,
             implementations=implementations,
-        )   
-        
-            
-        return states
+        )
 
-    
+        return states
 
     async def aset_state(self, interface: str, value: AnyState) -> None:  # noqa: ANN401
         """Set the state of the extension. This will be called when the agent starts"""
         from rekuest_next.api.schema import aupdate_state
-        
+
         if interface not in self.states:
             raise AgentException(f"State {interface} not found in agent {self.name}")
-        
+
         if interface not in self._current_shrunk_states:
-            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
-        
-        if interface not in self._interface_stateschema_input_map:
-            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
-        
-        if not self.instance_id:
             raise AgentException(
-                "Instance id is not set. The agent is not initialized"
+                f"Shrunk State {interface} not found in agent {self.name}"
             )
-            
-        
-        
+
+        if interface not in self._interface_stateschema_input_map:
+            raise AgentException(
+                f"State Schema {interface} not found in agent {self.name}"
+            )
+
+        if not self.instance_id:
+            raise AgentException("Instance id is not set. The agent is not initialized")
+
         old_shrunk_state = self._current_shrunk_states[interface]
-        new_shrunk_state = await self.ashrink_state(
-            interface=interface, state=value
-        )
-        
-        
+        new_shrunk_state = await self.ashrink_state(interface=interface, state=value)
+
         patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)  # type: ignore
 
         # Shrink the value to the schema
@@ -551,44 +532,38 @@ class BaseAgent(KoiledModel):
             patches=patch.patch,  # type: ignore
             instance_id=self.instance_id,  # type: ignore
         )
-        
-        
+
         print("State updated", state)
-        
-        
+
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
-        
-        
-    async def apublish_state(self, state: AnyState) -> None: 
-        """ Publish a state to the agent.  Will forward the state to the transport"""
+
+    async def apublish_state(self, state: AnyState) -> None:
+        """Publish a state to the agent.  Will forward the state to the transport"""
         interface = self.state_registry.get_interface_for_class(type(state))
         if interface not in self.states:
             raise AgentException(f"State {interface} not found in agent {self.name}")
-        
-        await self.aset_state(
-            interface=interface, value=state
-        )
-        
+
+        await self.aset_state(interface=interface, value=state)
+
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
         if context not in self.contexts:
             raise AgentException(f"Context {context} not found in agent {self.name}")
         return self.contexts[context]
-        
+
     async def aget_state(self, interface: str) -> AnyState:
         """Get the state of the extension. This will be called when"""
         if interface not in self.states:
             raise AgentException(f"State {interface} not found in agent {self.name}")
         return self.states[interface]
-        
 
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self.hook_registry.background_worker.items():
             task = asyncio.create_task(
-                worker.arun(contexts=self.contexts, proxies=self.proxies)
+                worker.arun(contexts=self.contexts, states=self.states)
             )
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
@@ -605,11 +580,6 @@ class BaseAgent(KoiledModel):
             )
         except asyncio.CancelledError:
             pass
-        
-        
-        
-        
-        
 
     async def astart(self, instance_id: Optional[str] = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
@@ -617,25 +587,19 @@ class BaseAgent(KoiledModel):
         start listening for messages from the transport.
         """
         instance_id = instance_id or self.instance_id
-        
-            
+
         hook_return = await self.hook_registry.arun_startup(instance_id)
-        
+
         await self.ainit_states(hook_return=hook_return)
-            
 
         for context_key, context_value in hook_return.contexts.items():
             self.contexts[context_key] = context_value
-            
-            
 
-        await self.arun_background()    
+        await self.arun_background()
 
-        
         for extension in self.extension_registry.agent_extensions.values():
             await extension.astart(instance_id=instance_id)
-        
-        
+
         await self.aregister_definitions(instance_id=instance_id)
 
         self._errorfuture = asyncio.Future()
@@ -738,8 +702,6 @@ class BaseAgent(KoiledModel):
         await self.transport.__aenter__()
         return self
 
-    
-    
     async def __aexit__(
         self,
         exc_type: Optional[type],

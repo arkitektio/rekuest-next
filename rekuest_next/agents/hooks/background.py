@@ -47,7 +47,7 @@ class WrappedBackgroundTask(BackgroundTask):
 
         self.context_variables, self.context_returns = prepare_context_variables(func)
 
-    async def arun(self, contexts: Dict[str, Any], proxies: Dict[str, Any]) -> None:
+    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
         """Run the background task in the event loop"""
         kwargs = {}
         for key, value in self.context_variables.items():
@@ -60,9 +60,11 @@ class WrappedBackgroundTask(BackgroundTask):
 
         for key, value in self.state_variables.items():
             try:
-                kwargs[key] = proxies[value]
+                kwargs[key] = states[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+                raise StateRequirementsNotMet(
+                    f"State requirements not met: {e}. Available are {list(states.keys())}"
+                ) from e
 
         return await self.func(**kwargs)
 
@@ -102,7 +104,8 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return await run_spawned(
-            self.func, **kwargs # type: ignore[arg-type]
+            self.func,
+            **kwargs,  # type: ignore[arg-type]
         )
 
 
@@ -138,10 +141,11 @@ def background(  # noqa: ANN201
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
         if asyncio.iscoroutinefunction(function):
-            
             registry.register_background(name, WrappedBackgroundTask(function))
         else:
-            assert inspect.isfunction(function), "Function must be a async function or a sync function"
+            assert inspect.isfunction(function), (
+                "Function must be a async function or a sync function"
+            )
             t = cast(ThreadedBackgroundFunction, function)
             registry.register_background(name, WrappedThreadedBackgroundTask(t))
 
@@ -157,13 +161,13 @@ def background(  # noqa: ANN201
             if asyncio.iscoroutinefunction(function):
                 registry.register_background(name, WrappedBackgroundTask(function))
             else:
-                assert inspect.isfunction(function), "Function must be a async function or a sync function"
-                t = cast(ThreadedBackgroundFunction, function)
-                
-                registry.register_background(
-                    name, WrappedThreadedBackgroundTask(t)
+                assert inspect.isfunction(function), (
+                    "Function must be a async function or a sync function"
                 )
+                t = cast(ThreadedBackgroundFunction, function)
+
+                registry.register_background(name, WrappedThreadedBackgroundTask(t))
 
             return function
 
-        return real_decorator # type: ignore[return-value]
+        return real_decorator  # type: ignore[return-value]
