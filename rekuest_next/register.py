@@ -227,6 +227,7 @@ def register(  # type: ignore[valid-type]
     actifier: Actifier = reactify,
     interface: Optional[str] = None,
     stateful: bool = False,
+    description: Optional[str] = None,
     widgets: Optional[Dict[str, AssignWidgetInput]] = None,
     dependencies: Optional[List[DependencyInput]] = None,
     interfaces: Optional[List[str]] = None,
@@ -298,6 +299,7 @@ def register(  # type: ignore[valid-type]
         definition, _ = register_func(
             function_or_actor,
             name=name,
+            description=description,
             structure_registry=structure_registry,
             definition_registry=definition_registry,
             dependencies=dependencies,
@@ -329,6 +331,8 @@ def register(  # type: ignore[valid-type]
         def real_decorator(function_or_actor: AnyFunction) -> AnyFunction:
             definition, _ = register_func(
                 function_or_actor,
+                name=name,
+                description=description,
                 structure_registry=structure_registry,
                 definition_registry=definition_registry,
                 actifier=actifier,
