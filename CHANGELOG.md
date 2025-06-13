@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v0.9.0 (2025-06-13)
+
+### Bug Fixes
+
+- Add description and name for register
+  ([`bc6acc3`](https://github.com/arkitektio/rekuest-next/commit/bc6acc30ee1c2094a9e38d2ab36506a34ec325ee))
+
+- Fix rath dependency
+  ([`8ee6f43`](https://github.com/arkitektio/rekuest-next/commit/8ee6f43f29d0986e16950dfedf6fe8228f7ba01d))
+
+### Features
+
+- Enhance functionality and improve code structure
+  ([`9cf05bb`](https://github.com/arkitektio/rekuest-next/commit/9cf05bbe58e33131f3ea495a91e907ed75e70a67))
+
+- Updated `aexecute` function in `funcs.py` to exclude unset variables when dumping model arguments.
+  - Added optional `description` parameter to `register_func` and `register` functions in
+  `register.py` for better documentation. - Implemented property methods in `SearchQuery` class in
+  `scalars.py` for enhanced attribute access. - Refactored `ashrink_state` function in `shrink.py`
+  to directly access state attributes instead of converting to a dictionary.
+
+
 ## v0.8.1 (2025-05-14)
 
 ### Bug Fixes
