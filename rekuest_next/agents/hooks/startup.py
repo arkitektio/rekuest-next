@@ -74,9 +74,8 @@ class WrappedStartupHook(StartupHook):
                 )
 
         return StartupHookReturns(states=states, contexts=contexts)
-    
-    
-    
+
+
 class ThreadedStartupHook(StartupHook):
     """Startup hook that runs in the event loop"""
 
@@ -120,8 +119,6 @@ class ThreadedStartupHook(StartupHook):
                 )
 
         return StartupHookReturns(states=states, contexts=contexts)
-    
-    
 
 
 TStartup = TypeVar("TStartup", bound=StartupFunction)
@@ -136,7 +133,7 @@ def startup(*args: TStartup) -> TStartup:
 
 @overload
 def startup(
-    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *args: TStartup, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
 ) -> Callable[[TStartup], TStartup]:
     """Decorator to register a startup hook
 
@@ -159,37 +156,39 @@ def startup(
         name (str): The name of the startup hook. If not provided, the function name will be used.
         registry (HooksRegistry): The registry to use. If not provided, the default registry will be used.
     """
-    
-    
+
     if len(args) > 1:
         raise ValueError("You can only register one function at a time.")
 
     if len(args) == 1:
         func = args[0]
         registry = registry or get_default_hook_registry()
-        
-        if asyncio.iscoroutinefunction(func):
+
+        if inspect.iscoroutinefunction(func):
             registry.register_startup(name or func.__name__, WrappedStartupHook(func))
-            
+
         else:
-            assert inspect.isfunction(func), "Function must be a async function or a sync function"
+            assert inspect.isfunction(func) or inspect.ismethod(func), (
+                "Function must be a async function or a sync function"
+            )
             t = cast(ThreadedStartupFunction, func)
-            
+
             registry.register_startup(name or func.__name__, ThreadedStartupHook(t))
-    
-        
+
         return func  # type: ignore
     else:
 
         def decorator(func: T) -> T:
             registry = get_default_hook_registry()
-            
+
             if asyncio.iscoroutinefunction(func):
                 registry.register_startup(func.__name__, WrappedStartupHook(func))
-                
+
             else:
-                assert inspect.isfunction(func), "Function must be a async function or a sync function"
-                
+                assert inspect.isfunction(func), (
+                    "Function must be a async function or a sync function"
+                )
+
                 t = cast(ThreadedStartupFunction, func)
                 registry.register_startup(func.__name__, ThreadedStartupHook(t))
             return func

@@ -1,7 +1,7 @@
 """Types for the actors module"""
 
 import asyncio
-from typing import Protocol, Self, runtime_checkable, Awaitable, Any
+from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.protocols import AnyFunction, AnyState
@@ -17,6 +17,10 @@ from rekuest_next.definition.define import (
 from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel, Field
 import uuid
+
+if TYPE_CHECKING:
+    from rekuest_next.agents.registry import ExtensionRegistry
+    from rekuest_next.agents.hooks.registry import HooksRegistry
 
 
 class Passport(BaseModel):
@@ -49,11 +53,11 @@ class Shelver(Protocol):
 class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
+    hook_registry: "HooksRegistry"
+    extension_registry: "ExtensionRegistry"
     instance_id: str
 
-    async def asend(
-        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
-    ) -> None:
+    async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 
