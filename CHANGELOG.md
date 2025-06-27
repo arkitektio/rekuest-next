@@ -1,12 +1,23 @@
 # CHANGELOG
 
 
+## v0.11.0 (2025-06-27)
+
+### Bug Fixes
+
+- Import
+  ([`0998636`](https://github.com/arkitektio/rekuest-next/commit/0998636048a1a45efad1a866357b3bd5d1d7d121))
+
+
 ## v0.10.0 (2025-06-14)
 
 ### Features
 
 - Add register methods
   ([`70bdbfb`](https://github.com/arkitektio/rekuest-next/commit/70bdbfbb22aa874a946ced03b0cb3b1629dd5d39))
+
+- Updated arkitekt integration
+  ([`60eb1cc`](https://github.com/arkitektio/rekuest-next/commit/60eb1cc8e87fe829c6996b9bf2698ff3551d2303))
 
 
 ## v0.9.0 (2025-06-13)
