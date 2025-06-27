@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from rath.links.split import SplitLink
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
-from herre_next.contrib.rath.auth_link import HerreAuthLink
+from fakts_next.contrib.rath.auth import FaktsAuthLink
 from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
 from rekuest_next.rekuest import RekuestNext
 from graphql import OperationType
@@ -15,13 +15,12 @@ from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
 )
 from rekuest_next.agents.base import BaseAgent
 from fakts_next import Fakts
-from herre_next import Herre
 from rekuest_next.postmans.graphql import GraphQLPostman
 
 from .structures.default import get_default_structure_registry
-from arkitekt_next.base_models import Requirement
+from fakts_next.models import Requirement
 from arkitekt_next.service_registry import Params, BaseArkitektService
-from arkitekt_next.base_models import Manifest
+
 from arkitekt_next.service_registry import (
     get_default_service_registry,
 )
@@ -47,21 +46,25 @@ class RekuestNextService(BaseArkitektService):
         """Get the service name."""
         return "rekuest"
 
-    def build_service(
-        self, fakts: Fakts, herre: Herre, params: Params, manifest: Manifest
-    ) -> "RekuestNext":
+    def build_service(self, fakts: Fakts, params: Params) -> "RekuestNext":
         """Build the service."""
         instance_id = params.get("instance_id", "default")
 
         rath = RekuestNextRath(
             link=RekuestNextLinkComposition(
-                auth=HerreAuthLink(herre=herre),
+                auth=FaktsAuthLink(
+                    fakts=fakts,
+                ),
                 split=SplitLink(
                     left=FaktsAIOHttpLink(
-                        fakts_group="rekuest", fakts=fakts, endpoint_url="FAKE_URL"
+                        fakts_group="rekuest",
+                        fakts=fakts,
+                        endpoint_url="FAKE_URL",
                     ),
                     right=FaktsGraphQLWSLink(
-                        fakts_group="rekuest", fakts=fakts, ws_endpoint_url="FAKE_URL"
+                        fakts_group="rekuest",
+                        fakts=fakts,
+                        ws_endpoint_url="FAKE_URL",
                     ),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
                 ),
@@ -70,15 +73,14 @@ class RekuestNextService(BaseArkitektService):
 
         agent = BaseAgent(
             transport=ArkitektWebsocketAgentTransport(
-                fakts_group="rekuest.agent",
+                fakts_group="rekuest",
                 fakts=fakts,
-                herre=herre,
                 endpoint_url="FAKE_URL",
-                token_loader=herre.aget_token,
+                token_loader=fakts.aget_token,
             ),
             instance_id=instance_id,
             rath=rath,
-            name=f"{manifest.identifier}:{manifest.version}",
+            name=f"{fakts.manifest.identifier}:{fakts.manifest.version}",
         )
 
         return RekuestNext(

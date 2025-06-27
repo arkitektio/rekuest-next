@@ -7,6 +7,8 @@ from rekuest_next.api.schema import (
     PortInput,
     AssignWidgetKind,
     ReturnWidgetKind,
+    ValidatorFunction,
+    ValidatorInput,
 )
 from rekuest_next.scalars import SearchQuery
 from typing import List
@@ -142,3 +144,39 @@ def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
         AssignWidgetInput: The widget input
     """
     return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
+
+
+def withChoices(
+    *choices: ChoiceInput,
+) -> AssignWidgetInput:
+    """A decorator to add choices to a widget.
+
+    Args:
+        choices (List[ChoiceInput]): The choices
+
+    Returns:
+        AssignWidgetInput: The widget input
+    """
+    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
+
+
+def withValidator(
+    function: str,
+    errorMessage: str,
+    dependencies: List[str] | None = None,
+) -> ValidatorInput:
+    """A decorator to add a validator to a widget.
+
+    Args:
+        function (str): The function to run
+        errorMessage (str): The error message to show if the validation fails
+        dependencies (List[str], optional): The dependencies of the validator. Defaults to None.
+
+    Returns:
+        AssignWidgetInput: The widget input
+    """
+    return ValidatorInput(
+        function=ValidatorFunction.validate(function),
+        errorMessage=errorMessage,
+        dependencies=tuple(dependencies) if dependencies else None,
+    )

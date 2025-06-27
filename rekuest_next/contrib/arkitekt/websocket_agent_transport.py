@@ -2,10 +2,8 @@
 
 from fakts_next import Fakts
 from fakts_next.protocols import FaktValue
-from herre_next import Herre
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 from pydantic import BaseModel
-
 
 
 class WebsocketAgentTransportConfig(BaseModel):
@@ -28,23 +26,18 @@ class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
     """
 
     fakts: Fakts
-    herre: Herre
-    fakts_group: str
+    fakts_group: str  #
 
     _old_fakt: FaktValue = {}
 
-    def configure(self, fakt: WebsocketAgentTransportConfig) -> None:
+    async def aconfigure(self) -> None:
         """Configure the WebsocketAgentTransport."""
-        self.endpoint_url = fakt.endpoint_url
-        self.token_loader = self.herre.aget_token
+        alias = await self.fakts.aget_alias(self.fakts_group)
+        self.endpoint_url = alias.to_ws_path("agi")
+        self.token_loader = self.fakts.aget_token
 
     async def aconnect(self, instance_id: str):  # noqa: ANN002, ANN003, ANN201
         """Connect the WebsocketAgentTransport."""
-        if self.fakts.has_changed(self._old_fakt, self.fakts_group):
-            self._old_fakt = await self.fakts.aget(self.fakts_group)
-            assert isinstance(self._old_fakt, dict), (
-                "Fakts group is not a valid FaktValue"
-            )
-            self.configure(WebsocketAgentTransportConfig(**self._old_fakt))  # type: ignore
+        await self.aconfigure()
 
         return await super().aconnect(instance_id)  # type: ignore[return-value]

@@ -16,8 +16,8 @@ from .state.decorator import state
 
 try:
     from .arkitekt import RekuestNextService
-except ImportError:
-    pass
+except ImportError as e:
+    raise e
 from .structure import structure_reg
 
 __version__ = "0.4.1"

@@ -36,7 +36,9 @@ class QtInLoopBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True)
+        self.coro = QtCoro(
+            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True
+        )
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -81,7 +83,9 @@ class QtFutureBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False)
+        self.coro = QtCoro(
+            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False
+        )
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -122,7 +126,7 @@ class QtGeneratorBuilder(QtCore.QObject):
         *args,  # noqa: ANN002
         parent: QtWidgets.QWidget | None = None,
         structure_registry: StructureRegistry | None = None,
-        definition: DefinitionInput = None,
+        definition: DefinitionInput | None = None,
         **actor_kwargs: dict,
     ) -> None:
         """Initialize the builder."""
@@ -133,7 +137,7 @@ class QtGeneratorBuilder(QtCore.QObject):
         self.actor_kwargs = actor_kwargs
         self.definition = definition
 
-    async def on_assign(self, *args, **kwargs) -> AsyncGenerator[Any, None, None]:  # noqa: ANN002, ANN003
+    async def on_assign(self, *args, **kwargs) -> AsyncGenerator[Any, None]:  # noqa: ANN002, ANN003
         """Runs in the same thread as the koil instance."""
         async for i in self.yielder.aiterate(*args, **kwargs):
             yield i
@@ -175,9 +179,6 @@ def qtinloopactifier(
     )
 
     return definition, in_loop_instance.build
-
-
-
 
 
 def qtwithfutureactifier(
@@ -255,7 +256,9 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError("The function needs to have a QtGenerator as its first parameter")
+        raise ValueError(
+            "The function needs to have a QtGenerator as its first parameter"
+        )
 
     return_params = get_args(first)
 
