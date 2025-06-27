@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.10.0 (2025-06-14)
+
+### Features
+
+- Add register methods
+  ([`70bdbfb`](https://github.com/arkitektio/rekuest-next/commit/70bdbfbb22aa874a946ced03b0cb3b1629dd5d39))
+
+
 ## v0.9.0 (2025-06-13)
 
 ### Bug Fixes
