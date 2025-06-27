@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.11.1 (2025-06-27)
+
+
 ## v0.11.0 (2025-06-27)
 
 ### Bug Fixes
+
+- Background requiring states
+  ([`dee2233`](https://github.com/arkitektio/rekuest-next/commit/dee2233611a57331ee0a57f8b8128815af0ee30a))
 
 - Import
   ([`0998636`](https://github.com/arkitektio/rekuest-next/commit/0998636048a1a45efad1a866357b3bd5d1d7d121))
