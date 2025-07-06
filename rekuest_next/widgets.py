@@ -10,8 +10,9 @@ from rekuest_next.api.schema import (
     ValidatorFunction,
     ValidatorInput,
 )
+from rekuest_next.definition.utils import DefaultAddin, DescriptionAddin
 from rekuest_next.scalars import SearchQuery
-from typing import List
+from typing import Any, List
 
 
 def SliderWidget(
@@ -180,3 +181,27 @@ def withValidator(
         errorMessage=errorMessage,
         dependencies=tuple(dependencies) if dependencies else None,
     )
+
+
+def withDescription(description: str) -> DescriptionAddin:
+    """A decorator to add a description to a widget.
+
+    Args:
+        description (str): The description to add
+
+    Returns:
+        DescriptionAddin: The description addin
+    """
+    return DescriptionAddin(value=description)
+
+
+def withDefault(value: Any) -> DefaultAddin:
+    """A decorator to add a default value to a widget.
+
+    Args:
+        value (Any): The default value
+
+    Returns:
+        DefaultAddin: The default addin
+    """
+    return DefaultAddin(value=value)

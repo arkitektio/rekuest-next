@@ -28,7 +28,33 @@ AnnotationResult: TypeAlias = tuple[
 parsers: list[Callable[[list[Any], *AnnotationResult], AnnotationResult]] = []
 
 
-def is_local_var(type_: Any) -> bool: # noqa: ANN401
+class DescriptionAddin:
+    """A string that can be used to add a description to a function or method."""
+
+    def __init__(self, value: str) -> None:
+        """Initialize the DescriptionAddin with a value."""
+        if not isinstance(value, str):
+            raise TypeError("DescriptionAddin value must be a string")
+        self.value = value
+
+    def __repr__(self) -> str:
+        """Return a string representation of the DescriptionAddin."""
+        return f"Description({self.value})"
+
+
+class DefaultAddin:
+    """A default value that can be used to add a default value to a function or method."""
+
+    def __init__(self, value: Any) -> None:
+        """Initialize the DefaultAddin with a value."""
+        self.value = value
+
+    def __repr__(self) -> str:
+        """Return a string representation of the DefaultAddin."""
+        return f"Default(value={self.value})"
+
+
+def is_local_var(type_: Any) -> bool:  # noqa: ANN401
     """Check if the type is a local variable (context or state)."""
     return is_context(type_) or is_state(type_)
 
@@ -64,17 +90,28 @@ def extract_basic_annotations(
             case EffectInput():
                 effects.append(annotation)
 
-            case str():
-                if str_annotation_count == 0:
-                    label = annotation
-                else:
-                    description = annotation
-                str_annotation_count += 1
+            case DescriptionAddin():
+                if description:
+                    raise DefinitionError("Multiple descriptions found")
+                description = annotation.value
+
+            case DefaultAddin():
+                if default is not None:
+                    raise DefinitionError("Multiple default values found")
+                default = annotation.value
 
             case _:
                 pass
 
-    return default, label, description, assign_widget, return_widget, validators, effects
+    return (
+        default,
+        label,
+        description,
+        assign_widget,
+        return_widget,
+        validators,
+        effects,
+    )
 
 
 # Register built-in parser
@@ -87,7 +124,7 @@ try:
 
     def extract_annotated_types(
         annotations: list[Any],
-        default: Any | None, # noqa: ANN401
+        default: Any | None,  # noqa: ANN401
         label: str | None,
         description: str | None,
         assign_widget: AssignWidgetInput | None,
@@ -102,7 +139,7 @@ try:
                 case Gt(gt):
                     validators.append(
                         ValidatorInput(
-                            function=f"(x) => x > {gt}", #type: ignore
+                            function=f"(x) => x > {gt}",  # type: ignore
                             label=f"Must be greater than {gt}",
                             errorMessage=f"Must be greater than {gt}",
                         )
@@ -110,7 +147,7 @@ try:
                 case Le(le):
                     validators.append(
                         ValidatorInput(
-                            function=f"(x) => x <= {le}", #type: ignore
+                            function=f"(x) => x <= {le}",  # type: ignore
                             label=f"Must be less than {le}",
                             errorMessage=f"Must be less than {le}",
                         )
@@ -118,7 +155,7 @@ try:
                 case Len(min_length=min_len, max_length=max_len):
                     validators.append(
                         ValidatorInput(
-                            function=f"(x) => x.length >= {min_len} && x.length <= {max_len}", #type: ignore
+                            function=f"(x) => x.length >= {min_len} && x.length <= {max_len}",  # type: ignore
                             label=f"Must have length between {min_len} and {max_len}",
                             errorMessage=f"Must have length between {min_len} and {max_len}",
                         )
@@ -126,7 +163,15 @@ try:
                 case _:
                     pass
 
-        return default, label, description, assign_widget, return_widget, validators, effects
+        return (
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+        )
 
     parsers.append(extract_annotated_types)
 
@@ -136,7 +181,7 @@ except ImportError:
 
 def extract_annotations(
     annotations: list[Any],
-    default: Any | None = None, # noqa: ANN401
+    default: Any | None = None,  # noqa: ANN401
     label: str | None = None,
     description: str | None = None,
     assign_widget: AssignWidgetInput | None = None,
@@ -149,7 +194,15 @@ def extract_annotations(
     effects = effects or []
 
     for parser in parsers:
-        default, label, description, assign_widget, return_widget, validators, effects = parser(
+        (
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+        ) = parser(
             annotations,
             default,
             label,
@@ -159,8 +212,13 @@ def extract_annotations(
             validators,
             effects,
         )
-        
-        
-        
-        
-    return default, label, description, assign_widget, return_widget, validators, effects
+
+    return (
+        default,
+        label,
+        description,
+        assign_widget,
+        return_widget,
+        validators,
+        effects,
+    )

@@ -256,9 +256,22 @@ def convert_object_to_port(
         real_type, *annotations = get_args(cls)
 
         (
-            default, label, description, assign_widget, return_widget, validators, effects
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
         ) = extract_annotations(
-            annotations, default, label, description, assign_widget, return_widget, validators, effects
+            annotations,
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
         )
 
         return convert_object_to_port(
@@ -276,9 +289,7 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -318,9 +329,7 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -446,7 +455,7 @@ def snake_to_title_case(snake_str: str) -> str:
 
 
 def prepare_definition(
-    function: Callable[[Any], Any],
+    function: Callable,
     structure_registry: StructureRegistry,
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,
@@ -486,9 +495,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -525,11 +532,10 @@ def prepare_definition(
             )
 
     type_hints = get_type_hints(function, include_extras=allow_annotations)
+
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map: Dict[str, str] = {
         param.arg_name: param.arg_name for param in docstring.params
     }
@@ -549,9 +555,7 @@ def prepare_definition(
         )
     elif docstring.returns:
         doc_param_description_map.update({"return0": docstring.returns.description})
-        doc_param_label_map.update(
-            {"return0": docstring.returns.return_name or "return0"}
-        )
+        doc_param_label_map.update({"return0": docstring.returns.return_name or "return0"})
 
     if port_label_map:
         doc_param_label_map.update(port_label_map)
@@ -603,7 +607,7 @@ def prepare_definition(
                 f"Could not convert Argument of function {function.__name__} to ArgPort: {value}"
             ) from e
 
-    function_outs_annotation = sig.return_annotation
+    function_outs_annotation = type_hints.get("return", None)
 
     if return_annotations:
         for index, cls in enumerate(return_annotations):
@@ -628,9 +632,6 @@ def prepare_definition(
     else:
         # We are dealing with a non tuple return
         if function_outs_annotation is None:
-            pass
-
-        elif function_outs_annotation == inspect.Signature.empty:
             pass
 
         else:
@@ -680,9 +681,7 @@ def prepare_definition(
         action_name = name
 
     elif docstring.long_description:
-        action_name = docstring.short_description or snake_to_title_case(
-            function.__name__
-        )
+        action_name = docstring.short_description or snake_to_title_case(function.__name__)
         description = description or docstring.long_description
 
     else:
