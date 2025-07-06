@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.0 (2025-07-06)
+
+### Features
+
+- Add DescriptionAddin and DefaultAddin classes; refactor extract_annotations and registry structure
+  ([`93ef7bd`](https://github.com/arkitektio/rekuest-next/commit/93ef7bdc084d64863b8cb225ed783e2cf7cc2450))
+
+
 ## v0.11.1 (2025-06-27)
 
 
