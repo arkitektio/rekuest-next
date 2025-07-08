@@ -41,9 +41,7 @@ logger = logging.getLogger(__name__)
 
 async def token_loader() -> str:
     """Dummy token loader function"""
-    raise NotImplementedError(
-        "Websocket transport does need a defined token_loader on Connection"
-    )
+    raise NotImplementedError("Websocket transport does need a defined token_loader on Connection")
 
 
 KICK_CODE = 3001
@@ -88,9 +86,7 @@ class WebsocketAgentTransport(AgentTransport):
 
     async def __aenter__(self) -> Self:
         """Connect to the agent transport. Sets the callback and"""
-        assert self._callback is not None, (
-            "Callback not set. Use set callback first to set it"
-        )
+        assert self._callback is not None, "Callback not set. Use set callback first to set it"
         self._futures = {}
         self._send_queue = asyncio.Queue()
         return self
@@ -148,9 +144,7 @@ class WebsocketAgentTransport(AgentTransport):
     ) -> None:
         """Websocket loop to connect to the agent transport"""
         if not self._callback:
-            raise AgentTransportException(
-                "No callback set. Can't connect to the agent transport"
-            )
+            raise AgentTransportException("No callback set. Can't connect to the agent transport")
 
         send_task = None
         receive_task = None
@@ -159,11 +153,7 @@ class WebsocketAgentTransport(AgentTransport):
                 token = await self.token_loader()
                 async with websockets.connect(
                     f"{self.endpoint_url}",
-                    ssl=(
-                        self.ssl_context
-                        if self.endpoint_url.startswith("wss")
-                        else None
-                    ),
+                    ssl=(self.ssl_context if self.endpoint_url.startswith("wss") else None),
                 ) as client:
                     print("Connected to Websockets")
                     retry = 0
@@ -194,9 +184,7 @@ class WebsocketAgentTransport(AgentTransport):
                     for task in done:
                         exception = task.exception()
                         if exception:
-                            logger.error(
-                                "Websocket task failed with exception", exc_info=True
-                            )
+                            logger.error("Websocket task failed with exception", exc_info=True)
                             raise exception
 
             except InvalidHandshake as e:
@@ -220,9 +208,7 @@ class WebsocketAgentTransport(AgentTransport):
                     )
 
                 if e.code == BOUNCED_CODE:
-                    raise CorrectableConnectionFail(
-                        "Was bounced. Debug call to reconnect"
-                    ) from e
+                    raise CorrectableConnectionFail("Was bounced. Debug call to reconnect") from e
 
                 else:
                     raise CorrectableConnectionFail(
@@ -244,14 +230,10 @@ class WebsocketAgentTransport(AgentTransport):
                 logger.error("Max retries reached. Giving up")
                 raise DefiniteConnectionFail("Exceeded Number of Retries")
 
-            logger.info(
-                f"Waiting for some time before retrying: {self.time_between_retries}"
-            )
+            logger.info(f"Waiting for some time before retrying: {self.time_between_retries}")
             await asyncio.sleep(self.time_between_retries)
             logger.info("Retrying to connect")
-            await self.websocket_loop(
-                instance_id, retry=retry + 1, reload_token=reload_token
-            )
+            await self.websocket_loop(instance_id, retry=retry + 1, reload_token=reload_token)
 
         except asyncio.CancelledError as e:
             logger.info("Websocket got cancelled. Trying to shutdown graceully")
@@ -340,7 +322,7 @@ class WebsocketAgentTransport(AgentTransport):
     async def __aexit__(
         self,
         exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
+        exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
         """_summary_"""

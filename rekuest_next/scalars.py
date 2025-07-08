@@ -23,6 +23,8 @@ QString = str
 
 ValueMap = Dict[str, Any]
 
+ValidatorFunctionCoercible = str
+SearchQueryCoercible = str | DocumentNode
 
 Args = Dict[str, Any]
 
@@ -93,32 +95,26 @@ class ValidatorFunction(str):
         return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: str) -> "ValidatorFunction":
+    def validate(cls, v: ValidatorFunctionCoercible) -> "ValidatorFunction":
         """Validate the validator function"""
 
         if not (v.startswith("(") or ("=>" not in v)):
-            raise ValueError(
-                "ValidatorFunction must be an arrow function or block function"
-            )
+            raise ValueError("ValidatorFunction must be an arrow function or block function")
 
         args_match = re.match(r"\((.*?)\)", v)
         if args_match:
-            args = [
-                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
-            ]
+            args = [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
 
             if not args:
                 raise ValueError("Function must have at least one argument")
 
-        return v
+        return cls(v)
 
     def retrieve_args(self) -> list[str]:
         """Retrieve the arguments of the validator function"""
         args_match = re.match(r"\((.*?)\)", self)
         if args_match:
-            return [
-                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
-            ]
+            return [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
         return []
 
 
@@ -162,9 +158,9 @@ class SearchQuery(str):
     the dependencies of the widget.
     """
 
-    def __get__(self, instance, owner) -> "SearchQuery": ...
+    def __get__(self, instance, owner) -> "SearchQuery": ...  # type: ignore  # noqa: ANN001, ANN401, D105
 
-    def __set__(self, instance, value: "SearchQueryCoercible") -> None: ...
+    def __set__(self, instance, value: "SearchQueryCoercible") -> None: ...  # type: ignore  # noqa: ANN001, ANN401, D105
 
     @classmethod
     def __get_pydantic_core_schema__(  # noqa: D105
@@ -176,12 +172,10 @@ class SearchQuery(str):
         return core_schema.no_info_after_validator_function(cls.validate, handler(str))
 
     @classmethod
-    def validate(cls, v: Union[str, DocumentNode]) -> "SearchQuery":
+    def validate(cls, v: SearchQueryCoercible) -> "SearchQuery":
         """Validate the search query"""
         if not isinstance(v, str) and not isinstance(v, DocumentNode):  # type: ignore
-            raise ValueError(
-                "Search query must be either a str or a graphql DocumentAction"
-            )
+            raise ValueError("Search query must be either a str or a graphql DocumentAction")
         if isinstance(v, str):
             v = parse_or_raise(v)
 
@@ -225,14 +219,10 @@ class SearchQuery(str):
         wrapped_query = definition.selection_set.selections[0]
 
         if not isinstance(wrapped_query, FieldNode):
-            raise ValueError(
-                f"Wrapped query should be a field node: Was given: {print_ast(v)}"
-            )
+            raise ValueError(f"Wrapped query should be a field node: Was given: {print_ast(v)}")
 
         options_value = (
-            wrapped_query.alias.value
-            if wrapped_query.alias
-            else wrapped_query.name.value
+            wrapped_query.alias.value if wrapped_query.alias else wrapped_query.name.value
         )
         if options_value != "options":
             raise ValueError(
@@ -261,6 +251,3 @@ class SearchQuery(str):
             )
 
         return SearchQuery(print_ast(v))
-
-
-SearchQueryCoercible = str | SearchQuery | DocumentNode

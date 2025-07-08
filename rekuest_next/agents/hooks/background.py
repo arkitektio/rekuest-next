@@ -54,9 +54,7 @@ class WrappedBackgroundTask(BackgroundTask):
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
         for key, value in self.state_variables.items():
             try:
@@ -93,9 +91,7 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
         for key, value in self.state_variables.items():
             try:
@@ -118,8 +114,14 @@ def background(*args: TBackground) -> TBackground: ...
 
 @overload
 def background(
-    *func, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
 ) -> Callable[[TBackground], TBackground]: ...
+
+
+@overload
+def background(
+    *args: TBackground, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+) -> TBackground | Callable[[TBackground], TBackground]: ...
 
 
 def background(  # noqa: ANN201

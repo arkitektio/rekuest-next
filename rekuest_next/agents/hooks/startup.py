@@ -133,7 +133,7 @@ def startup(*args: TStartup) -> TStartup:
 
 @overload
 def startup(
-    *args: TStartup, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
 ) -> Callable[[TStartup], TStartup]:
     """Decorator to register a startup hook
 
@@ -142,6 +142,15 @@ def startup(
         registry (HooksRegistry): The registry to use. If not provided, the default registry will be used.
     """
     ...
+
+
+@overload
+def startup(
+    *args: TStartup,
+    name: Optional[str] = None,
+    registry: Optional[HooksRegistry] = None,
+) -> TStartup | Callable[[TStartup], TStartup]:
+    """Decorator to register a startup hook"""
 
 
 # --- Implementation ---

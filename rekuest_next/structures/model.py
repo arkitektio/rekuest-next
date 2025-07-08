@@ -55,7 +55,7 @@ class InspectedArg(BaseModel):
 
 def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
     """Retrieve the arguments for a model."""
-    children_classes: tuple[Field[Any], ...] = fields(cls)
+    children_classes: tuple[Field[Any], ...] = fields(cls)  # type: ignore
 
     args: list[InspectedArg] = []
     for field in children_classes:

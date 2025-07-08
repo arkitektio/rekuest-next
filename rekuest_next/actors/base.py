@@ -48,21 +48,15 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
-    )
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
 
-    _in_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
-        default=None
-    )
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
-        default_factory=dict
-    )
+    _in_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
     _run_task: asyncio.Task[None] | None = PrivateAttr(default=None)
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=dict)
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -292,20 +286,14 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(
-                                assignation=message.assignation
-                            ),
+                            message=messages.CancelledEvent(assignation=message.assignation),
                         )
 
                 else:
-                    logger.warning(
-                        "Race Condition: Task was already done before cancellation"
-                    )
+                    logger.warning("Race Condition: Task was already done before cancellation")
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(
-                            assignation=message.assignation
-                        ),
+                        message=messages.CancelledEvent(assignation=message.assignation),
                     )
 
             else:
@@ -314,8 +302,7 @@ class Actor(BaseModel):
                 )
         else:
             raise UnknownMessageError(f"{message}")
-        
-        
+
     async def apublish_state(self: Self, state: AnyState) -> None:
         """A function to publish the state of the actor. This is used to publish the
         state of the actor to the agent.
@@ -347,9 +334,7 @@ class Actor(BaseModel):
                 try:
                     await self.aprocess(message)
                 except Exception:
-                    logger.critical(
-                        "Processing unknown message should never happen", exc_info=True
-                    )
+                    logger.critical("Processing unknown message should never happen", exc_info=True)
 
         except asyncio.CancelledError:
             logger.info("Doing Whatever needs to be done to cancel!")
@@ -360,9 +345,7 @@ class Actor(BaseModel):
                 try:
                     await task
                 except asyncio.CancelledError:
-                    logger.info(
-                        f"Task {key} was cancelled through applicaction. Setting Critical"
-                    )
+                    logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
                     await self.agent.asend(
                         self,
                         messages.CriticalEvent(
@@ -397,9 +380,7 @@ class Actor(BaseModel):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(
-                f"Provision task {task} failed with exception {e}", exc_info=True
-            )
+            logger.error(f"Provision task {task} failed with exception {e}", exc_info=True)
 
 
 class SerializingActor(Actor):
@@ -428,13 +409,9 @@ class SerializingActor(Actor):
         default_factory=dict, description="The state variables of the actor"
     )
     context_variables: Dict[str, Any] = Field(default_factory=dict)
-    
-    
 
     async def aget_locals(self: Self) -> Tuple[Mapping[str, AnyContext], Mapping[str, AnyState]]:
-        """A function to for locals
-
-        """
+        """A function to for locals"""
 
         state_kwargs: Mapping[str, AnyContext | AnyState] = {}
         context_kwargs: Mapping[str, AnyContext] = {}
@@ -447,15 +424,16 @@ class SerializingActor(Actor):
 
         for key, interface in self.state_variables.items():
             try:
-                state_kwargs[key] = deepcopy(await self.agent.aget_state(interface)) # TODO: Should unshrin the shrunk state?, that would be a bit weird no?
+                state_kwargs[key] = deepcopy(
+                    await self.agent.aget_state(interface)
+                )  # TODO: Should unshrin the shrunk state?, that would be a bit weird no?
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return context_kwargs, state_kwargs
-    
-    
+
     async def async_locals(self: Self, state_params: Mapping[str, AnyState]) -> None:
-        """ A function to again sync the state of the actor with the state params
+        """A function to again sync the state of the actor with the state params
         Args:
             state_params (Mapping[str, AnyState]): The state params to sync with
         """
@@ -467,17 +445,6 @@ class SerializingActor(Actor):
                 )
             else:
                 logger.warning(f"State {key} not found in state params")
-                
-                
-   
-            
-            
-            
-            
-   
-        
-        
-        
 
 
 Actor.model_rebuild()

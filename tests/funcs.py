@@ -46,7 +46,7 @@ def plain_basic_function(rep: str, name: str = None) -> str:
 
 
 def plain_structure_function(
-    rep: SerializableObject, name: SerializableObject = None
+    rep: SerializableObject, name: SerializableObject | None = None
 ) -> SecondSerializableObject:
     """Karl
 
@@ -80,7 +80,7 @@ def union_structure_function(
 
 
 def nested_basic_function(
-    rep: List[str], nana: Dict[str, int], name: str = None
+    rep: List[str], nana: Dict[str, int], name: str | None = None
 ) -> Tuple[List[str], int]:
     """Structure Karl
 
@@ -98,7 +98,7 @@ def nested_basic_function(
 
 
 def nested_structure_function(
-    rep: List[SerializableObject], name: Dict[str, SerializableObject] = None
+    rep: List[SerializableObject], name: Dict[str, SerializableObject] | None = None
 ) -> Tuple[str, Dict[str, SecondSerializableObject]]:
     """Structured Karl
 
@@ -117,7 +117,7 @@ def nested_structure_function(
 
 def annotated_basic_function(
     rep: Annotated[str, Predicate(str.islower)],
-    number: Annotated[str, Le(4), Gt(4)] = None,
+    number: Annotated[str, Le(4), Gt(4)] | None = None,
 ) -> str:
     """Annotated Karl
 
@@ -135,7 +135,7 @@ def annotated_basic_function(
 
 def annotated_nested_structure_function(
     rep: Annotated[str, Predicate(str.islower)],
-    number: Dict[str, Annotated[List[SecondSerializableObject], Len(3)]] = None,
+    number: Dict[str, Annotated[List[SecondSerializableObject], Len(3)]] | None = None,
 ) -> str:
     """Annotated Karl
 
@@ -152,7 +152,7 @@ def annotated_nested_structure_function(
 
 
 def nested_structure_generator(
-    rep: List[SecondObject], name: Dict[str, SecondObject] = None
+    rep: List[SecondObject], name: Dict[str, SecondObject] | None = None
 ) -> Generator[Tuple[str, Dict[str, SecondObject]], None, None]:
     """Structured Karl
 
@@ -166,11 +166,11 @@ def nested_structure_generator(
         str: [description]
         Dict[str, SecondSerializableObject]: [description]
     """
-    yield "tested", {"peter": SecondObject(6)}
+    yield "tested", {"peter": SecondObject("6")}
 
 
 async def nested_structure_asyncgenerator(
-    rep: List[SecondObject], name: Dict[str, SecondObject] = None
+    rep: List[SecondObject], name: Dict[str, SecondObject] | None = None
 ) -> Tuple[str, Dict[str, SecondObject]]:  # type: ignore
     """function_with_side_register_async
 

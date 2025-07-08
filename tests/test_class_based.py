@@ -86,7 +86,7 @@ def test_actify_class_based_startup(mock_rekuest: RekuestNext) -> None:
                 # Simulate some background work
                 pass
 
-    class_instance = ClassBase(mock_rekuest)
+    ClassBase(mock_rekuest)
 
     default = mock_rekuest.agent.hook_registry.background_worker.get("basic_background")
     assert default is not None

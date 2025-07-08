@@ -112,7 +112,7 @@ wheels = [
 
 [[package]]
 name = "arkitekt-next"
-version = "0.16.0"
+version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -126,9 +126,9 @@ dependencies = [
     { name = "semver" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/8f/f498f6677c3257ae368a3b93685a1a21f0b30d71da4d2ca1251b02b68abb/arkitekt_next-0.16.0.tar.gz", hash = "sha256:d218f2438a6782eca022716071f0ba9ee71437199c6ff36e76be6719fd8dfb7a", size = 580449 }
+sdist = { url = "https://files.pythonhosted.org/packages/35/92/253d6e2a139c44f95a8317a6cf4ff67fde7e608640892317587cfc2c09a7/arkitekt_next-0.17.0.tar.gz", hash = "sha256:9c808bc4341c6a6cd8e4e41717eb565a3576492d777ab9d2e11b1e29640ac2bc", size = 565556 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/18/0bde26aa3ed5fd0c203a178f446ae4ed6ca1d3e259aff7954a9e118d6d50/arkitekt_next-0.16.0-py3-none-any.whl", hash = "sha256:d9bcdecc4bef76119ddc47fd14f02eac0a086287462f1766c2cd04f182c6472e", size = 640093 },
+    { url = "https://files.pythonhosted.org/packages/9d/fd/9fe56074b99d26663494d1b1e3bd09df83e04d28d00e9da8707d7bbd3d38/arkitekt_next-0.17.0-py3-none-any.whl", hash = "sha256:5e03a8467ef6eb881de315cf21bae691cc0cb6906f72d4e1a7915cd9878fffe2", size = 601686 },
 ]
 
 [[package]]
@@ -1162,21 +1162,21 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "3.5.0"
+version = "3.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/71/ac0ed6075b6c5a85e53132df4dd0139de26e1292a7ce019b1f9ec3e476c9/rath-3.5.0.tar.gz", hash = "sha256:f26ebe6cca048e91e628eb9906f30619b4505832fa0a205ed40d56b2d7d816f5", size = 32691 }
+sdist = { url = "https://files.pythonhosted.org/packages/14/d1/66585d55053a4b013a7be130c4e16b0828eeebe743f78131e9dcd721b8c8/rath-3.5.1.tar.gz", hash = "sha256:94d661627700db006f3491469ac91389c40ca612518a387f26820d19d855f3e9", size = 32743 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1a/fb/fffe48dc3e6eb47695c6290b93df3a9d0010d5fe25c7c5ecf23b0d7d8d84/rath-3.5.0-py3-none-any.whl", hash = "sha256:65a616b512dd95bf04f56a48ac112154d2e6f1ddb4ec4cb96e5b42d2f68b3445", size = 48176 },
+    { url = "https://files.pythonhosted.org/packages/8f/83/a7fbe223d6d52c2f6895c01ec07c4fd119a632d9d0b33be4834408527a9c/rath-3.5.1-py3-none-any.whl", hash = "sha256:402069e6c5c1a35bf2f611ee527249cfa608c519a6c432745b4afd01fa5ea64e", size = 48234 },
 ]
 
 [[package]]
 name = "rekuest-next"
-version = "0.12.0"
+version = "0.12.2"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },
@@ -1220,14 +1220,14 @@ requires-dist = [
     { name = "jsonpatch", specifier = ">=1.33" },
     { name = "koil", specifier = ">=2.0.4" },
     { name = "pydantic", specifier = ">=2" },
-    { name = "rath", specifier = ">=3.5" },
+    { name = "rath", specifier = ">=3.5.1" },
     { name = "websockets", specifier = ">=12.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "aiohttp", specifier = ">=3.8.3,<4" },
-    { name = "arkitekt-next", specifier = ">=0.16.0" },
+    { name = "arkitekt-next", specifier = ">=0.17" },
     { name = "autoflake", specifier = ">=1.7.7,<2" },
     { name = "black", specifier = ">=23.1.0,<24" },
     { name = "fakts-next", specifier = ">=2.0.0" },

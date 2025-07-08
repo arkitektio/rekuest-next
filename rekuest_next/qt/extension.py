@@ -1,9 +1,5 @@
-
-
-
-from rekuest_next.agents.extension import AgentExtension
-from qtpy.QtWidgets import QApplication,
 from qtpy import QtCore
+
 
 class QtExtension(QtCore.QObject):
     """

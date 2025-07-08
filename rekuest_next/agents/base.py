@@ -22,7 +22,7 @@ from rekuest_next.api.schema import (
     StateImplementationInput,
     StateSchema,
 )
-import jsonpatch
+import jsonpatch  # type: ignore[import-untyped]
 from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next.actors.types import Passport, Actor
@@ -95,9 +95,7 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
     state_registry: StateRegistry = Field(
         default_factory=get_default_state_registry,
         description="A global registry of all registered states for this extension. Think @state",
@@ -114,11 +112,9 @@ class BaseAgent(KoiledModel):
     )
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(
-        default_factory=dict
-    )
+    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
-    provision_passport_map: Dict[int, Passport] = Field(default_factory=dict)
+    provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps assignation to actor id"
@@ -133,17 +129,17 @@ class BaseAgent(KoiledModel):
     _agent: Optional[Agent] = None
 
     _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(
-        default_factory=dict
+        default_factory=lambda: {}  # type: ignore[return-value]
     )
-    _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=dict)
+    _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
     _interface_stateschema_map: Dict[str, StateSchema] = PrivateAttr(
-        default_factory=dict
+        default_factory=lambda: {}  # typ
     )
     _interface_stateschema_input_map: Dict[str, StateSchemaInput] = PrivateAttr(
-        default_factory=dict
+        default_factory=lambda: {}  # typ
     )
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=dict)
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
 
     started: bool = False
     running: bool = False
@@ -421,12 +417,8 @@ class BaseAgent(KoiledModel):
             )
 
             for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = (
-                    implementation
-                )
-                self.implementation_interface_map[implementation.id] = (
-                    implementation.interface
-                )
+                self.interface_implementation_map[implementation.interface] = implementation
+                self.implementation_interface_map[implementation.id] = implementation.interface
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
@@ -509,14 +501,10 @@ class BaseAgent(KoiledModel):
             raise AgentException(f"State {interface} not found in agent {self.name}")
 
         if interface not in self._current_shrunk_states:
-            raise AgentException(
-                f"Shrunk State {interface} not found in agent {self.name}"
-            )
+            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
 
         if interface not in self._interface_stateschema_input_map:
-            raise AgentException(
-                f"State Schema {interface} not found in agent {self.name}"
-            )
+            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
 
         if not self.instance_id:
             raise AgentException("Instance id is not set. The agent is not initialized")
@@ -562,9 +550,7 @@ class BaseAgent(KoiledModel):
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self.hook_registry.background_worker.items():
-            task = asyncio.create_task(
-                worker.arun(contexts=self.contexts, states=self.states)
-            )
+            task = asyncio.create_task(worker.arun(contexts=self.contexts, states=self.states))
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
@@ -575,9 +561,7 @@ class BaseAgent(KoiledModel):
             task.cancel()
 
         try:
-            await asyncio.gather(
-                *self._background_tasks.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
         except asyncio.CancelledError:
             pass
 
@@ -610,9 +594,7 @@ class BaseAgent(KoiledModel):
         spawining protocol within an actor. But maps implementation"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
-            )
+            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -679,9 +661,7 @@ class BaseAgent(KoiledModel):
             self.instance_id = instance_id
 
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.instance_id}"
-            )
+            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
             await self.astart(instance_id=self.instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()

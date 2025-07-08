@@ -1,6 +1,5 @@
 """Shrink a state using a schema and a structure registry"""
 
-from fieldz import asdict
 from typing import Dict, Any
 from rekuest_next.actors.types import Shelver
 from rekuest_next.api.schema import StateSchemaInput

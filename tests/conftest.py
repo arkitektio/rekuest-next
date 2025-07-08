@@ -16,7 +16,7 @@ class MockShelver:
 
     def __init__(self) -> None:
         """Initialize the mock shelver."""
-        self.shelve = {}
+        self.shelve: dict[str, object] = {}
 
     async def aput_on_shelve(self, identifier: str, value: object) -> str:
         """Put a value on the shelve and return the key. This is used to store
@@ -46,7 +46,7 @@ def mock_shelver() -> MockShelver:
 
 
 @pytest.fixture()
-def mock_rekuest() -> None:
+def mock_rekuest() -> RekuestNext:
     """Fixture for a mock rekuest"""
     # This fixture can be used to mock the rekuest functionality if needed
 
@@ -65,7 +65,7 @@ def mock_rekuest() -> None:
         ),
         instance_id=instance_id,
         rath=rath,
-        name=f"Test",
+        name="Test",
     )
 
     rath = RekuestNextRath(link=DirectSucceedingLink())

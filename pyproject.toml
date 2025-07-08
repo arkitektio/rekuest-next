@@ -13,7 +13,7 @@ dependencies = [
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=3.5",
+    "rath>=3.5.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
     "koil>=2.0.4",
@@ -38,7 +38,7 @@ dev-dependencies =  [
     "ruff>0.11",
     "qtpy>=2.4.3",
     "fakts-next>=2.0.0",
-    "arkitekt-next>=0.16.0",
+    "arkitekt-next>=0.17",
 ]
 
 

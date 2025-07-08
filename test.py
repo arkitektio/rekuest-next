@@ -1,5 +1,3 @@
-
-
 from rekuest_next.agents.hooks.background import background
 from rekuest_next.agents.context import context
 
@@ -8,6 +6,8 @@ from rekuest_next.agents.context import context
 class Hallo:
     id: str
 
+
 @background
 def hello(hallo: Hallo) -> None:
+    """A background function that prints the id of Hallo."""
     print("Hello", hallo.id)

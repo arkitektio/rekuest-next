@@ -37,7 +37,7 @@ class GraphQLPostman(KoiledModel):
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
 
     _ass_update_queues: Dict[str, asyncio.Queue[AssignationEvent]] = PrivateAttr(
-        default_factory=dict
+        default_factory=lambda: {}
     )
     _ass_update_queue: asyncio.Queue[AssignationEvent] | None = None
     _watch_assraces_task: asyncio.Task[None] | None = None
@@ -46,9 +46,7 @@ class GraphQLPostman(KoiledModel):
     _watching: bool = PrivateAttr(default=False)
     _lock: asyncio.Lock | None = None
 
-    async def aassign(
-        self, assign: AssignInput
-    ) -> AsyncGenerator[AssignationEvent, None]:
+    async def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         """Assign a"""
         if not self._lock:
             raise ValueError("Postman was never connected")
@@ -86,9 +84,7 @@ class GraphQLPostman(KoiledModel):
     async def watch_assignations(self) -> None:
         """Watch assingaitons task"""
         try:
-            async for assignation in awatch_assignations(
-                self.instance_id, rath=self.rath
-            ):
+            async for assignation in awatch_assignations(self.instance_id, rath=self.rath):
                 if assignation.event:
                     reference = assignation.event.reference
                     await self._ass_update_queues[reference].put(assignation.event)
