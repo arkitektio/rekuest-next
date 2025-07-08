@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.1 (2025-07-08)
+
+### Bug Fixes
+
+- Add __init__.py to facilite typing, minimal typing imporvement
+  ([`f0b6ad7`](https://github.com/arkitektio/rekuest-next/commit/f0b6ad7ad08b0ba664448281cc0ebd0ca5f43d78))
+
+
 ## v0.12.0 (2025-07-06)
 
 ### Features
