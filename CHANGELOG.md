@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.12.2 (2025-07-08)
+
+### Bug Fixes
+
+- Add typing for api
+  ([`7519287`](https://github.com/arkitektio/rekuest-next/commit/7519287c49c44e118842c89c7e07667d7daa645c))
+
+
 ## v0.12.1 (2025-07-08)
 
 ### Bug Fixes
