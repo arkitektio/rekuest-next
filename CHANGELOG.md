@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.12.3 (2025-07-08)
+
+### Bug Fixes
+
+- Update dependencies and improve code quality
+  ([`318c13a`](https://github.com/arkitektio/rekuest-next/commit/318c13ac9a6cf3c2fb995dc2ca5074d7fcd2ee56))
+
+- Updated `rath` dependency to version 3.5.1 in `pyproject.toml`. - Updated `arkitekt-next`
+  dependency to version 0.17 in `pyproject.toml`. - Removed unused file `2`. - Improved exception
+  handling in `rekuest_next/__init__.py`. - Refactored `Actor` class in
+  `rekuest_next/actors/base.py` for better readability and consistency. - Added type ignore comments
+  for untyped imports in `rekuest_next/agents/base.py`. - Cleaned up whitespace and formatting in
+  various files for consistency. - Updated `WebsocketAgentTransport` class in
+  `rekuest_next/agents/transport/websocket.py` for better readability. - Improved type hints and
+  annotations in `tests/funcs.py` and other test files. - Updated `uv.lock` to reflect new
+  dependency versions.
+
+
 ## v0.12.2 (2025-07-08)
 
 ### Bug Fixes
