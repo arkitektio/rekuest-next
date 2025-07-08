@@ -5,7 +5,6 @@ allow you to execute queries and mutations using thre rekuest-rath client.
 
 """
 
-from math import e
 from typing import Any, Dict, Generator, AsyncGenerator, Type
 from rekuest_next.rath import RekuestNextRath, current_rekuest_next_rath
 from koil import unkoil, unkoil_gen

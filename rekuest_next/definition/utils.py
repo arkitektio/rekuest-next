@@ -12,6 +12,7 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next.definition.errors import DefinitionError
 from rekuest_next.state.predicate import is_state
+from rekuest_next.structures.types import JSONSerializable
 
 # Type alias for annotation parser return type
 AnnotationResult: TypeAlias = tuple[
@@ -33,7 +34,7 @@ class DescriptionAddin:
 
     def __init__(self, value: str) -> None:
         """Initialize the DescriptionAddin with a value."""
-        if not isinstance(value, str):
+        if not isinstance(value, str):  # type: ignore
             raise TypeError("DescriptionAddin value must be a string")
         self.value = value
 
@@ -45,7 +46,7 @@ class DescriptionAddin:
 class DefaultAddin:
     """A default value that can be used to add a default value to a function or method."""
 
-    def __init__(self, value: Any) -> None:
+    def __init__(self, value: JSONSerializable) -> None:
         """Initialize the DefaultAddin with a value."""
         self.value = value
 
@@ -70,7 +71,6 @@ def extract_basic_annotations(
     effects: list[EffectInput],
 ) -> AnnotationResult:
     """Extracts basic Rekuest annotations like widgets, validators, and strings."""
-    str_annotation_count = 0
 
     for annotation in annotations:
         match annotation:

@@ -455,7 +455,7 @@ def snake_to_title_case(snake_str: str) -> str:
 
 
 def prepare_definition(
-    function: Callable,
+    function: Callable[..., Any],
     structure_registry: StructureRegistry,
     widgets: Optional[AssignWidgetMap] = None,
     return_widgets: Optional[ReturnWidgetMap] = None,
