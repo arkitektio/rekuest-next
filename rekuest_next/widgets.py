@@ -9,6 +9,8 @@ from rekuest_next.api.schema import (
     ReturnWidgetKind,
     ValidatorFunction,
     ValidatorInput,
+    EffectInput,
+    EffectKind,
 )
 from rekuest_next.definition.utils import DefaultAddin, DescriptionAddin
 from rekuest_next.scalars import SearchQuery
@@ -205,3 +207,26 @@ def withDefault(value: Any) -> DefaultAddin:
         DefaultAddin: The default addin
     """
     return DefaultAddin(value=value)
+
+
+def withEffect(
+    kind: EffectKind,
+    function: ValidatorFunction | None = None,
+    dependencies: List[str] | None = None,
+    message: str | None = None,
+) -> AssignWidgetInput:
+    """A decorator to add an effect to a widget.
+
+    Args:
+        effect (str): The effect to run
+        dependencies (List[str], optional): The dependencies of the effect. Defaults to None.
+
+    Returns:
+        AssignWidgetInput: The widget input
+    """
+    return EffectInput(
+        function=function,
+        kind=kind,
+        dependencies=tuple(dependencies) if dependencies else None,
+        message=message,
+    )

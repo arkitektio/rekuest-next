@@ -247,8 +247,11 @@ type Query {
   """All states from agents."""
   states: [State!]!
 
-  """List of UI panels."""
-  panels: [Panel!]!
+  """List of UI Blok."""
+  bloks: [Blok!]!
+
+  """List of UI Blok."""
+  materializedBloks: [MaterializedBlok!]!
 
   """Available state schemas."""
   stateSchemas: [StateSchema!]!
@@ -283,8 +286,11 @@ type Query {
   """Fetch a memory shelve by ID."""
   memoryShelve(id: ID!): MemoryShelve!
 
-  """Get a panel by ID."""
-  panel(id: ID!): Panel!
+  """Get a blok by ID."""
+  blok(id: ID!): Blok!
+
+  """Get a materialized blok by ID."""
+  materializedBlok(id: ID!): MaterializedBlok!
 
   """Retrieve a state schema by ID."""
   stateSchema(id: ID!): StateSchema!
@@ -484,6 +490,9 @@ type Registry {
   """The associated user."""
   user: User!
 
+  """The organization this registry belongs to."""
+  organization: Organization!
+
   """Agents registered under this registry."""
   agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
 }
@@ -492,6 +501,12 @@ type Registry {
 type User {
   """The subject identifier of the user."""
   sub: ID!
+}
+
+"""Represents an organization in the system."""
+type Organization {
+  """Slug of the organization."""
+  slug: String!
 }
 
 """A way to filter agents"""
@@ -531,9 +546,24 @@ input AgentFilter {
 """The input for creating a action demand."""
 input ActionDemandInput {
   """
+  The key of the action. This is used to identify the action in the system.
+  """
+  key: String!
+
+  """
   The hash of the action. This is used to identify the action in the system.
   """
   hash: ActionHash = null
+
+  """
+  The name of the action. This is used to identify the action in the system.
+  """
+  name: String = null
+
+  """
+  The description of the action. This can described the action and its purpose.
+  """
+  description: String = null
 
   """
   The demands for the action args and returns. This is used to identify the demand in the system.
@@ -584,6 +614,11 @@ input PortMatchInput {
 
 """The input for creating a action demand."""
 input SchemaDemandInput {
+  """
+  The key of the action. This is used to identify the action in the system.
+  """
+  key: String!
+
   """The hash of the state."""
   hash: ActionHash = null
 
@@ -1420,24 +1455,93 @@ input ToolboxOrder {
 type Dashboard {
   id: ID!
   name: String
-  panels: [Panel!]
+  materializedBloks: [MaterializedBlok!]!
   uiTree: UITree
 }
 
-type Panel {
+type MaterializedBlok {
   id: ID!
-  kind: PanelKind!
-  name: String!
-  reservation: Reservation
-  state: State
-  accessors: [String!]
-  submitOnLoad: Boolean!
-  submitOnChange: Boolean!
+  dashboard: Dashboard!
+  blok: Blok!
+  agent: Agent!
+  name: String
+  description: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+
+  """Mappings of states to this materialized blok."""
+  stateMappings: [StateMapping!]!
+
+  """Mappings of actions to this materialized blok."""
+  actionMappings: [ActionMapping!]!
 }
 
-enum PanelKind {
-  STATE
-  ASSIGN
+type Blok {
+  id: ID!
+  name: String!
+  creator: User!
+  url: String!
+
+  """Materialized bloks that are instances of this blok."""
+  materializedBloks: [MaterializedBlok!]!
+
+  """Get the actions that this blok can run."""
+  actionDemands: [ActionDemand!]!
+
+  """Get the actions that this blok can run."""
+  stateDemands: [StateDemand!]!
+
+  """Get the agents that this blok can be implemented against."""
+  possibleAgents: [Agent!]!
+}
+
+"""Input model for action demand."""
+type ActionDemand {
+  key: String!
+  hash: ActionHash
+  name: String
+  description: String
+  argMatches: [PortMatch!]
+  returnMatches: [PortMatch!]
+  protocols: [ID!]
+  forceArgLength: Int
+  forceReturnLength: Int
+}
+
+"""Port matching in action demands."""
+type PortMatch {
+  at: Int
+  key: String
+  kind: PortKind
+  identifier: String
+  nullable: Boolean
+  children: [PortMatch!]
+}
+
+"""The input for creating a action demand."""
+type StateDemand {
+  key: String!
+  hash: ActionHash
+  matches: [PortMatch!]
+  protocols: [ID!]
+}
+
+type StateMapping {
+  id: ID!
+  key: String!
+  implementation: Implementation!
+  state: State!
+  crreatedAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type ActionMapping {
+  id: ID!
+  key: String!
+  implementation: Implementation!
+  materializedBlok: MaterializedBlok!
+  crreatedAt: DateTime!
+  updatedAt: DateTime!
 }
 
 type UITree {
@@ -1527,10 +1631,13 @@ type Mutation {
   createStateSchema(input: CreateStateSchemaInput!): StateSchema!
 
   """Create a user interface panel."""
-  createPanel(input: CreatePanelInput!): Panel!
+  createBlok(input: CreateBlokInput!): Blok!
 
   """Set the value of a state object."""
   setState(input: SetStateInput!): State!
+
+  """Materialize a UI blok into a concrete instance on a dashboard."""
+  materializeBlok(input: MaterializeBlokInput!): MaterializedBlok!
 
   """Update fields in a state object."""
   updateState(input: UpdateStateInput!): State!
@@ -1658,8 +1765,9 @@ input EffectInput {
   dependencies: [String!] = []
   message: String = null
   kind: EffectKind!
-  hook: String
-  ward: String
+  fade: Boolean = true
+  hook: String = null
+  ward: String = null
 }
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
@@ -1786,7 +1894,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "a39dfa1a-c76d-4390-ae7d-0b0f822be57a"
+  reference: String = "563c04e6-4774-47b2-9ba1-4771c9f1d0f9"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1846,7 +1954,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "15304dd9-7933-4316-9327-02222d805ead"
+  reference: String = "43ef837d-ac45-4ea3-a5de-bbcbc4db22c6"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1963,18 +2071,29 @@ input StateSchemaInput {
   name: String!
 }
 
-input CreatePanelInput {
+"""The input for creating a blok."""
+input CreateBlokInput {
   name: String!
-  kind: PanelKind!
-  state: ID = null
-  stateKey: String = null
-  reservation: ID = null
-  instanceId: InstanceId = null
-  stateAccessors: [String!] = null
-  interface: String = null
-  args: Args = null
-  submitOnChange: Boolean = false
-  submitOnLoad: Boolean = false
+
+  """
+  The action demands of the blok. This is used to identify the blok in the system.
+  """
+  actionDemands: [ActionDemandInput!] = null
+
+  """
+  The state demands of the blok. This is used to identify the blok in the system.
+  """
+  stateDemands: [SchemaDemandInput!] = null
+
+  """
+  The description of the blok. This can described the blok and its purpose.
+  """
+  description: String = null
+
+  """
+  The URL of the blok. This can be used to link to the blok in the system.
+  """
+  url: String!
 }
 
 """The input for setting a state schema."""
@@ -1982,6 +2101,21 @@ input SetStateInput {
   interface: String!
   instanceId: InstanceId!
   value: Args!
+}
+
+"""The input for creating a blok."""
+input MaterializeBlokInput {
+  blok: ID!
+
+  """
+  The dashboard ID to materialize the blok in. If not provided, the blok will be materialized in the default dashboard.
+  """
+  dashboard: ID = null
+
+  """
+  The agent ID to materialize the blok in. If not provided, the blok will be materialized in the default agent
+  """
+  agent: ID = null
 }
 
 """The input for updating a state schema."""

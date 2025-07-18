@@ -1,0 +1,17 @@
+fragment Dashboard on Dashboard {
+  id
+  name
+  uiTree {
+    child {
+      ... on UIGrid {
+        rowHeight
+        children {
+          x
+          y
+          w
+          h
+        }
+      }
+    }
+  }
+}

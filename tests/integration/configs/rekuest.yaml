@@ -1,0 +1,43 @@
+db:
+  db_name: rekuest
+  dependency: db
+  engine: django.db.backends.postgresql
+  host: db
+  password: hello_django
+  port: 5432
+  username: hello_django
+django:
+  admin:
+    email: admin@admin.com
+    password: admin
+    username: admin
+  debug: true
+  hosts:
+    - "*"
+  secret_key: 9be5ca4df71514f00a8f22719f788ad8
+force_script_name:
+lok:
+  static_tokens:
+    test:
+      sub: 1
+      iss: lok
+  issuer: lok
+  key_type: RS256
+  public_key: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXx/g7dyiwmfIQvkBKvUAM+KBuL1KdvZfZMlYhbyrz9Auk2xao1gLYiQJ183joiXadUreL4BugUrasQVdR9JvBWXOBeqm2FD5Ehf9VvqXdzCOQ7/fUXkb9N8sqmz5YitQuheKGDh0weNmVcfdsCGU38sACEvFQg+5dv1tqLbm7EllT+vogntDVX16DmvpvFEX4HYHpT8qM/xuqSB6yQ8+wBuQd3K7WTFgUrUqQx6zFrSMUbSArPrrY5Z0GJAeDAHKp4+V+um4mSHpYM2nBJ5pn80wYpsf97KIL9P+UJzjb/indB8dCqpPkAk3HogBhj67Tp5JoqCMoaXHFU3tiYQCp
+redis:
+  dependency: redis
+  host: redis
+  port: 6379
+s3:
+  access_key: mikro_access_key
+  buckets:
+    media: media
+  dependency: minio
+  host: minio
+  name: baggy-khaki-numbat
+  port: 9000
+  protocol: http
+  secret_key: mikro_secret_key
+scopes:
+  rekuest_agent: Act as an agent
+  rekuest_call: Call other apps with rekuest

@@ -154,22 +154,28 @@ class ValidatorInputTrait(BaseModel):
 class DefinitionInputTrait(BaseModel):
     """An addin trait for validating the input of a definition"""
 
-    @model_validator(mode="after")  # type: ignore[override]
-    def validate_validators(cls, self: "DefinitionInput") -> "DefinitionInput":
-        """Validate the ports"""
-        all_arg_keys: list[str] = []
+    @model_validator(mode="after")
+    def check_dependencies(cls, self: "DefinitionInputTrait") -> "DefinitionInputTrait":
+        """Ensure that all dependencies in ports are valid."""
+        all_arg_keys = [port.key for port in self.args]
+        all_return_keys = [port.key for port in self.returns]
 
-        for port in self.args:
-            all_arg_keys.append(port.key)
+        for arg in self.args:
+            print("Checking port:", arg.key)
+            for validator in arg.validators or []:
+                if validator.dependencies:
+                    for dep in validator.dependencies:
+                        if dep not in all_arg_keys and dep not in all_return_keys:
+                            raise ValueError(
+                                f"Validator {validator.label} in port {arg.key} has invalid dependency: {dep}"
+                            )
 
-        for port in self.args:
-            if port.validators:
-                for validator in port.validators:
-                    if validator.dependencies:
-                        for dep in validator.dependencies:
-                            if dep not in all_arg_keys:
-                                raise ValueError(
-                                    f"Dependency '{dep}' for '{validator.function}' at port '{port.key} not found in args. Please make sure the dependency is in the args"
-                                )
+            for effect in arg.effects or []:
+                if effect.dependencies:
+                    for dep in effect.dependencies:
+                        if dep not in all_arg_keys and dep not in all_return_keys:
+                            raise ValueError(
+                                f"Effect {effect.function} in port {arg.key} has invalid dependency: {dep}"
+                            )
 
         return self

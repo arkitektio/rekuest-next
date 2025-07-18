@@ -1,0 +1,10 @@
+buckets:
+  - name: zarr
+  - name: parquet
+  - name: media
+users:
+  - access_key: mikro_access_key
+    name: mikronew
+    policies:
+      - readwrite
+    secret_key: mikro_secret_key

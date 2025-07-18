@@ -1,5 +1,0 @@
-mutation CreatePanel($input: CreatePanelInput!) {
-  createPanel(input: $input) {
-    ...Panel
-  }
-}

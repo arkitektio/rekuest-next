@@ -1,5 +1,0 @@
-query GetPanel($id: ID!){
-    panel(id: $id) {
-        ...Panel
-    }
-}
