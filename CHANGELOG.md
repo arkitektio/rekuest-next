@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.1 (2025-07-21)
+
+### Bug Fixes
+
+- More integration tests
+  ([`364a307`](https://github.com/arkitektio/rekuest-next/commit/364a3078d8c9dd2a6904166cbcb8728382410b69))
+
+
 ## v0.13.0 (2025-07-18)
 
 ### Features
