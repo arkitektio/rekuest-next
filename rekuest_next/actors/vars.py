@@ -10,8 +10,8 @@ if TYPE_CHECKING:
     from rekuest_next.actors.helper import AssignmentHelper
 
 
-current_assignation_helper: contextvars.ContextVar["AssignmentHelper"] = (
-    contextvars.ContextVar("assignment_helper")
+current_assignation_helper: contextvars.ContextVar["AssignmentHelper"] = contextvars.ContextVar(
+    "assignment_helper"
 )
 
 

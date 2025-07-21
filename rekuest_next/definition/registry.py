@@ -15,9 +15,7 @@ import hashlib
 from rekuest_next.structures.types import JSONSerializable
 
 
-current_definition_registry = contextvars.ContextVar(
-    "current_definition_registry", default=None
-)
+current_definition_registry = contextvars.ContextVar("current_definition_registry", default=None)
 
 
 class DefinitionRegistry(BaseModel):
@@ -28,13 +26,9 @@ class DefinitionRegistry(BaseModel):
     structure registries for each function and generator.
     """
 
-    implementations: Dict[str, ImplementationInput] = Field(
-        default_factory=dict, exclude=True
-    )
+    implementations: Dict[str, ImplementationInput] = Field(default_factory=dict, exclude=True)
     actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
-    structure_registries: Dict[str, StructureRegistry] = Field(
-        default_factory=dict, exclude=True
-    )
+    structure_registries: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
     copy_from_default: bool = False
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -59,9 +53,7 @@ class DefinitionRegistry(BaseModel):
         assert interface in self.implementations, "No definition for interface"
         return self.implementations[interface].definition
 
-    def get_implementation_input_for_interface(
-        self, interface: str
-    ) -> ImplementationInput:
+    def get_implementation_input_for_interface(self, interface: str) -> ImplementationInput:
         """Get the implementation input for a given interface."""
         assert interface in self.implementations, "No definition for interface"
         return self.implementations[interface]
@@ -85,9 +77,7 @@ class DefinitionRegistry(BaseModel):
 
     def hash(self) -> str:
         """Get the hash of the registry."""
-        return hashlib.sha256(
-            json.dumps(self.dump(), sort_keys=True).encode()
-        ).hexdigest()
+        return hashlib.sha256(json.dumps(self.dump(), sort_keys=True).encode()).hexdigest()
 
     def create_merged(
         self, other: "DefinitionRegistry", strict: bool = True

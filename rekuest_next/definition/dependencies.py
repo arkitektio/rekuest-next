@@ -5,9 +5,7 @@ from rekuest_next.api.schema import DependencyInput
 from typing import Union
 
 
-def declare(
-    function_or_hash: Union[str, AnyFunction], optional: bool = False
-) -> DependencyInput:
+def declare(function_or_hash: Union[str, AnyFunction], optional: bool = False) -> DependencyInput:
     """Declare a function that needs to be
     called outside of your application.
 
@@ -28,7 +26,5 @@ def declare(
         return DependencyInput(hash=definition_hash, optional=optional)
 
     else:
-        assert isinstance(function_or_hash, str), (
-            "Only hash or function can be declared"
-        )
+        assert isinstance(function_or_hash, str), "Only hash or function can be declared"
         return DependencyInput(hash=function_or_hash, optional=optional)

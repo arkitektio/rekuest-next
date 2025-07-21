@@ -13,9 +13,7 @@ class ProxyHolder(Protocol):
         """Get the state of the actor. This method will get the state of the"""
         ...
 
-    async def aset_state(
-        self, state_key: str, attribute: str, value: Dict[str, Any]
-    ) -> None:
+    async def aset_state(self, state_key: str, attribute: str, value: Dict[str, Any]) -> None:
         """Set the state of the actor. This method will set the state of the"""
         ...
 
@@ -23,9 +21,7 @@ class ProxyHolder(Protocol):
 class AGetProperty:
     """A class to get the state of the actor. This class is used to get the state of the actor"""
 
-    def __init__(
-        self, proxy_holder: ProxyHolder, state_key: str, attribute: str
-    ) -> None:
+    def __init__(self, proxy_holder: ProxyHolder, state_key: str, attribute: str) -> None:
         """Initialize the class with the proxy holder and the state key"""
 
         self.state_key = state_key

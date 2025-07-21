@@ -23,9 +23,7 @@ class AssignmentHelper(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
 
-    async def alog(
-        self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
-    ) -> None:
+    async def alog(self: Self, level: LogLevel | messages.LogLevelLiteral, message: str) -> None:
         """Send a log message to the actor.
 
         Args:
@@ -57,10 +55,8 @@ class AssignmentHelper(BaseModel):
                 message=message,
             )
         )
-        
-    async def apublish_state(
-        self: Self, state: AnyState
-    ) -> None:
+
+    async def apublish_state(self: Self, state: AnyState) -> None:
         """Publish the state of the actor.
 
         Args:

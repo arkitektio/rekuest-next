@@ -23,9 +23,8 @@ class GlobalStructureHookError(HookError):
 
 
 class Identifiable(Protocol):
-    """ A protocol for objects that can be identified as a global structure."""
-    
-    
+    """A protocol for objects that can be identified as a global structure."""
+
     @classmethod
     def get_identifier(cls) -> Identifier:
         """Get the identifier of the object."""
@@ -68,9 +67,7 @@ class GlobalStructureHook(BaseModel):
         if hasattr(cls, "get_identifier"):
             identifier: Identifier = cls.get_identifier()  # type: ignore
         else:
-            raise GlobalStructureHookError(
-                f"Class {cls} does not have a get_identifier method"
-            )
+            raise GlobalStructureHookError(f"Class {cls} does not have a get_identifier method")
 
         if hasattr(cls, "get_default_widget"):
             default_widget = cls.get_default_widget()  # type: ignore

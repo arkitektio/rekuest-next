@@ -355,9 +355,7 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(
-                function_or_actor, "__definition_hash__", hash_definition(definition)
-            )
+            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
 
             return function_or_actor
 

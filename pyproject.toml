@@ -17,6 +17,7 @@ dependencies = [
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
     "koil>=2.0.4",
+    "dokker>=2.2",
 ]
 
 [project.optional-dependencies]

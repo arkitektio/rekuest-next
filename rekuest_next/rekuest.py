@@ -7,7 +7,7 @@ from pydantic import Field
 from rekuest_next.agents.hooks.background import background
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
-
+from rekuest_next.agents.extensions.default import DefaultExtension
 from rekuest_next.actors.types import Actifier, Agent
 from rekuest_next.postmans.types import Postman
 from koil import unkoil
@@ -46,7 +46,6 @@ T = TypeVar("T", bound=AnyFunction)
 class RekuestNext(Composition):
     """The main rekuest next client class"""
 
-    definition_registry: DefinitionRegistry = Field(default_factory=get_default_definition_registry)
     structure_registry: StructureRegistry = Field(default_factory=get_default_structure_registry)
     rath: RekuestNextRath
     agent: Agent
@@ -105,10 +104,14 @@ class RekuestNext(Composition):
             function: A decorator that registers the given function or actor.
         """
 
+        default_extension = self.agent.extension_registry.get("default")
+        assert default_extension is not None, "Default extension not found"
+        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+
         return register_func(
             function,
-            self.structure_registry,
-            self.definition_registry,
+            structure_registry=structure_registry or self.structure_registry,
+            definition_registry=default_extension.definition_registry,
             actifier=actifier,
             interface=interface,
             stateful=stateful,

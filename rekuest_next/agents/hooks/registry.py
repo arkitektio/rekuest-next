@@ -107,9 +107,7 @@ class HooksRegistry(BaseModel):
         for key, hook in self.startup_hooks.items():
             try:
                 answer = (
-                    await asyncio.wait_for(
-                        hook.arun(instance_id), timeout=self.startup_timeout
-                    )
+                    await asyncio.wait_for(hook.arun(instance_id), timeout=self.startup_timeout)
                     if self.startup_timeout
                     else await hook.arun(instance_id)
                 )

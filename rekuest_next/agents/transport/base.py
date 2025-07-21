@@ -67,5 +67,5 @@ class AgentTransport(KoiledModel):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """ Exit the context manager."""
+        """Exit the context manager."""
         raise NotImplementedError("This is an abstract Base Class")

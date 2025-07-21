@@ -7,7 +7,7 @@ class AnyFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any: # noqa: ANN001, ANN401
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN001, ANN401
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -26,6 +26,7 @@ class AnyState(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
+
     pass
 
 
@@ -34,6 +35,7 @@ class AnyContext(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
+
     pass
 
 
@@ -43,7 +45,7 @@ class BackgroundFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self,  *args: Any, **kwargs: Any) -> Awaitable[None] | None:
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None] | None:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -76,13 +78,16 @@ class AsyncBackgroundFunction(Protocol):
         """
         ...
 
+
 @runtime_checkable
 class ThreadedBackgroundFunction(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
 
-    def __call__(self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState,AnyContext]) -> None:
+    def __call__(
+        self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState, AnyContext]
+    ) -> None:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -94,7 +99,6 @@ class ThreadedBackgroundFunction(Protocol):
         function.
         """
         ...
-
 
 
 @runtime_checkable
@@ -117,17 +121,15 @@ class StartupFunction(Protocol):
         function.
         """
         ...
-        
-        
+
+
 @runtime_checkable
 class AsyncStartupFunction(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
 
-    def __call__(
-        self, instance_id: str
-    ) -> Awaitable[AnyContext | AnyState | None]:
+    def __call__(self, instance_id: str) -> Awaitable[AnyContext | AnyState | None]:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -141,17 +143,13 @@ class AsyncStartupFunction(Protocol):
         ...
 
 
-
-        
 @runtime_checkable
 class ThreadedStartupFunction(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
 
-    def __call__(
-        self, instance_id: str
-    ) -> AnyContext | AnyState | None:
+    def __call__(self, instance_id: str) -> AnyContext | AnyState | None:
         """Create the actor and return it. This method will create the actor and
         return it.
         """

@@ -30,7 +30,6 @@ def test_actify_class_based_function(mock_rekuest: RekuestNext) -> None:
     assert default is not None
     assert isinstance(default, DefaultExtension)
 
-    assert len(default.definition_registry.implementations) == 1
     assert "basic_function" in default.definition_registry.implementations
     implementation = default.definition_registry.implementations["basic_function"]
 

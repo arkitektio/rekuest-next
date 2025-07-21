@@ -106,9 +106,7 @@ def predicate_serializable_port(
             return False
 
         if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(
-                f"Maximum recursion depth exceeded for port {port.identifier}"
-            )
+            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
 
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")
@@ -128,9 +126,7 @@ def predicate_serializable_port(
             return False
 
         if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(
-                f"Maximum recursion depth exceeded for port {port.identifier}"
-            )
+            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
 
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")
@@ -147,9 +143,7 @@ def predicate_serializable_port(
         )
     if port.kind == PortKind.MODEL:
         if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(
-                f"Maximum recursion depth exceeded for port {port.identifier}"
-            )
+            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
 
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")

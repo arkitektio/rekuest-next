@@ -85,7 +85,7 @@ class AsyncFuncActor(SerializingActor):
                         message="Queued for running",
                     )
                 )
-                
+
                 params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
 
                 await self.asend(
@@ -106,9 +106,8 @@ class AsyncFuncActor(SerializingActor):
                     shelver=self.agent,
                     skip_shrinking=not self.shrink_outputs,
                 )
-                
+
                 await self.async_locals(state_kwargs)
-                
 
                 await self.asend(
                     message=messages.YieldEvent(
@@ -198,7 +197,7 @@ class AsyncGenActor(SerializingActor):
                         message="Queued for running",
                     )
                 )
-                
+
                 params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
 
                 async with AssignmentHelper(
@@ -221,7 +220,7 @@ class AsyncGenActor(SerializingActor):
                                 returns=returns,
                             )
                         )
-                        
+
                         await self.async_locals(state_kwargs)
 
                 await self.asend(

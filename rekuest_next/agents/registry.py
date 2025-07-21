@@ -9,9 +9,7 @@ from rekuest_next.agents.extensions.default import DefaultExtension
 Params = Dict[str, str]
 
 
-current_extension_registry = contextvars.ContextVar(
-    "current_service_registry", default=None
-)
+current_extension_registry = contextvars.ContextVar("current_service_registry", default=None)
 GLOBAL_EXTENSION_REGISTRY = None
 
 

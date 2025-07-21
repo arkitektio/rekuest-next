@@ -17,6 +17,7 @@ from typing import (
     runtime_checkable,
 )
 
+
 JSONSerializable = Union[
     str, int, float, bool, None, dict[str, "JSONSerializable"], list["JSONSerializable"]
 ]
@@ -26,7 +27,7 @@ JSONSerializable = Union[
 class Expandable(Protocol):
     """A callable that takes a set of keyword arguments to initialize the object."""
 
-    def __init__(self, value: Any) -> None: # noqa: ANN401
+    def __init__(self, value: Any) -> None:  # noqa: ANN401
         """Initialize the Expandable with the value."""
         ...
 

@@ -1,7 +1,7 @@
 """Some configuration for pytest"""
 
 from dataclasses import dataclass
-from typing import Generator
+from typing import AsyncGenerator, Generator
 import pytest
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.rekuest import RekuestNext, RekuestNextRath
@@ -18,6 +18,7 @@ from rath.links.aiohttp import AIOHttpLink
 from rath.links.graphql_ws import GraphQLWSLink
 from rath.links.split import SplitLink
 from graphql import OperationType
+import pytest_asyncio
 
 
 class MockShelver:
@@ -122,6 +123,20 @@ class DeployedRekuest:
     instance_id: str = "default"
 
 
+def most_basic_function(hello: str) -> str:
+    """Karl
+
+    Karl takes a a representation and does magic stuff
+
+    Args:
+        hallo (str): Nougat
+
+    Returns:
+        str: The Returned Representation
+    """
+    return hello + " world"
+
+
 @pytest.fixture(scope="session")
 def deployed_app() -> Generator[DeployedRekuest, None, None]:
     """Fixture to deploy the MikroNext application with Docker Compose.
@@ -136,6 +151,9 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
 
     """
     setup = local(docker_compose_file)
+    setup.pull_on_enter = False
+    setup.down_on_exit = True
+    setup.up_on_enter = False
     setup.add_health_check(
         url=lambda spec: f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql",
         service="mikro",
@@ -186,9 +204,95 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
         )
         setup.up()
 
+        rekuest.register(most_basic_function)
+
         setup.check_health()
 
         with rekuest as rekuest:
+            deployed = DeployedRekuest(
+                deployment=setup,
+                rekuest_watcher=watcher,
+                minio_watcher=minio_watcher,
+                rekuest=rekuest,
+                instance_id=instance_id,
+            )
+
+            yield deployed
+
+
+@pytest_asyncio.fixture(scope="session")
+@pytest.mark.asyncio(scope="session")
+async def async_deployed_app() -> AsyncGenerator[DeployedRekuest, None]:
+    """Fixture to deploy the MikroNext application with Docker Compose.
+
+    This fixture sets up the MikroNext application using Docker Compose,
+    configures health checks, and provides a deployed instance of MikroNext
+    for testing purposes. It also includes watchers for the Mikro and MinIO
+    services to monitor their logs, when performing requests against the application.
+
+    Yields:
+        DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
+
+    """
+    setup = local(docker_compose_file)
+    setup.pull_on_enter = False
+    setup.down_on_exit = True
+    setup.up_on_enter = False
+    setup.add_health_check(
+        url=lambda spec: f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql",
+        service="mikro",
+        timeout=5,
+        max_retries=10,
+    )
+
+    watcher = setup.create_watcher("rekuest")
+    minio_watcher = setup.create_watcher("minio")
+
+    async with setup:
+        await setup.adown()
+        await setup.apull()
+
+        instance_id = "default"
+
+        mikro_http_url = f"http://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
+        mikro_ws_url = f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
+
+        rath = RekuestNextRath(
+            link=RekuestNextLinkComposition(
+                auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+                split=SplitLink(
+                    left=AIOHttpLink(endpoint_url=mikro_http_url),
+                    right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
+                    split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
+                ),
+            ),
+        )
+
+        agent = BaseAgent(
+            transport=WebsocketAgentTransport(
+                endpoint_url=f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/agi",
+                token_loader=token_loader,
+            ),
+            instance_id=instance_id,
+            rath=rath,
+            name="Test",
+        )
+
+        rekuest = RekuestNext(
+            rath=rath,
+            agent=agent,
+            postman=GraphQLPostman(
+                rath=rath,
+                instance_id=instance_id,
+            ),
+        )
+        await setup.aup()
+
+        rekuest.register(most_basic_function)
+
+        await setup.acheck_health()
+
+        async with rekuest as rekuest:
             deployed = DeployedRekuest(
                 deployment=setup,
                 rekuest_watcher=watcher,

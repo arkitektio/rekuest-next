@@ -208,9 +208,7 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -225,7 +223,10 @@ async def acall(
         postman=postman,
     )
 
-    return await aexpand_returns(action, returns, structure_registry=structure_registry)
+    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
+    if len(returns) == 1:
+        return returns[0]
+    return returns
 
 
 async def aiterate(
@@ -265,9 +266,7 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -281,9 +280,7 @@ async def aiterate(
         log=log,
     ):
         assert i.returns, "YIELD event must have returns"
-        yield await aexpand_returns(
-            action, i.returns, structure_registry=structure_registry
-        )
+        yield await aexpand_returns(action, i.returns, structure_registry=structure_registry)
 
 
 def call(

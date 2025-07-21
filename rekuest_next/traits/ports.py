@@ -31,9 +31,7 @@ class PortTrait(BaseModel):
             return v
 
         if not isinstance(v, (str, int, float, dict, list, bool)):
-            raise ValueError(
-                "Default value must be JSON serializable, got: " + str(v)
-            ) from None
+            raise ValueError("Default value must be JSON serializable, got: " + str(v)) from None
 
         return v  # type: ignore[return-value]
 
@@ -60,9 +58,7 @@ class PortTrait(BaseModel):
                 raise ValueError(
                     "When specifying a dict you need to provide a wrapped 'children' port"
                 )
-            assert len(self.children) == 1, (
-                "Dict can only one child (key is always strings)"
-            )
+            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
 
         return self
 
@@ -75,9 +71,7 @@ class WidgetInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(
-        cls, self: "AssignWidgetInput"
-    ) -> "AssignWidgetInput":
+    def validate_widgetkind_nested(cls, self: "AssignWidgetInput") -> "AssignWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import AssignWidgetKind
 
@@ -109,9 +103,7 @@ class ReturnWidgetInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(
-        cls, self: "ReturnWidgetInput"
-    ) -> "ReturnWidgetInput":
+    def validate_widgetkind_nested(cls, self: "ReturnWidgetInput") -> "ReturnWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import ReturnWidgetKind
 
@@ -133,9 +125,7 @@ class ValidatorInputTrait(BaseModel):
         """Validate the function of the validator"""
         args_match = re.match(r"\((.*?)\)", self.function)
         if args_match:
-            args = [
-                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
-            ]
+            args = [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
             if not args:
                 raise ValueError("Function must have at least one argument")
 
@@ -154,8 +144,8 @@ class ValidatorInputTrait(BaseModel):
 class DefinitionInputTrait(BaseModel):
     """An addin trait for validating the input of a definition"""
 
-    @model_validator(mode="after")
-    def check_dependencies(cls, self: "DefinitionInputTrait") -> "DefinitionInputTrait":
+    @model_validator(mode="after")  # type: ignore[override]
+    def check_dependencies(cls, self: "DefinitionInput") -> "DefinitionInput":
         """Ensure that all dependencies in ports are valid."""
         all_arg_keys = [port.key for port in self.args]
         all_return_keys = [port.key for port in self.returns]

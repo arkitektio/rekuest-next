@@ -12,9 +12,11 @@ from rekuest_next.api.schema import (
     EffectInput,
     EffectKind,
 )
+from rekuest_next.structures.types import JSONSerializable
 from rekuest_next.definition.utils import DefaultAddin, DescriptionAddin
 from rekuest_next.scalars import SearchQuery
 from typing import Any, List
+from rekuest_next.scalars import ValidatorFunctionCoercible
 
 
 def SliderWidget(
@@ -149,9 +151,7 @@ def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
     return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
 
 
-def withChoices(
-    *choices: ChoiceInput,
-) -> AssignWidgetInput:
+def withChoices(*choices: ChoiceInput | JSONSerializable) -> AssignWidgetInput:
     """A decorator to add choices to a widget.
 
     Args:
@@ -160,7 +160,17 @@ def withChoices(
     Returns:
         AssignWidgetInput: The widget input
     """
-    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
+    if not choices:
+        raise ValueError("You need to provide at least one choice")
+
+    parsed_choices: list[ChoiceInput] = []
+
+    for choice in choices:
+        if not isinstance(choice, ChoiceInput):
+            choice = ChoiceInput(value=choice, label=str(choice))
+        parsed_choices.append(choice)
+
+    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(parsed_choices))
 
 
 def withValidator(
@@ -211,21 +221,23 @@ def withDefault(value: Any) -> DefaultAddin:
 
 def withEffect(
     kind: EffectKind,
-    function: ValidatorFunction | None = None,
+    function: ValidatorFunctionCoercible,
     dependencies: List[str] | None = None,
     message: str | None = None,
-) -> AssignWidgetInput:
+) -> EffectInput:
     """A decorator to add an effect to a widget.
 
     Args:
         effect (str): The effect to run
+        function (ValidatorFunctionCoercible): The function that checks if the effect should run
         dependencies (List[str], optional): The dependencies of the effect. Defaults to None.
+        message (str, optional): The message to show if it is a MessageEffect. Defaults to None.
 
     Returns:
         AssignWidgetInput: The widget input
     """
     return EffectInput(
-        function=function,
+        function=ValidatorFunction.validate(function),
         kind=kind,
         dependencies=tuple(dependencies) if dependencies else None,
         message=message,

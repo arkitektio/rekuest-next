@@ -26,7 +26,6 @@ def get_context_name(cls: Type[T]) -> str:
     return x
 
 
-
 def context(cls: T) -> T:
     """Mark a class as a model. This is used to
     identify the model in the rekuest_next system."""
@@ -34,8 +33,6 @@ def context(cls: T) -> T:
     setattr(cls, "__rekuest_context__", inflection.underscore(cls.__name__))
 
     return cls
-
-
 
 
 def prepare_context_variables(

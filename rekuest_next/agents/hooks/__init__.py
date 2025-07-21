@@ -1,1 +1,1 @@
-""" The module for hooks that can be used to extend the functionality of the agent."""
+"""The module for hooks that can be used to extend the functionality of the agent."""

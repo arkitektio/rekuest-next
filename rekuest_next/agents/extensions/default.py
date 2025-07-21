@@ -40,7 +40,7 @@ class DefaultExtension(BaseModel):
         default_factory=get_default_definition_registry,
         description="A global registry of all registered function/actors for this extension and all its dependencies. Think @register",
     )
-    
+
     cleanup: bool = True
     _state_lock: Optional[asyncio.Lock] = None
     _instance_id: Optional[str] = None
@@ -70,13 +70,9 @@ class DefaultExtension(BaseModel):
 
         self._state_lock = asyncio.Lock()
 
-        
-
     def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its implementations?"""
         return True
-
-    
 
     async def aspawn_actor_for_interface(
         self,
@@ -87,9 +83,7 @@ class DefaultExtension(BaseModel):
         spawining protocol within an actor. But maps implementation"""
 
         try:
-            actor_builder = self.definition_registry.get_builder_for_interface(
-                interface
-            )
+            actor_builder = self.definition_registry.get_builder_for_interface(interface)
 
         except KeyError:
             raise ExtensionError(

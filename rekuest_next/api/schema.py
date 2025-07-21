@@ -194,9 +194,7 @@ class AgentFilter(BaseModel):
     "Filter by IDs of the agents"
     extensions: Optional[Tuple[str, ...]] = None
     "Filter by extensions of the agents"
-    has_implementations: Optional[Tuple[str, ...]] = Field(
-        alias="hasImplementations", default=None
-    )
+    has_implementations: Optional[Tuple[str, ...]] = Field(alias="hasImplementations", default=None)
     "Filter by implementations of the agents"
     has_states: Optional[Tuple[str, ...]] = Field(alias="hasStates", default=None)
     "Filter by states of the agents"
@@ -231,9 +229,7 @@ class ActionDemandInput(BaseModel):
     "The name of the action. This is used to identify the action in the system."
     description: Optional[str] = None
     "The description of the action. This can described the action and its purpose."
-    arg_matches: Optional[Tuple["PortMatchInput", ...]] = Field(
-        alias="argMatches", default=None
-    )
+    arg_matches: Optional[Tuple["PortMatchInput", ...]] = Field(alias="argMatches", default=None)
     "The demands for the action args and returns. This is used to identify the demand in the system."
     return_matches: Optional[Tuple["PortMatchInput", ...]] = Field(
         alias="returnMatches", default=None
@@ -313,13 +309,9 @@ class PortDemandInput(BaseModel):
     "The matches of the demand. "
     force_length: Optional[int] = Field(alias="forceLength", default=None)
     "Require that the action has a specific number of ports. This is used to identify the demand in the system."
-    force_non_nullable_length: Optional[int] = Field(
-        alias="forceNonNullableLength", default=None
-    )
+    force_non_nullable_length: Optional[int] = Field(alias="forceNonNullableLength", default=None)
     "Require that the action has a specific number of non-nullable ports. This is used to identify the demand in the system."
-    force_structure_length: Optional[int] = Field(
-        alias="forceStructureLength", default=None
-    )
+    force_structure_length: Optional[int] = Field(alias="forceStructureLength", default=None)
     "Require that the action has a specific number of structure ports. This is used to identify the demand in the system."
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
@@ -522,12 +514,8 @@ class PortInput(PortTrait, BaseModel):
     default: Optional[Any] = None
     children: Optional[Tuple["PortInput", ...]] = None
     choices: Optional[Tuple["ChoiceInput", ...]] = None
-    assign_widget: Optional["AssignWidgetInput"] = Field(
-        alias="assignWidget", default=None
-    )
-    return_widget: Optional["ReturnWidgetInput"] = Field(
-        alias="returnWidget", default=None
-    )
+    assign_widget: Optional["AssignWidgetInput"] = Field(alias="assignWidget", default=None)
+    return_widget: Optional["ReturnWidgetInput"] = Field(alias="returnWidget", default=None)
     model_config = ConfigDict(
         frozen=True, extra="forbid", populate_by_name=True, use_enum_values=True
     )
@@ -930,9 +918,7 @@ class StateImplementationInput(BaseModel):
 class TestCaseAction(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     id: ID
     "Unique ID of the action."
     model_config = ConfigDict(frozen=True)
@@ -941,9 +927,7 @@ class TestCaseAction(BaseModel):
 class TestCase(BaseModel):
     """Defines a test case comparing expected behavior for actions."""
 
-    typename: Literal["TestCase"] = Field(
-        alias="__typename", default="TestCase", exclude=True
-    )
+    typename: Literal["TestCase"] = Field(alias="__typename", default="TestCase", exclude=True)
     id: ID
     "Unique ID of the test case."
     action: TestCaseAction
@@ -960,9 +944,7 @@ class TestCase(BaseModel):
 class TestResultCase(BaseModel):
     """Defines a test case comparing expected behavior for actions."""
 
-    typename: Literal["TestCase"] = Field(
-        alias="__typename", default="TestCase", exclude=True
-    )
+    typename: Literal["TestCase"] = Field(alias="__typename", default="TestCase", exclude=True)
     id: ID
     "Unique ID of the test case."
     model_config = ConfigDict(frozen=True)
@@ -971,9 +953,7 @@ class TestResultCase(BaseModel):
 class TestResult(BaseModel):
     """Result from executing a test case with specific implementations."""
 
-    typename: Literal["TestResult"] = Field(
-        alias="__typename", default="TestResult", exclude=True
-    )
+    typename: Literal["TestResult"] = Field(alias="__typename", default="TestResult", exclude=True)
     id: ID
     "ID of the test result."
     case: TestResultCase
@@ -997,9 +977,7 @@ class ChildPortNestedChildren(PortTrait, BaseModel):
 class ChildPortNestedChoices(BaseModel):
     """No documentation"""
 
-    typename: Literal["Choice"] = Field(
-        alias="__typename", default="Choice", exclude=True
-    )
+    typename: Literal["Choice"] = Field(alias="__typename", default="Choice", exclude=True)
     value: str
     label: str
     description: Optional[str] = Field(default=None)
@@ -1095,9 +1073,7 @@ class CustomAssignWidget(BaseModel):
 class ChoiceAssignWidgetChoices(BaseModel):
     """No documentation"""
 
-    typename: Literal["Choice"] = Field(
-        alias="__typename", default="Choice", exclude=True
-    )
+    typename: Literal["Choice"] = Field(alias="__typename", default="Choice", exclude=True)
     value: str
     label: str
     description: Optional[str] = Field(default=None)
@@ -1130,9 +1106,7 @@ class CustomReturnWidget(BaseModel):
 class ChoiceReturnWidgetChoices(BaseModel):
     """No documentation"""
 
-    typename: Literal["Choice"] = Field(
-        alias="__typename", default="Choice", exclude=True
-    )
+    typename: Literal["Choice"] = Field(alias="__typename", default="Choice", exclude=True)
     label: str
     value: str
     description: Optional[str] = Field(default=None)
@@ -1152,9 +1126,7 @@ class ChoiceReturnWidget(BaseModel):
 class AgentRegistryClient(BaseModel):
     """Represents a registered OAuth2 client."""
 
-    typename: Literal["Client"] = Field(
-        alias="__typename", default="Client", exclude=True
-    )
+    typename: Literal["Client"] = Field(alias="__typename", default="Client", exclude=True)
     id: ID
     "Unique ID of the client."
     model_config = ConfigDict(frozen=True)
@@ -1172,9 +1144,7 @@ class AgentRegistryUser(BaseModel):
 class AgentRegistry(BaseModel):
     """Links a user and a client for registry tracking."""
 
-    typename: Literal["Registry"] = Field(
-        alias="__typename", default="Registry", exclude=True
-    )
+    typename: Literal["Registry"] = Field(alias="__typename", default="Registry", exclude=True)
     client: AgentRegistryClient
     "The associated client."
     user: AgentRegistryUser
@@ -1196,16 +1166,12 @@ class AgentMemoryshelve(BaseModel):
 class Agent(BaseModel):
     """Represents a compute agent that can execute implementations."""
 
-    typename: Literal["Agent"] = Field(
-        alias="__typename", default="Agent", exclude=True
-    )
+    typename: Literal["Agent"] = Field(alias="__typename", default="Agent", exclude=True)
     id: ID
     "Unique ID of the agent."
     registry: AgentRegistry
     "Registry entry this agent belongs to."
-    memory_shelve: Optional[AgentMemoryshelve] = Field(
-        default=None, alias="memoryShelve"
-    )
+    memory_shelve: Optional[AgentMemoryshelve] = Field(default=None, alias="memoryShelve")
     "Agent's associated memory shelve."
     model_config = ConfigDict(frozen=True)
 
@@ -1219,28 +1185,20 @@ class DashboardUitreeChildBase(BaseModel):
 class DashboardUitreeChildBaseUIGrid(DashboardUitreeChildBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["UIGrid"] = Field(
-        alias="__typename", default="UIGrid", exclude=True
-    )
-    typename: Literal["UIGrid"] = Field(
-        alias="__typename", default="UIGrid", exclude=True
-    )
+    typename: Literal["UIGrid"] = Field(alias="__typename", default="UIGrid", exclude=True)
+    typename: Literal["UIGrid"] = Field(alias="__typename", default="UIGrid", exclude=True)
 
 
 class DashboardUitreeChildBaseUISplit(DashboardUitreeChildBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["UISplit"] = Field(
-        alias="__typename", default="UISplit", exclude=True
-    )
+    typename: Literal["UISplit"] = Field(alias="__typename", default="UISplit", exclude=True)
 
 
 class DashboardUitreeChildBaseUIState(DashboardUitreeChildBase, BaseModel):
     """No documentation"""
 
-    typename: Literal["UIState"] = Field(
-        alias="__typename", default="UIState", exclude=True
-    )
+    typename: Literal["UIState"] = Field(alias="__typename", default="UIState", exclude=True)
 
 
 class DashboardUitreeChildBaseCatchAll(DashboardUitreeChildBase, BaseModel):
@@ -1252,9 +1210,7 @@ class DashboardUitreeChildBaseCatchAll(DashboardUitreeChildBase, BaseModel):
 class DashboardUitree(BaseModel):
     """No documentation"""
 
-    typename: Literal["UITree"] = Field(
-        alias="__typename", default="UITree", exclude=True
-    )
+    typename: Literal["UITree"] = Field(alias="__typename", default="UITree", exclude=True)
     child: Union[
         Annotated[
             Union[
@@ -1272,9 +1228,7 @@ class DashboardUitree(BaseModel):
 class Dashboard(BaseModel):
     """No documentation"""
 
-    typename: Literal["Dashboard"] = Field(
-        alias="__typename", default="Dashboard", exclude=True
-    )
+    typename: Literal["Dashboard"] = Field(alias="__typename", default="Dashboard", exclude=True)
     id: ID
     name: Optional[str] = Field(default=None)
     ui_tree: Optional[DashboardUitree] = Field(default=None, alias="uiTree")
@@ -1369,9 +1323,7 @@ class AssignationEvent(BaseModel):
 class Toolbox(BaseModel):
     """A collection of shortcuts grouped as a toolbox."""
 
-    typename: Literal["Toolbox"] = Field(
-        alias="__typename", default="Toolbox", exclude=True
-    )
+    typename: Literal["Toolbox"] = Field(alias="__typename", default="Toolbox", exclude=True)
     id: ID
     "Toolbox ID."
     name: str
@@ -1384,9 +1336,7 @@ class Toolbox(BaseModel):
 class ListToolbox(BaseModel):
     """A collection of shortcuts grouped as a toolbox."""
 
-    typename: Literal["Toolbox"] = Field(
-        alias="__typename", default="Toolbox", exclude=True
-    )
+    typename: Literal["Toolbox"] = Field(alias="__typename", default="Toolbox", exclude=True)
     id: ID
     "Toolbox ID."
     name: str
@@ -1399,9 +1349,7 @@ class ListToolbox(BaseModel):
 class PrimaryAction(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     name: str
     "Name of the action."
     id: ID
@@ -1416,9 +1364,7 @@ class PrimaryAction(BaseModel):
 class ChildPortChoices(BaseModel):
     """No documentation"""
 
-    typename: Literal["Choice"] = Field(
-        alias="__typename", default="Choice", exclude=True
-    )
+    typename: Literal["Choice"] = Field(alias="__typename", default="Choice", exclude=True)
     value: str
     label: str
     description: Optional[str] = Field(default=None)
@@ -1487,9 +1433,7 @@ class PortAssignWidgetCatch(PortAssignWidgetBase):
     kind: AssignWidgetKind
 
 
-class PortAssignWidgetSliderAssignWidget(
-    SliderAssignWidget, PortAssignWidgetBase, BaseModel
-):
+class PortAssignWidgetSliderAssignWidget(SliderAssignWidget, PortAssignWidgetBase, BaseModel):
     """No documentation"""
 
     typename: Literal["SliderAssignWidget"] = Field(
@@ -1497,9 +1441,7 @@ class PortAssignWidgetSliderAssignWidget(
     )
 
 
-class PortAssignWidgetChoiceAssignWidget(
-    ChoiceAssignWidget, PortAssignWidgetBase, BaseModel
-):
+class PortAssignWidgetChoiceAssignWidget(ChoiceAssignWidget, PortAssignWidgetBase, BaseModel):
     """No documentation"""
 
     typename: Literal["ChoiceAssignWidget"] = Field(
@@ -1507,9 +1449,7 @@ class PortAssignWidgetChoiceAssignWidget(
     )
 
 
-class PortAssignWidgetSearchAssignWidget(
-    SearchAssignWidget, PortAssignWidgetBase, BaseModel
-):
+class PortAssignWidgetSearchAssignWidget(SearchAssignWidget, PortAssignWidgetBase, BaseModel):
     """No documentation"""
 
     typename: Literal["SearchAssignWidget"] = Field(
@@ -1525,9 +1465,7 @@ class PortAssignWidgetStateChoiceAssignWidget(PortAssignWidgetBase, BaseModel):
     )
 
 
-class PortAssignWidgetStringAssignWidget(
-    StringAssignWidget, PortAssignWidgetBase, BaseModel
-):
+class PortAssignWidgetStringAssignWidget(StringAssignWidget, PortAssignWidgetBase, BaseModel):
     """No documentation"""
 
     typename: Literal["StringAssignWidget"] = Field(
@@ -1535,9 +1473,7 @@ class PortAssignWidgetStringAssignWidget(
     )
 
 
-class PortAssignWidgetCustomAssignWidget(
-    CustomAssignWidget, PortAssignWidgetBase, BaseModel
-):
+class PortAssignWidgetCustomAssignWidget(CustomAssignWidget, PortAssignWidgetBase, BaseModel):
     """No documentation"""
 
     typename: Literal["CustomAssignWidget"] = Field(
@@ -1693,9 +1629,7 @@ class PortReturnwidgetBaseCatchAll(PortReturnwidgetBase, BaseModel):
 class PortChoices(BaseModel):
     """No documentation"""
 
-    typename: Literal["Choice"] = Field(
-        alias="__typename", default="Choice", exclude=True
-    )
+    typename: Literal["Choice"] = Field(alias="__typename", default="Choice", exclude=True)
     value: str
     label: str
     description: Optional[str] = Field(default=None)
@@ -1705,9 +1639,7 @@ class PortChoices(BaseModel):
 class PortValidators(BaseModel):
     """No documentation"""
 
-    typename: Literal["Validator"] = Field(
-        alias="__typename", default="Validator", exclude=True
-    )
+    typename: Literal["Validator"] = Field(alias="__typename", default="Validator", exclude=True)
     function: ValidatorFunction
     error_message: Optional[str] = Field(default=None, alias="errorMessage")
     dependencies: Optional[Tuple[str, ...]] = Field(default=None)
@@ -1803,9 +1735,7 @@ class Port(PortTrait, BaseModel):
 class ListShortcutAction(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     id: ID
     "Unique ID of the action."
     hash: ActionHash
@@ -1816,9 +1746,7 @@ class ListShortcutAction(BaseModel):
 class ListShortcut(BaseModel):
     """Shortcut to an action with preset arguments."""
 
-    typename: Literal["Shortcut"] = Field(
-        alias="__typename", default="Shortcut", exclude=True
-    )
+    typename: Literal["Shortcut"] = Field(alias="__typename", default="Shortcut", exclude=True)
     id: ID
     "Shortcut ID."
     name: str
@@ -1855,9 +1783,7 @@ class StateSchema(BaseModel):
 class DefinitionCollections(BaseModel):
     """A grouping of actions."""
 
-    typename: Literal["Collection"] = Field(
-        alias="__typename", default="Collection", exclude=True
-    )
+    typename: Literal["Collection"] = Field(alias="__typename", default="Collection", exclude=True)
     name: str
     "Name of the collection."
     model_config = ConfigDict(frozen=True)
@@ -1866,9 +1792,7 @@ class DefinitionCollections(BaseModel):
 class DefinitionIstestfor(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     id: ID
     "Unique ID of the action."
     model_config = ConfigDict(frozen=True)
@@ -1877,9 +1801,7 @@ class DefinitionIstestfor(BaseModel):
 class DefinitionPortgroups(BaseModel):
     """No documentation"""
 
-    typename: Literal["PortGroup"] = Field(
-        alias="__typename", default="PortGroup", exclude=True
-    )
+    typename: Literal["PortGroup"] = Field(alias="__typename", default="PortGroup", exclude=True)
     key: str
     model_config = ConfigDict(frozen=True)
 
@@ -1887,9 +1809,7 @@ class DefinitionPortgroups(BaseModel):
 class Definition(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     args: Tuple[Port, ...]
     "Input arguments (ports) for the action."
     returns: Tuple[Port, ...]
@@ -1918,9 +1838,7 @@ class Definition(BaseModel):
 class ListAction(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     id: ID
     "Unique ID of the action."
     name: str
@@ -1939,9 +1857,7 @@ class ListAction(BaseModel):
 class StateAgent(BaseModel):
     """Represents a compute agent that can execute implementations."""
 
-    typename: Literal["Agent"] = Field(
-        alias="__typename", default="Agent", exclude=True
-    )
+    typename: Literal["Agent"] = Field(alias="__typename", default="Agent", exclude=True)
     id: ID
     "Unique ID of the agent."
     model_config = ConfigDict(frozen=True)
@@ -1950,9 +1866,7 @@ class StateAgent(BaseModel):
 class State(BaseModel):
     """No documentation"""
 
-    typename: Literal["State"] = Field(
-        alias="__typename", default="State", exclude=True
-    )
+    typename: Literal["State"] = Field(alias="__typename", default="State", exclude=True)
     id: ID
     value: Args
     state_schema: StateSchema = Field(alias="stateSchema")
@@ -1964,9 +1878,7 @@ class State(BaseModel):
 class Action(Definition, BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     hash: ActionHash
     "Unique hash identifying the action definition."
     id: ID
@@ -1977,9 +1889,7 @@ class Action(Definition, BaseModel):
 class ReservationWaiter(BaseModel):
     """Entity that waits for the completion of assignations."""
 
-    typename: Literal["Waiter"] = Field(
-        alias="__typename", default="Waiter", exclude=True
-    )
+    typename: Literal["Waiter"] = Field(alias="__typename", default="Waiter", exclude=True)
     id: ID
     "Unique ID of the waiter."
     model_config = ConfigDict(frozen=True)
@@ -2007,9 +1917,7 @@ class Reservation(BaseModel):
 class Shortcut(BaseModel):
     """Shortcut to an action with preset arguments."""
 
-    typename: Literal["Shortcut"] = Field(
-        alias="__typename", default="Shortcut", exclude=True
-    )
+    typename: Literal["Shortcut"] = Field(alias="__typename", default="Shortcut", exclude=True)
     id: ID
     "Shortcut ID."
     name: str
@@ -2032,9 +1940,7 @@ class Shortcut(BaseModel):
 class ImplementationAgentRegistry(BaseModel):
     """Links a user and a client for registry tracking."""
 
-    typename: Literal["Registry"] = Field(
-        alias="__typename", default="Registry", exclude=True
-    )
+    typename: Literal["Registry"] = Field(alias="__typename", default="Registry", exclude=True)
     id: ID
     "Unique identifier for the registry."
     model_config = ConfigDict(frozen=True)
@@ -2043,9 +1949,7 @@ class ImplementationAgentRegistry(BaseModel):
 class ImplementationAgent(BaseModel):
     """Represents a compute agent that can execute implementations."""
 
-    typename: Literal["Agent"] = Field(
-        alias="__typename", default="Agent", exclude=True
-    )
+    typename: Literal["Agent"] = Field(alias="__typename", default="Agent", exclude=True)
     registry: ImplementationAgentRegistry
     "Registry entry this agent belongs to."
     model_config = ConfigDict(frozen=True)
@@ -2303,9 +2207,7 @@ class CollectMutation(BaseModel):
     class Meta:
         """Meta class for collect"""
 
-        document = (
-            "mutation collect($input: CollectInput!) {\n  collect(input: $input)\n}"
-        )
+        document = "mutation collect($input: CollectInput!) {\n  collect(input: $input)\n}"
 
 
 class CreateDashboardMutation(BaseModel):
@@ -2505,9 +2407,7 @@ class Get_testresultQuery(BaseModel):
 class Search_testcasesQueryOptions(BaseModel):
     """Defines a test case comparing expected behavior for actions."""
 
-    typename: Literal["TestCase"] = Field(
-        alias="__typename", default="TestCase", exclude=True
-    )
+    typename: Literal["TestCase"] = Field(alias="__typename", default="TestCase", exclude=True)
     label: str
     "Short name for the test case."
     value: ID
@@ -2537,9 +2437,7 @@ class Search_testcasesQuery(BaseModel):
 class Search_testresultsQueryOptions(BaseModel):
     """Result from executing a test case with specific implementations."""
 
-    typename: Literal["TestResult"] = Field(
-        alias="__typename", default="TestResult", exclude=True
-    )
+    typename: Literal["TestResult"] = Field(alias="__typename", default="TestResult", exclude=True)
     label: datetime
     "When the test was executed."
     value: ID
@@ -2569,9 +2467,7 @@ class Search_testresultsQuery(BaseModel):
 class GetMeActionsQueryActions(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     id: ID
     "Unique ID of the action."
     name: str
@@ -2927,9 +2823,7 @@ class RetrieveallQuery(BaseModel):
 class SearchActionsQueryOptions(BaseModel):
     """Represents an executable action in the system."""
 
-    typename: Literal["Action"] = Field(
-        alias="__typename", default="Action", exclude=True
-    )
+    typename: Literal["Action"] = Field(alias="__typename", default="Action", exclude=True)
     label: str
     "Name of the action."
     value: ID
@@ -3478,9 +3372,7 @@ def reserve(
     ).reserve
 
 
-async def aunreserve(
-    reservation: IDCoercible, rath: Optional[RekuestNextRath] = None
-) -> str:
+async def aunreserve(reservation: IDCoercible, rath: Optional[RekuestNextRath] = None) -> str:
     """unreserve
 
     Release a reserved implementation.
@@ -3493,9 +3385,7 @@ async def aunreserve(
         str
     """
     return (
-        await aexecute(
-            UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
-        )
+        await aexecute(UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath)
     ).unreserve
 
 
@@ -3511,9 +3401,7 @@ def unreserve(reservation: IDCoercible, rath: Optional[RekuestNextRath] = None) 
     Returns:
         str
     """
-    return execute(
-        UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath
-    ).unreserve
+    return execute(UnreserveMutation, {"input": {"reservation": reservation}}, rath=rath).unreserve
 
 
 async def acreate_shortcut(
@@ -3756,9 +3644,7 @@ def assign(
     ).assign
 
 
-async def acancel(
-    assignation: IDCoercible, rath: Optional[RekuestNextRath] = None
-) -> Assignation:
+async def acancel(assignation: IDCoercible, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """cancel
 
     Cancel an active assignation.
@@ -3771,15 +3657,11 @@ async def acancel(
         Assignation
     """
     return (
-        await aexecute(
-            CancelMutation, {"input": {"assignation": assignation}}, rath=rath
-        )
+        await aexecute(CancelMutation, {"input": {"assignation": assignation}}, rath=rath)
     ).cancel
 
 
-def cancel(
-    assignation: IDCoercible, rath: Optional[RekuestNextRath] = None
-) -> Assignation:
+def cancel(assignation: IDCoercible, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """cancel
 
     Cancel an active assignation.
@@ -3791,9 +3673,7 @@ def cancel(
     Returns:
         Assignation
     """
-    return execute(
-        CancelMutation, {"input": {"assignation": assignation}}, rath=rath
-    ).cancel
+    return execute(CancelMutation, {"input": {"assignation": assignation}}, rath=rath).cancel
 
 
 async def ainterrupt(
@@ -3811,15 +3691,11 @@ async def ainterrupt(
         Assignation
     """
     return (
-        await aexecute(
-            InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
-        )
+        await aexecute(InterruptMutation, {"input": {"assignation": assignation}}, rath=rath)
     ).interrupt
 
 
-def interrupt(
-    assignation: IDCoercible, rath: Optional[RekuestNextRath] = None
-) -> Assignation:
+def interrupt(assignation: IDCoercible, rath: Optional[RekuestNextRath] = None) -> Assignation:
     """interrupt
 
     Interrupt the execution of an assignation.
@@ -3831,9 +3707,7 @@ def interrupt(
     Returns:
         Assignation
     """
-    return execute(
-        InterruptMutation, {"input": {"assignation": assignation}}, rath=rath
-    ).interrupt
+    return execute(InterruptMutation, {"input": {"assignation": assignation}}, rath=rath).interrupt
 
 
 async def acollect(
@@ -3850,9 +3724,7 @@ async def acollect(
     Returns:
         List[str]
     """
-    return (
-        await aexecute(CollectMutation, {"input": {"drawers": drawers}}, rath=rath)
-    ).collect
+    return (await aexecute(CollectMutation, {"input": {"drawers": drawers}}, rath=rath)).collect
 
 
 def collect(
@@ -4004,9 +3876,7 @@ def shelve(
     ).shelve_in_memory_drawer
 
 
-async def aunshelve(
-    instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None
-) -> ID:
+async def aunshelve(instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None) -> ID:
     """unshelve
 
     Unshelve data from a memory drawer.
@@ -4028,9 +3898,7 @@ async def aunshelve(
     ).unshelve_memory_drawer
 
 
-def unshelve(
-    instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None
-) -> ID:
+def unshelve(instance_id: InstanceId, id: str, rath: Optional[RekuestNextRath] = None) -> ID:
     """unshelve
 
     Unshelve data from a memory drawer.
@@ -4262,9 +4130,7 @@ def watch_reservations(
     Returns:
         Reservation
     """
-    for event in subscribe(
-        WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
+    for event in subscribe(WatchReservationsSubscription, {"instanceId": instance_id}, rath=rath):
         yield event.reservations
 
 
@@ -4302,9 +4168,7 @@ def watch_assignations(
     Returns:
         AssignationChangeEvent
     """
-    for event in subscribe(
-        WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath
-    ):
+    for event in subscribe(WatchAssignationsSubscription, {"instanceId": instance_id}, rath=rath):
         yield event.assignations
 
 
@@ -4386,9 +4250,7 @@ async def asearch_testcases(
         List[Search_testcasesQueryTestcases]
     """
     return (
-        await aexecute(
-            Search_testcasesQuery, {"search": search, "values": values}, rath=rath
-        )
+        await aexecute(Search_testcasesQuery, {"search": search, "values": values}, rath=rath)
     ).options
 
 
@@ -4409,9 +4271,7 @@ def search_testcases(
     Returns:
         List[Search_testcasesQueryTestcases]
     """
-    return execute(
-        Search_testcasesQuery, {"search": search, "values": values}, rath=rath
-    ).options
+    return execute(Search_testcasesQuery, {"search": search, "values": values}, rath=rath).options
 
 
 async def asearch_testresults(
@@ -4432,9 +4292,7 @@ async def asearch_testresults(
         List[Search_testresultsQueryTestresults]
     """
     return (
-        await aexecute(
-            Search_testresultsQuery, {"search": search, "values": values}, rath=rath
-        )
+        await aexecute(Search_testresultsQuery, {"search": search, "values": values}, rath=rath)
     ).options
 
 
@@ -4455,9 +4313,7 @@ def search_testresults(
     Returns:
         List[Search_testresultsQueryTestresults]
     """
-    return execute(
-        Search_testresultsQuery, {"search": search, "values": values}, rath=rath
-    ).options
+    return execute(Search_testresultsQuery, {"search": search, "values": values}, rath=rath).options
 
 
 async def aget_me_actions(
@@ -4540,9 +4396,7 @@ async def alist_agents(
         List[Agent]
     """
     return (
-        await aexecute(
-            ListAgentsQuery, {"filters": filters, "pagination": pagination}, rath=rath
-        )
+        await aexecute(ListAgentsQuery, {"filters": filters, "pagination": pagination}, rath=rath)
     ).agents
 
 
@@ -4568,9 +4422,7 @@ def list_agents(
     ).agents
 
 
-async def aget_reservation(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> Reservation:
+async def aget_reservation(id: ID, rath: Optional[RekuestNextRath] = None) -> Reservation:
     """get_reservation
 
     Retrieve reservation by ID.
@@ -4614,9 +4466,7 @@ async def areservations(
     Returns:
         List[Reservation]
     """
-    return (
-        await aexecute(ReservationsQuery, {"instance_id": instance_id}, rath=rath)
-    ).reservations
+    return (await aexecute(ReservationsQuery, {"instance_id": instance_id}, rath=rath)).reservations
 
 
 def reservations(
@@ -4633,9 +4483,7 @@ def reservations(
     Returns:
         List[Reservation]
     """
-    return execute(
-        ReservationsQuery, {"instance_id": instance_id}, rath=rath
-    ).reservations
+    return execute(ReservationsQuery, {"instance_id": instance_id}, rath=rath).reservations
 
 
 async def alist_shortcuts(
@@ -4736,9 +4584,7 @@ async def arequests(
     Returns:
         List[Assignation]
     """
-    return (
-        await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)
-    ).assignations
+    return (await aexecute(RequestsQuery, {"instance_id": instance_id}, rath=rath)).assignations
 
 
 def requests(
@@ -4906,9 +4752,7 @@ def get_toolbox(id: ID, rath: Optional[RekuestNextRath] = None) -> Toolbox:
     return execute(GetToolboxQuery, {"id": id}, rath=rath).toolbox
 
 
-async def aget_implementation(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> Implementation:
+async def aget_implementation(id: ID, rath: Optional[RekuestNextRath] = None) -> Implementation:
     """get_implementation
 
     Get implementation by ID.
@@ -4920,14 +4764,10 @@ async def aget_implementation(
     Returns:
         Implementation
     """
-    return (
-        await aexecute(Get_implementationQuery, {"id": id}, rath=rath)
-    ).implementation
+    return (await aexecute(Get_implementationQuery, {"id": id}, rath=rath)).implementation
 
 
-def get_implementation(
-    id: ID, rath: Optional[RekuestNextRath] = None
-) -> Implementation:
+def get_implementation(id: ID, rath: Optional[RekuestNextRath] = None) -> Implementation:
     """get_implementation
 
     Get implementation by ID.
@@ -4960,9 +4800,7 @@ async def asearch_implementations(
         List[Search_implementationsQueryImplementations]
     """
     return (
-        await aexecute(
-            Search_implementationsQuery, {"search": search, "values": values}, rath=rath
-        )
+        await aexecute(Search_implementationsQuery, {"search": search, "values": values}, rath=rath)
     ).options
 
 
@@ -5002,9 +4840,7 @@ async def aimplementations_for(
     Returns:
         List[Implementation]
     """
-    return (
-        await aexecute(Implementations_forQuery, {"hash": hash}, rath=rath)
-    ).implementations
+    return (await aexecute(Implementations_forQuery, {"hash": hash}, rath=rath)).implementations
 
 
 def implementations_for(
@@ -5176,9 +5012,7 @@ async def asearch_actions(
         List[SearchActionsQueryActions]
     """
     return (
-        await aexecute(
-            SearchActionsQuery, {"search": search, "values": values}, rath=rath
-        )
+        await aexecute(SearchActionsQuery, {"search": search, "values": values}, rath=rath)
     ).options
 
 
@@ -5199,9 +5033,7 @@ def search_actions(
     Returns:
         List[SearchActionsQueryActions]
     """
-    return execute(
-        SearchActionsQuery, {"search": search, "values": values}, rath=rath
-    ).options
+    return execute(SearchActionsQuery, {"search": search, "values": values}, rath=rath).options
 
 
 async def alist_actions(
@@ -5222,9 +5054,7 @@ async def alist_actions(
         List[ListAction]
     """
     return (
-        await aexecute(
-            ListActionsQuery, {"filters": filters, "pagination": pagination}, rath=rath
-        )
+        await aexecute(ListActionsQuery, {"filters": filters, "pagination": pagination}, rath=rath)
     ).actions
 
 

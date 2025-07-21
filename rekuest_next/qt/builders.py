@@ -36,9 +36,7 @@ class QtInLoopBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(
-            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True
-        )
+        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True)
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -83,9 +81,7 @@ class QtFutureBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(
-            lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False
-        )
+        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False)
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -256,9 +252,7 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError(
-            "The function needs to have a QtGenerator as its first parameter"
-        )
+        raise ValueError("The function needs to have a QtGenerator as its first parameter")
 
     return_params = get_args(first)
 

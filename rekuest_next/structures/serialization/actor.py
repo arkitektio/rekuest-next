@@ -45,9 +45,7 @@ async def aexpand_arg(
         if port.nullable:
             return None
         else:
-            raise ExpandingError(
-                f"{port.key} is not nullable (optional) but received None"
-            )
+            raise ExpandingError(f"{port.key} is not nullable (optional) but received None")
 
     if not isinstance(value, (str, int, float, dict, list)):  # type: ignore
         raise ExpandingError(
@@ -181,9 +179,7 @@ async def aexpand_arg(
                     " models with children"
                 )
 
-            expandend_params = {
-                port.key: val for port, val in zip(port.children, expanded_args)
-            }
+            expandend_params = {port.key: val for port, val in zip(port.children, expanded_args)}
 
             if not port.identifier:
                 raise ExpandingError(
@@ -232,15 +228,11 @@ async def aexpand_arg(
         if fenum:
             if isinstance(value, str):
                 if value not in fenum.cls.__members__:
-                    raise ExpandingError(
-                        f"Enum {port.identifier} does not have {value} as member"
-                    )
+                    raise ExpandingError(f"Enum {port.identifier} does not have {value} as member")
                 return fenum.cls[value]
             if isinstance(value, int):
                 if value not in fenum.cls.__members__.values():
-                    raise ExpandingError(
-                        f"Enum {port.identifier} does not have {value} as member"
-                    )
+                    raise ExpandingError(f"Enum {port.identifier} does not have {value} as member")
                 return fenum.cls(value)
             else:
                 raise ExpandingError(
@@ -330,16 +322,12 @@ async def expand_inputs(
                 ]
             )
 
-            expandend_params = {
-                port.key: val for port, val in zip(definition.args, expanded_args)
-            }
+            expandend_params = {port.key: val for port, val in zip(definition.args, expanded_args)}
 
         except Exception as e:
             raise ExpandingError(f"Couldn't expand Arguments {args}: {e}") from e
     else:
-        expandend_params = {
-            port.key: args.get(port.key, None) for port in definition.args
-        }
+        expandend_params = {port.key: args.get(port.key, None) for port in definition.args}
 
     return expandend_params
 
@@ -369,15 +357,11 @@ async def ashrink_return(
             if port.nullable:
                 return None
             else:
-                raise ValueError(
-                    f"{port} is not nullable (optional) but your provided None"
-                )
+                raise ValueError(f"{port} is not nullable (optional) but your provided None")
 
         if port.kind == PortKind.UNION:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is union but does not have children {port.children}"
-                )
+                raise ShrinkingError(f"Port is union but does not have children {port.children}")
 
             for index, possible_port in enumerate(port.children):
                 if predicate_port_input(possible_port, value, structure_registry):
@@ -397,19 +381,13 @@ async def ashrink_return(
 
         if port.kind == PortKind.DICT:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is dict but does not have children {port.children}"
-                )
+                raise ShrinkingError(f"Port is dict but does not have children {port.children}")
 
             if not isinstance(value, dict):
-                raise ShrinkingError(
-                    f"Port is dict but value is not a dict {port.children}"
-                )
+                raise ShrinkingError(f"Port is dict but value is not a dict {port.children}")
 
             if len(port.children) != 1:
-                raise ShrinkingError(
-                    f"Port is dict but has more than one child {port.children}"
-                )
+                raise ShrinkingError(f"Port is dict but has more than one child {port.children}")
             dict_port = port.children[0]
 
             assert isinstance(value, dict), f"Expected dict got {value}"
@@ -427,14 +405,10 @@ async def ashrink_return(
             assert isinstance(value, list), f"Expected list got {value}"
 
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is list but does not have children {port.children}"
-                )
+                raise ShrinkingError(f"Port is list but does not have children {port.children}")
 
             if len(port.children) != 1:
-                raise ShrinkingError(
-                    f"Port is list but has more than one child {port.children}"
-                )
+                raise ShrinkingError(f"Port is list but has more than one child {port.children}")
 
             return await asyncio.gather(
                 *[
@@ -450,9 +424,7 @@ async def ashrink_return(
 
         if port.kind == PortKind.MODEL:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is model but does not have children {port.children}"
-                )
+                raise ShrinkingError(f"Port is model but does not have children {port.children}")
             if not port.identifier:
                 raise ShrinkingError(
                     f"Port is model but does not have identifier {port.identifier}"
@@ -476,16 +448,12 @@ async def ashrink_return(
                         f"Port is model but does not have children {port.children}"
                     )
 
-                shrinked_params = {
-                    port.key: val for port, val in zip(port.children, shrinked_args)
-                }
+                shrinked_params = {port.key: val for port, val in zip(port.children, shrinked_args)}
 
                 return shrinked_params
 
             except Exception as e:
-                raise PortShrinkingError(
-                    f"Couldn't shrink Children {port.children}"
-                ) from e
+                raise PortShrinkingError(f"Couldn't shrink Children {port.children}") from e
 
         if port.kind == PortKind.INT:
             assert isinstance(value, int), f"Expected int got {value}"
@@ -507,9 +475,7 @@ async def ashrink_return(
                     f"Port is memory structure but does not have identifier {port.identifier}"
                 )
 
-            return await shelver.aput_on_shelve(
-                Identifier.validate(port.identifier), value
-            )
+            return await shelver.aput_on_shelve(Identifier.validate(port.identifier), value)
 
         if port.kind == PortKind.STRUCTURE:
             if not port.identifier:
@@ -566,9 +532,7 @@ async def ashrink_return(
         raise NotImplementedError(f"Should be implemented by subclass {port}")
 
     except Exception as e:
-        raise PortShrinkingError(
-            f"Couldn't shrink value {value} with port {port}"
-        ) from e
+        raise PortShrinkingError(f"Couldn't shrink value {value} with port {port}") from e
 
 
 async def shrink_outputs(
@@ -597,8 +561,8 @@ async def shrink_outputs(
     elif not isinstance(returns, tuple):
         returns = [returns]
 
-    assert (
-        len(action.returns) == len(returns)
+    assert len(action.returns) == len(
+        returns
     ), (  # We are dealing with a single output, convert it to a proper port like structure
         f"Mismatch in Return Length: expected {len(action.returns)} got {len(returns)}"
     )
@@ -610,9 +574,7 @@ async def shrink_outputs(
         ]
         try:
             shrinked_returns = await asyncio.gather(*shrinked_returns_future)
-            return {
-                port.key: val for port, val in zip(action.returns, shrinked_returns)
-            }
+            return {port.key: val for port, val in zip(action.returns, shrinked_returns)}
         except Exception as e:
             raise ShrinkingError(f"Couldn't shrink Returns {returns}: {str(e)}") from e
     else:

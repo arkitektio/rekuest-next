@@ -27,10 +27,10 @@ def null_function(x: Optional[int]) -> None:
     Returns:
         Representation: The Returned Representation
     """
-    return "tested"
+    return None
 
 
-def plain_basic_function(rep: str, name: str = None) -> str:
+def plain_basic_function(rep: str, name: str | None = None) -> str:
     """Karl
 
     Karl takes a a representation and does magic stuff
@@ -59,7 +59,7 @@ def plain_structure_function(
     Returns:
         SecondSerializableObject: The Returned Representation
     """
-    return "tested"
+    return SecondSerializableObject("tested")
 
 
 def union_structure_function(
@@ -76,7 +76,11 @@ def union_structure_function(
     Returns:
         SecondSerializableObject: The Returned Representation
     """
-    return "tested"
+    return (
+        SerializableObject(number=6)
+        if isinstance(rep, SerializableObject)
+        else SecondSerializableObject("tested")
+    )
 
 
 def nested_basic_function(
