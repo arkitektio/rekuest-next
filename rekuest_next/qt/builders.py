@@ -7,7 +7,7 @@ This allow the async patterns of actors to extend to the Qt world.
 import inspect
 from typing import Any, AsyncGenerator, Callable, Tuple, get_args, get_origin
 from qtpy import QtCore, QtWidgets
-from koil.qt import QtGenerator, QtFuture
+from koil.qt import QtGenerator, QtFuture, qt_to_async
 from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
 
 from rekuest_next.definition.define import prepare_definition, DefinitionInput
@@ -36,15 +36,21 @@ class QtInLoopBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=True)
+        self.wrapped_function = assign
+        self.coro = qt_to_async(self.qt_assign)
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
         self.definition = definition
 
+    def qt_assign(self, future: QtFuture[Any], *args, **kwargs) -> None:
+        """Assigns the future to the coroutine."""
+        future.resolve(self.wrapped_function(*args, **kwargs))
+
     async def on_assign(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         """Runs in the same thread as the koil instance."""
-        return await self.coro.acall(*args, **kwargs)
+        print("CALLIGN ON ASSIGN", args, kwargs)
+        return await self.coro.acall(**kwargs)
 
     def build(self, agent: Agent) -> "FunctionalFuncActor":
         """Builds the actor."""
@@ -81,7 +87,7 @@ class QtFutureBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.coro = QtCoro(lambda *args, **kwargs: assign(*args, **kwargs), autoresolve=False)
+        self.coro = qt_to_async(lambda *args, **kwargs: assign(*args, **kwargs))
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -165,7 +171,7 @@ def qtinloopactifier(
     and signals.
     """
 
-    definition = prepare_definition(function, structure_registry, **kwargs)
+    definition = prepare_definition(function, structure_registry)
 
     in_loop_instance = QtInLoopBuilder(
         parent=parent,
@@ -252,7 +258,9 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError("The function needs to have a QtGenerator as its first parameter")
+        raise ValueError(
+            "The function needs to have a QtGenerator as its first parameter"
+        )
 
     return_params = get_args(first)
 

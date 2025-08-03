@@ -75,7 +75,7 @@ class HooksRegistry(BaseModel):
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 
     _background_tasks: Dict[str, asyncio.Task[None]] = {}
-    startup_timeout: float | None = 3
+    startup_timeout: float | None = 20
     """Timeout for the startup hooks, if None, no timeout is set"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
