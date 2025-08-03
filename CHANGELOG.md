@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.2 (2025-08-03)
+
+### Bug Fixes
+
+- Startup timeout to higher value
+  ([`65227b9`](https://github.com/arkitektio/rekuest-next/commit/65227b93a5f2a044436b7cb53f2b2bb5e9631216))
+
+
 ## v0.13.1 (2025-07-21)
 
 ### Bug Fixes
