@@ -108,10 +108,14 @@ class Assign(Message):
     reference: Optional[str] = Field(
         default=None, description="A reference that the assinger provided"
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(description="The arguments that was sendend")
+    args: Dict[str, ShallowJSONSerializable] = Field(
+        description="The arguments that was sendend"
+    )
     message: Optional[str] = None
     user: str = Field(description="The assining user that was sendend")
     app: str = Field(description="The assinging app")
+    org: str = Field(description="The assinging organization")
+    action: str = Field(description="The assinging action HASH not id")
 
     @property
     def actor_id(self) -> str:
@@ -357,7 +361,9 @@ class HeartbeatEvent(Message):
     heartbeat events, but only reply to them.
     """
 
-    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = FromAgentMessageType.HEARTBEAT_ANSWER
+    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
+        FromAgentMessageType.HEARTBEAT_ANSWER
+    )
 
 
 class AssignInquiry(BaseModel):
@@ -400,7 +406,9 @@ class Init(Message):
     inquiries: list[AssignInquiry] = []
 
 
-ToAgentMessage = Union[Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect]
+ToAgentMessage = Union[
+    Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect
+]
 FromAgentMessage = Union[
     CriticalEvent,
     LogEvent,

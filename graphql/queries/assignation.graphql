@@ -1,4 +1,4 @@
-query requests($instance_id: InstanceId!) {
+query requests($instance_id:  InstanceId!) {
   assignations(instanceId: $instance_id) {
     ...Assignation
   }

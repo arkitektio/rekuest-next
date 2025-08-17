@@ -6,6 +6,7 @@ the context of an assignation.
 
 """
 
+import json
 from typing import AsyncIterator
 
 from rath.links.base import ContinuationLink
@@ -24,7 +25,9 @@ class ContextLink(ContinuationLink):
     store the token and pass it to the token_loader function.
     """
 
-    async def aexecute(self, operation: Operation, retry: int = 0) -> AsyncIterator[GraphQLResult]:
+    async def aexecute(
+        self, operation: Operation, retry: int = 0
+    ) -> AsyncIterator[GraphQLResult]:
         """Executes and forwards an operation to the next link.
 
         This method will add the authentication token to the context of the operation,
@@ -48,6 +51,10 @@ class ContextLink(ContinuationLink):
             helper = get_current_assignation_helper()
 
             operation.context.headers["x-assignation-id"] = str(helper.assignation)
+            operation.context.headers["x-assignation-user"] = helper.user
+            operation.context.headers["x-assignation-org"] = helper.org
+            operation.context.headers["x-assignation-args"] = json.dumps(helper.args)
+            operation.context.headers["x-assignation-action"] = helper.action
 
         except Exception:
             pass

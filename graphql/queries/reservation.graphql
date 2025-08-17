@@ -4,7 +4,7 @@ query get_reservation($id: ID!) {
   }
 }
 
-query reservations($instance_id: InstanceId!) {
+query reservations($instance_id:  InstanceId!) {
   reservations(instanceId: $instance_id) {
     ...Reservation
   }

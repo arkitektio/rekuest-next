@@ -1,6 +1,6 @@
 """The AssignmentHelper is a helper class that is used to manage the assignment"""
 
-from typing import Optional, Self
+from typing import Any, Optional, Self
 from pydantic import BaseModel, ConfigDict
 from rekuest_next.api.schema import LogLevel
 from koil import unkoil
@@ -23,7 +23,9 @@ class AssignmentHelper(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
 
-    async def alog(self: Self, level: LogLevel | messages.LogLevelLiteral, message: str) -> None:
+    async def alog(
+        self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
+    ) -> None:
         """Send a log message to the actor.
 
         Args:
@@ -108,6 +110,21 @@ class AssignmentHelper(BaseModel):
     def assignation(self) -> str:
         """Returns the governing assignation that cause the chained that lead to this execution"""
         return self.assignment.assignation
+
+    @property
+    def org(self) -> str:
+        """Returns the organization that caused the assignation"""
+        return self.assignment.org
+
+    @property
+    def action(self) -> str:
+        """Returns the node that caused the assignation"""
+        return self.assignment.action
+
+    @property
+    def args(self) -> dict[str, Any]:
+        """Returns the args that caused the assignation"""
+        return self.assignment.args
 
     def __enter__(self) -> Self:
         """Set the current assignation helper to this instance.

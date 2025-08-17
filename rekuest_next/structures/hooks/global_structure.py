@@ -50,7 +50,7 @@ class GlobalStructureHook(BaseModel):
         if not hasattr(cls, "aexpand"):
             return False
 
-        if not hasattr(cls, "ashrink") and not hasattr(cls, "id"):
+        if not hasattr(cls, "ashrink"):
             return False
 
         if not hasattr(cls, "get_identifier"):
@@ -67,7 +67,9 @@ class GlobalStructureHook(BaseModel):
         if hasattr(cls, "get_identifier"):
             identifier: Identifier = cls.get_identifier()  # type: ignore
         else:
-            raise GlobalStructureHookError(f"Class {cls} does not have a get_identifier method")
+            raise GlobalStructureHookError(
+                f"Class {cls} does not have a get_identifier method"
+            )
 
         if hasattr(cls, "get_default_widget"):
             default_widget = cls.get_default_widget()  # type: ignore

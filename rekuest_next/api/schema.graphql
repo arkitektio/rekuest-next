@@ -81,9 +81,9 @@ The `ArrayLike` scalar type represents a reference to a store previously created
 scalar Identifier
 
 interface Effect {
-  dependencies: [String!]!
   kind: EffectKind!
   function: ValidatorFunction!
+  dependencies: [String!]!
 }
 
 """The kind of effect."""
@@ -150,18 +150,25 @@ type CustomAssignWidget implements AssignWidget {
 }
 
 type CustomEffect implements Effect {
-  dependencies: [String!]!
   kind: EffectKind!
   function: ValidatorFunction!
+  dependencies: [String!]!
   hook: String!
   ward: String!
 }
 
 type MessageEffect implements Effect {
-  dependencies: [String!]!
   kind: EffectKind!
   function: ValidatorFunction!
+  dependencies: [String!]!
   message: String!
+}
+
+type HideEffect implements Effect {
+  kind: EffectKind!
+  function: ValidatorFunction!
+  dependencies: [String!]!
+  fade: Boolean!
 }
 
 interface UIChild {
@@ -474,9 +481,7 @@ type Agent {
   pinned: Boolean!
 }
 
-"""
-The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
-"""
+"""The `InstanceID` scalar type represents a unique instance identifier"""
 scalar InstanceId
 
 """Links a user and a client for registry tracking."""
@@ -511,6 +516,8 @@ type Organization {
 
 """A way to filter agents"""
 input AgentFilter {
+  scope: ScopeFilter = null
+
   """Filter by client ID of the app the agent is registered to"""
   clientId: String = null
 
@@ -541,6 +548,14 @@ input AgentFilter {
   OR: AgentFilter
   NOT: AgentFilter
   DISTINCT: Boolean
+}
+
+"""A way to filter by scope"""
+input ScopeFilter {
+  public: Boolean = null
+  org: Boolean = null
+  shared: Boolean = null
+  me: Boolean = null
 }
 
 """The input for creating a action demand."""
@@ -773,6 +788,7 @@ input ActionFilter {
   demands: [PortDemandInput!]
   protocols: [String!]
   kind: ActionKind
+  inCollection: String
   AND: ActionFilter
   OR: ActionFilter
   NOT: ActionFilter
@@ -1349,13 +1365,14 @@ input FilesystemShelveFilter {
 
 type State {
   id: ID!
-  stateSchema: StateSchema!
+  stateSchema: StateSchema! @deprecated(reason: "Use schema instead")
   value: Args!
   agent: Agent!
   interface: String!
   createdAt: DateTime!
   updatedAt: DateTime!
   historicalStates: [HistoricalState!]!
+  schema: StateSchema! @deprecated(reason: "Use schema instead")
 }
 
 type StateSchema {
@@ -1400,6 +1417,11 @@ type Shortcut {
 
   """If true, shortcut uses return values."""
   useReturns: Boolean!
+
+  """
+  Which shortcut should be bound to this Action by default. 0 means no binding.
+  """
+  bindNumber: Int
 
   """Input ports for the shortcut's action.dd"""
   args: [Port!]!
@@ -1479,6 +1501,7 @@ type MaterializedBlok {
 type Blok {
   id: ID!
   name: String!
+  description: String
   creator: User!
   url: String!
 
@@ -1894,7 +1917,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "563c04e6-4774-47b2-9ba1-4771c9f1d0f9"
+  reference: String = "7d119f82-ac5c-4c27-8003-bef891918b82"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1954,7 +1977,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "43ef837d-ac45-4ea3-a5de-bbcbc4db22c6"
+  reference: String = "644f95c2-e7a3-4bc3-bbd6-0aa44cf0858c"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2156,6 +2179,7 @@ input CreateShortcutInput {
   args: Args!
   allowQuick: Boolean! = false
   useReturns: Boolean! = false
+  bindNumber: Int = null
 }
 
 """The input for deleting a shortcut."""
