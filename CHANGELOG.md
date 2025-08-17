@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.13.3 (2025-08-17)
+
+### Bug Fixes
+
+- Refix the instance id, and ad org and action to fields
+  ([`25e3123`](https://github.com/arkitektio/rekuest-next/commit/25e312334dced705c6377b83fe06abc24e5cbe91))
+
+
 ## v0.13.2 (2025-08-03)
 
 ### Bug Fixes
