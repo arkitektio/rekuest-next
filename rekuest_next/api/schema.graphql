@@ -466,6 +466,15 @@ type Agent {
   """Current and historical states associated with the agent."""
   states: [State!]!
 
+  """Kind of the agent."""
+  kind: AgentKind!
+
+  """Webhook URL for this Agent (only if webhook)"""
+  hookUrl: String
+
+  """Webhook URL secret for this Agent (only if webhook)"""
+  hookUrlSecret: String
+
   """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
 
@@ -1389,6 +1398,11 @@ type HistoricalState {
   archivedAt: DateTime!
 }
 
+enum AgentKind {
+  WEBSOCKET
+  WEBHOOK
+}
+
 """Shortcut to an action with preset arguments."""
 type Shortcut {
   """Shortcut ID."""
@@ -1917,7 +1931,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "7d119f82-ac5c-4c27-8003-bef891918b82"
+  reference: String = "9aacd704-d58d-44ca-b561-cf28b8bc80d1"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1977,7 +1991,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "644f95c2-e7a3-4bc3-bbd6-0aa44cf0858c"
+  reference: String = "e8611bf5-9c99-45f9-bf11-31a4d446f489"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

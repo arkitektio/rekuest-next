@@ -67,8 +67,8 @@
             },
             "skip_forwards": false,
             "additional_bases": {
-                "Node": [
-                    "rekuest_next.traits.node.Reserve"
+                "Action": [
+                    "rekuest_next.traits.action.Callable"
                 ],
                 "AnnotationInput": [
                     "rekuest_next.traits.ports.AnnotationInputTrait"

@@ -9,6 +9,7 @@ from .remote import (
     call,
     aiterate,
     iterate,
+    find,
     acall_raw,
 )
 from .structures.model import model
@@ -27,6 +28,7 @@ __version__ = "0.4.1"
 __all__ = [
     "acall",
     "state",
+    "find",
     "RekuestNextService",
     "call",
     "structure_reg",

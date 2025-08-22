@@ -23,6 +23,8 @@ from rekuest_next.api.schema import (
     AssignInput,
     HookInput,
     Action,
+    find,
+    afind,
     Reservation,
     Implementation,
 )
@@ -36,20 +38,10 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 
 
-def find(agent: str, interface: str) -> Optional[Action]:
-    """Find the action for the given agent and interface.
-    This function is used to find the action for the given agent and interface.
-
-    Args:
-        agent (str): _description_
-        interface (str): _description_
-
-    Returns:
-        Optional[Action]: _description_
-    """
-    raise NotImplementedError(
-        "find is not implemented yet. Please use the find function from the agent."
-    )
+__all__ = [
+    "find",
+    "afind",
+]
 
 
 def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
@@ -208,7 +200,9 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -223,7 +217,9 @@ async def acall(
         postman=postman,
     )
 
-    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
+    returns = await aexpand_returns(
+        action, returns, structure_registry=structure_registry
+    )
     if len(returns) == 1:
         return returns[0]
     return returns
@@ -266,7 +262,9 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -280,7 +278,9 @@ async def aiterate(
         log=log,
     ):
         assert i.returns, "YIELD event must have returns"
-        yield await aexpand_returns(action, i.returns, structure_registry=structure_registry)
+        yield await aexpand_returns(
+            action, i.returns, structure_registry=structure_registry
+        )
 
 
 def call(
