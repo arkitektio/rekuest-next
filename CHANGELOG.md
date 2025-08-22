@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.15.0 (2025-08-22)
+
+### Features
+
+- Add remote, call interfaces
+  ([`df723b8`](https://github.com/arkitektio/rekuest-next/commit/df723b8e05e19d1e7414f60b837c0f29d7d750c9))
+
+
 ## v0.14.0 (2025-08-17)
 
 
