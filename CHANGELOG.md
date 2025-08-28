@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.16.0 (2025-08-28)
+
+### Features
+
+- Add the depedency declaration
+  ([`664f9a5`](https://github.com/arkitektio/rekuest-next/commit/664f9a5d641b2eae894c0f51498736d1f59ade79))
+
+
 ## v0.15.0 (2025-08-22)
 
 ### Features
