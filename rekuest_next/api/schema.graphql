@@ -615,24 +615,16 @@ input ActionDemandInput {
   forceReturnLength: Int = null
 }
 
-"""The input for creating a port match."""
+"""
+A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions
+"""
 input PortMatchInput {
-  """The index of the port to match. """
   at: Int = null
-
-  """The key of the port to match."""
   key: String = null
-
-  """The kind of the port to match. """
   kind: PortKind = null
-
-  """The identifier of the port to match. """
   identifier: String = null
-
-  """Whether the port is nullable. """
   nullable: Boolean = null
-
-  """The matches for the children of the port to match. """
   children: [PortMatchInput!] = null
 }
 
@@ -986,26 +978,32 @@ type Dependency {
   """Implementation this dependency belongs to."""
   implementation: Implementation!
 
-  """Optional action this dependency refers to."""
-  action: Action
-
-  """Current hash of the dependency."""
-  hash: ActionHash!
-
   """Original hash when the dependency was created."""
-  initialHash: ActionHash!
+  actionHash: ActionHash
 
   """Optional string identifier or tag for reference."""
-  reference: String
+  key: String!
 
   """Indicates if the dependency is optional."""
   optional: Boolean!
 
-  """Binds information attached to the dependency."""
-  binds: Binds
+  """Protocols that this dependency needs to match."""
+  returnMatches: [PortMatch!]
+
+  """Protocols that this dependency needs to match."""
+  argMatches: [PortMatch!]
 
   """Check if this dependency can be resolved by a connected agent."""
   resolvable: Boolean!
+}
+
+type PortMatch {
+  """Whether the port is nullable. """
+  nullable: Boolean
+  at: Int
+  key: String
+  kind: PortKind
+  identifier: String
 }
 
 """The pattern of assignment of the reservation"""
@@ -1545,16 +1543,6 @@ type ActionDemand {
   forceReturnLength: Int
 }
 
-"""Port matching in action demands."""
-type PortMatch {
-  at: Int
-  key: String
-  kind: PortKind
-  identifier: String
-  nullable: Boolean
-  children: [PortMatch!]
-}
-
 """The input for creating a action demand."""
 type StateDemand {
   key: String!
@@ -1716,7 +1704,7 @@ A implementation is a blueprint for a action. It is composed of a definition, a 
 """
 input ImplementationInput {
   definition: DefinitionInput!
-  dependencies: [DependencyInput!]!
+  dependencies: [ActionDependencyInput!]!
   interface: String
   params: AnyDefault = null
   dynamic: Boolean! = false
@@ -1881,18 +1869,17 @@ input ReturnWidgetInput {
 A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
 """
-input DependencyInput {
-  hash: ActionHash
-  reference: String
-  binds: BindsInput
+input ActionDependencyInput {
+  key: String!
+  hash: ActionHash = null
+  name: String = null
+  description: String = null
+  argMatches: [PortMatchInput!] = null
+  returnMatches: [PortMatchInput!] = null
+  protocols: [ID!] = null
+  forceArgLength: Int = null
+  forceReturnLength: Int = null
   optional: Boolean! = false
-  viableInstances: Int
-}
-
-input BindsInput {
-  implementations: [String!]
-  clients: [String!]
-  desiredInstances: Int! = 1
 }
 
 """The input for creating a implementation in another agents extension."""
@@ -1931,7 +1918,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "9aacd704-d58d-44ca-b561-cf28b8bc80d1"
+  reference: String = "6b19b1e7-49ed-4509-a11f-2365559ddba4"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1991,7 +1978,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "e8611bf5-9c99-45f9-bf11-31a4d446f489"
+  reference: String = "274463bc-0a22-4fb9-b574-2cff616f2a29"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -1999,6 +1986,12 @@ input ReserveInput {
   hash: ActionHash = null
   binds: BindsInput = null
   assignationId: ID = null
+}
+
+input BindsInput {
+  implementations: [String!]
+  clients: [String!]
+  desiredInstances: Int! = 1
 }
 
 input UnreserveInput {

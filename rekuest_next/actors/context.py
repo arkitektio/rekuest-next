@@ -39,7 +39,12 @@ async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
         message (str): The log message.
         level (LogLevel): The log level.
     """
-    await get_current_assignation_helper().alog(level, message)
+    try:
+        await get_current_assignation_helper().alog(level, message)
+    except Exception:  # pylint: disable=broad-except
+        # We don't want logging to fail the actor
+        print(f"[{level}] {message}")
+        pass
 
 
 def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
@@ -53,7 +58,12 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
     if not isinstance(message, str):  # type: ignore[assignment]
         message = str(message)
 
-    get_current_assignation_helper().log(level, message)
+    try:
+        get_current_assignation_helper().log(level, message)
+    except Exception:  # pylint: disable=broad-except
+        # We don't want logging to fail the actor
+        print(f"[{level}] {message}")
+        pass
 
 
 def useUser() -> str:

@@ -5,6 +5,7 @@ from koil.helpers import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
 from rekuest_next.agents.hooks.background import background
+from rekuest_next.coercible_types import DependencyCoercible
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.agents.extensions.default import DefaultExtension
@@ -33,7 +34,6 @@ from rekuest_next.agents.hooks.startup import startup
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     DefinitionInput,
-    DependencyInput,
     PortGroupInput,
     EffectInput,
     ValidatorInput,
@@ -46,7 +46,9 @@ T = TypeVar("T", bound=AnyFunction)
 class RekuestNext(Composition):
     """The main rekuest next client class"""
 
-    structure_registry: StructureRegistry = Field(default_factory=get_default_structure_registry)
+    structure_registry: StructureRegistry = Field(
+        default_factory=get_default_structure_registry
+    )
     rath: RekuestNextRath
     agent: Agent
     postman: Postman
@@ -58,7 +60,7 @@ class RekuestNext(Composition):
         interface: Optional[str] = None,
         stateful: bool = False,
         widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-        dependencies: Optional[List[DependencyInput]] = None,
+        dependencies: Optional[List[DependencyCoercible]] = None,
         interfaces: Optional[List[str]] = None,
         collections: Optional[List[str]] = None,
         port_groups: Optional[List[PortGroupInput]] = None,
@@ -106,7 +108,9 @@ class RekuestNext(Composition):
 
         default_extension = self.agent.extension_registry.get("default")
         assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        assert isinstance(default_extension, DefaultExtension), (
+            "Default is not a DefaultExtension"
+        )
 
         return register_func(
             function,
@@ -131,21 +135,29 @@ class RekuestNext(Composition):
             sync=sync,
         )
 
-    def register_startup(self, function: StartupFunction, name: str | None = None) -> None:
+    def register_startup(
+        self, function: StartupFunction, name: str | None = None
+    ) -> None:
         """Register a startup function that will be called when the agent starts.
 
         Args:
             function (AnyFunction): The startup function to register.
         """
-        startup(function, name=name or function.__name__, registry=self.agent.hook_registry)
+        startup(
+            function, name=name or function.__name__, registry=self.agent.hook_registry
+        )
 
-    def register_background(self, function: BackgroundFunction, name: str | None = None) -> None:
+    def register_background(
+        self, function: BackgroundFunction, name: str | None = None
+    ) -> None:
         """Register a background function that will be run in the background.
 
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        background(function, name=name or function.__name__, registry=self.agent.hook_registry)
+        background(
+            function, name=name or function.__name__, registry=self.agent.hook_registry
+        )
 
     def run(self, instance_id: str | None = None) -> None:
         """

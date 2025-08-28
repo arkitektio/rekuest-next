@@ -1,10 +1,13 @@
 """Register a function or actor with the definition registry."""
 
 from typing import (
+    Any,
     Callable,
     Dict,
+    Generic,
     List,
     Optional,
+    ParamSpec,
     Tuple,
     TypeVar,
     Union,
@@ -12,10 +15,13 @@ from typing import (
     cast,
 )
 import inflection
-
+from rekuest_next.actors.errors import NotWithinAnAssignationError
+from rekuest_next.coercible_types import DependencyCoercible
+from rekuest_next.remote import call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnprovide
+from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import AssignWidgetMap
 from rekuest_next.definition.hash import hash_definition
 from rekuest_next.definition.registry import (
@@ -28,12 +34,76 @@ from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     DefinitionInput,
-    DependencyInput,
+    ActionDependencyInput,
     PortGroupInput,
+    get_implementation,
     EffectInput,
     ImplementationInput,
     ValidatorInput,
+    my_implementation_at,
 )
+
+
+def interface_name(func: AnyFunction) -> str:
+    """Infer an interface name from a function or actor name.
+
+    Converts CamelCase or mixedCase names to snake_case.
+
+    Args:
+        func (AnyFunction): The function or actor to infer the name from.
+
+    Returns:
+        str: The inferred interface name in snake_case.
+    """
+    return inflection.underscore(func.__name__)
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+class WrappedFunction(Generic[P, R]):
+    """A wrapped function that calls the actor's implementation."""
+
+    def __init__(
+        self, func: AnyFunction, interface: str, definition: DefinitionInput
+    ) -> None:
+        """Initialize the wrapped function."""
+        self.func = func
+        self.interface = interface
+        self.definition = definition
+        self.hash = hash_definition(definition)
+
+    def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        """ "Call the actor's implementation."""
+        helper = get_current_assignation_helper()
+        implementation = my_implementation_at(
+            helper.actor.agent.instance_id, self.interface
+        )
+
+        return call(implementation, *args, parent=helper.assignment, **kwargs)
+
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        """ "Call the wrapped function directly if not within an assignation."""
+        try:
+            helper = get_current_assignation_helper()
+            dependency = helper.get_dependency(
+                self.interface,
+            )
+
+            implementation = get_implementation(dependency)
+
+            return call(implementation, *args, parent=helper.assignment, **kwargs)
+        except NotWithinAnAssignationError:
+            return self.func(*args, **kwargs)
+
+    def to_dependency_input(self) -> ActionDependencyInput:
+        """Convert the wrapped function to a DependencyInput."""
+        return ActionDependencyInput(
+            key=self.interface,
+            optional=False,
+            hash=hash_definition(self.definition),
+        )
 
 
 def register_func(
@@ -44,7 +114,7 @@ def register_func(
     name: Optional[str] = None,
     actifier: Actifier = reactify,
     description: Optional[str] = None,
-    dependencies: Optional[List[DependencyInput]] = None,
+    dependencies: Optional[List[DependencyCoercible]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     collections: Optional[List[str]] = None,
@@ -91,7 +161,7 @@ def register_func(
     Returns:
         Tuple[DefinitionInput, ActorBuilder]: Registered definition and its actor builder.
     """
-    interface = interface or inflection.underscore(function_or_actor.__name__)
+    interface = interface or interface_name(function_or_actor)
 
     definition, actor_builder = actifier(
         function_or_actor,
@@ -118,7 +188,14 @@ def register_func(
         ImplementationInput(
             interface=interface,
             definition=definition,
-            dependencies=tuple(dependencies or []),
+            dependencies=tuple(
+                [
+                    x
+                    if isinstance(x, ActionDependencyInput)
+                    else x.to_dependency_input()
+                    for x in (dependencies or [])
+                ]
+            ),
             logo=logo,
             dynamic=dynamic,
         ),
@@ -132,7 +209,7 @@ T = TypeVar("T", bound=AnyFunction)
 
 
 @overload
-def register(func: T) -> T:
+def register(func: Callable[P, R]) -> WrappedFunction[P, R]:
     """Register a function or actor with optional configuration parameters.
 
     This overload supports usage of `@register(...)` as a configurable decorator.
@@ -174,7 +251,7 @@ def register(
     interface: Optional[str] = None,
     stateful: bool = False,
     widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    dependencies: Optional[List[DependencyInput]] = None,
+    dependencies: Optional[List[DependencyCoercible]] = None,
     interfaces: Optional[List[str]] = None,
     collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
@@ -189,7 +266,7 @@ def register(
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
-) -> Callable[[T], T]:
+) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with optional configuration parameters.
 
     This overload supports usage of `@register(...)` as a configurable decorator.
@@ -222,14 +299,14 @@ def register(
 
 
 def register(  # type: ignore[valid-type]
-    *func: T,
+    *func: Callable[P, R],
     name: Optional[str] = None,
     actifier: Actifier = reactify,
     interface: Optional[str] = None,
     stateful: bool = False,
     description: Optional[str] = None,
     widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    dependencies: Optional[List[DependencyInput]] = None,
+    dependencies: Optional[List[DependencyCoercible]] = None,
     interfaces: Optional[List[str]] = None,
     collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
@@ -244,7 +321,7 @@ def register(  # type: ignore[valid-type]
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
-) -> Union[T, Callable[[T], T]]:
+) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
     """Register a function or actor to the default definition and structure registries.
 
     This function serves as both a decorator and a direct-call function to register
@@ -323,12 +400,21 @@ def register(  # type: ignore[valid-type]
 
         setattr(function_or_actor, "__definition__", definition)
         setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
+        setattr(
+            function_or_actor,
+            "__interface__",
+            interface or interface_name(function_or_actor),
+        )
 
-        return function_or_actor
+        return WrappedFunction(
+            function_or_actor,
+            interface or interface_name(function_or_actor),
+            definition,
+        )
 
     else:
 
-        def real_decorator(function_or_actor: AnyFunction) -> AnyFunction:
+        def real_decorator(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
             definition, _ = register_func(
                 function_or_actor,
                 name=name,
@@ -355,8 +441,19 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
+            setattr(
+                function_or_actor, "__definition_hash__", hash_definition(definition)
+            )
+            setattr(
+                function_or_actor,
+                "__interface__",
+                interface or interface_name(function_or_actor),
+            )
 
-            return function_or_actor
+            return WrappedFunction(
+                function_or_actor,
+                interface or interface_name(function_or_actor),
+                definition,
+            )
 
         return cast(Callable[[T], T], real_decorator)  # type: ignore

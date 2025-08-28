@@ -1,13 +1,24 @@
-from rekuest_next.agents.hooks.background import background
-from rekuest_next.agents.context import context
+from rekuest_next.register import register
+from rekuest_next.declare import declare
 
 
-@context
-class Hallo:
-    id: str
+@declare
+def add(int: int) -> int:
+    """A function that adds 1 to the input integer."""
+    ...
 
 
-@background
-def hello(hallo: Hallo) -> None:
-    """A background function that prints the id of Hallo."""
-    print("Hello", hallo.id)
+@declare
+def substract(int: int) -> int:
+    """A function that adds 1 to the input integer."""
+    ...
+
+
+@register(dependencies=[add, substract])
+def workflow(number: int) -> int:
+    """A workflow that returns a static string."""
+
+    x = add(1)
+    y = substract(x)
+
+    return y
