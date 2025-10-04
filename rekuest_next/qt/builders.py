@@ -49,7 +49,7 @@ class QtInLoopBuilder(QtCore.QObject):
 
     async def on_assign(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
         """Runs in the same thread as the koil instance."""
-        print("CALLIGN ON ASSIGN", args, kwargs)
+
         return await self.coro.acall(**kwargs)
 
     def build(self, agent: Agent) -> "FunctionalFuncActor":
@@ -248,8 +248,6 @@ def qtwithgeneratoractifier(
 
     sig = inspect.signature(function)
 
-    print(function)
-
     if len(sig.parameters) == 0:
         raise ValueError(
             "The function you are trying to register with a generator actifier must have at least one parameter, the Generator"
@@ -258,9 +256,7 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError(
-            "The function needs to have a QtGenerator as its first parameter"
-        )
+        raise ValueError("The function needs to have a QtGenerator as its first parameter")
 
     return_params = get_args(first)
 

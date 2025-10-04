@@ -57,6 +57,7 @@ type Port {
   assignWidget: AssignWidget
   returnWidget: ReturnWidget
   validators: [Validator!]
+  descriptors: [Descriptor!]
 }
 
 """The kind of port."""
@@ -73,6 +74,7 @@ enum PortKind {
   ENUM
   MODEL
   MEMORY_STRUCTURE
+  INTERFACE
 }
 
 """
@@ -117,6 +119,14 @@ type Validator {
   label: String
   errorMessage: String
 }
+
+type Descriptor {
+  key: String!
+  value: Arg!
+}
+
+"""The `Arg` scalar type represents a an Argument in a Action assignment"""
+scalar Arg
 
 type StateChoiceAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
@@ -998,12 +1008,31 @@ type Dependency {
 }
 
 type PortMatch {
-  """Whether the port is nullable. """
-  nullable: Boolean
   at: Int
   key: String
   kind: PortKind
   identifier: String
+  children: [PortMatch!]
+  nullable: Boolean
+  descriptors: [DescriptorMatch!]
+}
+
+type DescriptorMatch {
+  key: String
+  operator: DescriptorOperator
+  value: String
+}
+
+"""The operator for matching descriptors."""
+enum DescriptorOperator {
+  LTE
+  GTE
+  EQUALS
+  CONTAINS
+  NOT_EQUALS
+  IN
+  NOT_IN
+  EXISTS
 }
 
 """The pattern of assignment of the reservation"""
@@ -1164,6 +1193,9 @@ type Assignation {
   """Indicates if the assignation should be deleted after completion."""
   ephemeral: Boolean!
 
+  """Child assignations spawned from this one."""
+  children(filters: AssignationFilter, pagination: OffsetPaginationInput): [Assignation!]!
+
   """List of recent events for this assignation."""
   events: [AssignationEvent!]!
 
@@ -1180,6 +1212,7 @@ enum AssignationEventKind {
   QUEUED
   ASSIGN
   PROGRESS
+  DELEGATE
   DISCONNECTED
   YIELD
   DONE
@@ -1201,6 +1234,26 @@ enum AssignationInstructKind {
   PAUSE
   INTERRUPT
   COLLECT
+}
+
+input AssignationFilter {
+  reservation: ReservationFilter
+  ids: [ID!]
+  status: [AssignationStatus!]
+  instanceId: InstanceId
+  AND: AssignationFilter
+  OR: AssignationFilter
+  NOT: AssignationFilter
+  DISTINCT: Boolean
+}
+
+"""The event kind of the assignationevent"""
+enum AssignationStatus {
+  ASSIGNING
+  ONGOING
+  CRITICAL
+  CANCELLED
+  DONE
 }
 
 """An event that occurred during an assignation."""
@@ -1228,6 +1281,9 @@ type AssignationEvent {
 
   """Time when event was created."""
   createdAt: DateTime!
+
+  """If this event was delegated, the assignation it was delegated to."""
+  delegatedTo: Assignation
 
   """Default log level."""
   level: LogLevel!
@@ -1810,6 +1866,7 @@ input PortInput {
   choices: [ChoiceInput!] = null
   assignWidget: AssignWidgetInput = null
   returnWidget: ReturnWidgetInput = null
+  descriptors: [DescriptorInput!] = null
 }
 
 " \nA validating function for a port. Can specify a function that will run when validating values of the port.\nIf outside dependencies are needed they need to be specified in the dependencies field. With the .. syntax\nwhen transversing the tree of ports. \n\n"
@@ -1865,6 +1922,11 @@ input ReturnWidgetInput {
   ward: String = null
 }
 
+input DescriptorInput {
+  key: String!
+  value: Arg!
+}
+
 """
 A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
@@ -1918,7 +1980,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "6b19b1e7-49ed-4509-a11f-2365559ddba4"
+  reference: String = "8e26c078-4e3b-4810-9bff-bb1461392fed"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -1978,7 +2040,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "274463bc-0a22-4fb9-b574-2cff616f2a29"
+  reference: String = "3ef48101-7bb5-4ed8-be50-c431b8418c4c"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

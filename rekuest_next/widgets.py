@@ -11,6 +11,7 @@ from rekuest_next.api.schema import (
     ValidatorInput,
     EffectInput,
     EffectKind,
+    DescriptorInput,
 )
 from rekuest_next.structures.types import JSONSerializable
 from rekuest_next.definition.utils import DefaultAddin, DescriptionAddin
@@ -170,7 +171,9 @@ def withChoices(*choices: ChoiceInput | JSONSerializable) -> AssignWidgetInput:
             choice = ChoiceInput(value=choice, label=str(choice))
         parsed_choices.append(choice)
 
-    return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(parsed_choices))
+    return AssignWidgetInput(
+        kind=AssignWidgetKind.CHOICE, choices=tuple(parsed_choices)
+    )
 
 
 def withValidator(
@@ -242,3 +245,15 @@ def withEffect(
         dependencies=tuple(dependencies) if dependencies else None,
         message=message,
     )
+
+
+def withDescriptor(key: str, value: Any) -> DescriptorInput:
+    """A decorator to add a description to a widget.
+
+    Args:
+        description (str): The description to add
+
+    Returns:
+        DescriptionAddin: The description addin
+    """
+    return DescriptorInput(key=key, value=value)

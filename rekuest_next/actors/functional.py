@@ -160,7 +160,6 @@ class AsyncGenActor(SerializingActor):
         yield None  # type: ignore[unreachable]
 
     async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        print("Yield func", kwargs)
         async for returns in self.assign(**kwargs):
             yield returns
 
@@ -169,7 +168,7 @@ class AsyncGenActor(SerializingActor):
         assignment: Assign,
     ) -> None:
         """This method is called when the actor is assigned to a task"""
-        print("On assign", assignment)
+
         await self.asend(
             message=messages.ProgressEvent(
                 assignation=assignment.assignation,
@@ -205,7 +204,6 @@ class AsyncGenActor(SerializingActor):
                     actor=self,
                 ):
                     async for returns in self._yield_func(**params):
-                        print("Yielding returns", returns)
                         returns = await shrink_outputs(
                             self.definition,
                             returns,
@@ -289,7 +287,6 @@ class ThreadedGenActor(AsyncGenActor):
     executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(4))
 
     async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        print("Yield func", kwargs)
         async for returns in iterate_spawned(  # type: ignore
             self.assign,  # type: ignore[no-untyped-call]
             **kwargs,

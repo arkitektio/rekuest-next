@@ -151,7 +151,6 @@ class DefinitionInputTrait(BaseModel):
         all_return_keys = [port.key for port in self.returns]
 
         for arg in self.args:
-            print("Checking port:", arg.key)
             for validator in arg.validators or []:
                 if validator.dependencies:
                     for dep in validator.dependencies:

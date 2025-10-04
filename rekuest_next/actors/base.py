@@ -257,7 +257,6 @@ class Actor(BaseModel):
         """
 
         logger.info(f"Actor for {self.id}: Received {message}")
-        print("Actor for {self.id}: Received", message)
 
         if isinstance(message, messages.Assign):
             task = asyncio.create_task(
@@ -278,7 +277,6 @@ class Actor(BaseModel):
                     try:
                         await task
                     except asyncio.CancelledError:
-                        print("Cancellation was successful")
                         logger.info(
                             f"Task {message.assignation} was cancelled through arkitekt. Setting Cancelled"
                         )

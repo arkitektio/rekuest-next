@@ -521,8 +521,6 @@ class BaseAgent(KoiledModel):
             instance_id=self.instance_id,  # type: ignore
         )
 
-        print("State updated", state)
-
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
 

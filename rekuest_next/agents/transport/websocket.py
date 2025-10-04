@@ -155,7 +155,6 @@ class WebsocketAgentTransport(AgentTransport):
                     f"{self.endpoint_url}",
                     ssl=(self.ssl_context if self.endpoint_url.startswith("wss") else None),
                 ) as client:
-                    print("Connected to Websockets")
                     retry = 0
                     logger.info("Agent on Websockets connected")
 
@@ -165,8 +164,6 @@ class WebsocketAgentTransport(AgentTransport):
                             instance_id=instance_id,
                         ).model_dump_json()
                     )
-
-                    print("Sent register message")
 
                     send_task = asyncio.create_task(self.sending(client))
                     receive_task = asyncio.create_task(self.receiving(client))
@@ -201,7 +198,7 @@ class WebsocketAgentTransport(AgentTransport):
 
             except ConnectionClosedError as e:
                 logger.warning("Websocket was closed", exc_info=True)
-                print("Websocket was closed", e)
+
                 if e.code in agent_error_codes:
                     await self.on_agent_error(
                         agent_error_codes[e.code](agent_error_message[e.code])  # type: ignore
@@ -262,8 +259,7 @@ class WebsocketAgentTransport(AgentTransport):
         """Receive messages from the agent transport"""
         try:
             async for message in client:
-                print(f"Received message {message}")
-                logger.info(f"Receiving message {message}")
+                logger.debug(f"Received message {message}")
                 assert isinstance(message, str), "Message should be a string"
                 await self.receive(message)
 
@@ -280,7 +276,7 @@ class WebsocketAgentTransport(AgentTransport):
                 await self.asend(messages.HeartbeatEvent())
 
             elif isinstance(payload.message, messages.Init):
-                print("Init message received", payload.message)
+                logger.debug("Received Init message")
                 if not self._connected_future:
                     raise AgentTransportException(
                         "No connection future set. We never connected this transport?"
@@ -299,7 +295,7 @@ class WebsocketAgentTransport(AgentTransport):
     async def delayaction(self, action: messages.FromAgentMessage) -> None:
         """Delay the action until the agent is connected"""
         assert self._send_queue, "Should be connected"
-        print(">>>>> Sending message", action.model_dump_json())
+        logger.debug(">>>>> Sending message %s", action.model_dump_json())
         await self._send_queue.put(action.model_dump_json())
 
     async def asend(self, message: messages.FromAgentMessage) -> None:
