@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.17.0 (2025-10-04)
+
+### Features
+
+- Add in schema extensions for interface
+  ([`ca1a073`](https://github.com/arkitektio/rekuest-next/commit/ca1a073bdadbd0f39a7a8f40da45f61466c09826))
+
+
 ## v0.16.0 (2025-08-28)
 
 ### Features
