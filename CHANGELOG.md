@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.18.1 (2025-10-07)
+
+### Bug Fixes
+
+- Fix model validator that is no longer a classmethod...
+  ([`dc9a87b`](https://github.com/arkitektio/rekuest-next/commit/dc9a87ba77b583fd7cd664ce1b9cdde4a725132e))
+
+
 ## v0.18.0 (2025-10-07)
 
 ### Features
