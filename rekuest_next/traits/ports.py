@@ -24,7 +24,7 @@ class PortTrait(BaseModel):
     """
 
     @field_validator("default", check_fields=False)
-    def default_validator(cls, v: Any) -> JSONSerializable:  # noqa: ANN401
+    def default_validator(v: Any) -> JSONSerializable:  # noqa: ANN401
         """Validate the default value of the port"""
         # Check if the default value is JSON serializable
         if v is None:
@@ -36,7 +36,7 @@ class PortTrait(BaseModel):
         return v  # type: ignore[return-value]
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_portkind_nested(cls, self: "PortInput") -> "PortInput":
+    def validate_portkind_nested(self: "PortInput") -> "PortInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import PortKind
 
@@ -71,7 +71,7 @@ class WidgetInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(cls, self: "AssignWidgetInput") -> "AssignWidgetInput":
+    def validate_widgetkind_nested(self: "AssignWidgetInput") -> "AssignWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import AssignWidgetKind
 
@@ -103,7 +103,7 @@ class ReturnWidgetInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(cls, self: "ReturnWidgetInput") -> "ReturnWidgetInput":
+    def validate_widgetkind_nested(self: "ReturnWidgetInput") -> "ReturnWidgetInput":
         """Validate the function of the validator"""
         from rekuest_next.api.schema import ReturnWidgetKind
 
@@ -121,7 +121,7 @@ class ValidatorInputTrait(BaseModel):
     """An addin trait for validating the input of a validator"""
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(cls, self: "ValidatorInput") -> "ValidatorInput":
+    def validate_widgetkind_nested(self: "ValidatorInput") -> "ValidatorInput":
         """Validate the function of the validator"""
         args_match = re.match(r"\((.*?)\)", self.function)
         if args_match:
@@ -145,7 +145,7 @@ class DefinitionInputTrait(BaseModel):
     """An addin trait for validating the input of a definition"""
 
     @model_validator(mode="after")  # type: ignore[override]
-    def check_dependencies(cls, self: "DefinitionInput") -> "DefinitionInput":
+    def check_dependencies(self: "DefinitionInput") -> "DefinitionInput":
         """Ensure that all dependencies in ports are valid."""
         all_arg_keys = [port.key for port in self.args]
         all_return_keys = [port.key for port in self.returns]
