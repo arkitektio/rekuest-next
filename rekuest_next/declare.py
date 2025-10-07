@@ -37,8 +37,11 @@ from rekuest_next.api.schema import (
     PortGroupInput,
     EffectInput,
     ImplementationInput,
+    PortInput,
+    PortMatchInput,
     ValidatorInput,
     my_implementation_at,
+    PortMatchInput,
     get_implementation,
 )
 
@@ -96,6 +99,22 @@ class DeclaredFunction(Generic[P, R]):
         )
 
 
+def port_to_match(index: int, port: PortInput) -> PortMatchInput:
+    return PortMatchInput(
+        at=index,
+        key=port.key,
+        identifier=port.identifier,
+        kind=port.kind,
+        nullable=port.nullable,
+        children=[
+            port_to_match(index, child)
+            for index, child in enumerate(port.children or [])
+        ]
+        if port.children
+        else None,
+    )
+
+
 class DeclaredProtocol(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
@@ -124,10 +143,22 @@ class DeclaredProtocol(Generic[P, R]):
 
     def to_dependency_input(self) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
+
+        arg_matches: list[PortMatchInput] = []
+        return_matches: list[PortMatchInput] = []
+
+        for index, arg in enumerate(self.definition.args):
+            arg_matches.append(port_to_match(index, arg))
+
+        for index, ret in enumerate(self.definition.returns):
+            return_matches.append(port_to_match(index, ret))
+
         return ActionDependencyInput(
             optional=False,
             key=interface_name(self.func),
-            hash=hash_definition(self.definition),
+            description=self.definition.description,
+            arg_matches=arg_matches,
+            return_matches=return_matches,
         )
 
 
@@ -156,4 +187,4 @@ def protocol(func: Callable[P, R]) -> DeclaredFunction[P, R]:
     Returns:
         WrappedFunction[P, R]: A wrapped function that can be called directly or via the actor system.
     """
-    return DeclaredFunction(func=func)
+    return DeclaredProtocol(func=func)

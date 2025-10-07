@@ -12,6 +12,7 @@ from .remote import (
     find,
     acall_raw,
 )
+from .declare import declare, protocol
 from .structures.model import model
 from .state.decorator import state
 
