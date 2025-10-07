@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.18.0 (2025-10-07)
+
+### Features
+
+- Add protocol declaration
+  ([`1d679e2`](https://github.com/arkitektio/rekuest-next/commit/1d679e216f19bdd2ad3c2368bae780e662a9116c))
+
+
 ## v0.17.0 (2025-10-04)
 
 ### Features
