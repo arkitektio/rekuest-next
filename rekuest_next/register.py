@@ -14,7 +14,6 @@ from typing import (
     overload,
     cast,
 )
-from cycler import K
 import inflection
 from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.coercible_types import DependencyCoercible
@@ -70,9 +69,7 @@ R = TypeVar("R")
 class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(
-        self, func: AnyFunction, interface: str, definition: DefinitionInput
-    ) -> None:
+    def __init__(self, func: AnyFunction, interface: str, definition: DefinitionInput) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.interface = interface
@@ -82,9 +79,7 @@ class WrappedFunction(Generic[P, R]):
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = my_implementation_at(
-            helper.actor.agent.instance_id, self.interface
-        )
+        implementation = my_implementation_at(helper.actor.agent.instance_id, self.interface)
 
         return call(implementation, *args, parent=helper.assignment, **kwargs)
 
@@ -203,9 +198,7 @@ def register_func(
             definition=definition,
             dependencies=tuple(
                 [
-                    x
-                    if isinstance(x, ActionDependencyInput)
-                    else x.to_dependency_input()
+                    x if isinstance(x, ActionDependencyInput) else x.to_dependency_input()
                     for x in (dependencies or [])
                 ]
             ),
@@ -454,9 +447,7 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(
-                function_or_actor, "__definition_hash__", hash_definition(definition)
-            )
+            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
             setattr(
                 function_or_actor,
                 "__interface__",
