@@ -14,6 +14,7 @@ from typing import (
     overload,
     cast,
 )
+from cycler import K
 import inflection
 from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.coercible_types import DependencyCoercible
@@ -42,6 +43,10 @@ from rekuest_next.api.schema import (
     ValidatorInput,
     my_implementation_at,
 )
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def interface_name(func: AnyFunction) -> str:
@@ -87,12 +92,20 @@ class WrappedFunction(Generic[P, R]):
         """ "Call the wrapped function directly if not within an assignation."""
         try:
             helper = get_current_assignation_helper()
-            dependency = helper.get_dependency(
-                self.interface,
-            )
+
+            try:
+                dependency = helper.get_dependency(
+                    self.interface,
+                )
+            except KeyError:
+                dependency = None  # type: ignore
+                logger.debug(
+                    "No dependency found for interface %s, but registered locally calling it directly.",
+                    self.interface,
+                )  # TODO: Figure out if we want this behavior
+                return self.func(*args, **kwargs)
 
             implementation = get_implementation(dependency)
-
             return call(implementation, *args, parent=helper.assignment, **kwargs)
         except NotWithinAnAssignationError:
             return self.func(*args, **kwargs)
