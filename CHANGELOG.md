@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.18.2 (2025-10-26)
+
+### Bug Fixes
+
+- Fix broken import
+  ([`f8aa586`](https://github.com/arkitektio/rekuest-next/commit/f8aa5865c36ae8a6e0ad376120059e963eacb643))
+
+- Fix the direct calling of non declared dependencies if registered locally
+  ([`6f12297`](https://github.com/arkitektio/rekuest-next/commit/6f1229761b2fb9f2d3ea7994e57126ba6835f389))
+
+
 ## v0.18.1 (2025-10-07)
 
 ### Bug Fixes
