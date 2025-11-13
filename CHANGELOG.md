@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.18.3 (2025-11-13)
+
+### Bug Fixes
+
+- Fix "none" issue and declared protocol
+  ([`763425b`](https://github.com/arkitektio/rekuest-next/commit/763425b95fe94af33699ec51be2b106d99ea56cd))
+
+
 ## v0.18.2 (2025-10-26)
 
 ### Bug Fixes
