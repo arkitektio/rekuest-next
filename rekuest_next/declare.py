@@ -44,6 +44,7 @@ from rekuest_next.api.schema import (
     PortMatchInput,
     get_implementation,
 )
+from typing import overload
 
 
 def interface_name(func: AnyFunction) -> str:
@@ -118,13 +119,26 @@ def port_to_match(index: int, port: PortInput) -> PortMatchInput:
 class DeclaredProtocol(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(self, func: AnyFunction) -> None:
+    def __init__(
+        self,
+        func: AnyFunction,
+        name: str | None = None,
+        hash: str | None = None,
+        optional: bool = False,
+        description: str | None = None,
+        allow_inactive: bool = True,
+    ) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.definition = prepare_definition(
             func,
             structure_registry=get_default_structure_registry(),
         )
+        self.name = name
+        self.hash = hash
+        self.optional = optional
+        self.description = description
+        self.allow_inactive = allow_inactive
 
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
@@ -154,11 +168,14 @@ class DeclaredProtocol(Generic[P, R]):
             return_matches.append(port_to_match(index, ret))
 
         return ActionDependencyInput(
-            optional=False,
             key=interface_name(self.func),
-            description=self.definition.description,
+            description=self.description or self.definition.description,
             arg_matches=arg_matches,
             return_matches=return_matches,
+            hash=self.hash,
+            name=self.name,
+            optional=self.optional,
+            allow_inactive=True,
         )
 
 
@@ -176,15 +193,54 @@ def declare(func: Callable[P, R]) -> DeclaredFunction[P, R]:
     return DeclaredFunction(func=func)
 
 
-def protocol(func: Callable[P, R]) -> DeclaredFunction[P, R]:
+@overload
+def protocol(func: Callable[P, R]) -> DeclaredFunction[P, R]: ...
+
+
+@overload
+def protocol(
+    *, name: str | None = None, hash: str | None = None
+) -> Callable[[Callable[P, R]], DeclaredFunction[P, R]]: ...
+
+
+def protocol(
+    *func: Callable[P, R],
+    name: str | None = None,
+    hash: str | None = None,
+    optional: bool = False,
+    description: str | None = None,
+    allow_inactive: bool = True,
+) -> Union[DeclaredFunction[P, R], Callable[[Callable[P, R]], DeclaredFunction[P, R]]]:
     """Declare a function or actor without registering it.
 
     This is useful for testing or for defining functions that will be registered later.
 
     Args:
         func (Callable[P, R]): The function or actor to declare.
+        name (str | None, optional): Filte by the name of the node. Defaults to None.
+        hash (str | None, optional): Filter by the hash of the node. Defaults to None.
+        optional (bool, optional): Whether the protocol is optional. Defaults to False.
+        description (str | None, optional): Description of the protocol. Defaults to None.
+        allow_inactive (bool, optional): Whether to allow inactive implementations. Defaults to True.
 
     Returns:
         WrappedFunction[P, R]: A wrapped function that can be called directly or via the actor system.
     """
-    return DeclaredProtocol(func=func)
+
+    if func:
+        return DeclaredFunction(func=func[0])
+    else:
+
+        def real_decorator(
+            func: Callable[P, R],
+        ) -> DeclaredProtocol[P, R]:
+            return DeclaredProtocol(
+                func=func,
+                name=name,
+                hash=hash,
+                optional=optional,
+                description=description,
+                allow_inactive=allow_inactive,
+            )
+
+        return real_decorator

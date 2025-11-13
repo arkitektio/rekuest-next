@@ -279,6 +279,21 @@ type Query {
   """All memory drawers."""
   memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
 
+  """All registered structures."""
+  structures(filters: StructureFilter, pagination: OffsetPaginationInput): [Structure!]!
+
+  """All registered structure packages."""
+  structurePackages(filters: StructurePackageFilter, pagination: OffsetPaginationInput): [StructurePackage!]!
+
+  """All registered interfaces."""
+  interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
+
+  """Statistics about actions and their implementations."""
+  actionStats(filters: ActionFilter = null): ActionStats!
+
+  """Statistics about assignations and their states."""
+  assignationStats(filters: AssignationFilter = null): AssignationStats!
+
   """Fetch a specific action."""
   action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null): Action!
 
@@ -299,6 +314,15 @@ type Query {
 
   """Get a specific state by ID."""
   state(id: ID!): State!
+
+  """Fetch a client by ID."""
+  structurePackage(id: ID!): StructurePackage!
+
+  """Fetch an interface by ID."""
+  interface(id: ID!): Interface!
+
+  """Fetch a structure by ID."""
+  structure(id: ID!): Structure!
 
   """Fetch a memory shelve by ID."""
   memoryShelve(id: ID!): MemoryShelve!
@@ -758,6 +782,9 @@ type Action {
   """Test cases for this action."""
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]
 
+  """The organization that owns this action."""
+  organization: Organization!
+
   """Retrieve assignations where this action has run."""
   runs: [Assignation!]
 
@@ -847,6 +874,8 @@ input ImplementationFilter {
   extension: String
   agent: ImplementationAgentFilter
   parameters: [ParamPair!]
+  resolvableFor: ID
+  search: String
   AND: ImplementationFilter
   OR: ImplementationFilter
   NOT: ImplementationFilter
@@ -996,6 +1025,9 @@ type Dependency {
 
   """Indicates if the dependency is optional."""
   optional: Boolean!
+
+  """Optional description of the dependency."""
+  description: String
 
   """Protocols that this dependency needs to match."""
   returnMatches: [PortMatch!]
@@ -1621,7 +1653,7 @@ type ActionMapping {
   key: String!
   implementation: Implementation!
   materializedBlok: MaterializedBlok!
-  crreatedAt: DateTime!
+  createdAt: DateTime!
   updatedAt: DateTime!
 }
 
@@ -1641,6 +1673,245 @@ input MemoryShelveFilter {
 
 input MemoryShelveOrder {
   name: Ordering
+}
+
+"""A strucssture representing a data schema or type."""
+type Structure {
+  id: ID!
+  key: ID!
+  package: StructurePackage!
+  description: String
+
+  """Interfaces that this structure implements."""
+  implements(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
+
+  """Usages of this structure as an output in actions."""
+  outputUsages(filters: OutputStructureUsageFilter, pagination: OffsetPaginationInput): [OutputStructureUsage!]!
+
+  """Usages of this structure as an input in actions."""
+  inputUsages(filters: InputStructureUsageFilter, pagination: OffsetPaginationInput): [InputStructureUsage!]!
+
+  """The object ID that this structure represents."""
+  identifier: ID!
+}
+
+"""A package of structures."""
+type StructurePackage {
+  id: ID!
+  key: String!
+  description: String
+  version: String!
+
+  """Structures that are part of this package."""
+  structures(filters: StructureFilter, pagination: OffsetPaginationInput): [Structure!]!
+
+  """Interfaces that are part of this package."""
+  interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
+}
+
+input StructureFilter {
+  ids: [ID!]
+  search: String
+  AND: StructureFilter
+  OR: StructureFilter
+  NOT: StructureFilter
+  DISTINCT: Boolean
+}
+
+"""If this structure is the default in its package."""
+type Interface {
+  id: ID!
+  key: String!
+  description: String
+  package: StructurePackage!
+
+  """Implementations that implement this interface."""
+  implementations(filters: ImplementationFilter, pagination: OffsetPaginationInput): [Implementation!]!
+
+  """Usages of this interface as an output in actions."""
+  outputUsages(filters: OutputInterfaceUsageFilter, pagination: OffsetPaginationInput): [OutputInterfaceUsage!]!
+
+  """Usages of this interface as an input in actions."""
+  inputUsages(filters: InputInterfaceUsageFilter, pagination: OffsetPaginationInput): [InputInterfaceUsage!]!
+}
+
+"""Usage of an output interface in an action."""
+type OutputInterfaceUsage {
+  id: ID!
+  interface: Interface!
+  action: Action!
+  portIndex: Int!
+  portKey: String!
+  modifiers: [String!]!
+}
+
+input OutputInterfaceUsageFilter {
+  ids: [ID!]
+  interface: ID
+  AND: OutputInterfaceUsageFilter
+  OR: OutputInterfaceUsageFilter
+  NOT: OutputInterfaceUsageFilter
+  DISTINCT: Boolean
+}
+
+"""Usage of an input interface in an action."""
+type InputInterfaceUsage {
+  id: ID!
+  interface: Interface!
+  action: Action!
+  portIndex: Int!
+  portKey: String!
+  modifiers: [String!]!
+}
+
+input InputInterfaceUsageFilter {
+  ids: [ID!]
+  interface: ID
+  AND: InputInterfaceUsageFilter
+  OR: InputInterfaceUsageFilter
+  NOT: InputInterfaceUsageFilter
+  DISTINCT: Boolean
+}
+
+input InterfaceFilter {
+  ids: [ID!]
+  search: String
+  AND: InterfaceFilter
+  OR: InterfaceFilter
+  NOT: InterfaceFilter
+  DISTINCT: Boolean
+}
+
+"""Usage of an output structure in an action."""
+type OutputStructureUsage {
+  id: ID!
+  structure: Structure!
+  action: Action!
+  portIndex: Int!
+  portKey: String!
+  modifiers: [String!]!
+}
+
+input OutputStructureUsageFilter {
+  ids: [ID!]
+  structure: ID
+  AND: OutputStructureUsageFilter
+  OR: OutputStructureUsageFilter
+  NOT: OutputStructureUsageFilter
+  DISTINCT: Boolean
+}
+
+"""Usage of an input structure in an action."""
+type InputStructureUsage {
+  id: ID!
+  structure: Structure!
+  action: Action!
+  portIndex: Int!
+  portKey: String!
+  modifiers: [String!]!
+}
+
+input InputStructureUsageFilter {
+  ids: [ID!]
+  structure: ID
+  AND: InputStructureUsageFilter
+  OR: InputStructureUsageFilter
+  NOT: InputStructureUsageFilter
+  DISTINCT: Boolean
+}
+
+input StructurePackageFilter {
+  ids: [ID!]
+  search: String
+  AND: StructurePackageFilter
+  OR: StructurePackageFilter
+  NOT: StructurePackageFilter
+  DISTINCT: Boolean
+}
+
+type ActionStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: ActionField!): Int!
+
+  """Maximum"""
+  max(field: ActionField!): Float
+
+  """Minimum"""
+  min(field: ActionField!): Float
+
+  """Average"""
+  avg(field: ActionField!): Float
+
+  """Sum"""
+  sum(field: ActionField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: ActionField!, timestampField: ActionTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Numeric/aggregatable fields of Action"""
+enum ActionField {
+  CREATED_AT
+}
+
+type TimeBucket {
+  ts: DateTime!
+  count: Int!
+  distinctCount: Int!
+  max: Float
+  min: Float
+  avg: Float
+  sum: Float
+}
+
+"""Datetime fields of Action for bucketing"""
+enum ActionTimestampField {
+  CREATED_AT
+}
+
+enum Granularity {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+}
+
+type AssignationStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: AssignationField!): Int!
+
+  """Maximum"""
+  max(field: AssignationField!): Float
+
+  """Minimum"""
+  min(field: AssignationField!): Float
+
+  """Average"""
+  avg(field: AssignationField!): Float
+
+  """Sum"""
+  sum(field: AssignationField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: AssignationField!, timestampField: AssignationTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""Numeric/aggregatable fields of Assignation"""
+enum AssignationField {
+  CREATED_AT
+}
+
+"""Datetime fields of Assignation for bucketing"""
+enum AssignationTimestampField {
+  CREATED_AT
 }
 
 """Root mutation type for executing write operations on the API."""
@@ -1942,6 +2213,7 @@ input ActionDependencyInput {
   forceArgLength: Int = null
   forceReturnLength: Int = null
   optional: Boolean! = false
+  allowInactive: Boolean = true
 }
 
 """The input for creating a implementation in another agents extension."""
@@ -1980,11 +2252,12 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "8e26c078-4e3b-4810-9bff-bb1461392fed"
+  reference: String = "e467a6f3-3f4a-4c1e-8ce9-1c06cdd028ae"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
   ephemeral: Boolean! = false
+  dependencies: Args = null
   isHook: Boolean = false
   step: Boolean = false
 }
@@ -2040,7 +2313,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "3ef48101-7bb5-4ed8-be50-c431b8418c4c"
+  reference: String = "c13f0033-4560-49c1-a460-dde24d278ea5"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
