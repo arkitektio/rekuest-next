@@ -42,13 +42,16 @@ class WrappedStartupHook(StartupHook):
             func (Callable): The function to run in the startup hook
         """
         self.func = func
+        self.pass_instance_id = False
 
         # check if has context argument
         arguments = inspect.signature(func).parameters
-        if len(arguments) != 1:
+        if len(arguments) > 1:
             raise StartupHookError(
                 "Startup hook must have exactly one argument (instance_id) or no arguments"
             )
+        if len(arguments) == 1:
+            self.pass_instance_id = True
 
     async def arun(self, instance_id: str) -> StartupHookReturns:
         """Run the startup hook in the event loop
@@ -57,7 +60,10 @@ class WrappedStartupHook(StartupHook):
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        parsed_returns = await self.func(instance_id)
+        if self.pass_instance_id:
+            parsed_returns = await self.func(instance_id)
+        else:
+            parsed_returns = await self.func()
         returns = ensure_return_as_tuple(parsed_returns)
 
         states: Dict[str, Any] = {}
@@ -87,13 +93,16 @@ class ThreadedStartupHook(StartupHook):
             func (Callable): The function to run in the startup hook
         """
         self.func = func
+        self.pass_instance_id = False
 
         # check if has context argument
         arguments = inspect.signature(func).parameters
-        if len(arguments) != 1:
+        if len(arguments) > 1:
             raise StartupHookError(
                 "Startup hook must have exactly one argument (instance_id) or no arguments"
             )
+        if len(arguments) == 1:
+            self.pass_instance_id = True
 
     async def arun(self, instance_id: str) -> StartupHookReturns:
         """Run the startup hook in the event loop
@@ -102,7 +111,11 @@ class ThreadedStartupHook(StartupHook):
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        parsed_returns = await run_spawned(self.func, instance_id)
+        if self.pass_instance_id:
+            parsed_returns = await run_spawned(self.func, instance_id)
+        else:
+            parsed_returns = await run_spawned(self.func)
+
         returns = ensure_return_as_tuple(parsed_returns)
 
         states: Dict[str, Any] = {}

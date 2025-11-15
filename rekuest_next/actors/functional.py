@@ -2,7 +2,8 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, AsyncGenerator, Callable, Dict, Self
+import sys
+from typing import Any, AsyncGenerator, Callable, Dict, List, Self
 from koil.helpers import iterate_spawned, run_spawned  # type: ignore
 from pydantic import BaseModel, Field
 from rekuest_next.actors.base import SerializingActor
@@ -11,6 +12,7 @@ from rekuest_next.structures.serialization.actor import expand_inputs, shrink_ou
 from rekuest_next.actors.helper import AssignmentHelper
 from rekuest_next.structures.errors import SerializationError
 from rekuest_next import messages
+from rekuest_next.actors.debug import capture_to_list
 
 logger = logging.getLogger(__name__)
 
@@ -75,39 +77,60 @@ class AsyncFuncActor(SerializingActor):
                     shelver=self.agent,
                     skip_expanding=not self.expand_inputs,
                 )
-
-                context_kwargs, state_kwargs = await self.aget_locals()
-
+            except Exception as ex:
+                logger.critical("Input serialization error", exc_info=True)
                 await self.asend(
-                    message=messages.ProgressEvent(
+                    message=messages.ErrorEvent(
                         assignation=assignment.assignation,
-                        progress=0,
-                        message="Queued for running",
+                        error=str(ex),
                     )
                 )
+                return
 
-                params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
+            context_kwargs, state_kwargs = await self.aget_locals()
 
-                await self.asend(
-                    message=messages.ProgressEvent(
-                        assignation=assignment.assignation,
-                        progress=0,
-                        message="Queued for running",
+            params: Dict[str, Any] = {
+                **input_kwargs,
+                **context_kwargs,
+                **state_kwargs,
+            }
+
+            logs = []
+
+            try:
+                async with capture_to_list(logs, self.agent, assignment):
+                    async with AssignmentHelper(assignment=assignment, actor=self):
+                        returns = await self._assign_func(**params)
+
+                try:
+                    returns = await shrink_outputs(
+                        self.definition,
+                        returns,
+                        structure_registry=self.structure_registry,
+                        shelver=self.agent,
+                        skip_shrinking=not self.shrink_outputs,
                     )
-                )
-
-                async with AssignmentHelper(assignment=assignment, actor=self):
-                    returns = await self._assign_func(**params)
-
-                returns = await shrink_outputs(
-                    self.definition,
-                    returns,
-                    structure_registry=self.structure_registry,
-                    shelver=self.agent,
-                    skip_shrinking=not self.shrink_outputs,
-                )
+                except SerializationError as ex:
+                    logger.critical("Output serialization error", exc_info=True)
+                    await self.asend(
+                        message=messages.ErrorEvent(
+                            assignation=assignment.assignation,
+                            error=str(ex),
+                        )
+                    )
+                    return
 
                 await self.async_locals(state_kwargs)
+
+                if assignment.capture:
+                    output = "".join(logs)
+                    await self.asend(
+                        message=messages.LogEvent(
+                            assignation=assignment.assignation,
+                            message=output,
+                            level="INFO",
+                        )
+                    )
 
                 await self.asend(
                     message=messages.YieldEvent(
@@ -122,16 +145,17 @@ class AsyncFuncActor(SerializingActor):
                     )
                 )
 
-            except SerializationError as ex:
-                logger.critical("Assignation error", exc_info=True)
-                await self.asend(
-                    message=messages.ErrorEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
+            except (AssertionError, Exception) as ex:
+                if assignment.capture:
+                    output = "".join(logs)
+                    await self.asend(
+                        message=messages.LogEvent(
+                            assignation=assignment.assignation,
+                            message=output,
+                            level="INFO",
+                        )
                     )
-                )
 
-            except AssertionError as ex:
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
                     message=messages.CriticalEvent(
@@ -139,15 +163,7 @@ class AsyncFuncActor(SerializingActor):
                         error=str(ex),
                     )
                 )
-
-            except Exception as ex:
-                logger.critical("Assignation error", exc_info=True)
-                await self.asend(
-                    message=messages.CriticalEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
-                    )
-                )
+                return
 
 
 class AsyncGenActor(SerializingActor):
@@ -186,40 +202,68 @@ class AsyncGenActor(SerializingActor):
                     shelver=self.agent,
                     skip_expanding=not self.expand_inputs,
                 )
-
-                context_kwargs, state_kwargs = await self.aget_locals()
-
+            except Exception as ex:
+                logger.critical("Input serialization error", exc_info=True)
                 await self.asend(
-                    message=messages.ProgressEvent(
+                    message=messages.ErrorEvent(
                         assignation=assignment.assignation,
-                        progress=0,
-                        message="Queued for running",
+                        error=str(ex),
                     )
                 )
+                return
 
-                params: Dict[str, Any] = {**input_kwargs, **context_kwargs, **state_kwargs}
+            context_kwargs, state_kwargs = await self.aget_locals()
 
-                async with AssignmentHelper(
-                    assignment=assignment,
-                    actor=self,
-                ):
-                    async for returns in self._yield_func(**params):
-                        returns = await shrink_outputs(
-                            self.definition,
-                            returns,
-                            structure_registry=self.structure_registry,
-                            shelver=self.agent,
-                            skip_shrinking=not self.shrink_outputs,
-                        )
+            params: Dict[str, Any] = {
+                **input_kwargs,
+                **context_kwargs,
+                **state_kwargs,
+            }
 
-                        await self.asend(
-                            message=messages.YieldEvent(
-                                assignation=assignment.assignation,
-                                returns=returns,
+            logs: List[str] = []
+
+            try:
+                async with capture_to_list(logs, self.agent, assignment):
+                    async with AssignmentHelper(assignment=assignment, actor=self):
+                        async for returns in self._yield_func(**params):
+                            try:
+                                returns = await shrink_outputs(
+                                    self.definition,
+                                    returns,
+                                    structure_registry=self.structure_registry,
+                                    shelver=self.agent,
+                                    skip_shrinking=not self.shrink_outputs,
+                                )
+                            except SerializationError as ex:
+                                logger.critical(
+                                    "Output serialization error", exc_info=True
+                                )
+                                await self.asend(
+                                    message=messages.ErrorEvent(
+                                        assignation=assignment.assignation,
+                                        error=str(ex),
+                                    )
+                                )
+                                return
+
+                            await self.asend(
+                                message=messages.YieldEvent(
+                                    assignation=assignment.assignation,
+                                    returns=returns,
+                                )
                             )
-                        )
 
-                        await self.async_locals(state_kwargs)
+                            await self.async_locals(state_kwargs)
+
+                if logs and assignment.capture:
+                    output = "".join(logs)
+                    await self.asend(
+                        message=messages.LogEvent(
+                            assignation=assignment.assignation,
+                            message=output,
+                            level="INFO",
+                        )
+                    )
 
                 await self.asend(
                     message=messages.DoneEvent(
@@ -227,16 +271,17 @@ class AsyncGenActor(SerializingActor):
                     )
                 )
 
-            except SerializationError as ex:
-                logger.critical("Assignation error", exc_info=True)
-                await self.asend(
-                    message=messages.ErrorEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
+            except (AssertionError, Exception) as ex:
+                if logs and assignment.capture:
+                    output = "".join(logs)
+                    await self.asend(
+                        message=messages.LogEvent(
+                            assignation=assignment.assignation,
+                            message=output,
+                            level="INFO",
+                        )
                     )
-                )
 
-            except AssertionError as ex:
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
                     message=messages.CriticalEvent(
@@ -244,15 +289,7 @@ class AsyncGenActor(SerializingActor):
                         error=str(ex),
                     )
                 )
-
-            except Exception as ex:
-                logger.critical("Assignation error", exc_info=True)
-                await self.asend(
-                    message=messages.CriticalEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
-                    )
-                )
+                return
 
 
 class FunctionalFuncActor(FunctionalActor, AsyncFuncActor):

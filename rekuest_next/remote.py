@@ -62,6 +62,7 @@ async def acall_raw(
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
+    capture: bool = False,
     assign_timeout: Optional[float] = None,
     timeout_is_recoverable: bool = False,
     log: bool = False,
@@ -89,6 +90,7 @@ async def acall_raw(
         reference=reference,
         hooks=tuple(hooks or []),
         cached=cached,
+        capture=capture,
         parent=ID.validate(parent.assignation) if parent else None,
         log=log,
         isHook=False,
@@ -117,6 +119,7 @@ async def aiterate_raw(
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
+    capture: bool = False,
     assign_timeout: Optional[float] = None,
     timeout_is_recoverable: bool = False,
     log: bool = False,
@@ -144,6 +147,7 @@ async def aiterate_raw(
         reference=reference,
         hooks=tuple(hooks or []),
         cached=cached,
+        capture=capture,
         parent=ID.validate(parent.assignation) if parent else None,
         log=log,
         isHook=False,
@@ -170,6 +174,7 @@ async def acall(
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
+    capture: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
@@ -200,9 +205,7 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -212,14 +215,13 @@ async def acall(
         reference=reference,
         hooks=hooks or [],
         cached=cached,
+        capture=capture,
         parent=parent,
         log=log,
         postman=postman,
     )
 
-    returns = await aexpand_returns(
-        action, returns, structure_registry=structure_registry
-    )
+    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
     if len(returns) == 1:
         return returns[0]
     return returns
@@ -233,6 +235,7 @@ async def aiterate(
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
+    capture: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[tuple[Any], None]:
@@ -262,9 +265,7 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -274,13 +275,12 @@ async def aiterate(
         reference=reference,
         hooks=hooks or [],
         cached=cached,
+        capture=capture,
         parent=parent,
         log=log,
     ):
         assert i.returns, "YIELD event must have returns"
-        yield await aexpand_returns(
-            action, i.returns, structure_registry=structure_registry
-        )
+        yield await aexpand_returns(action, i.returns, structure_registry=structure_registry)
 
 
 def call(
