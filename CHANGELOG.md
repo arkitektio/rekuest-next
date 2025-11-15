@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.19.0 (2025-11-15)
+
+### Features
+
+- Add the capture protocol
+  ([`3365ba3`](https://github.com/arkitektio/rekuest-next/commit/3365ba368a6cfd809d68192940180933e4d9be9b))
+
+
 ## v0.18.3 (2025-11-13)
 
 ### Bug Fixes
