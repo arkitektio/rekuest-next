@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.20.0 (2025-11-18)
+
+### Features
+
+- Fix for calling (not tested)
+  ([`4c4b716`](https://github.com/arkitektio/rekuest-next/commit/4c4b716c5f0facd7014a254f4bcf72955e965519))
+
+
 ## v0.19.1 (2025-11-18)
 
 ### Bug Fixes
