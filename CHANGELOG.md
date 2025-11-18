@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.19.1 (2025-11-18)
+
+### Bug Fixes
+
+- Fix float serialization
+  ([`397586e`](https://github.com/arkitektio/rekuest-next/commit/397586e5b6a4798ab5bad7771263d1c64e1c9bef))
+
+
 ## v0.19.0 (2025-11-15)
 
 ### Features
