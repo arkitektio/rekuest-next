@@ -15,8 +15,10 @@ from typing import (
     cast,
 )
 import inflection
+from kabinet.api.schema import ActionKind
+from rekuest_next.actors import helper
 from rekuest_next.actors.errors import NotWithinAnAssignationError
-from rekuest_next.remote import call
+from rekuest_next.remote import call, iterate
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnprovide
@@ -85,7 +87,14 @@ class DeclaredFunction(Generic[P, R]):
 
         implementation = get_implementation(dependency)
 
-        return call(implementation, *args, parent=helper.assignment, **kwargs)
+        if implementation.action.kind == ActionKind.FUNCTION:
+            return call(implementation, *args, parent=helper.assignment, **kwargs)
+        elif implementation.action.kind == ActionKind.GENERATOR:
+            return iterate(implementation, *args, parent=helper.assignment, **kwargs)
+        else:
+            raise Exception(
+                f"Cannot call implementation of kind {implementation.action.kind}"
+            )
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the wrapped function directly if not within an assignation."""
@@ -149,7 +158,14 @@ class DeclaredProtocol(Generic[P, R]):
 
         implementation = get_implementation(dependency)
 
-        return call(implementation, *args, parent=helper.assignment, **kwargs)
+        if implementation.action.kind == ActionKind.FUNCTION:
+            return call(implementation, *args, parent=helper.assignment, **kwargs)
+        elif implementation.action.kind == ActionKind.GENERATOR:
+            return iterate(implementation, *args, parent=helper.assignment, **kwargs)
+        else:
+            raise Exception(
+                f"Cannot call implementation of kind {implementation.action.kind}"
+            )
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the wrapped function directly if not within an assignation."""
@@ -228,7 +244,7 @@ def protocol(
     """
 
     if func:
-        return DeclaredFunction(func=func[0])
+        return DeclaredProtocol(func=func[0])
     else:
 
         def real_decorator(

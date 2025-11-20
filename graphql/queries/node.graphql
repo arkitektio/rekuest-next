@@ -1,5 +1,15 @@
-query find($id: ID, $implementation: ID, $hash: ActionHash) {
-  action(id: $id, implementation: $implementation, hash: $hash) {
+query find(
+  $id: ID
+  $implementation: ID
+  $hash: ActionHash
+  $matching: ActionDependencyInput
+) {
+  action(
+    id: $id
+    implementation: $implementation
+    hash: $hash
+    matching: $matching
+  ) {
     ...Action
   }
 }

@@ -298,7 +298,7 @@ type Query {
   assignationStats(filters: AssignationFilter = null): AssignationStats!
 
   """Fetch a specific action."""
-  action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null): Action!
+  action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
 
   """Fetch assignations."""
   assignations(instanceId: InstanceId = null): [Assignation!]!
@@ -1950,6 +1950,24 @@ enum AssignationTimestampField {
   CREATED_AT
 }
 
+"""
+A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions
+"""
+input ActionDependencyInput {
+  key: String!
+  hash: ActionHash = null
+  name: String = null
+  description: String = null
+  argMatches: [PortMatchInput!] = null
+  returnMatches: [PortMatchInput!] = null
+  protocols: [ID!] = null
+  forceArgLength: Int = null
+  forceReturnLength: Int = null
+  optional: Boolean! = false
+  allowInactive: Boolean = true
+}
+
 """Root mutation type for executing write operations on the API."""
 type Mutation {
   """Create a new implementation entry."""
@@ -2234,24 +2252,6 @@ input DescriptorInput {
   value: Arg!
 }
 
-"""
-A dependency for a implementation. By defining dependencies, you can
-    create a dependency graph for your implementations and actions
-"""
-input ActionDependencyInput {
-  key: String!
-  hash: ActionHash = null
-  name: String = null
-  description: String = null
-  argMatches: [PortMatchInput!] = null
-  returnMatches: [PortMatchInput!] = null
-  protocols: [ID!] = null
-  forceArgLength: Int = null
-  forceReturnLength: Int = null
-  optional: Boolean! = false
-  allowInactive: Boolean = true
-}
-
 """The input for creating a implementation in another agents extension."""
 input CreateForeignImplementationInput {
   """
@@ -2288,7 +2288,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "98daadb0-ce57-42f9-ab29-1aa45a09b6fe"
+  reference: String = "6a818477-94ae-4f1d-8b04-41d4f9e015ea"
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -2350,7 +2350,7 @@ input ReInitInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "01772dda-5fe2-4789-b135-143300b1103b"
+  reference: String = "cc3855ac-62bd-4ce7-a784-9ad5ac5ff179"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

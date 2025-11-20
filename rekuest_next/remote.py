@@ -23,8 +23,8 @@ from rekuest_next.api.schema import (
     AssignInput,
     HookInput,
     Action,
-    find,
-    afind,
+    find as find_node,
+    afind as afind_node,
     Reservation,
     Implementation,
 )
@@ -36,12 +36,51 @@ from rekuest_next.structures.registry import (
 )
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
 
 
 __all__ = [
     "find",
     "afind",
 ]
+
+
+async def afind(
+    action_implementation_res: Union[
+        ID, Action, Implementation, Reservation, "DeclaredFunction", "DeclaredProtocol"
+    ],
+) -> Action:
+    from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
+
+    """Find and return the assignation generator"""
+    if isinstance(action_implementation_res, Action):
+        return action_implementation_res
+
+    if isinstance(action_implementation_res, (ID, str)):
+        action_implementation_res = await afind_node(action_implementation_res)
+        return action_implementation_res
+
+    if isinstance(action_implementation_res, (DeclaredFunction, DeclaredProtocol)):
+        action_implementation_res = await afind_node(
+            matching=action_implementation_res.to_dependency_input()
+        )
+        return action_implementation_res
+
+    raise ValueError(
+        "action_implementation_res must be an ID, Action, Implementation, Reservation, DeclaredFunction or DeclaredProtocol"
+    )
+
+
+def find(
+    action_implementation_res: Union[
+        ID, Action, Implementation, Reservation, "DeclaredFunction", "DeclaredProtocol"
+    ],
+) -> Action:
+    return unkoil(afind, action_implementation_res)
 
 
 def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
@@ -205,7 +244,9 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -221,7 +262,9 @@ async def acall(
         postman=postman,
     )
 
-    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
+    returns = await aexpand_returns(
+        action, returns, structure_registry=structure_registry
+    )
     if len(returns) == 1:
         return returns[0]
     return returns
@@ -265,7 +308,9 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -279,8 +324,13 @@ async def aiterate(
         parent=parent,
         log=log,
     ):
-        assert i.returns, "YIELD event must have returns"
-        yield await aexpand_returns(action, i.returns, structure_registry=structure_registry)
+        returns = await aexpand_returns(
+            action, i, structure_registry=structure_registry
+        )
+        if len(returns) == 1:
+            yield returns[0]
+        else:
+            yield returns
 
 
 def call(

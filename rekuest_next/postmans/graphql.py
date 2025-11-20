@@ -60,7 +60,7 @@ class GraphQLPostman(KoiledModel):
         try:
             assignation = await aassign(**assign.model_dump())
         except Exception as e:
-            raise PostmanException("Cannot Assign") from e
+            raise PostmanException(f"Cannot Assign: {e}") from e
 
         assert assign.reference, "Needs to be set"
 
