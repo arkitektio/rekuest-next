@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.21.0 (2025-11-20)
+
+
 ## v0.20.0 (2025-11-18)
 
 ### Features
+
+- Enhance find and declare protocols
+  ([`97762da`](https://github.com/arkitektio/rekuest-next/commit/97762dae4ca4aa109d802c26ab105c9f0b25385f))
 
 - Fix for calling (not tested)
   ([`4c4b716`](https://github.com/arkitektio/rekuest-next/commit/4c4b716c5f0facd7014a254f4bcf72955e965519))
