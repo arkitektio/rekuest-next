@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.23.0 (2025-11-23)
+
+### Features
+
+- Now fix actors
+  ([`ece2223`](https://github.com/arkitektio/rekuest-next/commit/ece222329c4d86709bd8ea03ada173ed611ab505))
+
+
 ## v0.22.0 (2025-11-23)
 
 
