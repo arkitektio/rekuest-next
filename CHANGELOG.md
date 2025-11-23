@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.24.0 (2025-11-23)
+
+
 ## v0.23.0 (2025-11-23)
 
 ### Features
+
+- Add kick and tear down as well as update koil
+  ([`1dd9180`](https://github.com/arkitektio/rekuest-next/commit/1dd9180744c4b8deb5a8c10c39757c01e9f35718))
 
 - Now fix actors
   ([`ece2223`](https://github.com/arkitektio/rekuest-next/commit/ece222329c4d86709bd8ea03ada173ed611ab505))
