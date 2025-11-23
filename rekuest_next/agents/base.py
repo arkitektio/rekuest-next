@@ -95,9 +95,7 @@ class BaseAgent(KoiledModel):
     )
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
     state_registry: StateRegistry = Field(
         default_factory=get_default_state_registry,
         description="A global registry of all registered states for this extension. Think @state",
@@ -116,9 +114,7 @@ class BaseAgent(KoiledModel):
     capture_active: bool = Field(default=False)
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(
-        default_factory=dict
-    )
+    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
@@ -130,7 +126,6 @@ class BaseAgent(KoiledModel):
         description="Maps actor id to the task that is running the actor",
     )
 
-    _inqueue: Optional[asyncio.Queue[messages.ToAgentMessage]] = None
     _errorfuture: Optional[asyncio.Future[Exception]] = None
     _agent: Optional[Agent] = None
 
@@ -145,9 +140,7 @@ class BaseAgent(KoiledModel):
         default_factory=lambda: {}  # typ
     )
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
 
     started: bool = False
     running: bool = False
@@ -198,54 +191,6 @@ class BaseAgent(KoiledModel):
         """
         del self.shelve[key]
         await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
-
-    async def abroadcast(self, message: messages.ToAgentMessage) -> None:
-        """Broadcasts a message from a transport
-        to the agent which then delegates it to agents
-
-        This is an async funciton that puts the message on the agent
-        queue. The agent will then process the message and send it to the
-        actors.
-        """
-        if self._inqueue is None:
-            raise AgentException("Agent is not started yet")
-
-        await self._inqueue.put(message)
-
-    async def on_agent_error(self, error: AgentTransportException) -> None:
-        """Called when an error occurs in the agent. This
-        can be used to handle errors that occur in the agent
-        """
-        if self._errorfuture is None or self._errorfuture.done():
-            return
-        self._errorfuture.set_exception(error)
-        ...
-
-    async def on_definite_error(self, error: DefiniteConnectionFail) -> None:
-        """Async function that is called when a definite error occurs in the agent.
-
-        This can be used to handle errors that occur in the agent
-        and that are not correctable. This is used to handle errors that occur
-        when the transport is not able to connect to the server anymore and
-        the agent is not able to recover from it.
-
-        Args:
-            error (DefiniteConnectionFail): The error that occurred.
-        """
-        if self._errorfuture is None or self._errorfuture.done():
-            return
-        self._errorfuture.set_exception(error)
-        ...
-
-    async def on_correctable_error(self, error: CorrectableConnectionFail) -> bool:
-        """Async function that is called when a correctable error occurs in the transport.
-        This can be used to handle errors that occur in the transport and that
-        can be corrected. An agent can decide to allow the correction of the error
-        or not.
-        """
-        # Always correctable
-        return True
-        ...
 
     async def process(self, message: messages.ToAgentMessage) -> None:
         """Processes a message from the transport. This is used to process
@@ -425,17 +370,14 @@ class BaseAgent(KoiledModel):
             )
 
             for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = (
-                    implementation
-                )
-                self.implementation_interface_map[implementation.id] = (
-                    implementation.interface
-                )
+                self.interface_implementation_map[implementation.interface] = implementation
+                self.implementation_interface_map[implementation.id] = implementation.interface
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
+        logger.debug(f"Agent forwarding {message.id} from actor {actor.__class__.__name__}")
         await self.transport.asend(message)
 
     async def aregister_state_schemas(self) -> Dict[str, StateSchema]:
@@ -513,14 +455,10 @@ class BaseAgent(KoiledModel):
             raise AgentException(f"State {interface} not found in agent {self.name}")
 
         if interface not in self._current_shrunk_states:
-            raise AgentException(
-                f"Shrunk State {interface} not found in agent {self.name}"
-            )
+            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
 
         if interface not in self._interface_stateschema_input_map:
-            raise AgentException(
-                f"State Schema {interface} not found in agent {self.name}"
-            )
+            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
 
         if not self.instance_id:
             raise AgentException("Instance id is not set. The agent is not initialized")
@@ -564,9 +502,7 @@ class BaseAgent(KoiledModel):
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self.hook_registry.background_worker.items():
-            task = asyncio.create_task(
-                worker.arun(contexts=self.contexts, states=self.states)
-            )
+            task = asyncio.create_task(worker.arun(contexts=self.contexts, states=self.states))
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
             self._background_tasks[name] = task
@@ -577,9 +513,7 @@ class BaseAgent(KoiledModel):
             task.cancel()
 
         try:
-            await asyncio.gather(
-                *self._background_tasks.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
         except asyncio.CancelledError:
             pass
 
@@ -605,16 +539,13 @@ class BaseAgent(KoiledModel):
         await self.aregister_definitions(instance_id=instance_id)
 
         self._errorfuture = asyncio.Future()
-        await self.transport.aconnect(instance_id)
 
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
         """Spawns an Actor from a Provision. This function closely mimics the
         spawining protocol within an actor. But maps implementation"""
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
-            )
+            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -632,28 +563,6 @@ class BaseAgent(KoiledModel):
 
         return await self._errorfuture
 
-    async def astep(self) -> None:
-        """Async step that runs the agent. This is used to run the agent"""
-        if self._inqueue is None or self._errorfuture is None:
-            raise AgentException("Agent is not started yet")
-
-        queue_task = asyncio.create_task(self._inqueue.get(), name="queue_future")
-        error_task = asyncio.create_task(self.await_errorfuture(), name="error_future")
-        done, _ = await asyncio.wait(
-            [queue_task, error_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        if self._errorfuture.done():
-            exception = self._errorfuture.exception()
-            if exception is not None:
-                raise exception
-            else:
-                raise AgentException("Agent was cancelled")
-        else:
-            # TODO: Check if the task was cancelled
-            await self.process(await done.pop())  # type: ignore
-
     def provide(self, instance_id: Optional[str] = None) -> None:
         """Provides the agent. This starts the agents and
         connected the transport."""
@@ -662,9 +571,10 @@ class BaseAgent(KoiledModel):
     async def aloop(self) -> None:
         """Async loop that runs the agent. This is used to run the agent"""
         try:
-            while True:
-                self.running = True
-                await self.astep()
+            self.running = True
+            await self.transport.aconnect(self.instance_id)
+            async for message in self.transport.areceive():
+                await self.process(message)
         except asyncio.CancelledError:
             logger.info(f"Provisioning task cancelled. We are running {self.transport}")
             self.running = False
@@ -681,9 +591,7 @@ class BaseAgent(KoiledModel):
             self.instance_id = instance_id
 
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.instance_id}"
-            )
+            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
             await self.astart(instance_id=self.instance_id)
             logger.info("Starting to listen for requests")
             await self.aloop()
@@ -699,8 +607,6 @@ class BaseAgent(KoiledModel):
         transport and start listening for messages from the transport.
         """
 
-        self._inqueue = asyncio.Queue()
-        self.transport.set_callback(self)
         await self.transport.__aenter__()
         return self
 

@@ -47,6 +47,9 @@ class ToAgentMessageType(str, Enum):
     UNPROVIDE = "UNPROVIDE"
     INIT = "INIT"
     HEARTBEAT = "HEARTBEAT"
+    BOUNCE = "BOUNCE"
+    KICK = "KICK"
+    PROTOCOL_ERROR = "PROTOCOL_ERROR"
 
 
 class FromAgentMessageType(str, Enum):
@@ -94,10 +97,6 @@ class Assign(Message):
     reservation: Optional[str] = Field(
         default=None, description="The reservation id if assigned through that"
     )
-    dependencies: Dict[str, str] | None = Field(
-        default=None,
-        description="The dependencies that were provided (should map reference to template)",
-    )
     assignation: str = Field(description="The assignation id")
     root: Optional[str] = Field(
         default=None,
@@ -109,21 +108,24 @@ class Assign(Message):
         description="The direct parent of this assignation, None if this is this is the mother",
     )
     """ The parent s"""
+    dependencies: Dict[str, str] | None = Field(
+        default=None,
+        description="The dependencies that were provided (should map reference to template)",
+    )
+    capture: bool = Field(default=False, description="Whether to run in debug mode")
     reference: Optional[str] = Field(
         default=None, description="A reference that the assinger provided"
-    )
-    capture: bool | None = Field(
-        default=False,
-        description="Whether this assignation is a debug assignation. And will run exclusively and log capture",
     )
     args: Dict[str, ShallowJSONSerializable] = Field(
         description="The arguments that was sendend"
     )
     message: Optional[str] = None
-    user: str = Field(description="The assining user that was sendend")
+    user: str = Field(..., description="The assinging user")
+    org: Optional[str] = Field(
+        default=None, description="The org that the user currently belongs to"
+    )
     app: str = Field(description="The assinging app")
-    org: str = Field(description="The assinging organization")
-    action: str = Field(description="The assinging action HASH not id")
+    action: str = Field(description="The action that triggered this assignation")
 
     @property
     def actor_id(self) -> str:
@@ -140,6 +142,28 @@ class Step(Message):
 
     type: Literal[ToAgentMessageType.STEP] = ToAgentMessageType.STEP
     assignation: str
+
+
+class Bounce(Message):
+    """A step call
+    A step call tells the agent to step the assignation
+    and all its children assignation until a resume is received
+    Its on the actor to decide what to do with the children assignations
+    """
+
+    type: Literal[ToAgentMessageType.BOUNCE] = ToAgentMessageType.BOUNCE
+    duration: int | None = None
+
+
+class Kick(Message):
+    """A step call
+    A step call tells the agent to step the assignation
+    and all its children assignation until a resume is received
+    Its on the actor to decide what to do with the children assignations
+    """
+
+    type: Literal[ToAgentMessageType.KICK] = ToAgentMessageType.KICK
+    reason: str | None = None
 
 
 class Heartbeat(Message):
@@ -400,6 +424,12 @@ class Register(Message):
     token: str
 
 
+class ProtocolError(Message):
+    type: Literal[ToAgentMessageType.PROTOCOL_ERROR] = ToAgentMessageType.PROTOCOL_ERROR
+    error: str
+    """ The error message that was raised by the agent"""
+
+
 class Init(Message):
     """An init message
 
@@ -415,7 +445,18 @@ class Init(Message):
 
 
 ToAgentMessage = Union[
-    Init, Assign, Cancel, Interrupt, Heartbeat, Step, Pause, Resume, Collect
+    Init,
+    Assign,
+    Cancel,
+    Interrupt,
+    Heartbeat,
+    Step,
+    Pause,
+    Resume,
+    Collect,
+    ProtocolError,
+    Bounce,
+    Kick,
 ]
 FromAgentMessage = Union[
     CriticalEvent,

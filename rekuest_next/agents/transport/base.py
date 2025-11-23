@@ -2,14 +2,13 @@
 
 from abc import abstractmethod
 from types import TracebackType
-from typing import Optional, Self
+from typing import Optional, Self, AsyncIterator
 
 from pydantic import ConfigDict, PrivateAttr
 
-from rekuest_next.messages import FromAgentMessage
+from rekuest_next.messages import FromAgentMessage, ToAgentMessage
 
 from koil.composition import KoiledModel
-from .types import TransportCallbacks
 
 
 class AgentTransport(KoiledModel):
@@ -33,9 +32,6 @@ class AgentTransport(KoiledModel):
 
     """
 
-    _callback: Optional[TransportCallbacks] = PrivateAttr(
-        default=None,
-    )
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
@@ -49,13 +45,10 @@ class AgentTransport(KoiledModel):
         raise NotImplementedError("This is an abstract Base Class")
 
     @abstractmethod
-    async def aconnect(self, instance_id: str) -> None:
+    async def aconnect(self, instance_id: str) -> AsyncIterator[ToAgentMessage]:
         """Connect to the agent."""
         raise NotImplementedError("This is an abstract Base Class")
-
-    def set_callback(self, callback: TransportCallbacks) -> None:
-        """Set the callback for the transport."""
-        self._callback = callback
+        yield
 
     async def __aenter__(self) -> Self:  # noqa: ANN001
         """Enter the context manager."""
