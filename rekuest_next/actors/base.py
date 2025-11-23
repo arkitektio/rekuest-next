@@ -53,9 +53,7 @@ class Actor(BaseModel):
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
 
-    _in_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
     _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _run_task: asyncio.Task[None] | None = PrivateAttr(default=None)
     _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
 
     @model_validator(mode="before")
@@ -171,20 +169,7 @@ class Actor(BaseModel):
             self (Self): A reference to the actor instance.
             message (messages.FromAgentMessage):   The message to process.
         """
-        assert self._in_queue, "Actor is currently not listening"
-        await self._in_queue.put(message)
-
-    async def arun(self: Self) -> asyncio.Task[None]:
-        """A funciton to start the actor. This is used to start the actor and
-        start listening for messages from the agent.
-
-        Returns:
-            asyncio.Task: The task that is running the actor.
-        """
-        self._in_queue = asyncio.Queue()
-        self._run_task = asyncio.create_task(self.alisten())
-        self._run_task.add_done_callback(self._provision_task_done)
-        return self._run_task
+        await self.aprocess(message)
 
     async def acancel(self: Self) -> None:
         """A function to cancel the actor. This is used to cancel the actor and
@@ -193,16 +178,20 @@ class Actor(BaseModel):
         # Cancel Mnaged actors
         logger.info(f"Cancelling Actor {self.id}")
 
-        if not self._run_task or self._run_task.done():
-            # Race condition
-            return
+        [i.cancel() for i in self._running_asyncio_tasks.values()]
 
-        self._run_task.cancel()
-
-        try:
-            await self._run_task
-        except asyncio.CancelledError:
-            logger.info(f"Actor {self} was cancelled")
+        for key, task in self._running_asyncio_tasks.items():
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
+                await self.agent.asend(
+                    self,
+                    message=messages.CriticalEvent(
+                        assignation=key,
+                        error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
+                    ),
+                )
 
     async def abreak(self: Self, assignation_id: str) -> bool:
         """A function to break the actor. This is used to instruct the actor to
@@ -309,76 +298,6 @@ class Actor(BaseModel):
             state (AnyState): The state to publish.
         """
         await self.agent.apublish_state(state)
-
-    async def alisten(self: Self) -> None:
-        """A function to listen for messages from the agent. This is used to
-
-        listen for messages from the agent and process them.
-        This is the main loop of the actor and is used to process messages
-        from the agent.
-
-        It normally gets called once the actor is started and is used to
-        process messages from the agent in a tasked loop.
-
-        """
-        if self._in_queue is None:
-            raise RuntimeError("Actor is not running")
-
-        try:
-            logger.info(f"Actor {self.id} Is now active")
-
-            while True:
-                message = await self._in_queue.get()
-                try:
-                    await self.aprocess(message)
-                except Exception:
-                    logger.critical("Processing unknown message should never happen", exc_info=True)
-
-        except asyncio.CancelledError:
-            logger.info("Doing Whatever needs to be done to cancel!")
-
-            [i.cancel() for i in self._running_asyncio_tasks.values()]
-
-            for key, task in self._running_asyncio_tasks.items():
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
-                    await self.agent.asend(
-                        self,
-                        messages.CriticalEvent(
-                            assignation=key,
-                            error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
-                        ),
-                    )
-
-        except Exception:
-            logger.critical("Unhandled exception", exc_info=True)
-
-            # TODO: Maybe send back an acknoledgement that we are done cancelling.
-            # If we don't do this, arkitekt will not know if we failed to cancel our
-            # tasks or if we succeeded. If we fail to cancel arkitekt can try to
-            # kill the whole agent (maybe causing a sys.exit(1) or something)
-
-        self._in_queue = None
-
-    def _provision_task_done(self: Self, task: asyncio.Task[None]) -> None:
-        """A function that is called once the provision task (the run task) is done. This can be
-        used in debugging to check if the task was cancelled or if it was done successfully.
-
-        Args:
-            task (asyncio.Task): The task that was done.
-        """
-
-        # TODO: Does this really work?
-        try:
-            exception = task.exception()
-            if exception:
-                raise exception
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"Provision task {task} failed with exception {e}", exc_info=True)
 
 
 class SerializingActor(Actor):

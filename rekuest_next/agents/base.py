@@ -550,7 +550,6 @@ class BaseAgent(KoiledModel):
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
 
-        await actor.arun()
         self.managed_actors[assign.actor_id] = actor
         self.managed_assignments[assign.assignation] = assign
 

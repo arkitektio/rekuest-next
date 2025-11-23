@@ -59,9 +59,7 @@ class Agent(Protocol):
     capture_condition: asyncio.Condition
     capture_active: bool
 
-    async def asend(
-        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
-    ) -> None:
+    async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 
@@ -133,11 +131,6 @@ class Actor(Protocol):
         """Pass a message to the actor. This method will pass a message to the
         actor and return None.
         """
-        ...
-
-    async def arun(self) -> asyncio.Task[None]:
-        """Run the actor. This method will run the actor and return None.
-        This is used to run the actor"""
         ...
 
     async def acheck_assignation(
