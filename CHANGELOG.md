@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.22.0 (2025-11-23)
+
+
 ## v0.21.0 (2025-11-20)
+
+### Features
+
+- Move run into runloop logic
+  ([`dac8cae`](https://github.com/arkitektio/rekuest-next/commit/dac8cae8c3c8b2103cc465068a1c5a1b2df27add))
 
 
 ## v0.20.0 (2025-11-18)
