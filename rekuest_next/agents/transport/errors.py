@@ -15,6 +15,12 @@ class BounceError(AgentTransportException):
     """
 
 
+class KickError(AgentTransportException):
+    """
+    Raised when the agent receives a bounce message.
+    """
+
+
 class ProvisionListDeniedError(AgentTransportException):
     """
     Raised when the backend is not able to list the provisions.

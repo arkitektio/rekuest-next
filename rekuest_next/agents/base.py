@@ -577,7 +577,12 @@ class BaseAgent(KoiledModel):
         except asyncio.CancelledError:
             logger.info(f"Provisioning task cancelled. We are running {self.transport}")
             self.running = False
+            await self.atear_down()
             raise
+        except Exception as e:
+            logger.error(f"Error in agent loop: {str(e)}")
+            await self.atear_down()
+            raise e
 
     async def aprovide(self, instance_id: Optional[str] = None) -> None:
         """Provides the agent.

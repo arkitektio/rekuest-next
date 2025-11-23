@@ -16,7 +16,7 @@ dependencies = [
     "rath>=3.5.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil>=2.0.4",
+    "koil>=2.1.0",
     "dokker>=2.2",
 ]
 

@@ -45,10 +45,21 @@ class AgentTransport(KoiledModel):
         raise NotImplementedError("This is an abstract Base Class")
 
     @abstractmethod
-    async def aconnect(self, instance_id: str) -> AsyncIterator[ToAgentMessage]:
+    async def aconnect(self, instance_id: str) -> None:
         """Connect to the agent."""
         raise NotImplementedError("This is an abstract Base Class")
         yield
+
+    @abstractmethod
+    async def areceive(self) -> AsyncIterator[ToAgentMessage]:
+        """Receive messages from the agent."""
+        raise NotImplementedError("This is an abstract Base Class")
+        yield
+
+    @abstractmethod
+    async def adisconnect(self) -> None:
+        """Disconnect the agent."""
+        raise NotImplementedError("This is an abstract Base Class")
 
     async def __aenter__(self) -> Self:  # noqa: ANN001
         """Enter the context manager."""
