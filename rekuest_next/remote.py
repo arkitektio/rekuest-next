@@ -37,7 +37,7 @@ from rekuest_next.structures.registry import (
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 from typing import TYPE_CHECKING
-
+from rekuest_next.errors import CriticalCallError, ErrorCallError
 
 if TYPE_CHECKING:
     from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
@@ -145,8 +145,11 @@ async def acall_raw(
         if i.kind == AssignationEventKind.DONE:
             return returns
 
+        if i.kind == AssignationEventKind.ERROR:
+            raise ErrorCallError(i.message)
+
         if i.kind == AssignationEventKind.CRITICAL:
-            raise Exception(i.message)
+            raise CriticalCallError(i.message)
 
 
 async def aiterate_raw(
@@ -201,8 +204,11 @@ async def aiterate_raw(
         if i.kind == AssignationEventKind.DONE:
             return
 
+        if i.kind == AssignationEventKind.ERROR:
+            raise ErrorCallError(i.message)
+
         if i.kind == AssignationEventKind.CRITICAL:
-            raise Exception(i.message)
+            raise CriticalCallError(i.message)
 
 
 async def acall(
