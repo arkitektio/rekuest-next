@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.24.2 (2025-11-29)
+
+
 ## v0.24.1 (2025-11-24)
 
 ### Bug Fixes
+
+- Add some helpers
+  ([`0ca933e`](https://github.com/arkitektio/rekuest-next/commit/0ca933ed8f5b3955f4ffb5f5a2e06b8094b4c5f3))
 
 - Better errors
   ([`7908405`](https://github.com/arkitektio/rekuest-next/commit/790840534f3eebbe8bf8924477023e8a26733d17))
