@@ -137,12 +137,15 @@ async def acall_raw(
     )
 
     returns = None
+    has_yielded = False
 
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
+            has_yielded = True
             returns = i.returns
 
         if i.kind == AssignationEventKind.DONE:
+            assert has_yielded, "Received DONE without YIELD. This is an error."
             return returns
 
         if i.kind == AssignationEventKind.ERROR:

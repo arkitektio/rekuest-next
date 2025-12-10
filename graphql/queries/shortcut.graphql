@@ -13,3 +13,11 @@ query GetShortcut($id: ID!) {
     ...Shortcut
   }
 }
+
+
+query SearchShortcuts($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {
+  options: shortcuts(filters: {search: $search, ids: $values}, pagination: $pagination) {
+    label: name
+    value: id
+  }
+}

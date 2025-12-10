@@ -17,7 +17,7 @@ from typing import (
 import inflection
 from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.coercible_types import DependencyCoercible
-from rekuest_next.remote import call
+from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnprovide
@@ -36,6 +36,7 @@ from rekuest_next.api.schema import (
     DefinitionInput,
     ActionDependencyInput,
     PortGroupInput,
+    amy_implementation_at,
     get_implementation,
     EffectInput,
     ImplementationInput,
@@ -69,7 +70,9 @@ R = TypeVar("R")
 class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(self, func: AnyFunction, interface: str, definition: DefinitionInput) -> None:
+    def __init__(
+        self, func: AnyFunction, interface: str, definition: DefinitionInput
+    ) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.interface = interface
@@ -79,9 +82,20 @@ class WrappedFunction(Generic[P, R]):
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = my_implementation_at(helper.actor.agent.instance_id, self.interface)
+        implementation = my_implementation_at(
+            helper.actor.agent.instance_id, self.interface
+        )
 
         return call(implementation, *args, parent=helper.assignment, **kwargs)
+
+    async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        """ "Asynchronously call the actor's implementation."""
+        helper = get_current_assignation_helper()
+        implementation = await amy_implementation_at(
+            helper.actor.agent.instance_id, self.interface
+        )
+
+        return await acall(implementation, *args, parent=helper.assignment, **kwargs)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the wrapped function directly if not within an assignation."""
@@ -198,7 +212,9 @@ def register_func(
             definition=definition,
             dependencies=tuple(
                 [
-                    x if isinstance(x, ActionDependencyInput) else x.to_dependency_input()
+                    x
+                    if isinstance(x, ActionDependencyInput)
+                    else x.to_dependency_input()
                     for x in (dependencies or [])
                 ]
             ),
@@ -447,7 +463,9 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
+            setattr(
+                function_or_actor, "__definition_hash__", hash_definition(definition)
+            )
             setattr(
                 function_or_actor,
                 "__interface__",
@@ -461,3 +479,30 @@ def register(  # type: ignore[valid-type]
             )
 
         return cast(Callable[[T], T], real_decorator)  # type: ignore
+
+
+def register_test(
+    test_function: AnyFunction,
+    structure_registry: Optional[StructureRegistry] = None,
+    definition_registry: Optional[DefinitionRegistry] = None,
+) -> WrappedFunction[..., Any]:
+    """Register a test function for specified interfaces.
+
+    This function wraps a test function into an actor and registers it as a test
+    for the provided interfaces in the definition registry.
+
+    Args:
+        test_function (AnyFunction): The test function to register.
+        tested_interfaces (List[str]): List of interfaces that this function tests.
+        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
+        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+
+    Returns:
+        WrappedFunction[..., Any]: The registered test function wrapped.
+    """
+    return register(
+        dependencies=[test_function],
+        test_for=test_function,
+        structure_registry=structure_registry,
+        definition_registry=definition_registry,
+    )

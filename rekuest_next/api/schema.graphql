@@ -383,6 +383,42 @@ type Client {
 
   """OAuth2 client ID."""
   clientId: String!
+
+  """Release associated with the client."""
+  release: Release
+
+  """Device associated with the client."""
+  device: Device
+}
+
+"""Profile information for a user."""
+type Release {
+  """Unique ID of the release."""
+  id: ID!
+
+  """The app this release belongs to."""
+  app: App!
+
+  """Version string of the release."""
+  version: String!
+}
+
+"""Profile information for a user."""
+type App {
+  """Unique ID of the app."""
+  id: ID!
+
+  """Name of the app."""
+  identifier: String!
+}
+
+"""Represents a device assigned to users within an organization."""
+type Device {
+  """Unique ID of the device."""
+  id: ID!
+
+  """The device identifier."""
+  deviceId: ID!
 }
 
 """A way to filter apps"""
@@ -512,6 +548,9 @@ type Agent {
   """Webhook URL secret for this Agent (only if webhook)"""
   hookUrlSecret: String
 
+  """Assignations executed by this agent."""
+  assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+
   """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
 
@@ -525,6 +564,9 @@ type Agent {
 
   """Check if this agent is pinned by the current user."""
   pinned: Boolean!
+
+  """Get the count of implementations available on this agent."""
+  blocked: Boolean!
 }
 
 """The `InstanceID` scalar type represents a unique instance identifier"""
@@ -590,6 +632,18 @@ input AgentFilter {
   distinct: Boolean
   actionDemands: [ActionDemandInput!]
   stateDemands: [SchemaDemandInput!]
+
+  """Filter by user ID"""
+  user: ID = null
+
+  """Filter using app identifier"""
+  appIdentifier: ID = null
+
+  """Filter based on version string"""
+  versionNumber: String = null
+
+  """Filter based on device"""
+  deviceId: ID = null
   AND: AgentFilter
   OR: AgentFilter
   NOT: AgentFilter
@@ -728,6 +782,9 @@ type Implementation {
   """Check if this implementation is pinned by the current user."""
   pinned: Boolean!
 
+  """Tests"""
+  tests: [Implementation!]!
+
   """Get the latest completed assignation created by the current user."""
   myLatestAssignation: Assignation
 }
@@ -788,6 +845,9 @@ type Action {
   """The organization that owns this action."""
   organization: Organization!
 
+  """Assignations created for this action."""
+  assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+
   """Retrieve assignations where this action has run."""
   runs: [Assignation!]
 
@@ -830,6 +890,8 @@ input ActionFilter {
   protocols: [String!]
   kind: ActionKind
   inCollection: String
+  usedBefore: DateTime
+  usedAfter: DateTime
   AND: ActionFilter
   OR: ActionFilter
   NOT: ActionFilter
@@ -867,6 +929,7 @@ enum DemandKind {
 
 input ActionOrder {
   definedAt: Ordering
+  usedAt: Ordering
 }
 
 input ImplementationFilter {
@@ -1240,6 +1303,12 @@ type Assignation {
   """Last update timestamp."""
   updatedAt: DateTime!
 
+  """Timestamp when the assignation was finished."""
+  finishedAt: DateTime
+
+  """List of resources or entities this assignation acted upon."""
+  actedOn: [String!]!
+
   """Indicates if the assignation should be deleted after completion."""
   ephemeral: Boolean!
 
@@ -1249,8 +1318,8 @@ type Assignation {
   """Agent responsible for this assignation."""
   agent: Agent
 
-  """List of recent events for this assignation."""
-  events: [AssignationEvent!]!
+  """The events"""
+  events(filters: AssignationEventFilter, order: AssignationEventOrder, pagination: OffsetPaginationInput): [AssignationEvent!]!
 
   """List of recent instructions for this assignation."""
   instructs: [AssignationInstruct!]!
@@ -1296,6 +1365,11 @@ input AssignationFilter {
   instanceId: InstanceId
   clientId: ID
   state: [AssignationEventKind!]
+  implementation: ID
+  actedOn: [String!]
+  createdBefore: DateTime
+  createdAfter: DateTime
+  agent: ID
   AND: AssignationFilter
   OR: AssignationFilter
   NOT: AssignationFilter
@@ -1360,6 +1434,19 @@ enum LogLevel {
   ERROR
   WARN
   CRITICAL
+}
+
+"""A way to filter assignation events"""
+input AssignationEventFilter {
+  kind: [AssignationEventKind!]
+  AND: AssignationEventFilter
+  OR: AssignationEventFilter
+  NOT: AssignationEventFilter
+  DISTINCT: Boolean
+}
+
+input AssignationEventOrder {
+  createdAt: Ordering
 }
 
 """An instruct event for a specific assignation."""
@@ -1982,6 +2069,12 @@ type Mutation {
   """Acknowledge an assignation."""
   ack(input: AckInput!): Assignation!
 
+  """Bounce an agent so it reconnects."""
+  bounce(input: BounceInput!): Agent!
+
+  """Kick an agent to force disconnect. It will fail and not reconnect."""
+  kick(input: KickInput!): Agent!
+
   """Assign a task to an agent."""
   assign(input: AssignInput!): Assignation!
 
@@ -2005,6 +2098,12 @@ type Mutation {
 
   """Reinitialize the assignation or agent."""
   reinit(input: ReInitInput!): String!
+
+  """Block an agent from connecting."""
+  block(input: BlockInput!): Agent!
+
+  """Unblock a previously blocked agent."""
+  unblock(input: UnblockInput!): Agent!
 
   """Reserve an implementation for future use."""
   reserve(input: ReserveInput!): Reservation!
@@ -2071,6 +2170,9 @@ type Mutation {
 
   """Set states for an agent."""
   setAgentStates(input: SetAgentStatesInput!): [State!]!
+
+  """Delete unreferenced actions from the system."""
+  cleanupActions(actionIds: [ID!] = null): Int!
 }
 
 """The input for creating a implementation."""
@@ -2126,6 +2228,7 @@ input DefinitionInput {
   The returns of the definition. This is the output ports of the definition
   """
   returns: [PortInput!]! = []
+  tests: ActionDependencyInput = null
 
   """
   The kind of the definition. This is the type of the definition. Can be either a function or a generator
@@ -2277,8 +2380,24 @@ input AckInput {
   assignation: ID!
 }
 
+"""The input for bouncing an agent."""
+input BounceInput {
+  agent: ID!
+  duration: Int = null
+}
+
+"""The input for bouncing an agent."""
+input KickInput {
+  agent: ID!
+  reason: String = null
+}
+
 """The input for assigning args to a action."""
 input AssignInput {
+  """
+  The policy for the assignation. This defines how the assignation should be handled.
+  """
+  policy: AssignPolicy = null
   instanceId: InstanceId!
   action: ID = null
   implementation: ID = null
@@ -2288,7 +2407,7 @@ input AssignInput {
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
-  reference: String = "6a818477-94ae-4f1d-8b04-41d4f9e015ea"
+  reference: String = null
   parent: ID = null
   cached: Boolean! = false
   log: Boolean! = false
@@ -2297,6 +2416,13 @@ input AssignInput {
   dependencies: Args = null
   isHook: Boolean = false
   step: Boolean = false
+}
+
+enum AssignPolicy {
+  AUTOMATIC
+  ROUND_ROBIN
+  LEAST_BUSY
+  FASTEST_RESPONSE
 }
 
 """
@@ -2348,9 +2474,21 @@ input ReInitInput {
   agent: ID = null
 }
 
+"""The input for bouncing an agent."""
+input BlockInput {
+  agent: ID!
+  reason: String = null
+}
+
+"""The input for bouncing an agent."""
+input UnblockInput {
+  agent: ID!
+  reason: String = null
+}
+
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "cc3855ac-62bd-4ce7-a784-9ad5ac5ff179"
+  reference: String = "6269196a-fe09-4744-9265-8607588a41f5"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2610,6 +2748,9 @@ type Subscription {
 
   """Subscribe to updates of state values and patches."""
   stateUpdateEvents(stateId: ID!): State!
+
+  """Subscribe to child assignation events."""
+  childAssignations(id: ID!): ChildAssignationEvent!
 }
 
 type AssignationChangeEvent {
@@ -2627,4 +2768,9 @@ type ImplementationUpdate {
   create: Implementation!
   update: Implementation!
   delete: ID!
+}
+
+type ChildAssignationEvent {
+  create: Assignation
+  update: Assignation
 }

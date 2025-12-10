@@ -59,7 +59,9 @@ class Agent(Protocol):
     capture_condition: asyncio.Condition
     capture_active: bool
 
-    async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
+    async def asend(
+        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
+    ) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 
@@ -101,6 +103,13 @@ class Agent(Protocol):
         """Provide the provision. This method will provide the provision and
         return None.
         """
+        ...
+
+    async def atest(
+        self,
+        instance_id: str | None = None,
+    ) -> None:
+        """Run the tests. This method will run the tests and return None."""
         ...
 
 

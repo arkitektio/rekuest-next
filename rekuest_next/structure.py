@@ -8,10 +8,13 @@ from rekuest_next.api.schema import (
     SearchActionsQuery,
     Search_testcasesQuery,
     Search_testresultsQuery,
+    SearchShortcutsQuery,
+    Shortcut,
     TestCase,
     TestResult,
     AssignationEvent,
     aget_event,
+    aget_shortcut,
     aget_testcase,
     aget_testresult,
     aget_implementation,
@@ -25,7 +28,9 @@ structure_reg.register_as_structure(
     "@rekuest/implementation",
     aexpand=aget_implementation,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=Search_implementationsQuery.Meta.document, ward="rekuest"),
+    default_widget=SearchWidget(
+        query=Search_implementationsQuery.Meta.document, ward="rekuest"
+    ),
 )
 
 structure_reg.register_as_structure(
@@ -37,11 +42,23 @@ structure_reg.register_as_structure(
 )
 
 structure_reg.register_as_structure(
+    Shortcut,
+    "@rekuest/shortcut",
+    aexpand=aget_shortcut,
+    ashrink=id_shrink,
+    default_widget=SearchWidget(
+        query=SearchShortcutsQuery.Meta.document, ward="rekuest"
+    ),
+)
+
+structure_reg.register_as_structure(
     TestCase,
     "@rekuest/testcase",
     aexpand=aget_testcase,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=Search_testcasesQuery.Meta.document, ward="rekuest"),
+    default_widget=SearchWidget(
+        query=Search_testcasesQuery.Meta.document, ward="rekuest"
+    ),
 )
 
 structure_reg.register_as_structure(
@@ -49,7 +66,9 @@ structure_reg.register_as_structure(
     "@rekuest/testresult",
     aexpand=aget_testresult,
     ashrink=id_shrink,
-    default_widget=SearchWidget(query=Search_testresultsQuery.Meta.document, ward="rekuest"),
+    default_widget=SearchWidget(
+        query=Search_testresultsQuery.Meta.document, ward="rekuest"
+    ),
 )
 
 structure_reg.register_as_structure(

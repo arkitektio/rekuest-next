@@ -45,11 +45,18 @@ class GraphQLPostman(KoiledModel):
 
     _watching: bool = PrivateAttr(default=False)
     _lock: asyncio.Lock | None = None
+    _received_something: bool = False
 
     async def aassign(
         self, assign: AssignInput
     ) -> AsyncGenerator[AssignationEvent, None]:
         """Assign a"""
+        if not self._received_something:
+            await asyncio.sleep(0.5)  # Add an initial sleep
+
+        if not assign.reference:
+            raise Exception("Reference must be set. Before assigning")
+
         if not self._lock:
             raise ValueError("Postman was never connected")
 
@@ -57,15 +64,13 @@ class GraphQLPostman(KoiledModel):
             if not self._watching:
                 await self.start_watching()
 
+        self._ass_update_queues[assign.reference] = asyncio.Queue()
+        queue = self._ass_update_queues[assign.reference]
+
         try:
             assignation = await aassign(**assign.model_dump())
         except Exception as e:
             raise PostmanException(f"Cannot Assign: {e}") from e
-
-        assert assign.reference, "Needs to be set"
-
-        self._ass_update_queues[assign.reference] = asyncio.Queue()
-        queue = self._ass_update_queues[assign.reference]
 
         try:
             while True:
@@ -89,6 +94,7 @@ class GraphQLPostman(KoiledModel):
             async for assignation in awatch_assignations(
                 self.instance_id, rath=self.rath
             ):
+                self._received_something = True
                 if assignation.event:
                     reference = assignation.event.reference
                     if reference not in self._ass_update_queues:
@@ -119,6 +125,8 @@ class GraphQLPostman(KoiledModel):
                 logger.info(f"Postman received Assignation {ass}")
 
                 unique_identifier = ass.reference
+
+                print(f"Received assignation event with reference: {ass}")
 
                 await self._ass_update_queues[unique_identifier].put(ass)
 

@@ -176,3 +176,9 @@ class RekuestNext(Composition):
         Run the application.
         """
         await self.agent.aprovide(instance_id=instance_id)
+
+    async def arun_tests(self, instance_id: str | None = None) -> None:
+        """
+        Run the application tests.
+        """
+        await self.agent.atest(instance_id=instance_id)
