@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.24.3 (2025-12-10)
+
+### Bug Fixes
+
+- Temporary fix for race-condition on assignent
+  ([`d465110`](https://github.com/arkitektio/rekuest-next/commit/d465110b93148a1e5b5b6d4a5a9e9adf41b59181))
+
+
 ## v0.24.2 (2025-11-29)
 
 
