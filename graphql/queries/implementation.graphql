@@ -1,0 +1,18 @@
+query GetImplementation($id: ID!) {
+  implementation(id: $id) {
+    ...Implementation
+  }
+}
+
+
+query ListImplementations($filters: ImplementationFilter, $pagination: OffsetPaginationInput) {
+  implementations(filters: $filters, pagination: $pagination) {
+    ...Implementation
+  }
+}
+
+query ResolvedImplementations($resolution: ID!, $dependencyKey: String!, $methodKey: String!) {
+  resolvedImplementations(resolution: $resolution, dependencyKey: $dependencyKey, methodKey: $methodKey) {
+    ...Implementation
+  }
+}

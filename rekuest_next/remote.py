@@ -11,6 +11,7 @@ from typing import (
     Union,
 )
 
+from rekuest_next.api.schema import DefinitionInput
 from koil import unkoil, unkoil_gen
 from rath.scalars import ID
 from rekuest_next.actors.context import useAssign
@@ -28,13 +29,17 @@ from rekuest_next.api.schema import (
     Reservation,
     Implementation,
 )
-from rekuest_next.messages import Assign
+from rekuest_next.messages import Assign, JSONSerializable
 from rekuest_next.postmans.types import Postman
 from rekuest_next.postmans.vars import get_current_postman
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
 from rekuest_next.structures.default import get_default_structure_registry
+from rekuest_next.structures.serialization.actor import (
+    aexpand_actor_returns,
+    ashrink_actor_args,
+)
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
 from typing import TYPE_CHECKING
 from rekuest_next.errors import CriticalCallError, ErrorCallError
@@ -90,6 +95,67 @@ def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
     if isinstance(value, tuple):
         return value  # type: ignore
     return tuple([value])
+
+
+async def acall_dependency_raw(
+    dependency_key: ID,
+    method: str,
+    kwargs: Dict[str, JSONSerializable],  # noqa: ANN401
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Optional[Assign] = None,
+    capture: bool = False,
+    log: bool = False,
+    postman: Optional[Postman] = None,
+) -> Any:  # noqa: ANN002, ANN003, ANN401
+    """Call a method on a dependency"""
+
+    """Call the assignation function"""
+    postman = postman or get_current_postman()
+    if not postman:
+        raise ValueError("Postman is not set")
+
+    try:
+        parent = useAssign()
+    except NotWithinAnAssignationError:
+        # If we are not within an assignation, we can set the parent to None
+        parent = None
+
+    reference = reference or str(uuid.uuid4())
+
+    x = AssignInput(
+        instanceId=postman.instance_id,
+        dependency=dependency_key,
+        method=method,  # type: ignore
+        args=kwargs or {},
+        reference=reference,
+        hooks=tuple(hooks or []),
+        cached=cached,
+        capture=capture,
+        parent=ID.validate(parent.assignation) if parent else None,
+        log=log,
+        isHook=False,
+        ephemeral=False,
+    )
+
+    returns = None
+    has_yielded = False
+
+    async for i in postman.aassign(x):
+        if i.kind == AssignationEventKind.YIELD:
+            has_yielded = True
+            returns = i.returns
+
+        if i.kind == AssignationEventKind.DONE:
+            assert has_yielded, "Received DONE without YIELD. This is an error."
+            return returns
+
+        if i.kind == AssignationEventKind.ERROR:
+            raise ErrorCallError(i.message)
+
+        if i.kind == AssignationEventKind.CRITICAL:
+            raise CriticalCallError(i.message)
 
 
 async def acall_raw(
@@ -253,9 +319,7 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -271,9 +335,7 @@ async def acall(
         postman=postman,
     )
 
-    returns = await aexpand_returns(
-        action, returns, structure_registry=structure_registry
-    )
+    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
     if len(returns) == 1:
         return returns[0]
     return returns
@@ -317,9 +379,7 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(
-        action, args, kwargs, structure_registry=structure_registry
-    )
+    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -333,13 +393,84 @@ async def aiterate(
         parent=parent,
         log=log,
     ):
-        returns = await aexpand_returns(
-            action, i, structure_registry=structure_registry
-        )
+        returns = await aexpand_returns(action, i, structure_registry=structure_registry)
         if len(returns) == 1:
             yield returns[0]
         else:
             yield returns
+
+
+async def acall_dependency(
+    definition: DefinitionInput,
+    dependency_key: ID,
+    method: str,
+    *args: Any,  # noqa: ANN401
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Assign | None = None,
+    capture: bool = False,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    postman: Optional[Postman] = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN002, ANN003, ANN401
+    """Call a method on a dependency"""
+
+    structure_registry = structure_registry or get_default_structure_registry()
+
+    shrinked_args = await ashrink_actor_args(
+        definition, args, kwargs, structure_registry=structure_registry
+    )
+
+    returns = await acall_dependency_raw(
+        kwargs=shrinked_args,
+        dependency_key=dependency_key,
+        method=method,
+        reference=reference,
+        hooks=hooks or [],
+        cached=cached,
+        parent=parent,
+        capture=capture,
+        log=log,
+        postman=postman,
+    )
+
+    returns = await aexpand_actor_returns(definition, returns, structure_registry)
+    if len(returns) == 1:
+        return returns[0]
+    return returns
+
+
+def call_dependency(
+    definition: DefinitionInput,
+    dependency_key: ID,
+    method: str,
+    *args: Any,  # noqa: ANN401
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Assign | None = None,
+    log: bool = False,
+    structure_registry: Optional[StructureRegistry] = None,
+    postman: Optional[Postman] = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> Any:  # noqa: ANN002, ANN003, ANN401
+    return unkoil(
+        acall_dependency,
+        definition,
+        dependency_key,
+        method,
+        *args,
+        reference=reference,
+        hooks=hooks,
+        cached=cached,
+        parent=parent,
+        log=log,
+        structure_registry=structure_registry,
+        postman=postman,
+        **kwargs,
+    )
 
 
 def call(

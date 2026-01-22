@@ -24,7 +24,9 @@ class AssignmentHelper(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
 
-    async def alog(self: Self, level: LogLevel | messages.LogLevelLiteral, message: str) -> None:
+    async def alog(
+        self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
+    ) -> None:
         """Send a log message to the actor.
 
         Args:
@@ -39,14 +41,9 @@ class AssignmentHelper(BaseModel):
             )
         )
 
-    def get_dependency(self, reference: str) -> ID:
+    def get_resolution(self) -> ID:
         """Get a dependency by its reference."""
-        try:
-            return self.assignment.dependencies[reference]
-        except KeyError as e:
-            raise KeyError(
-                f"Dependency {reference} not found in assignment. Did you declare it?"
-            ) from e
+        return self.assignment.resolution
 
     async def aprogress(self, progress: int, message: Optional[str] = None) -> None:
         """Send a progress message to the actor.

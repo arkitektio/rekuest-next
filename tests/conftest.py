@@ -166,6 +166,7 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
 
     with setup:
         setup.down()
+
         setup.pull()
 
         instance_id = "default"

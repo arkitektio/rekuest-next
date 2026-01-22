@@ -108,9 +108,8 @@ class Assign(Message):
         description="The direct parent of this assignation, None if this is this is the mother",
     )
     """ The parent s"""
-    dependencies: Dict[str, str] | None = Field(
-        default=None,
-        description="The dependencies that were provided (should map reference to template)",
+    resolution: Optional[str] = Field(
+        default=None, description="The resolution id this assignation has dependencies"
     )
     capture: bool = Field(default=False, description="Whether to run in debug mode")
     reference: Optional[str] = Field(
@@ -125,7 +124,7 @@ class Assign(Message):
         default=None, description="The org that the user currently belongs to"
     )
     app: str = Field(description="The assinging app")
-    action: str = Field(description="The action that triggered this assignation")
+    action: str = Field(description="The action that triggered this assignation.")
 
     @property
     def actor_id(self) -> str:

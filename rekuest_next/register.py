@@ -41,6 +41,7 @@ from rekuest_next.api.schema import (
     EffectInput,
     ImplementationInput,
     ValidatorInput,
+    AgentDependencyInput,
     my_implementation_at,
 )
 import logging
@@ -213,7 +214,7 @@ def register_func(
             dependencies=tuple(
                 [
                     x
-                    if isinstance(x, ActionDependencyInput)
+                    if isinstance(x, AgentDependencyInput)
                     else x.to_dependency_input()
                     for x in (dependencies or [])
                 ]

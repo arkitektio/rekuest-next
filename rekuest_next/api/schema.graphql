@@ -267,6 +267,9 @@ type Query {
   """List of UI Blok."""
   bloks: [Blok!]!
 
+  """All resolutions."""
+  resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]!
+
   """List of UI Blok."""
   materializedBloks: [MaterializedBlok!]!
 
@@ -312,8 +315,14 @@ type Query {
   """Find your implementation at a specific interface."""
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
 
+  """Fetch resolved dependencies for a resolution."""
+  resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
+
   """Retrieve state for a specific context."""
   stateFor(agent: ID!, stateHash: String = null, demand: SchemaDemandInput = null): State!
+
+  """Fetch a client by ID."""
+  resolution(id: ID!): Resolution!
 
   """Get a specific state by ID."""
   state(id: ID!): State!
@@ -629,6 +638,7 @@ input AgentFilter {
 
   """Filter by name of the agents"""
   search: String = null
+  dependency: String = null
   distinct: Boolean
   actionDemands: [ActionDemandInput!]
   stateDemands: [SchemaDemandInput!]
@@ -775,6 +785,9 @@ type Implementation {
 
   """Dependencies required by this implementation."""
   dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
+
+  """The resolved dependencies"""
+  resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]!
 
   """Constructed name for display, combining interface and agent name."""
   name: String!
@@ -942,6 +955,7 @@ input ImplementationFilter {
   parameters: [ParamPair!]
   resolvableFor: ID
   search: String
+  actionDemand: ActionDemandInput
   AND: ImplementationFilter
   OR: ImplementationFilter
   NOT: ImplementationFilter
@@ -1265,6 +1279,9 @@ type Assignation {
   """The used dependencies for this assignemnet"""
   dependencies: AnyDefault!
 
+  """Resolution used to resolve dependencies for this assignation."""
+  resolution: Resolution!
+
   """Root assignation in the creation chain."""
   root: Assignation
 
@@ -1326,6 +1343,57 @@ type Assignation {
 
   """Get a specific argument by key."""
   arg(key: String!): Args
+}
+
+"""Represents a resolution for a blok."""
+type Resolution {
+  """Unique ID of the resolution."""
+  id: ID!
+
+  """Name of the resolution."""
+  name: String!
+
+  """List of resolved dependencies for this resolution."""
+  resolvedDependencies(filters: ResolvedDependencyFilter, pagination: OffsetPaginationInput): [ResolvedDependency!]!
+  implementation: Implementation!
+
+  """Timestamp when the resolution was created."""
+  resolvedAt: DateTime!
+
+  """User who created the resolution."""
+  creator: User!
+
+  """Organization that owns this resolution."""
+  organization: Organization!
+}
+
+"""
+Represents a dependency that has been resolved to a specific implementation.
+"""
+type ResolvedDependency {
+  """Unique ID of the resolved dependency."""
+  id: ID!
+
+  """The key of the resolved dependency."""
+  key: String!
+
+  """The original dependency."""
+  dependency: Dependency!
+
+  """The implementation that resolves the dependency."""
+  implementation: Implementation!
+
+  """Resolution for streaming data down to this dependency."""
+  downStreamResolution: Resolution
+}
+
+"""A way to filter resolved dependencies"""
+input ResolvedDependencyFilter {
+  ids: [ID!]
+  AND: ResolvedDependencyFilter
+  OR: ResolvedDependencyFilter
+  NOT: ResolvedDependencyFilter
+  DISTINCT: Boolean
 }
 
 """The event kind of the assignationevent"""
@@ -1480,6 +1548,16 @@ input DependencyFilter {
   AND: DependencyFilter
   OR: DependencyFilter
   NOT: DependencyFilter
+  DISTINCT: Boolean
+}
+
+"""A way to filter test cases"""
+input ResolutionFilter {
+  name: StrFilterLookup
+  ids: [ID!]
+  AND: ResolutionFilter
+  OR: ResolutionFilter
+  NOT: ResolutionFilter
   DISTINCT: Boolean
 }
 
@@ -2173,6 +2251,12 @@ type Mutation {
 
   """Delete unreferenced actions from the system."""
   cleanupActions(actionIds: [ID!] = null): Int!
+
+  """Automatically resolve dependencies for an implementation."""
+  autoResolve(input: AutoResolveInput!): Resolution!
+
+  """Create sa resolution from"""
+  createResolution(input: CreateResolutionInput!): Resolution!
 }
 
 """The input for creating a implementation."""
@@ -2187,7 +2271,7 @@ A implementation is a blueprint for a action. It is composed of a definition, a 
 """
 input ImplementationInput {
   definition: DefinitionInput!
-  dependencies: [ActionDependencyInput!]!
+  dependencies: [AgentDependencyInput!]! = []
   interface: String
   params: AnyDefault = null
   dynamic: Boolean! = false
@@ -2355,6 +2439,24 @@ input DescriptorInput {
   value: Arg!
 }
 
+"""
+A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions
+"""
+input AgentDependencyInput {
+  """
+  The identifier of the agent. This is used to identify the agent in the system.
+  """
+  identifier: String = null
+  key: String!
+  name: String = null
+  description: String = null
+  optional: Boolean! = false
+  actionDemands: [ActionDependencyInput!] = null
+  minViableInstances: Int = null
+  preferedInstances: Int = null
+}
+
 """The input for creating a implementation in another agents extension."""
 input CreateForeignImplementationInput {
   """
@@ -2400,9 +2502,12 @@ input AssignInput {
   policy: AssignPolicy = null
   instanceId: InstanceId!
   action: ID = null
+  dependency: String = null
+  resolution: ID = null
   implementation: ID = null
   agent: ID = null
   actionHash: ActionHash = null
+  method: String = null
   reservation: ID = null
   interface: String = null
   hooks: [HookInput!] = null
@@ -2488,7 +2593,7 @@ input UnblockInput {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "6269196a-fe09-4744-9265-8607588a41f5"
+  reference: String = "9a694c59-a234-4963-8714-6d93f3f041fe"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2721,6 +2826,25 @@ input StateImplementationInput {
   interface: String!
   stateSchema: StateSchemaInput!
   initial: Args!
+}
+
+input AutoResolveInput {
+  implementation: ID!
+}
+
+"""The input for creating a resolution."""
+input CreateResolutionInput {
+  key: String!
+  name: String!
+  resolvedDependencies: [ResolvedDependencyInput!] = null
+}
+
+"""The input for mapping a dependency to an implementation."""
+input ResolvedDependencyInput {
+  dependency: ID!
+  key: String!
+  implementation: ID!
+  downStreamResolution: ID = null
 }
 
 """Root subscription type for real-time event streams from the system."""

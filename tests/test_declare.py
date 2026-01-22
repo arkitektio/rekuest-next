@@ -17,11 +17,12 @@ from .funcs import (
 from .annotated_funcs import annotated_x, annotated_choice_x
 from .conftest import DeployedRekuest
 from rekuest_next.remote import acall
-from rekuest_next.declare import protocol
+from rekuest_next.declare import agent_protocol, protocol
 
 
-@protocol
-def necessary_protocol(number: int) -> int: ...
+@agent_protocol
+class NecessaryProtocol:
+    def necessary_protocol(number: int) -> int: ...
 
 
 def a_function(a: int) -> int:
@@ -35,7 +36,7 @@ async def test_run_and_cancel_app(
 ) -> None:
     """Test if the hases of to equal definitions are the same."""
     """Test if the hases of to equal definitions are the same."""
-    async_deployed_app.rekuest.register(a_function, dependencies=[necessary_protocol])
+    async_deployed_app.rekuest.register(a_function, dependencies=[NecessaryProtocol])
 
     task = asyncio.create_task(async_deployed_app.rekuest.arun())
 
