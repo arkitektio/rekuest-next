@@ -19,7 +19,7 @@ from .state.decorator import state
 try:
     from .arkitekt import RekuestNextService
 except ImportError as e:
-    raise e
+    pass
 
 
 from .structure import structure_reg
