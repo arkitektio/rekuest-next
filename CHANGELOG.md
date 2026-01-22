@@ -1,12 +1,20 @@
 # CHANGELOG
 
 
+## v0.25.0 (2026-01-22)
+
+
 ## v0.24.3 (2025-12-10)
 
 ### Bug Fixes
 
 - Temporary fix for race-condition on assignent
   ([`d465110`](https://github.com/arkitektio/rekuest-next/commit/d465110b93148a1e5b5b6d4a5a9e9adf41b59181))
+
+### Features
+
+- Update to new dependency resolution
+  ([`13d8ce7`](https://github.com/arkitektio/rekuest-next/commit/13d8ce77ebf7094670fda955c466532be940cd37))
 
 
 ## v0.24.2 (2025-11-29)
