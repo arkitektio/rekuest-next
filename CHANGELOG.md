@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.26.0 (2026-01-28)
+
+### Features
+
+- Add the fastapi agent
+  ([`43b1679`](https://github.com/arkitektio/rekuest-next/commit/43b1679d3a5cf2b497c76782ec6a3c7da1a90460))
+
+
 ## v0.25.0 (2026-01-22)
 
 
