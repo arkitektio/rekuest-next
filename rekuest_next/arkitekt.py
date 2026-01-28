@@ -13,7 +13,7 @@ from graphql import OperationType
 from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
     ArkitektWebsocketAgentTransport,
 )
-from rekuest_next.agents.base import BaseAgent
+from rekuest_next.agents.base import BaseAgent, RekuestAgent
 from fakts_next import Fakts
 from rekuest_next.postmans.graphql import GraphQLPostman
 
@@ -71,7 +71,7 @@ class RekuestNextService(BaseArkitektService):
             )
         )
 
-        agent = BaseAgent(
+        agent = RekuestAgent(
             transport=ArkitektWebsocketAgentTransport(
                 fakts_group="rekuest",
                 fakts=fakts,

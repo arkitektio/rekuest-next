@@ -8,12 +8,13 @@ for managing the lifecycle of the actors that are spawned from it.
 import asyncio
 import logging
 from types import TracebackType
-from typing import Any, Dict, Optional, Self
+from typing import Any, Dict, List, Optional, Self
 import uuid
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
 
+from rekuest_next.annotations import Description
 from rekuest_next.api.schema import (
     State,
     StateSchemaInput,
@@ -54,11 +55,7 @@ from rekuest_next.scalars import Identifier
 from rekuest_next.state.proxies import StateProxy
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
 from rekuest_next.structures.types import JSONSerializable
-from .transport.errors import (
-    AgentTransportException,
-    CorrectableConnectionFail,
-    DefiniteConnectionFail,
-)
+
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +79,6 @@ class BaseAgent(KoiledModel):
 
     """
 
-    rath: RekuestNextRath = Field(
-        description="The graph client that is used to make queries to when connecting to the rekuest server.",
-    )
-
     name: str = Field(
         default="BaseAgent",
         description="The name of the agent. This is used to identify the agent in the system.",
@@ -108,7 +101,10 @@ class BaseAgent(KoiledModel):
         description="The hooks registry for this extension. Think @startup and @background",
     )
     proxies: Dict[str, StateProxy] = Field(default_factory=dict)
-    contexts: Dict[str, Any] = Field(default_factory=dict)
+    contexts: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Maps context keys to context values registed with @context",
+    )
     states: Dict[str, AnyState] = Field(
         default_factory=dict,
         description="Maps the state key to the state value. This is used to store the states of the agent.",
@@ -172,18 +168,17 @@ class BaseAgent(KoiledModel):
         else:
             description = None
 
-        drawer = await ashelve(
+        drawer_id = await self.ashelve(
             instance_id=self.instance_id,
             identifier=identifier,
             resource_id=uuid.uuid4().hex,
             label=label,
             description=description,
-            rath=self.rath,
         )
 
-        self.shelve[drawer.id] = value
+        self.shelve[drawer_id] = value
 
-        return drawer.id
+        return drawer_id
 
     async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
@@ -191,13 +186,6 @@ class BaseAgent(KoiledModel):
         """
         assert key in self.shelve, "Drawer is not in current shelve"
         return self.shelve[key]
-
-    async def acollect(self, key: str) -> None:
-        """Collect a value from the shelve. This is used to collect values from the
-        shelve for the agent and all the actors that are spawned from it.
-        """
-        del self.shelve[key]
-        await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
 
     async def process(self, message: messages.ToAgentMessage) -> None:
         """Processes a message from the transport. This is used to process
@@ -239,13 +227,13 @@ class BaseAgent(KoiledModel):
 
         elif isinstance(message, messages.Assign):
             if message.actor_id in self.managed_actors:
+                # The actor is already spawned
                 actor = self.managed_actors[message.actor_id]
                 self.managed_assignments[message.assignation] = message
                 await actor.apass(message)
             else:
                 try:
                     actor = await self.aspawn_actor_from_assign(message)
-
                     await actor.apass(message)
 
                 except Exception as e:
@@ -421,7 +409,15 @@ class BaseAgent(KoiledModel):
         )
         return shrinked_state
 
-    async def ainit_states(self, hook_return: StartupHookReturns) -> tuple[State, ...]:  # noqa: ANN401
+    async def apublish_states(
+        self, state_implementation: List[StateImplementationInput]
+    ) -> None:
+        states = await aset_agent_states(
+            instance_id=self.instance_id,
+            implementations=state_implementation,
+        )
+
+    async def ainit_states(self, hook_return: StartupHookReturns) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
 
         if not self.instance_id:
@@ -453,12 +449,41 @@ class BaseAgent(KoiledModel):
                 )
             )
 
-        states = await aset_agent_states(
+        await self.apublish_states(implementations)
+
+    async def asend_state(self, interface: str, value: AnyState) -> None:  # noqa: ANN401
+        """Set the state of the extension. This will be called when the agent starts"""
+        from rekuest_next.api.schema import aset_state
+
+        if interface not in self.states:
+            raise AgentException(f"State {interface} not found in agent {self.name}")
+
+        if interface not in self._current_shrunk_states:
+            raise AgentException(
+                f"Shrunk State {interface} not found in agent {self.name}"
+            )
+
+        if interface not in self._interface_stateschema_input_map:
+            raise AgentException(
+                f"State Schema {interface} not found in agent {self.name}"
+            )
+
+        if not self.instance_id:
+            raise AgentException("Instance id is not set. The agent is not initialized")
+
+        old_shrunk_state = self._current_shrunk_states[interface]
+        new_shrunk_state = await self.ashrink_state(interface=interface, state=value)
+
+        patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)  # type: ignore
+
+        await aset_state(
+            interface=interface,
+            patches=patch.patch,  # type: ignore
             instance_id=self.instance_id,
-            implementations=implementations,
         )
 
-        return states
+        self._current_shrunk_states[interface] = new_shrunk_state
+        self.states[interface] = value
 
     async def aset_state(self, interface: str, value: AnyState) -> None:  # noqa: ANN401
         """Set the state of the extension. This will be called when the agent starts"""
@@ -485,13 +510,6 @@ class BaseAgent(KoiledModel):
 
         patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)  # type: ignore
 
-        # Shrink the value to the schema
-        state = await aupdate_state(
-            interface=interface,
-            patches=patch.patch,  # type: ignore
-            instance_id=self.instance_id,  # type: ignore
-        )
-
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
 
@@ -503,6 +521,7 @@ class BaseAgent(KoiledModel):
 
         await self.aset_state(interface=interface, value=state)
 
+    # Agent Related Getters
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
@@ -562,8 +581,13 @@ class BaseAgent(KoiledModel):
         self._errorfuture = asyncio.Future()
 
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
-        """Spawns an Actor from a Provision. This function closely mimics the
-        spawining protocol within an actor. But maps implementation"""
+        """Spawns an Actor from a Assign.
+
+        We only spawn actors on assign as some actors can be meta actors that
+        do not exist hardcoded in the agent extensions, but rather are created
+        on demand based on the assign message.
+
+        """
 
         if assign.extension not in self.extension_registry.agent_extensions:
             raise ProvisionException(
@@ -596,6 +620,7 @@ class BaseAgent(KoiledModel):
             self.running = True
             await self.transport.aconnect(self.instance_id)
             async for message in self.transport.areceive():
+                print(f"Received message: {message}")
                 await self.process(message)
         except asyncio.CancelledError:
             logger.info(f"Provisioning task cancelled. We are running {self.transport}")
@@ -603,6 +628,7 @@ class BaseAgent(KoiledModel):
             await self.atear_down()
             raise
         except Exception as e:
+            print(f"Error in agent loop: {str(e)}")
             logger.error(f"Error in agent loop: {str(e)}")
             await self.atear_down()
             raise e
@@ -622,7 +648,7 @@ class BaseAgent(KoiledModel):
                 f"Launching provisioning task. We are running {self.instance_id}"
             )
             await self.astart(instance_id=self.instance_id)
-            logger.info("Starting to listen for requests")
+            print("Starting to listen for requests")
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
@@ -732,3 +758,57 @@ class BaseAgent(KoiledModel):
         """
         await self.atear_down()
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
+
+
+class RekuestAgent(BaseAgent):
+    """The Rekuest Agent
+
+    This is the default agent that is used by rekuest. It provides the basic
+    functionality for managing the lifecycle of the actors that are spawned
+    from it.
+
+    """
+
+    rath: RekuestNextRath = Field(
+        description="The graph client that is used to make queries to when connecting to the rekuest server.",
+    )
+
+    pass
+
+    async def asend_state(
+        self, interface: str, state_patch: jsonpatch.JsonPatch
+    ) -> None:
+        """Publish a state to the agent.  Will forward the state to the transport"""
+        from rekuest_next.api.schema import aupdate_state
+
+        # Shrink the value to the schema
+        state = await aupdate_state(
+            interface=interface,
+            patches=state_patch.patch,  # type: ignore
+            instance_id=self.instance_id,  # type: ignore
+        )
+
+        # we discard the state here, as we should never access it directly from the agent
+        # "state is a one way street"
+        return None
+
+    async def ashelve(
+        self, instance_id, identifier, value, label=None, description=None
+    ) -> str:
+        from rekuest_next.api.schema import ashelve
+
+        drawer = await ashelve(
+            instance_id=self.instance_id,
+            identifier=identifier,
+            resource_id=uuid.uuid4().hex,
+            label=label,
+            description=description,
+            rath=self.rath,
+        )
+        return drawer.id
+
+    async def acollect(self, key: str) -> None:
+        from rekuest_next.api.schema import aunshelve
+
+        del self.shelve[key]
+        await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)

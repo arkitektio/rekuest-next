@@ -17,16 +17,6 @@ from rekuest_next.actors.debug import capture_to_list
 logger = logging.getLogger(__name__)
 
 
-async def async_none_provide(self: "SerializingActor") -> None:
-    """Do nothing on provide"""
-    return None
-
-
-async def async_none_unprovide() -> None:
-    """Do nothing on unprovide"""
-    return None
-
-
 class FunctionalActor(BaseModel):
     """The based class for all composable functional"
 

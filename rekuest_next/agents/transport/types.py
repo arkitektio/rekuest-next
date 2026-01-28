@@ -9,7 +9,7 @@ from rekuest_next.messages import ToAgentMessage, FromAgentMessage
 class AgentTransport(Protocol):
     """Protocol for transport."""
 
-    def aconnect(self, instance_id: str) -> typing.AsyncIterator[ToAgentMessage]:
+    async def aconnect(self, instance_id: str) -> None:
         """Connect to the transport."""
         ...
 

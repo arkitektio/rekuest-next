@@ -16,7 +16,7 @@ dependencies = [
     "rath>=3.5.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil>=2.1.0",
+    "koil>=2.4.0",
     "dokker>=2.2",
 ]
 
@@ -40,6 +40,8 @@ dev-dependencies =  [
     "qtpy>=2.4.3",
     "fakts-next>=2.0.0",
     "arkitekt-next>=0.17",
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
 ]
 
 

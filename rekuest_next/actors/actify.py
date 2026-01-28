@@ -95,8 +95,6 @@ def reactify(
         "assign": function,
         "expand_inputs": not bypass_expand,
         "shrink_outputs": not bypass_shrink,
-        "on_provide": on_provide,
-        "on_unprovide": on_unprovide,
         "structure_registry": structure_registry,
         "definition": definition,
         "state_variables": state_variables,

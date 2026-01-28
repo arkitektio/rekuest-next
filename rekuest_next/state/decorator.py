@@ -19,7 +19,9 @@ from rekuest_next.structures.default import get_default_structure_registry
 T = TypeVar("T", bound=AnyState)
 
 
-def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) -> StateSchemaInput:
+def inspect_state_schema(
+    cls: Type[T], structure_registry: StructureRegistry
+) -> StateSchemaInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
@@ -62,6 +64,29 @@ def state(  # type: ignore[valid-type]
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Decorator to register a class as a state.
+
+    State classes are used to store information that should be visible to the user
+    of the system and might change between action calls. Examples of state include
+    the position of a robot arm, the current settings of a device, or the status of
+    a process.
+
+    State can be changed by any action if it declares it as an arguent.
+    During this passing the state is locked for the duration of the action call,
+    preventing race conditions. When the action has finished, the new state is published.
+
+    If you need more fine grained control over when the state is updated, yu can always use the "publish" function
+    to manually publish the state at any time.
+
+    Attention: State is a one way street. Actions can change the state, but the state
+    cannot cause actions. Its only purpose is to store information and show it to the user.
+
+    You can also update the state in background tasks, to show sensor readings or other
+    information that changes over time to the user. However, be aware that this can lead to
+    race conditions if an action is changing the state at the same time. Also depending on your
+    server settings, we might throttle background state updates to avoid overloading the system.
+
+
+
 
     Args:
         name_or_function (Type[T]): The class to register

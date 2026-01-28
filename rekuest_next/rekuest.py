@@ -46,9 +46,7 @@ T = TypeVar("T", bound=AnyFunction)
 class RekuestNext(Composition):
     """The main rekuest next client class"""
 
-    structure_registry: StructureRegistry = Field(
-        default_factory=get_default_structure_registry
-    )
+    structure_registry: StructureRegistry = Field(default_factory=get_default_structure_registry)
     rath: RekuestNextRath
     agent: Agent
     postman: Postman
@@ -67,8 +65,6 @@ class RekuestNext(Composition):
         effects: Optional[Dict[str, List[EffectInput]]] = None,
         is_test_for: Optional[List[str]] = None,
         logo: Optional[str] = None,
-        on_provide: Optional[OnProvide] = None,
-        on_unprovide: Optional[OnUnprovide] = None,
         validators: Optional[Dict[str, List[ValidatorInput]]] = None,
         structure_registry: Optional[StructureRegistry] = None,
         definition_registry: Optional[DefinitionRegistry] = None,
@@ -108,9 +104,7 @@ class RekuestNext(Composition):
 
         default_extension = self.agent.extension_registry.get("default")
         assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
+        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
 
         return register_func(
             function,
@@ -127,37 +121,27 @@ class RekuestNext(Composition):
             effects=effects,
             is_test_for=is_test_for,
             logo=logo,
-            on_provide=on_provide,
-            on_unprovide=on_unprovide,
             validators=validators,
             in_process=in_process,
             dynamic=dynamic,
             sync=sync,
         )
 
-    def register_startup(
-        self, function: StartupFunction, name: str | None = None
-    ) -> None:
+    def register_startup(self, function: StartupFunction, name: str | None = None) -> None:
         """Register a startup function that will be called when the agent starts.
 
         Args:
             function (AnyFunction): The startup function to register.
         """
-        startup(
-            function, name=name or function.__name__, registry=self.agent.hook_registry
-        )
+        startup(function, name=name or function.__name__, registry=self.agent.hook_registry)
 
-    def register_background(
-        self, function: BackgroundFunction, name: str | None = None
-    ) -> None:
+    def register_background(self, function: BackgroundFunction, name: str | None = None) -> None:
         """Register a background function that will be run in the background.
 
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        background(
-            function, name=name or function.__name__, registry=self.agent.hook_registry
-        )
+        background(function, name=name or function.__name__, registry=self.agent.hook_registry)
 
     def run(self, instance_id: str | None = None) -> None:
         """

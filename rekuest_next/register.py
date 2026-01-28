@@ -146,8 +146,6 @@ def register_func(
     widgets: Optional[AssignWidgetMap] = None,
     effects: Optional[Dict[str, List[EffectInput]]] = None,
     interfaces: Optional[List[str]] = None,
-    on_provide: Optional[OnProvide] = None,
-    on_unprovide: Optional[OnUnprovide] = None,
     dynamic: bool = False,
     in_process: bool = False,
     sync: Optional[SyncGroup] = None,
@@ -174,8 +172,6 @@ def register_func(
         widgets (Optional[AssignWidgetMap], optional): Widget mappings.
         effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effect configurations.
         interfaces (Optional[List[str]], optional): Interfaces implemented by this actor.
-        on_provide (Optional[OnProvide], optional): Provision hook.
-        on_unprovide (Optional[OnUnprovide], optional): Unprovision hook.
         dynamic (bool, optional): Whether the definition is dynamically changeable.
         in_process (bool, optional): Whether to run in the same process.
         sync (Optional[SyncGroup], optional): Synchronization group, if any.
@@ -189,8 +185,6 @@ def register_func(
     definition, actor_builder = actifier(
         function_or_actor,
         structure_registry,
-        on_provide=on_provide,
-        on_unprovide=on_unprovide,
         widgets=widgets,
         is_test_for=is_test_for,
         collections=collections,
@@ -281,8 +275,6 @@ def register(
     effects: Optional[Dict[str, List[EffectInput]]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide: Optional[OnProvide] = None,
-    on_unprovide: Optional[OnUnprovide] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     definition_registry: Optional[DefinitionRegistry] = None,
@@ -336,8 +328,6 @@ def register(  # type: ignore[valid-type]
     effects: Optional[Dict[str, List[EffectInput]]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
-    on_provide: Optional[OnProvide] = None,
-    on_unprovide: Optional[OnUnprovide] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     definition_registry: Optional[DefinitionRegistry] = None,
@@ -413,8 +403,6 @@ def register(  # type: ignore[valid-type]
             effects=effects,
             collections=collections,
             interfaces=interfaces,
-            on_provide=on_provide,
-            on_unprovide=on_unprovide,
             port_groups=port_groups,
             in_process=in_process,
             dynamic=dynamic,
@@ -454,9 +442,7 @@ def register(  # type: ignore[valid-type]
                 effects=effects,
                 collections=collections,
                 interfaces=interfaces,
-                on_provide=on_provide,
                 logo=logo,
-                on_unprovide=on_unprovide,
                 port_groups=port_groups,
                 dynamic=dynamic,
                 in_process=in_process,

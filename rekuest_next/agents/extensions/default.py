@@ -52,6 +52,16 @@ class DefaultExtension(BaseModel):
         in the registry."""
         return "default"
 
+    def get_static_implementations(self) -> List[ImplementationInput]:
+        """Get the implementations that are preregistered with this extension.
+        This will be used to register the implementations on the rekuest server
+        when the agent starts.
+
+        Returns:
+            List[ImplementationInput]: The implementations for this extension.
+        """
+        return list(self.definition_registry.implementations.values())
+
     async def aget_implementations(self) -> List[ImplementationInput]:
         """Get the implementations for this extension. This
         will be called when the agent starts and will
@@ -83,7 +93,9 @@ class DefaultExtension(BaseModel):
         spawining protocol within an actor. But maps implementation"""
 
         try:
-            actor_builder = self.definition_registry.get_builder_for_interface(interface)
+            actor_builder = self.definition_registry.get_builder_for_interface(
+                interface
+            )
 
         except KeyError:
             raise ExtensionError(

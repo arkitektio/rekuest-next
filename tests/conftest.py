@@ -7,7 +7,7 @@ from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.rekuest import RekuestNext, RekuestNextRath
 from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
 from rath.links.testing.direct_succeeding_link import DirectSucceedingLink
-from rekuest_next.agents.base import BaseAgent
+from rekuest_next.agents.base import BaseAgent, RekuestAgent
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 import os
@@ -69,7 +69,7 @@ def mock_rekuest() -> RekuestNext:
 
     rath = RekuestNextRath(link=DirectSucceedingLink())
 
-    agent = BaseAgent(
+    agent = RekuestAgent(
         transport=WebsocketAgentTransport(
             endpoint_url="ws://localhost:8000/graphql",
             token_loader=token_loader,
@@ -185,7 +185,7 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
             ),
         )
 
-        agent = BaseAgent(
+        agent = RekuestAgent(
             transport=WebsocketAgentTransport(
                 endpoint_url=f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/agi",
                 token_loader=token_loader,
@@ -269,7 +269,7 @@ async def async_deployed_app() -> AsyncGenerator[DeployedRekuest, None]:
             ),
         )
 
-        agent = BaseAgent(
+        agent = RekuestAgent(
             transport=WebsocketAgentTransport(
                 endpoint_url=f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/agi",
                 token_loader=token_loader,

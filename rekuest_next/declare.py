@@ -255,12 +255,15 @@ class DeclaredAgentAction(Generic[P, R]):
         )
 
 
-class DeclaredAgentProtocol(Generic[P, R]):
+Agent = TypeVar("Agent")
+
+
+class DeclaredAgentProtocol(Generic[Agent]):
     """A wrapped function that calls the actor's implementation."""
 
     def __init__(
         self,
-        func: Type,
+        func: Type[Agent],
         name: str | None = None,
         hash: str | None = None,
         optional: bool = False,
@@ -365,7 +368,7 @@ def protocol(
 T = TypeVar("T")
 
 
-def agent_protocol(cls: Type[T]) -> Type[T]:
+def agent_protocol(cls: Type[T]) -> DeclaredAgentProtocol[T]:
     """Declare an agent protocol.
 
     This is useful for defining agent protocols that can be registered later.

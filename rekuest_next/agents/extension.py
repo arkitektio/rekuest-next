@@ -25,6 +25,16 @@ class AgentExtension(Protocol):
         in the registry."""
         return "default"
 
+    def get_static_implementations(self) -> List["ImplementationInput"]:
+        """Get the implementations that are preregistered with this extension.
+        This will be used to register the implementations on the rekuest server
+        when the agent starts.
+
+        Returns:
+            List[ImplementationInput]: The implementations for this extension.
+        """
+        ...
+
     async def aget_implementations(self) -> List["ImplementationInput"]:
         """Get the implementations for this extension. This
         will be called when the agent starts and will

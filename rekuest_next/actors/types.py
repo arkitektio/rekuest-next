@@ -56,8 +56,6 @@ class Agent(Protocol):
     hook_registry: "HooksRegistry"
     extension_registry: "ExtensionRegistry"
     instance_id: str
-    capture_condition: asyncio.Condition
-    capture_active: bool
 
     async def asend(
         self: "Agent", actor: "Actor", message: messages.FromAgentMessage
@@ -210,8 +208,6 @@ class Actifier(Protocol):
         structure_registry: StructureRegistry,
         bypass_shrink: bool = False,
         bypass_expand: bool = False,
-        on_provide: Optional[OnProvide] = None,
-        on_unprovide: Optional[OnUnprovide] = None,
         description: str | None = None,
         stateful: bool = False,
         validators: Optional[Dict[str, List[ValidatorInput]]] = None,

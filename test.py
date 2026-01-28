@@ -1,24 +1,30 @@
+from typing import Generic, ParamSpec, TypeVar, Callable
 from rekuest_next.register import register
-from rekuest_next.declare import declare
+from rekuest_next.declare import agent_protocol, declare
 
 
-@declare
-def add(int: int) -> int:
-    """A function that adds 1 to the input integer."""
-    ...
+@agent_protocol
+class Agent:
+    @staticmethod
+    def add(int: int) -> int:
+        """A function that adds 1 to the input integer."""
+        ...
 
 
-@declare
-def substract(int: int) -> int:
-    """A function that adds 1 to the input integer."""
-    ...
+@agent_protocol
+class AnotherAgent:
+    @staticmethod
+    def substract(int: int) -> int:
+        """A function that substracts 1 from the input integer."""
+        ...
 
 
-@register(dependencies=[add, substract])
-def workflow(number: int) -> int:
+@register(dependencies=[AnotherAgent, Agent])
+def workflow(
+    number: int,
+) -> int:
     """A workflow that returns a static string."""
 
-    x = add(1)
-    y = substract(x)
-
+    x = Agent.add(number)
+    y = AnotherAgent.substract(x)
     return y

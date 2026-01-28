@@ -48,13 +48,19 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
+    id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
+    )
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     sync: SyncGroup = Field(default_factory=SyncGroup)
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -118,29 +124,6 @@ class Actor(BaseModel):
         """
         return None
 
-    async def on_provide(self: Self) -> None:
-        """A function that is called once the actor is registered on the agent and we are
-        getting in the provide loop. Here we can do some initialisation of the actor
-        like start persisting database queries
-
-        Imaging this as the enter function of the async context manager
-
-        Args:
-            passport (Passport): The passport of the actor (provides some information on
-                the actor like a unique local id for the actor)
-        """
-        return None
-
-    async def on_unprovide(self: Self) -> None:
-        """A function that is called once the actor is unregistered from the agent and we are
-        getting out of the provide loop. Here we can do some finalisation of the actor
-        like stop persisting database queries.
-
-        Imagin this as the exit function of an async context manager.
-
-        """
-        return None
-
     async def on_assign(
         self: Self,
         assignment: messages.Assign,
@@ -184,7 +167,9 @@ class Actor(BaseModel):
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
+                logger.info(
+                    f"Task {key} was cancelled through applicaction. Setting Critical"
+                )
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
@@ -273,14 +258,20 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(assignation=message.assignation),
+                            message=messages.CancelledEvent(
+                                assignation=message.assignation
+                            ),
                         )
 
                 else:
-                    logger.warning("Race Condition: Task was already done before cancellation")
+                    logger.warning(
+                        "Race Condition: Task was already done before cancellation"
+                    )
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(assignation=message.assignation),
+                        message=messages.CancelledEvent(
+                            assignation=message.assignation
+                        ),
                     )
 
             else:
@@ -327,7 +318,9 @@ class SerializingActor(Actor):
     )
     context_variables: Dict[str, Any] = Field(default_factory=dict)
 
-    async def aget_locals(self: Self) -> Tuple[Mapping[str, AnyContext], Mapping[str, AnyState]]:
+    async def aget_locals(
+        self: Self,
+    ) -> Tuple[Mapping[str, AnyContext], Mapping[str, AnyState]]:
         """A function to for locals"""
 
         state_kwargs: Mapping[str, AnyContext | AnyState] = {}
