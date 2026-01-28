@@ -9,7 +9,7 @@ from types import TracebackType
 from typing import AsyncIterator, List, Optional, Self, Set
 import asyncio
 import logging
-
+import jsonpatch
 from pydantic import ConfigDict, Field, PrivateAttr
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -288,3 +288,16 @@ class FastApiAgent(BaseAgent):
     async def aregister_definitions(self, instance_id):
         """Register definitions with the agent."""
         print("Registering definitions is not implemented for FastApiAgent yet.")
+
+    async def ashelve(
+        self, instance_id, identifier, resource_id, label=None, description=None
+    ):
+        return identifier
+
+    async def apublish_patch(self, interface, patch: jsonpatch.JsonPatch) -> None:
+        """Publish a patch to the agent.  Will forward the patch to all connected clients"""
+        message = messages.StatePatchEvent(
+            interface=interface,
+            patch=patch.to_string(),
+        )
+        await self.transport.asend(message)

@@ -120,6 +120,7 @@ def state(  # type: ignore[valid-type]
             setattr(cls, "__rekuest_state_local__", local_only)
 
             state_schema = inspect_state_schema(cls, structure_registry)
+            print("Registering state schema:", name)
 
             registry.register_at_interface(
                 name or cls.__name__, cls, state_schema, structure_registry

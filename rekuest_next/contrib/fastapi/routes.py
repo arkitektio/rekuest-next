@@ -61,7 +61,9 @@ def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key for child in port.children if not child.nullable and child.default is None
+                child.key
+                for child in port.children
+                if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -141,7 +143,9 @@ def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
         app.state.agent = agent
 
         async with app.state.agent:
-            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
+            provide_task = asyncio.create_task(
+                app.state.agent.aprovide(instance_id=instance_id)
+            )
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield
@@ -221,7 +225,9 @@ def add_implementation_route(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
+                        "schema": {
+                            "$ref": f"#/components/schemas/{request_schema_name}"
+                        }
                     }
                 },
             },
@@ -230,7 +236,9 @@ def add_implementation_route(
                     "description": "Successful Response",
                     "content": {
                         "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
+                            "schema": {
+                                "$ref": f"#/components/schemas/{response_schema_name}"
+                            }
                         }
                     },
                 }
@@ -318,7 +326,9 @@ def add_agent_routes(
         }
 
     @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
+    async def assign_action(
+        request: Request, interface: str, extension: str = "default"
+    ) -> dict:
         """Assign an action to the agent for processing."""
         user = get_user_from_request(request)
         payload = await request.json()
@@ -350,7 +360,9 @@ def add_implementation_routes(
         agent: The FastApiAgent with registered implementations.
         extension: The extension name to get implementations from.
     """
-    for implementation in agent.extension_registry.get(extension).get_static_implementations():
+    for implementation in agent.extension_registry.get(
+        extension
+    ).get_static_implementations():
         add_implementation_route(app, agent, implementation)
 
 
@@ -374,7 +386,9 @@ def add_state_route(
 
     # Create JSON schema from the state schema ports
     response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
+    response_schema = create_json_schema_from_ports(
+        state_schema.ports, response_schema_name
+    )
 
     # Store schema for OpenAPI generation
     if not hasattr(app, "_custom_schemas"):
@@ -417,7 +431,9 @@ def add_state_route(
                     "description": "Current state value",
                     "content": {
                         "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
+                            "schema": {
+                                "$ref": f"#/components/schemas/{response_schema_name}"
+                            }
                         }
                     },
                 }
@@ -426,6 +442,50 @@ def add_state_route(
     )
 
     app.router.routes.append(route)
+
+
+def add_schema_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    extension: str = "default",
+) -> None:
+    """Add routes to get implementation and state schemas.
+
+    This adds:
+    - GET /schemas/implementations - list all implementation schemas
+    - GET /schemas/states - list all state schemas
+
+    Args:
+        app: The FastAPI application.
+        agent: The FastApiAgent with registered implementations and states.
+        extension: The extension name to get implementations from.
+    """
+
+    @app.get("/schemas/implementations")
+    async def get_implementation_schemas() -> dict:
+        """Get all implementation schemas for the specified extension."""
+        implementations = {}
+        for impl in agent.extension_registry.get(
+            extension
+        ).get_static_implementations():
+            implementations[impl.interface or impl.definition.name] = impl.definition
+
+        return {
+            "count": len(implementations),
+            "implementations": implementations,
+        }
+
+    @app.get("/schemas/states")
+    async def get_state_schemas() -> dict:
+        """Get all registered state schemas."""
+        state_schemas = {}
+        for interface, schema in agent.state_registry.state_schemas.items():
+            state_schemas[interface] = schema
+
+        return {
+            "count": len(state_schemas),
+            "states": state_schemas,
+        }
 
 
 def add_state_routes(
@@ -545,6 +605,7 @@ def configure_fastapi(
     agent: FastApiAgent,
     get_user_from_request: Optional[Callable[[Request], Any]] = None,
     add_implementations: bool = True,
+    add_schema: bool = True,
     add_states: bool = True,
     extension: str = "default",
     ws_path: str = "/ws",
@@ -597,5 +658,8 @@ def configure_fastapi(
 
     if add_states:
         add_state_routes(app, agent, states_path, states_ws_path)
+
+    if add_schema:
+        add_schema_routes(app, agent, extension)
 
     configure_openapi(app)

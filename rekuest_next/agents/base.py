@@ -149,6 +149,16 @@ class BaseAgent(KoiledModel):
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    async def ashelve(
+        self,
+        instance_id: str,
+        identifier: Identifier,
+        resource_id: str,
+        label: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> str:
+        raise NotImplementedError("ashelve not implemented in BaseAgent")
+
     async def aput_on_shelve(
         self,
         identifier: Identifier,
@@ -508,10 +518,17 @@ class BaseAgent(KoiledModel):
         old_shrunk_state = self._current_shrunk_states[interface]
         new_shrunk_state = await self.ashrink_state(interface=interface, state=value)
 
-        patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)  # type: ignore
+        patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)
+        await self.apublish_patch(interface=interface, patch=patch)
+
+        # type: ignore
 
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
+
+    async def apublish_patch(self, interface: str, patch: jsonpatch.JsonPatch) -> None:
+        """Publish a patch to the agent.  Will forward the patch to the transport"""
+        raise NotImplementedError("apublish_patch not implemented in BaseAgent")
 
     async def apublish_state(self, state: AnyState) -> None:
         """Publish a state to the agent.  Will forward the state to the transport"""

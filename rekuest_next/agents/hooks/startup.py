@@ -73,6 +73,7 @@ class WrappedStartupHook(StartupHook):
             if is_state(return_value):
                 states[get_state_name(return_value)] = return_value
             elif is_context(return_value):
+                print("Registering context:", get_context_name(return_value))
                 contexts[get_context_name(return_value)] = return_value
             else:
                 raise StartupHookError(

@@ -70,6 +70,7 @@ class FromAgentMessageType(str, Enum):
     ASSIGNED = "ASSIGNED"
     INTERRUPTED = "INTERRUPTED"
     HEARTBEAT_ANSWER = "HEARTBEAT_ANSWER"
+    STATE_PATCH = "STATE_PATCH"
 
 
 class Message(BaseModel):
@@ -395,6 +396,19 @@ class HeartbeatEvent(Message):
     type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
         FromAgentMessageType.HEARTBEAT_ANSWER
     )
+
+
+class StatePatchEvent(Message):
+    """A state patch event
+
+    A state patch event is sent when the agent wants to send a state patch
+    to the rekuest backend. This is used to
+    send state patches from the agent to the rekuest backend
+    """
+
+    type: Literal[FromAgentMessageType.STATE_PATCH] = FromAgentMessageType.STATE_PATCH
+    interface: str
+    patch: str
 
 
 class AssignInquiry(BaseModel):
