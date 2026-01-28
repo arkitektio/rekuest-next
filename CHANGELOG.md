@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.27.0 (2026-01-28)
+
+### Features
+
+- Add agent
+  ([`9e51020`](https://github.com/arkitektio/rekuest-next/commit/9e51020163898ea0d714518d891562abf2a19ff2))
+
+
 ## v0.26.0 (2026-01-28)
 
 ### Features
