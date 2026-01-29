@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v0.29.0 (2026-01-29)
+
+
 ## v0.28.0 (2026-01-29)
 
 ### Features
 
 - App-registry
   ([`9aab70b`](https://github.com/arkitektio/rekuest-next/commit/9aab70ba454a7ff97bb3ecfb870dbac6175c2813))
+
+- Fix fastapi
+  ([`96956de`](https://github.com/arkitektio/rekuest-next/commit/96956de705d1266b1cf5b9fcbd2e0e17bdfc8380))
 
 
 ## v0.27.0 (2026-01-28)
