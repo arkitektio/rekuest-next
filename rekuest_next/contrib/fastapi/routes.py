@@ -61,9 +61,7 @@ def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key
-                for child in port.children
-                if not child.nullable and child.default is None
+                child.key for child in port.children if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -143,9 +141,7 @@ def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
         app.state.agent = agent
 
         async with app.state.agent:
-            provide_task = asyncio.create_task(
-                app.state.agent.aprovide(instance_id=instance_id)
-            )
+            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield
@@ -225,9 +221,7 @@ def add_implementation_route(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {
-                            "$ref": f"#/components/schemas/{request_schema_name}"
-                        }
+                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
                     }
                 },
             },
@@ -236,9 +230,7 @@ def add_implementation_route(
                     "description": "Successful Response",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -326,9 +318,7 @@ def add_agent_routes(
         }
 
     @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(
-        request: Request, interface: str, extension: str = "default"
-    ) -> dict:
+    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
         """Assign an action to the agent for processing."""
         user = get_user_from_request(request)
         payload = await request.json()
@@ -360,9 +350,7 @@ def add_implementation_routes(
         agent: The FastApiAgent with registered implementations.
         extension: The extension name to get implementations from.
     """
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.extension_registry.get(extension).get_static_implementations():
         add_implementation_route(app, agent, implementation)
 
 
@@ -386,9 +374,7 @@ def add_state_route(
 
     # Create JSON schema from the state schema ports
     response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(
-        state_schema.ports, response_schema_name
-    )
+    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
 
     # Store schema for OpenAPI generation
     if not hasattr(app, "_custom_schemas"):
@@ -431,9 +417,7 @@ def add_state_route(
                     "description": "Current state value",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -465,9 +449,7 @@ def add_schema_routes(
     async def get_implementation_schemas() -> dict:
         """Get all implementation schemas for the specified extension."""
         implementations = {}
-        for impl in agent.extension_registry.get(
-            extension
-        ).get_static_implementations():
+        for impl in agent.extension_registry.get(extension).get_static_implementations():
             implementations[impl.interface or impl.definition.name] = impl.definition
 
         return {
@@ -479,8 +461,9 @@ def add_schema_routes(
     async def get_state_schemas() -> dict:
         """Get all registered state schemas."""
         state_schemas = {}
-        for interface, schema in agent.state_registry.state_schemas.items():
-            state_schemas[interface] = schema
+        for extension in agent.extension_registry.agent_extensions.values():
+            for interface, schema in extension.get_state_schemas().items():
+                state_schemas[interface] = schema
 
         return {
             "count": len(state_schemas),
@@ -508,12 +491,22 @@ def add_state_routes(
         states_ws_path: Path for the state updates WebSocket.
     """
 
+    # Collect state schemas from all extensions
+    collected_state_schemas = {}
+    for extension in agent.extension_registry.agent_extensions.values():
+        collected_state_schemas.update(extension.get_state_schemas())
+
     # Add route to list all states
     @app.get(states_path)
     async def list_states() -> dict:
         """List all registered states and their current values."""
         states_info = {}
-        for interface, schema in agent.state_registry.state_schemas.items():
+        # Collect state schemas from all extensions
+        ext_state_schemas = {}
+        for ext in agent.extension_registry.agent_extensions.values():
+            ext_state_schemas.update(ext.get_state_schemas())
+
+        for interface, schema in ext_state_schemas.items():
             state_data = {
                 "name": schema.name,
                 "interface": interface,
@@ -531,8 +524,13 @@ def add_state_routes(
             "states": states_info,
         }
 
+    # Collect state schemas from all extensions
+    all_state_schemas = {}
+    for extension in agent.extension_registry.agent_extensions.values():
+        all_state_schemas.update(extension.get_state_schemas())
+
     # Add individual state routes for each registered state
-    for interface, state_schema in agent.state_registry.state_schemas.items():
+    for interface, state_schema in all_state_schemas.items():
         add_state_route(app, agent, interface, state_schema, states_path)
 
     # Add WebSocket for state updates
@@ -547,7 +545,12 @@ def add_state_routes(
         await agent.transport.connection_manager.connect(websocket)
         try:
             # Send current state values on connect
-            for interface in agent.state_registry.state_schemas:
+            # Collect state schemas from all extensions
+            ext_state_schemas = {}
+            for ext in agent.extension_registry.agent_extensions.values():
+                ext_state_schemas.update(ext.get_state_schemas())
+
+            for interface in ext_state_schemas:
                 if interface in agent._current_shrunk_states:
                     await websocket.send_json(
                         {

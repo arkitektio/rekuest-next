@@ -26,7 +26,7 @@ from rekuest_next.definition.define import AssignWidgetMap
 from rekuest_next.definition.hash import hash_definition
 from rekuest_next.definition.registry import (
     DefinitionRegistry,
-    get_default_definition_registry,
+    get_default_implementation_registry,
 )
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
@@ -71,9 +71,7 @@ R = TypeVar("R")
 class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(
-        self, func: AnyFunction, interface: str, definition: DefinitionInput
-    ) -> None:
+    def __init__(self, func: AnyFunction, interface: str, definition: DefinitionInput) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.interface = interface
@@ -83,18 +81,14 @@ class WrappedFunction(Generic[P, R]):
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = my_implementation_at(
-            helper.actor.agent.instance_id, self.interface
-        )
+        implementation = my_implementation_at(helper.actor.agent.instance_id, self.interface)
 
         return call(implementation, *args, parent=helper.assignment, **kwargs)
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = await amy_implementation_at(
-            helper.actor.agent.instance_id, self.interface
-        )
+        implementation = await amy_implementation_at(helper.actor.agent.instance_id, self.interface)
 
         return await acall(implementation, *args, parent=helper.assignment, **kwargs)
 
@@ -132,7 +126,7 @@ class WrappedFunction(Generic[P, R]):
 def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
-    definition_registry: DefinitionRegistry,
+    implementation_registry: DefinitionRegistry,
     interface: Optional[str] = None,
     name: Optional[str] = None,
     actifier: Actifier = reactify,
@@ -159,7 +153,7 @@ def register_func(
     Args:
         function_or_actor (AnyFunction): A function or actor to be registered.
         structure_registry (StructureRegistry): The registry used for structuring inputs.
-        definition_registry (DefinitionRegistry): The registry where definitions are stored.
+        implementation_registry (DefinitionRegistry): The registry where implementations are stored.
         interface (Optional[str], optional): Interface name. Inferred if not provided.
         name (Optional[str], optional): Optional display name.
         actifier (Actifier, optional): Callable converting functions to actors. Defaults to reactify.
@@ -200,16 +194,14 @@ def register_func(
         in_process=in_process,
     )
 
-    definition_registry.register_at_interface(
+    implementation_registry.register_at_interface(
         interface,
         ImplementationInput(
             interface=interface,
             definition=definition,
             dependencies=tuple(
                 [
-                    x
-                    if isinstance(x, AgentDependencyInput)
-                    else x.to_dependency_input()
+                    x if isinstance(x, AgentDependencyInput) else x.to_dependency_input()
                     for x in (dependencies or [])
                 ]
             ),
@@ -248,7 +240,7 @@ def register(func: Callable[P, R]) -> WrappedFunction[P, R]:
         on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
         validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
         structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
         in_process (bool, optional): Execute actor in the same process.
         dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
         sync (Optional[SyncGroup], optional): Optional synchronization group.
@@ -277,7 +269,7 @@ def register(
     logo: Optional[str] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
-    definition_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
@@ -302,7 +294,7 @@ def register(
         on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
         validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
         structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
         in_process (bool, optional): Execute actor in the same process.
         dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
         sync (Optional[SyncGroup], optional): Optional synchronization group.
@@ -330,7 +322,7 @@ def register(  # type: ignore[valid-type]
     logo: Optional[str] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
-    definition_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
@@ -370,7 +362,7 @@ def register(  # type: ignore[valid-type]
         on_unprovide (Optional[OnUnprovide], optional): Async hook called on unprovisioning.
         validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validation configuration.
         structure_registry (Optional[StructureRegistry], optional): Overrides default structure registry.
-        definition_registry (Optional[DefinitionRegistry], optional): Overrides default definition registry.
+        implementation_registry (Optional[DefinitionRegistry], optional): Overrides default implementation registry.
         in_process (bool, optional): Execute actor in the current process.
         dynamic (bool, optional): Enables dynamic redefinition.
         sync (Optional[SyncGroup], optional): Synchronization group instance.
@@ -378,7 +370,7 @@ def register(  # type: ignore[valid-type]
     Returns:
         Union[T, Callable[[T], T]]: The registered function or a decorator.
     """
-    definition_registry = definition_registry or get_default_definition_registry()
+    implementation_registry = implementation_registry or get_default_implementation_registry()
     structure_registry = structure_registry or get_default_structure_registry()
 
     if len(func) > 1:
@@ -391,7 +383,7 @@ def register(  # type: ignore[valid-type]
             name=name,
             description=description,
             structure_registry=structure_registry,
-            definition_registry=definition_registry,
+            implementation_registry=implementation_registry,
             dependencies=dependencies,
             validators=validators,
             actifier=actifier,
@@ -431,7 +423,7 @@ def register(  # type: ignore[valid-type]
                 name=name,
                 description=description,
                 structure_registry=structure_registry,
-                definition_registry=definition_registry,
+                implementation_registry=implementation_registry,
                 actifier=actifier,
                 interface=interface,
                 validators=validators,
@@ -450,9 +442,7 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(
-                function_or_actor, "__definition_hash__", hash_definition(definition)
-            )
+            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
             setattr(
                 function_or_actor,
                 "__interface__",
@@ -471,18 +461,18 @@ def register(  # type: ignore[valid-type]
 def register_test(
     test_function: AnyFunction,
     structure_registry: Optional[StructureRegistry] = None,
-    definition_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional[DefinitionRegistry] = None,
 ) -> WrappedFunction[..., Any]:
     """Register a test function for specified interfaces.
 
     This function wraps a test function into an actor and registers it as a test
-    for the provided interfaces in the definition registry.
+    for the provided interfaces in the implementation registry.
 
     Args:
         test_function (AnyFunction): The test function to register.
         tested_interfaces (List[str]): List of interfaces that this function tests.
         structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
 
     Returns:
         WrappedFunction[..., Any]: The registered test function wrapped.
@@ -491,5 +481,5 @@ def register_test(
         dependencies=[test_function],
         test_for=test_function,
         structure_registry=structure_registry,
-        definition_registry=definition_registry,
+        implementation_registry=implementation_registry,
     )

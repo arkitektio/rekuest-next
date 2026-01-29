@@ -1,13 +1,14 @@
 """The base class for all agent extensions."""
 
-from typing import List, runtime_checkable, Protocol, Optional
+from typing import Dict, List, runtime_checkable, Protocol, Optional
 from rekuest_next.actors.types import Actor
 from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
-    from rekuest_next.api.schema import ImplementationInput
+    from rekuest_next.api.schema import ImplementationInput, StateSchemaInput
+    from rekuest_next.agents.hooks.registry import StartupHook, BackgroundTask
 
 
 @runtime_checkable
@@ -24,6 +25,41 @@ class AgentExtension(Protocol):
         """Get the name of the extension. This is used to identify the extension
         in the registry."""
         return "default"
+
+    def get_implementations(self) -> List["ImplementationInput"]:
+        """Get the implementations for this extension (sync version).
+
+        This is called when the agent starts and will be used to register
+        the implementations on the rekuest server.
+
+        Returns:
+            List[ImplementationInput]: The implementations for this extension.
+        """
+        ...
+
+    def get_state_schemas(self) -> Dict[str, "StateSchemaInput"]:
+        """Get the state schemas for this extension.
+
+        Returns:
+            Dict[str, StateSchemaInput]: Map of interface to state schema.
+        """
+        ...
+
+    def get_startup_hooks(self) -> Dict[str, "StartupHook"]:
+        """Get the startup hooks for this extension.
+
+        Returns:
+            Dict[str, StartupHook]: Map of hook name to startup hook.
+        """
+        ...
+
+    def get_background_workers(self) -> Dict[str, "BackgroundTask"]:
+        """Get the background workers for this extension.
+
+        Returns:
+            Dict[str, BackgroundTask]: Map of worker name to background task.
+        """
+        ...
 
     def get_static_implementations(self) -> List["ImplementationInput"]:
         """Get the implementations that are preregistered with this extension.
@@ -79,6 +115,38 @@ class BaseAgentExtension(ABC):
     def get_name(self) -> str:
         """This should return the name of the extension"""
         raise NotImplementedError("Implement this method")
+
+    def get_implementations(self) -> List["ImplementationInput"]:
+        """Get the implementations for this extension (sync version).
+
+        Returns:
+            List[ImplementationInput]: The implementations for this extension.
+        """
+        return []
+
+    def get_state_schemas(self) -> Dict[str, "StateSchemaInput"]:
+        """Get the state schemas for this extension.
+
+        Returns:
+            Dict[str, StateSchemaInput]: Map of interface to state schema.
+        """
+        return {}
+
+    def get_startup_hooks(self) -> Dict[str, "StartupHook"]:
+        """Get the startup hooks for this extension.
+
+        Returns:
+            Dict[str, StartupHook]: Map of hook name to startup hook.
+        """
+        return {}
+
+    def get_background_workers(self) -> Dict[str, "BackgroundTask"]:
+        """Get the background workers for this extension.
+
+        Returns:
+            Dict[str, BackgroundTask]: Map of worker name to background task.
+        """
+        return {}
 
     @abstractmethod
     async def aspawn_actor_for_interface(

@@ -30,8 +30,8 @@ def test_actify_class_based_function(mock_rekuest: RekuestNext) -> None:
     assert default is not None
     assert isinstance(default, DefaultExtension)
 
-    assert "basic_function" in default.definition_registry.implementations
-    implementation = default.definition_registry.implementations["basic_function"]
+    assert "basic_function" in default.app_registry.implementation_registry.implementations
+    implementation = default.app_registry.implementation_registry.implementations["basic_function"]
 
     assert len(implementation.definition.args) == 1
 
@@ -87,6 +87,9 @@ def test_actify_class_based_startup(mock_rekuest: RekuestNext) -> None:
 
     ClassBase(mock_rekuest)
 
-    default = mock_rekuest.agent.hook_registry.background_worker.get("basic_background")
+    default_ext = mock_rekuest.agent.extension_registry.get("default")
+    assert default_ext is not None
+    assert isinstance(default_ext, DefaultExtension)
+    default = default_ext.app_registry.hooks_registry.background_worker.get("basic_background")
     assert default is not None
     assert isinstance(default, WrappedThreadedBackgroundTask)

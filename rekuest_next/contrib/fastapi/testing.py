@@ -953,15 +953,15 @@ def create_test_app_and_agent(
             Default is False for backward compatibility with simple tests.
 
     Returns:
-        A tuple of (app, agent, definition_registry, structure_registry).
+        A tuple of (app, agent, implementation_registry, structure_registry).
 
     Example:
         ```python
         # For simple tests (no event processing):
-        app, agent, def_registry, struct_registry = create_test_app_and_agent()
+        app, agent, impl_registry, struct_registry = create_test_app_and_agent()
 
         # For full integration tests with event processing:
-        app, agent, def_registry, struct_registry = create_test_app_and_agent(
+        app, agent, impl_registry, struct_registry = create_test_app_and_agent(
             run_provide_loop=True
         )
 
@@ -971,7 +971,7 @@ def create_test_app_and_agent(
         register_func(
             my_function,
             structure_registry=struct_registry,
-            definition_registry=def_registry,
+            implementation_registry=impl_registry,
             interface="my_function",
         )
 
@@ -984,9 +984,15 @@ def create_test_app_and_agent(
             assert any(e.is_done() for e in events)
         ```
     """
-    definition_registry = DefinitionRegistry()
+    from rekuest_next.app import AppRegistry
+
+    implementation_registry = DefinitionRegistry()
     structure_registry = StructureRegistry()
-    extension = DefaultExtension(definition_registry=definition_registry)
+    app_registry = AppRegistry(
+        implementation_registry=implementation_registry,
+        structure_registry=structure_registry,
+    )
+    extension = DefaultExtension(app_registry=app_registry)
     extension_registry = ExtensionRegistry()
     extension_registry.register(extension)
 
@@ -1013,7 +1019,7 @@ def create_test_app_and_agent(
         lifespan=lifespan,
     )
 
-    return app, agent, definition_registry, structure_registry
+    return app, agent, implementation_registry, structure_registry
 
 
 __all__ = [

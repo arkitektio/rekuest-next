@@ -1,16 +1,14 @@
 """Default extension for rekuest-next."""
 
 from pydantic import ConfigDict, Field, BaseModel
-from rekuest_next.api.schema import ImplementationInput
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_default_definition_registry,
-)
+from rekuest_next.api.schema import ImplementationInput, StateSchemaInput
+from rekuest_next.app import AppRegistry, get_default_app_registry
 
 from rekuest_next.actors.types import Actor
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from rekuest_next.agents.errors import ExtensionError
+from rekuest_next.agents.hooks.registry import StartupHook, BackgroundTask
 import asyncio
 import logging
 
@@ -36,9 +34,9 @@ class DefaultExtension(BaseModel):
 
     """
 
-    definition_registry: DefinitionRegistry = Field(
-        default_factory=get_default_definition_registry,
-        description="A global registry of all registered function/actors for this extension and all its dependencies. Think @register",
+    app_registry: AppRegistry = Field(
+        default_factory=get_default_app_registry,
+        description="The unified app registry containing all registries for this extension.",
     )
 
     cleanup: bool = True
@@ -52,6 +50,14 @@ class DefaultExtension(BaseModel):
         in the registry."""
         return "default"
 
+    def get_implementations(self) -> List[ImplementationInput]:
+        """Get the implementations for this extension (sync version).
+
+        Returns:
+            List[ImplementationInput]: The implementations for this extension.
+        """
+        return list(self.app_registry.implementation_registry.implementations.values())
+
     def get_static_implementations(self) -> List[ImplementationInput]:
         """Get the implementations that are preregistered with this extension.
         This will be used to register the implementations on the rekuest server
@@ -60,7 +66,31 @@ class DefaultExtension(BaseModel):
         Returns:
             List[ImplementationInput]: The implementations for this extension.
         """
-        return list(self.definition_registry.implementations.values())
+        return list(self.app_registry.implementation_registry.implementations.values())
+
+    def get_state_schemas(self) -> Dict[str, StateSchemaInput]:
+        """Get the state schemas for this extension.
+
+        Returns:
+            Dict[str, StateSchemaInput]: Map of interface to state schema.
+        """
+        return dict(self.app_registry.state_registry.state_schemas)
+
+    def get_startup_hooks(self) -> Dict[str, StartupHook]:
+        """Get the startup hooks for this extension.
+
+        Returns:
+            Dict[str, StartupHook]: Map of hook name to startup hook.
+        """
+        return dict(self.app_registry.hooks_registry.startup_hooks)
+
+    def get_background_workers(self) -> Dict[str, BackgroundTask]:
+        """Get the background workers for this extension.
+
+        Returns:
+            Dict[str, BackgroundTask]: Map of worker name to background task.
+        """
+        return dict(self.app_registry.hooks_registry.background_worker)
 
     async def aget_implementations(self) -> List[ImplementationInput]:
         """Get the implementations for this extension. This
@@ -71,7 +101,7 @@ class DefaultExtension(BaseModel):
         Returns:
             List[ImplementationInput]: The implementations for this extension.
         """
-        return list(self.definition_registry.implementations.values())
+        return list(self.app_registry.implementation_registry.implementations.values())
 
     async def astart(self, instance_id: str) -> None:
         """This should be called when the agent starts"""
@@ -93,7 +123,7 @@ class DefaultExtension(BaseModel):
         spawining protocol within an actor. But maps implementation"""
 
         try:
-            actor_builder = self.definition_registry.get_builder_for_interface(
+            actor_builder = self.app_registry.implementation_registry.get_builder_for_interface(
                 interface
             )
 

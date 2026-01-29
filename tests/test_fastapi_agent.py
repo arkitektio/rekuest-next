@@ -32,7 +32,7 @@ def get_user_from_request(request: Request) -> int:
 
 async def create_test_setup() -> TestSetup:
     """Create a test app with a registered simple function."""
-    app, agent, definition_registry, structure_registry = create_test_app_and_agent()
+    app, agent, implementation_registry, structure_registry = create_test_app_and_agent()
 
     def add_numbers(a: int, b: int) -> int:
         """Add two numbers together."""
@@ -41,7 +41,7 @@ async def create_test_setup() -> TestSetup:
     register_func(
         add_numbers,
         structure_registry=structure_registry,
-        definition_registry=definition_registry,
+        implementation_registry=implementation_registry,
         interface="add_numbers",
     )
 
@@ -54,12 +54,12 @@ async def create_test_setup() -> TestSetup:
         get_user_from_request=get_user_from_request,
     )
 
-    return app, agent, definition_registry, structure_registry
+    return app, agent, implementation_registry, structure_registry
 
 
 async def create_generator_setup() -> TestSetup:
     """Create a test app with a registered generator function."""
-    app, agent, definition_registry, structure_registry = create_test_app_and_agent()
+    app, agent, implementation_registry, structure_registry = create_test_app_and_agent()
 
     def count_up(start: int, end: int) -> Generator[int, None, None]:
         """Generate numbers from start to end."""
@@ -69,7 +69,7 @@ async def create_generator_setup() -> TestSetup:
     register_func(
         count_up,
         structure_registry=structure_registry,
-        definition_registry=definition_registry,
+        implementation_registry=implementation_registry,
         interface="count_up",
     )
 
@@ -79,7 +79,7 @@ async def create_generator_setup() -> TestSetup:
         get_user_from_request=get_user_from_request,
     )
 
-    return app, agent, definition_registry, structure_registry
+    return app, agent, implementation_registry, structure_registry
 
 
 # =============================================================================

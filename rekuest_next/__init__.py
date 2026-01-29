@@ -15,6 +15,12 @@ from .remote import (
 from .declare import declare, protocol
 from .structures.model import model
 from .state.decorator import state
+from .app import (
+    AppRegistry,
+    get_default_app_registry,
+    set_default_app_registry,
+    reset_default_app_registry,
+)
 
 try:
     from .arkitekt import RekuestNextService
@@ -38,4 +44,8 @@ __all__ = [
     "model",
     "acall_raw",
     "structure_reg",
+    "AppRegistry",
+    "get_default_app_registry",
+    "set_default_app_registry",
+    "reset_default_app_registry",
 ]

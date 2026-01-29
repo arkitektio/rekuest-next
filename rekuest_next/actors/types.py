@@ -53,13 +53,10 @@ class Shelver(Protocol):
 class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
-    hook_registry: "HooksRegistry"
     extension_registry: "ExtensionRegistry"
     instance_id: str
 
-    async def asend(
-        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
-    ) -> None:
+    async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 

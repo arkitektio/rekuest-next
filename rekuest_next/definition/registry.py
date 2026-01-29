@@ -123,10 +123,32 @@ GLOBAL_DEFINITION_REGISTRY = None
 def get_default_definition_registry() -> DefinitionRegistry:
     """Get the default definition registry.
 
+    If no global definition registry has been set, this will return the
+    definition registry from the global app registry.
+
     Returns:
         DefinitionRegistry: The default definition registry.
     """
     global GLOBAL_DEFINITION_REGISTRY
     if GLOBAL_DEFINITION_REGISTRY is None:
-        GLOBAL_DEFINITION_REGISTRY = DefinitionRegistry()  # type: ignore
+        from rekuest_next.app import get_default_app_registry
+
+        return get_default_app_registry().implementation_registry
     return GLOBAL_DEFINITION_REGISTRY
+
+
+def set_default_definition_registry(registry: DefinitionRegistry) -> None:
+    """Set a standalone default definition registry.
+
+    This bypasses the app registry and sets a specific definition registry
+    as the global default.
+
+    Args:
+        registry: The DefinitionRegistry to use as default.
+    """
+    global GLOBAL_DEFINITION_REGISTRY
+    GLOBAL_DEFINITION_REGISTRY = registry
+
+
+# Alias for consistency with new naming convention
+get_default_implementation_registry = get_default_definition_registry

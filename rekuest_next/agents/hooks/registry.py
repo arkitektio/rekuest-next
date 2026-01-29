@@ -136,10 +136,30 @@ default_registry = None
 
 
 def get_default_hook_registry() -> HooksRegistry:
-    """Get the default hook registry
-    This is used to register hooks and background tasks
+    """Get the default hook registry.
+
+    If no global hook registry has been set, this will return the
+    hooks registry from the global app registry.
+
+    Returns:
+        HooksRegistry: The default hook registry.
     """
     global default_registry
     if default_registry is None:
-        default_registry = HooksRegistry()
+        from rekuest_next.app import get_default_app_registry
+
+        return get_default_app_registry().hooks_registry
     return default_registry
+
+
+def set_default_hook_registry(registry: HooksRegistry) -> None:
+    """Set a standalone default hook registry.
+
+    This bypasses the app registry and sets a specific hook registry
+    as the global default.
+
+    Args:
+        registry: The HooksRegistry to use as default.
+    """
+    global default_registry
+    default_registry = registry

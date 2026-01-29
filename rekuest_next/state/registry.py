@@ -19,16 +19,10 @@ GLOBAL_STATE_REGISTRY = None
 class StateRegistry(KoiledModel):
     """The state registry is used to register the states of the actors."""
 
-    state_schemas: Dict[str, StateSchemaInput] = Field(
-        default_factory=dict, exclude=True
-    )
-    registry_schemas: Dict[str, StructureRegistry] = Field(
-        default_factory=dict, exclude=True
-    )
+    state_schemas: Dict[str, StateSchemaInput] = Field(default_factory=dict, exclude=True)
+    registry_schemas: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
     interface_classes: Dict[str, AnyState] = Field(default_factory=dict, exclude=True)
-    classes_interfaces: Dict[Type[AnyState], str] = Field(
-        default_factory=lambda: {}, exclude=True
-    )
+    classes_interfaces: Dict[Type[AnyState], str] = Field(default_factory=lambda: {}, exclude=True)
 
     def register_at_interface(
         self,
@@ -82,14 +76,34 @@ class StateRegistry(KoiledModel):
 
     def hash(self) -> str:
         """A hash of the state registry, used to check if the state registry has changed"""
-        return hashlib.sha256(
-            json.dumps(self.dump(), sort_keys=True).encode()
-        ).hexdigest()
+        return hashlib.sha256(json.dumps(self.dump(), sort_keys=True).encode()).hexdigest()
 
 
 def get_default_state_registry() -> "StateRegistry":
-    """Get the default state registry."""
+    """Get the default state registry.
+
+    If no global state registry has been set, this will return the
+    state registry from the global app registry.
+
+    Returns:
+        StateRegistry: The default state registry.
+    """
     global GLOBAL_STATE_REGISTRY
     if GLOBAL_STATE_REGISTRY is None:
-        GLOBAL_STATE_REGISTRY = StateRegistry()  # type: ignore
+        from rekuest_next.app import get_default_app_registry
+
+        return get_default_app_registry().state_registry
     return GLOBAL_STATE_REGISTRY
+
+
+def set_default_state_registry(registry: "StateRegistry") -> None:
+    """Set a standalone default state registry.
+
+    This bypasses the app registry and sets a specific state registry
+    as the global default.
+
+    Args:
+        registry: The StateRegistry to use as default.
+    """
+    global GLOBAL_STATE_REGISTRY
+    GLOBAL_STATE_REGISTRY = registry

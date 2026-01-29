@@ -23,10 +23,7 @@ from typing import (
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import ActorBuilder, OnProvide, OnUnprovide
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_default_definition_registry,
-)
+from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.register import register_func
@@ -67,7 +64,7 @@ class RekuestNext(Composition):
         logo: Optional[str] = None,
         validators: Optional[Dict[str, List[ValidatorInput]]] = None,
         structure_registry: Optional[StructureRegistry] = None,
-        definition_registry: Optional[DefinitionRegistry] = None,
+        implementation_registry: Optional[DefinitionRegistry] = None,
         in_process: bool = False,
         dynamic: bool = False,
         sync: Optional[SyncGroup] = None,
@@ -93,7 +90,7 @@ class RekuestNext(Composition):
             on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
             validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
             structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-            definition_registry (Optional[DefinitionRegistry], optional): Custom definition registry instance.
+            implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
             in_process (bool, optional): Execute actor in the same process.
             dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
             sync (Optional[SyncGroup], optional): Optional synchronization group.
@@ -109,7 +106,7 @@ class RekuestNext(Composition):
         return register_func(
             function,
             structure_registry=structure_registry or self.structure_registry,
-            definition_registry=default_extension.definition_registry,
+            implementation_registry=default_extension.app_registry.implementation_registry,
             actifier=actifier,
             interface=interface,
             stateful=stateful,
@@ -133,7 +130,14 @@ class RekuestNext(Composition):
         Args:
             function (AnyFunction): The startup function to register.
         """
-        startup(function, name=name or function.__name__, registry=self.agent.hook_registry)
+        default_extension = self.agent.extension_registry.get("default")
+        assert default_extension is not None, "Default extension not found"
+        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        startup(
+            function,
+            name=name or function.__name__,
+            registry=default_extension.app_registry.hooks_registry,
+        )
 
     def register_background(self, function: BackgroundFunction, name: str | None = None) -> None:
         """Register a background function that will be run in the background.
@@ -141,7 +145,14 @@ class RekuestNext(Composition):
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        background(function, name=name or function.__name__, registry=self.agent.hook_registry)
+        default_extension = self.agent.extension_registry.get("default")
+        assert default_extension is not None, "Default extension not found"
+        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        background(
+            function,
+            name=name or function.__name__,
+            registry=default_extension.app_registry.hooks_registry,
+        )
 
     def run(self, instance_id: str | None = None) -> None:
         """

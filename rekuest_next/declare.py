@@ -28,10 +28,6 @@ from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnpro
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import AssignWidgetMap, prepare_definition
 from rekuest_next.definition.hash import hash_definition
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_default_definition_registry,
-)
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
