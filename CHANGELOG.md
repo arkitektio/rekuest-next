@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.28.0 (2026-01-29)
+
+### Features
+
+- App-registry
+  ([`9aab70b`](https://github.com/arkitektio/rekuest-next/commit/9aab70ba454a7ff97bb3ecfb870dbac6175c2813))
+
+
 ## v0.27.0 (2026-01-28)
 
 ### Features
