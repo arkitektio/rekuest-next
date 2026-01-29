@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
 from rekuest_next.api.schema import (
+    AssignInput,
     ImplementationInput,
     PortInput,
     PortKind,
@@ -175,10 +176,62 @@ def add_implementation_route(
     # Create JSON schemas from the definition
     request_schema_name = f"{implementation.definition.name}Request"
     response_schema_name = f"{implementation.definition.name}Response"
+    args_schema_name = f"{implementation.definition.name}Args"
 
-    request_schema = create_json_schema_from_ports(
-        implementation.definition.args, request_schema_name
-    )
+    # Create args schema from ports
+    args_schema = create_json_schema_from_ports(implementation.definition.args, args_schema_name)
+
+    # Create full request schema based on AssignInput model with args schema embedded
+    request_schema = {
+        "type": "object",
+        "title": request_schema_name,
+        "properties": {
+            "args": args_schema,
+            "policy": {"type": "object", "description": "The policy for the assignation"},
+            "instanceId": {"type": "string", "description": "The instance ID"},
+            "action": {"type": "string", "description": "The action ID"},
+            "dependency": {"type": "string", "description": "The dependency"},
+            "resolution": {"type": "string", "description": "The resolution ID"},
+            "implementation": {"type": "string", "description": "The implementation ID"},
+            "agent": {"type": "string", "description": "The agent ID"},
+            "actionHash": {"type": "string", "description": "The action hash"},
+            "method": {"type": "string", "description": "The method"},
+            "reservation": {"type": "string", "description": "The reservation ID"},
+            "interface": {"type": "string", "description": "The interface name"},
+            "hooks": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Hooks for the assignation",
+            },
+            "reference": {"type": "string", "description": "A reference string"},
+            "parent": {"type": "string", "description": "The parent assignation ID"},
+            "cached": {
+                "type": "boolean",
+                "description": "Whether to use cached results",
+                "default": False,
+            },
+            "log": {
+                "type": "boolean",
+                "description": "Whether to log the assignation",
+                "default": False,
+            },
+            "capture": {
+                "type": "boolean",
+                "description": "Whether to capture the assignation",
+                "default": False,
+            },
+            "ephemeral": {
+                "type": "boolean",
+                "description": "Whether the assignation is ephemeral",
+                "default": False,
+            },
+            "dependencies": {"type": "object", "description": "Dependencies for the assignation"},
+            "isHook": {"type": "boolean", "description": "Whether this is a hook assignation"},
+            "step": {"type": "boolean", "description": "Whether to step through the assignation"},
+        },
+        "required": ["args", "instanceId", "cached", "log", "capture", "ephemeral"],
+    }
+
     response_schema = create_json_schema_from_ports(
         implementation.definition.returns, response_schema_name
     )
@@ -193,18 +246,29 @@ def add_implementation_route(
         """Execute the implementation with the provided payload."""
         payload = await request.json()
 
+        # Parse the payload as AssignInput, using interface from route
+        assign_input = AssignInput(
+            **{
+                **payload,
+                "interface": implementation.interface,
+                "instanceId": payload.get("instanceId", "fastapi_instance"),
+            }
+        )
+
         assign = Assign(
-            interface=implementation.interface or implementation.definition.name,
+            interface=assign_input.interface or implementation.definition.name,
             extension="default",
             assignation=str(uuid.uuid4()),
-            args=payload,
+            args=assign_input.args,
+            reference=assign_input.reference,
             user="fastapi",
             app="fastapi",
             action="api_call",
         )
 
         result = await agent.transport.asubmit(assign)
-        return JSONResponse(content={"status": "submitted", "assignation": result})
+        print(result)
+        return JSONResponse(content={"status": "submitted", "task_id": result})
 
     route = APIRoute(
         path=route_path,
@@ -320,16 +384,27 @@ def add_agent_routes(
 
     @app.post(f"{assign_path}/{{interface}}")
     async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
-        """Assign an action to the agent for processing."""
+        """Assign an action to the agent for processing.
+
+        Accepts the full AssignInput model with args, policy, hooks, and other fields.
+        """
         user = get_user_from_request(request)
         payload = await request.json()
+
+        # Parse the payload as AssignInput, using interface from route
+        assign_input = AssignInput(
+            **{
+                **payload,
+                "interface": interface,
+            }
+        )
 
         assignation_id = str(uuid.uuid4())
         assign_message = Assign(
             interface=interface,
             extension=extension,
             assignation=assignation_id,
-            args=payload,
+            args=assign_input.args,
             user=str(user),
             app="fastapi",
             action="api_call",

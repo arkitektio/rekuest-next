@@ -37,6 +37,7 @@ class BaseGroup:
         Returns:
             SyncGroup: The SyncGroup instance.
         """
+
         return await self.acquire()
 
     async def __aexit__(
