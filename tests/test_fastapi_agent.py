@@ -12,17 +12,14 @@ from fastapi import FastAPI, Request
 
 from rekuest_next.contrib.fastapi import (
     FastApiAgent,
-    configure_fastapi,
     AsyncAgentTestClient,
     create_test_app_and_agent,
 )
-from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.register import register_func
-from rekuest_next.structures.registry import StructureRegistry
+from rekuest_next.app import AppRegistry
 
 
 # Type alias for test setup tuple
-TestSetup = tuple[FastAPI, FastApiAgent, DefinitionRegistry, StructureRegistry]
+TestSetup = tuple[FastAPI, FastApiAgent, AppRegistry]
 
 
 def get_user_from_request(request: Request) -> int:
@@ -32,54 +29,30 @@ def get_user_from_request(request: Request) -> int:
 
 async def create_test_setup() -> TestSetup:
     """Create a test app with a registered simple function."""
-    app, agent, implementation_registry, structure_registry = create_test_app_and_agent()
+    app, agent, app_registry = create_test_app_and_agent()
 
+    @app_registry.register
     def add_numbers(a: int, b: int) -> int:
         """Add two numbers together."""
         return a + b
 
-    register_func(
-        add_numbers,
-        structure_registry=structure_registry,
-        implementation_registry=implementation_registry,
-        interface="add_numbers",
-    )
-
     list = await agent.extension_registry.get("default").aget_implementations()
     assert len(list) == 1
 
-    configure_fastapi(
-        app=app,
-        agent=agent,
-        get_user_from_request=get_user_from_request,
-    )
-
-    return app, agent, implementation_registry, structure_registry
+    return app, agent, app_registry
 
 
 async def create_generator_setup() -> TestSetup:
     """Create a test app with a registered generator function."""
-    app, agent, implementation_registry, structure_registry = create_test_app_and_agent()
+    app, agent, app_registry = create_test_app_and_agent()
 
+    @app_registry.register
     def count_up(start: int, end: int) -> Generator[int, None, None]:
         """Generate numbers from start to end."""
         for i in range(start, end + 1):
             yield i
 
-    register_func(
-        count_up,
-        structure_registry=structure_registry,
-        implementation_registry=implementation_registry,
-        interface="count_up",
-    )
-
-    configure_fastapi(
-        app=app,
-        agent=agent,
-        get_user_from_request=get_user_from_request,
-    )
-
-    return app, agent, implementation_registry, structure_registry
+    return app, agent, app_registry
 
 
 # =============================================================================
@@ -90,7 +63,7 @@ async def create_generator_setup() -> TestSetup:
 @pytest.mark.asyncio
 async def test_app_has_routes() -> None:
     """Test that the app has the expected routes configured."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         route_paths = [route.path for route in app.routes]  # type: ignore
@@ -107,7 +80,7 @@ async def test_app_has_routes() -> None:
 @pytest.mark.asyncio
 async def test_openapi_schema_includes_implementation() -> None:
     """Test that the OpenAPI schema includes the implementation."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         response = await client.get("/openapi.json")
@@ -131,7 +104,7 @@ async def test_openapi_schema_includes_implementation() -> None:
 @pytest.mark.asyncio
 async def test_assign_work() -> None:
     """Test assigning work to an implementation."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 5, "b": 3})
@@ -143,7 +116,7 @@ async def test_assign_work() -> None:
 @pytest.mark.asyncio
 async def test_assign_with_as_user() -> None:
     """Test assigning work with as_user parameter."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent, as_user="test-user-123") as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 2})
@@ -155,7 +128,7 @@ async def test_assign_with_as_user() -> None:
 @pytest.mark.asyncio
 async def test_assign_and_get_result() -> None:
     """Test a full assign cycle and collect events until done."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         # Assign work
@@ -173,7 +146,7 @@ async def test_assign_and_get_result() -> None:
 @pytest.mark.asyncio
 async def test_assign_and_check_yield_returns() -> None:
     """Test that YIELD event contains the correct return value."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         # Assign work
@@ -200,7 +173,7 @@ async def test_assign_and_check_yield_returns() -> None:
 @pytest.mark.asyncio
 async def test_generator_function_assignment() -> None:
     """Test assigning work to a generator function."""
-    app, agent, _, _ = await create_generator_setup()
+    app, agent, _ = await create_generator_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("count_up", {"start": 1, "end": 3})
@@ -217,7 +190,7 @@ async def test_generator_function_assignment() -> None:
 @pytest.mark.asyncio
 async def test_generator_yields_multiple_values() -> None:
     """Test that generator yields multiple values."""
-    app, agent, _, _ = await create_generator_setup()
+    app, agent, _ = await create_generator_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("count_up", {"start": 1, "end": 3})
@@ -240,7 +213,7 @@ async def test_generator_yields_multiple_values() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_get_assignations_endpoint() -> None:
     """Test the GET /assignations endpoint."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         response = await client.get("/assignations")
@@ -257,7 +230,7 @@ async def test_assignation_appears_in_list() -> None:
     Note: Assignations are removed from managed_assignments after completion,
     so this test verifies the structure of the endpoint response.
     """
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         # Assign work
@@ -282,7 +255,7 @@ async def test_get_single_assignation() -> None:
     The assignation endpoint should return details about an assignation.
     Since the processing happens quickly, we check the endpoint works.
     """
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         # Assign work
@@ -303,7 +276,7 @@ async def test_get_single_assignation() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_get_nonexistent_assignation_returns_404() -> None:
     """Test that getting a nonexistent assignation returns 404."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         response = await client.get("/assignations/nonexistent-id")
@@ -318,7 +291,7 @@ async def test_get_nonexistent_assignation_returns_404() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_receive_single_event() -> None:
     """Test receiving a single event."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
@@ -332,7 +305,7 @@ async def test_receive_single_event() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_collect_multiple_events() -> None:
     """Test collecting multiple events."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
@@ -347,7 +320,7 @@ async def test_collect_multiple_events() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_collect_until_done_timeout() -> None:
     """Test that collect_until_done works with timeout."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
@@ -367,7 +340,7 @@ async def test_collect_until_done_timeout() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_as_user_header_in_post() -> None:
     """Test that as_user parameter adds x-session-user header to POST requests."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent, as_user="header-test-user") as client:
         # The assign method should include the header
@@ -378,7 +351,7 @@ async def test_as_user_header_in_post() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_as_user_header_in_get() -> None:
     """Test that as_user parameter adds x-session-user header to GET requests."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent, as_user="header-test-user") as client:
         response = await client.get("/assignations")
@@ -388,7 +361,7 @@ async def test_as_user_header_in_get() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_multiple_users_can_assign() -> None:
     """Test that multiple users can assign work."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent, as_user="user-1") as client1:
         result1 = await client1.assign("add_numbers", {"a": 1, "b": 1})
@@ -410,7 +383,7 @@ async def test_multiple_users_can_assign() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_assign_unknown_interface_returns_error() -> None:
     """Test that assigning to an unknown interface returns an error."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         response = await client.post(
@@ -432,7 +405,7 @@ async def test_assign_unknown_interface_returns_error() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_buffered_event_is_done() -> None:
     """Test BufferedEvent.is_done() method."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
@@ -445,7 +418,7 @@ async def test_buffered_event_is_done() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_buffered_event_is_yield() -> None:
     """Test BufferedEvent.is_yield() method."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
@@ -458,7 +431,7 @@ async def test_buffered_event_is_yield() -> None:
 @pytest.mark.asyncio(scope="session")
 async def test_buffered_event_get_returns() -> None:
     """Test BufferedEvent.get_returns() method."""
-    app, agent, _, _ = await create_test_setup()
+    app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
         result = await client.assign("add_numbers", {"a": 7, "b": 8})

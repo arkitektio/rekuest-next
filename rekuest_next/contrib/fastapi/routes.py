@@ -9,7 +9,7 @@ import asyncio
 import contextlib
 import logging
 import uuid
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import JSONResponse
@@ -21,6 +21,7 @@ from rekuest_next.api.schema import (
     PortKind,
     StateSchemaInput,
 )
+from rekuest_next.app import AppRegistry
 from rekuest_next.messages import Assign
 
 from .agent import FastApiAgent
@@ -605,7 +606,7 @@ def configure_openapi(app: FastAPI) -> None:
 
 def configure_fastapi(
     app: FastAPI,
-    agent: FastApiAgent,
+    app_registry: AppRegistry,
     get_user_from_request: Optional[Callable[[Request], Any]] = None,
     add_implementations: bool = True,
     add_schema: bool = True,
@@ -616,37 +617,72 @@ def configure_fastapi(
     assign_path: str = "/assign",
     states_path: str = "/states",
     states_ws_path: str = "/states/ws",
-) -> None:
-    """Configure a FastAPI application with all agent routes and OpenAPI schemas.
+    instance_id: str = "default",
+) -> FastApiAgent:
+    """Configure a FastAPI application with all agent routes, lifespan, and OpenAPI schemas.
 
     This is the main entry point for setting up a FastAPI app with a rekuest agent.
-    It adds all routes (WebSocket, assignations, assign, implementation routes,
-    and state routes) and configures OpenAPI schema generation.
+    It creates a FastApiAgent with a DefaultExtension using the provided AppRegistry,
+    sets up the lifespan to manage the agent lifecycle, adds all routes (WebSocket,
+    assignations, assign, implementation routes, and state routes) and configures
+    OpenAPI schema generation.
+
+    The lifespan is configured to:
+    - Add implementation/state/schema routes at startup (after all functions are registered)
+    - Start the agent and provide loop
+    - Clean up on shutdown
 
     Args:
         app: The FastAPI application to configure.
-        agent: The FastApiAgent to use.
+        app_registry: The AppRegistry containing implementations, states, and hooks.
         get_user_from_request: Optional function to extract user from request.
         add_implementations: Whether to add routes for registered implementations.
         add_states: Whether to add routes for registered states.
+        add_schema: Whether to add schema routes.
         extension: The extension name for implementations.
         ws_path: Path for the WebSocket endpoint.
         assignations_path: Path for the assignations endpoints.
         assign_path: Path for the assign endpoint.
         states_path: Path for the states endpoints.
         states_ws_path: Path for the states WebSocket endpoint.
+        instance_id: The instance ID for the agent.
+
+    Returns:
+        The created FastApiAgent instance.
 
     Example:
         ```python
         from fastapi import FastAPI
-        from rekuest_next.contrib.fastapi import FastApiAgent, configure_fastapi, create_lifespan
+        from rekuest_next.app import AppRegistry
+        from rekuest_next.contrib.fastapi import configure_fastapi
 
-        agent = FastApiAgent()
+        app_registry = AppRegistry()
 
-        app = FastAPI(lifespan=create_lifespan(agent))
-        configure_fastapi(app, agent)
+        @app_registry.register
+        def my_function(x: int) -> int:
+            return x * 2
+
+        app = FastAPI()
+        agent = configure_fastapi(app, app_registry)
+        # Lifespan is automatically configured - no additional setup needed
         ```
     """
+    from rekuest_next.agents.extensions.default import DefaultExtension
+    from rekuest_next.agents.registry import ExtensionRegistry
+
+    # Create a DefaultExtension with the provided AppRegistry
+    default_extension = DefaultExtension(app_registry=app_registry)
+
+    # Create an ExtensionRegistry and register the extension
+    extension_registry = ExtensionRegistry()
+    extension_registry.register(default_extension)
+
+    # Create the FastApiAgent with the extension registry
+    agent = FastApiAgent(
+        extension_registry=extension_registry,
+    )
+
+    # Add agent routes immediately (WebSocket, assignations, assign endpoints)
     add_agent_routes(
         app=app,
         agent=agent,
@@ -656,13 +692,40 @@ def configure_fastapi(
         assign_path=assign_path,
     )
 
-    if add_implementations:
-        add_implementation_routes(app, agent, extension)
+    # Create and set the lifespan context manager
+    @contextlib.asynccontextmanager
+    async def lifespan(fastapi_app: FastAPI):
+        """Lifespan context manager for FastAPI app using FastApiAgent."""
+        # Add dynamic routes at startup (after all functions are registered)
+        if add_implementations:
+            add_implementation_routes(fastapi_app, agent, extension)
 
-    if add_states:
-        add_state_routes(app, agent, states_path, states_ws_path)
+        if add_states:
+            add_state_routes(fastapi_app, agent, states_path, states_ws_path)
 
-    if add_schema:
-        add_schema_routes(app, agent, extension)
+        if add_schema:
+            add_schema_routes(fastapi_app, agent, extension)
 
-    configure_openapi(app)
+        configure_openapi(fastapi_app)
+
+        # Set agent on app state
+        fastapi_app.state.agent = agent
+
+        async with agent:
+            provide_task = asyncio.create_task(agent.aprovide(instance_id=instance_id))
+            provide_task.add_done_callback(_handle_provide_task_done)
+
+            yield
+
+            provide_task.cancel()
+            try:
+                await provide_task
+            except asyncio.CancelledError:
+                logger.info("Provide task cancelled during shutdown")
+            except Exception as e:
+                logger.error(f"Error during provide task shutdown: {e}", exc_info=True)
+
+    # Set the lifespan on the app's router
+    app.router.lifespan_context = lifespan
+
+    return agent

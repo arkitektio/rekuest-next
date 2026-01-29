@@ -19,6 +19,7 @@ from starlette.testclient import WebSocketTestSession
 
 from rekuest_next.agents.extensions.default import DefaultExtension
 from rekuest_next.agents.registry import ExtensionRegistry
+from rekuest_next.app import AppRegistry
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.registry import StructureRegistry
 
@@ -939,43 +940,30 @@ def create_test_lifespan(
 
 def create_test_app_and_agent(
     instance_id: str = "test-instance",
-) -> tuple[FastAPI, FastApiAgent, DefinitionRegistry, StructureRegistry]:
+) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
     This is a convenience function that sets up all the necessary registries
-    and creates a properly configured FastAPI app with a test lifespan.
+    and creates a properly configured FastAPI app using configure_fastapi.
 
     Args:
         instance_id: The instance ID for the agent.
-        run_provide_loop: If True, the agent's `aprovide` loop will be started
-            as a background task. This is needed for full integration tests
-            that expect to receive DONE/YIELD/ERROR events back via WebSocket.
-            Default is False for backward compatibility with simple tests.
 
     Returns:
-        A tuple of (app, agent, implementation_registry, structure_registry).
+        A tuple of (app, agent, app_registry).
 
     Example:
         ```python
-        # For simple tests (no event processing):
-        app, agent, impl_registry, struct_registry = create_test_app_and_agent()
-
-        # For full integration tests with event processing:
-        app, agent, impl_registry, struct_registry = create_test_app_and_agent(
-            run_provide_loop=True
+        from rekuest_next.contrib.fastapi import (
+            create_test_app_and_agent,
+            AsyncAgentTestClient,
         )
 
+        app, agent, app_registry = create_test_app_and_agent()
+
+        @app_registry.register
         def my_function(x: int) -> int:
             return x * 2
-
-        register_func(
-            my_function,
-            structure_registry=struct_registry,
-            implementation_registry=impl_registry,
-            interface="my_function",
-        )
-
-        configure_fastapi(app=app, agent=agent)
 
         async with AsyncAgentTestClient(app, agent, as_user="test-user") as client:
             result = await client.assign("my_function", {"x": 5})
@@ -983,43 +971,29 @@ def create_test_app_and_agent(
             events = await client.collect_until_done(result.assignation_id)
             assert any(e.is_done() for e in events)
         ```
+
+    Note:
+        Implementation routes are added dynamically when the lifespan starts.
+        The agent routes (WebSocket, assignations) are added immediately.
     """
     from rekuest_next.app import AppRegistry
+    from rekuest_next.contrib.fastapi.routes import configure_fastapi
 
-    implementation_registry = DefinitionRegistry()
-    structure_registry = StructureRegistry()
-    app_registry = AppRegistry(
-        implementation_registry=implementation_registry,
-        structure_registry=structure_registry,
-    )
-    extension = DefaultExtension(app_registry=app_registry)
-    extension_registry = ExtensionRegistry()
-    extension_registry.register(extension)
-
-    agent = FastApiAgent(extension_registry=extension_registry)
-
-    @contextlib.asynccontextmanager
-    async def lifespan(app: FastAPI):
-        app.state.agent = agent
-        async with agent:
-            provide_task = asyncio.create_task(agent.aprovide(instance_id=instance_id))
-            try:
-                yield
-            finally:
-                provide_task.cancel()
-                try:
-                    await provide_task
-                except asyncio.CancelledError:
-                    pass
+    app_registry = AppRegistry()
 
     app = FastAPI(
         title="Test API",
         description="Test API for FastAPI agent testing",
         version="1.0.0",
-        lifespan=lifespan,
     )
 
-    return app, agent, implementation_registry, structure_registry
+    agent = configure_fastapi(
+        app=app,
+        app_registry=app_registry,
+        instance_id=instance_id,
+    )
+
+    return app, agent, app_registry
 
 
 __all__ = [
