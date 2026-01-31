@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.30.0 (2026-01-31)
+
+### Bug Fixes
+
+- Assign for fastapi
+  ([`b0b0033`](https://github.com/arkitektio/rekuest-next/commit/b0b00336130b7221eebcd8a13f78dca0cc4e6df4))
+
+- Minial readme update
+  ([`c0bd38a`](https://github.com/arkitektio/rekuest-next/commit/c0bd38ad19b99c7c653da6a1f8c40a44e03a330b))
+
+### Features
+
+- Locks implementation
+  ([`a5971ee`](https://github.com/arkitektio/rekuest-next/commit/a5971eeb4d50b4952cab30cd38e8e19a86962434))
+
+
 ## v0.29.0 (2026-01-29)
 
 
