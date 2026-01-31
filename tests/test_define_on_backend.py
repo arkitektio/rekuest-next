@@ -1,6 +1,5 @@
 """General Tests for defininin actions"""
 
-import time
 from rekuest_next.api.schema import (
     acreate_implementation,
     create_implementation,
@@ -12,7 +11,7 @@ from rekuest_next.structures.registry import StructureRegistry
 from .funcs import (
     nested_basic_function,
 )
-from .annotated_funcs import annotated_x, annotated_choice_x
+from .annotated_funcs import annotated_x
 from .conftest import DeployedRekuest
 
 

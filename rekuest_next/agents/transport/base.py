@@ -2,9 +2,9 @@
 
 from abc import abstractmethod
 from types import TracebackType
-from typing import Optional, Self, AsyncIterator
+from typing import Self, AsyncIterator
 
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from rekuest_next.messages import FromAgentMessage, ToAgentMessage
 

@@ -1,11 +1,12 @@
 """The base class for all actors."""
 
 import asyncio
-from copy import deepcopy
+import contextlib
 import logging
 from typing import (
     Any,
     Dict,
+    List,
     Mapping,
     Optional,
     Self,
@@ -53,7 +54,14 @@ class Actor(BaseModel):
     )
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
-    sync: SyncGroup = Field(default_factory=SyncGroup)
+    locks: Optional[Tuple[str, ...]] = Field(
+        default=None,
+        description="The sync keys this actor requires. Locks will be acquired before running.",
+    )
+    sync: SyncGroup = Field(
+        default_factory=SyncGroup,
+        description="The sync group to use for this actor. This is used to synchronize access to the actor.",
+    )
 
     _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
         default_factory=lambda: {}
@@ -61,6 +69,7 @@ class Actor(BaseModel):
     _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
         default_factory=lambda: {}
     )
+    _currently_holding_locks: List[str] = PrivateAttr(default_factory=lambda: [])
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,6 +77,56 @@ class Actor(BaseModel):
         if values.get("sync") is None:
             values["sync"] = SyncGroup()
         return values
+
+    def holds_locks(self, keys: List[str]) -> bool:
+        """Check if the actor holds the given locks."""
+        return all(key in self._currently_holding_locks for key in keys)
+
+    def missing_locks(self, keys: List[str]) -> List[str]:
+        """Get the list of locks that the actor is missing from the given keys."""
+        return [key for key in keys if key not in self._currently_holding_locks]
+
+    @contextlib.asynccontextmanager
+    async def sync_context(self: Self, assignation_id: str, interface: str):
+        """Context manager that acquires sync key locks and the regular sync group.
+
+        This should be used instead of `async with self.sync:` when sync keys are defined.
+        It first acquires all sync key locks, then the regular sync group.
+
+        Args:
+            assignation_id: The ID of the assignation.
+            interface: The interface name for this actor.
+
+        Yields:
+            None after all locks are acquired.
+        """
+        from rekuest_next.actors.sync import SyncKeyGroup
+
+        # Create SyncKeyGroup if locks are defined
+        sync_key_group = None
+        if self.locks:
+            locks = self.agent.get_locks_for_keys(self.locks)
+            if locks:
+                sync_key_group = SyncKeyGroup(
+                    locks=locks,
+                    assignation_id=assignation_id,
+                    interface=interface,
+                )
+
+        try:
+            # Acquire sync key locks first
+            if sync_key_group:
+                await sync_key_group.acquire()
+
+            # Then acquire the regular sync group
+            async with self.sync:
+                self._currently_holding_locks = self.locks or []
+
+                yield
+        finally:
+            # Release sync key locks
+            if sync_key_group:
+                await sync_key_group.release()
 
     async def on_resume(self: Self, resume: messages.Resume) -> None:
         """A function that is called once the actor is resumed from a paused state.
@@ -334,9 +393,7 @@ class SerializingActor(Actor):
 
         for key, interface in self.state_variables.items():
             try:
-                state_kwargs[key] = deepcopy(
-                    await self.agent.aget_state(interface)
-                )  # TODO: Should unshrin the shrunk state?, that would be a bit weird no?
+                state_kwargs[key] = await self.agent.aget_state(interface)
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 

@@ -1,5 +1,6 @@
 """Hooks for the agent"""
 
+import contextvars
 import inspect
 from typing import (
     Any,
@@ -31,6 +32,9 @@ from rekuest_next.remote import ensure_return_as_tuple
 from rekuest_next.state.predicate import get_state_name, is_state
 
 
+startup_context = contextvars.ContextVar("startup_hook_context")
+
+
 class WrappedStartupHook(StartupHook):
     """Startup hook that runs in the event loop"""
 
@@ -38,7 +42,7 @@ class WrappedStartupHook(StartupHook):
         """Initialize the startup hook
 
         Args:
-            func (Callable[[str], AnyContext]): The function to run in the startup hook
+            func (Callable[[str, Any], AnyContext]): The function to run in the startup hook
             func (Callable): The function to run in the startup hook
         """
         self.func = func
@@ -48,22 +52,28 @@ class WrappedStartupHook(StartupHook):
         arguments = inspect.signature(func).parameters
         if len(arguments) > 1:
             raise StartupHookError(
-                "Startup hook must have exactly one argument (instance_id) or no arguments"
+                "Startup hook must have exactly one argument (app_context) or no arguments"
             )
         if len(arguments) == 1:
-            self.pass_instance_id = True
+            self.pass_app_context = True
 
-    async def arun(self, instance_id: str) -> StartupHookReturns:
+    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
         Args:
             instance_id (str): The instance id of the agent
+            app_context (Any): The context for the startup hook
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        if self.pass_instance_id:
-            parsed_returns = await self.func(instance_id)
-        else:
-            parsed_returns = await self.func()
+        token = startup_context.set(app_context)
+
+        try:
+            if self.pass_app_context:
+                parsed_returns = await self.func(app_context)
+            else:
+                parsed_returns = await self.func()
+        finally:
+            startup_context.reset(token)
         returns = ensure_return_as_tuple(parsed_returns)
 
         states: Dict[str, Any] = {}
@@ -100,22 +110,30 @@ class ThreadedStartupHook(StartupHook):
         arguments = inspect.signature(func).parameters
         if len(arguments) > 1:
             raise StartupHookError(
-                "Startup hook must have exactly one argument (instance_id) or no arguments"
+                "Startup hook must have exactly one argument (app_context) or no arguments"
             )
         if len(arguments) == 1:
-            self.pass_instance_id = True
+            self.pass_app_context = True
 
-    async def arun(self, instance_id: str) -> StartupHookReturns:
+    def run_func_with_context(self, app_context: Any) -> Any:
+        token = startup_context.set(app_context)
+        try:
+            if self.pass_app_context:
+                return self.func(app_context)
+            else:
+                return self.func()
+        finally:
+            startup_context.reset(token)
+
+    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
         Args:
             instance_id (str): The instance id of the agent
+            app_context (Any): The context for the startup hook
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        if self.pass_instance_id:
-            parsed_returns = await run_spawned(self.func, instance_id)
-        else:
-            parsed_returns = await run_spawned(self.func)
+        parsed_returns = await run_spawned(self.run_func_with_context, app_context)
 
         returns = ensure_return_as_tuple(parsed_returns)
 

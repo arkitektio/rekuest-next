@@ -13,7 +13,7 @@ from graphql import OperationType
 from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
     ArkitektWebsocketAgentTransport,
 )
-from rekuest_next.agents.base import BaseAgent, RekuestAgent
+from rekuest_next.agents.base import RekuestAgent
 from fakts_next import Fakts
 from rekuest_next.postmans.graphql import GraphQLPostman
 

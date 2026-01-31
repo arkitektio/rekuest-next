@@ -20,7 +20,6 @@ import ssl
 import certifi
 from koil.types import ContextBool, Contextual
 from .errors import (
-    AgentConnectionFail,
     BounceError,
     CorrectableConnectionFail,
     DefiniteConnectionFail,

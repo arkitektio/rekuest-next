@@ -1,6 +1,5 @@
 """Types for the actors module"""
 
-import asyncio
 from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.actors.sync import SyncGroup
@@ -20,7 +19,6 @@ import uuid
 
 if TYPE_CHECKING:
     from rekuest_next.agents.registry import ExtensionRegistry
-    from rekuest_next.agents.hooks.registry import HooksRegistry
 
 
 class Passport(BaseModel):
@@ -55,6 +53,16 @@ class Agent(Protocol):
 
     extension_registry: "ExtensionRegistry"
     instance_id: str
+
+    async def alock(self, key: str, assignation: str) -> None:
+        """A function to acquire a lock on the agent. This is used to acquire
+        locks on the agent."""
+        ...
+
+    async def aunlock(self, key: str) -> None:
+        """A function to release a lock on the agent. This is used to release
+        locks on the agent."""
+        ...
 
     async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
         """A function to send a message to the agent. This is used to send messages
@@ -91,19 +99,13 @@ class Agent(Protocol):
         agent from the actor."""
         ...
 
-    async def aprovide(
-        self,
-        instance_id: str | None = None,
-    ) -> None:
+    async def aprovide(self, context: Any) -> None:
         """Provide the provision. This method will provide the provision and
         return None.
         """
         ...
 
-    async def atest(
-        self,
-        instance_id: str | None = None,
-    ) -> None:
+    async def atest(self, context: Any) -> None:
         """Run the tests. This method will run the tests and return None."""
         ...
 
@@ -113,6 +115,14 @@ class Actor(Protocol):
     """An actor is a function that takes a passport and a transport"""
 
     agent: Agent
+
+    def holds_locks(self, keys: List[str]) -> bool:
+        """Check if the actor holds the given locks."""
+        ...
+
+    def missing_locks(self, keys: List[str]) -> List[str]:
+        """Get the list of locks that the actor is missing from the given keys."""
+        ...
 
     async def abreak(self, assignation_id: str) -> bool:
         """Break the actor. This method will break the actor and return None.

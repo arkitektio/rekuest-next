@@ -20,7 +20,7 @@ from rekuest_next.coercible_types import DependencyCoercible
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import Actifier, ActorBuilder, OnProvide, OnUnprovide
+from rekuest_next.actors.types import Actifier, ActorBuilder
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import AssignWidgetMap
 from rekuest_next.definition.hash import hash_definition
@@ -141,9 +141,9 @@ def register_func(
     effects: Optional[Dict[str, List[EffectInput]]] = None,
     interfaces: Optional[List[str]] = None,
     dynamic: bool = False,
-    in_process: bool = False,
-    sync: Optional[SyncGroup] = None,
     stateful: bool = False,
+    in_process: bool = False,
+    locks: Optional[List[str]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the provided definition registry.
 
@@ -185,10 +185,9 @@ def register_func(
         logo=logo,
         name=name,
         description=description,
-        stateful=stateful,
         port_groups=port_groups,
         effects=effects,
-        sync=sync,
+        locks=locks,
         validators=validators,
         interfaces=interfaces,
         in_process=in_process,
@@ -207,6 +206,7 @@ def register_func(
             ),
             logo=logo,
             dynamic=dynamic,
+            locks=tuple(locks) if locks else None,
         ),
         actor_builder,
     )
@@ -273,6 +273,7 @@ def register(
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
+    locks: Optional[List[str]] = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with optional configuration parameters.
 
@@ -325,7 +326,7 @@ def register(  # type: ignore[valid-type]
     implementation_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
-    sync: Optional[SyncGroup] = None,
+    locks: Optional[List[str]] = None,
 ) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
     """Register a function or actor to the default definition and structure registries.
 
@@ -365,7 +366,7 @@ def register(  # type: ignore[valid-type]
         implementation_registry (Optional[DefinitionRegistry], optional): Overrides default implementation registry.
         in_process (bool, optional): Execute actor in the current process.
         dynamic (bool, optional): Enables dynamic redefinition.
-        sync (Optional[SyncGroup], optional): Synchronization group instance.
+        locks (Optional[List[str]], optional): List of resource locks.
 
     Returns:
         Union[T, Callable[[T], T]]: The registered function or a decorator.
@@ -387,8 +388,8 @@ def register(  # type: ignore[valid-type]
             dependencies=dependencies,
             validators=validators,
             actifier=actifier,
-            stateful=stateful,
             interface=interface,
+            stateful=stateful,
             is_test_for=is_test_for,
             widgets=widgets,
             logo=logo,
@@ -398,7 +399,7 @@ def register(  # type: ignore[valid-type]
             port_groups=port_groups,
             in_process=in_process,
             dynamic=dynamic,
-            sync=sync,
+            locks=locks,
         )
 
         setattr(function_or_actor, "__definition__", definition)
@@ -427,18 +428,18 @@ def register(  # type: ignore[valid-type]
                 actifier=actifier,
                 interface=interface,
                 validators=validators,
-                stateful=stateful,
                 dependencies=dependencies,
                 is_test_for=is_test_for,
                 widgets=widgets,
                 effects=effects,
                 collections=collections,
                 interfaces=interfaces,
+                stateful=stateful,
                 logo=logo,
                 port_groups=port_groups,
                 dynamic=dynamic,
                 in_process=in_process,
-                sync=sync,
+                locks=locks,
             )
 
             setattr(function_or_actor, "__definition__", definition)

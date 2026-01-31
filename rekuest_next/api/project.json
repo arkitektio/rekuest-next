@@ -1,5 +1,5 @@
 {
-    "schema_url": "http://jhnnsrs-lab/rekuest/graphql",
+    "schema_url": "http://jhnnsrs-lab/rekuest/schema",
     "documents": "graphql/rekuest-next/*/**.graphql",
     "extensions": {
         "turms": {

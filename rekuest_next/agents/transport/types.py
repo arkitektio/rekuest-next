@@ -2,7 +2,7 @@
 
 from typing import Protocol, runtime_checkable
 import typing
-from rekuest_next.messages import ToAgentMessage, FromAgentMessage
+from rekuest_next.messages import FromAgentMessage
 
 
 @runtime_checkable

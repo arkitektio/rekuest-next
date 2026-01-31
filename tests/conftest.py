@@ -7,7 +7,7 @@ from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.rekuest import RekuestNext, RekuestNextRath
 from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
 from rath.links.testing.direct_succeeding_link import DirectSucceedingLink
-from rekuest_next.agents.base import BaseAgent, RekuestAgent
+from rekuest_next.agents.base import RekuestAgent
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 import os

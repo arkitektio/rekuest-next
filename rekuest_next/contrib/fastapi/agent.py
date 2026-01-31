@@ -6,7 +6,7 @@ connections.
 """
 
 from types import TracebackType
-from typing import AsyncIterator, List, Optional, Self, Set
+from typing import AsyncIterator, List, Optional, Self, Set, Any
 import asyncio
 import logging
 import jsonpatch
@@ -43,9 +43,7 @@ class FastAPIConnectionManager:
         await websocket.accept()
         async with self._lock:
             self._active_connections.add(websocket)
-        logger.info(
-            f"WebSocket connected. Total connections: {len(self._active_connections)}"
-        )
+        logger.info(f"WebSocket connected. Total connections: {len(self._active_connections)}")
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection from the manager.
@@ -55,9 +53,7 @@ class FastAPIConnectionManager:
         """
         async with self._lock:
             self._active_connections.discard(websocket)
-        logger.info(
-            f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
-        )
+        logger.info(f"WebSocket disconnected. Total connections: {len(self._active_connections)}")
 
     async def broadcast(self, message: str) -> None:
         """Send a message to all connected WebSocket clients.
@@ -65,9 +61,7 @@ class FastAPIConnectionManager:
         Args:
             message: The JSON string message to broadcast.
         """
-        logger.info(
-            f"Broadcasting to {len(self._active_connections)} clients: {message}"
-        )
+        logger.info(f"Broadcasting to {len(self._active_connections)} clients: {message}")
         async with self._lock:
             disconnected: List[WebSocket] = []
             for connection in self._active_connections:
@@ -115,9 +109,7 @@ class FastApiTransport(AgentTransport):
         description="The WebSocket connection manager for broadcasting messages.",
     )
 
-    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
-        default=None
-    )
+    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
     _connected: bool = PrivateAttr(default=False)
     _instance_id: Optional[str] = PrivateAttr(default=None)
 
@@ -285,14 +277,27 @@ class FastApiAgent(BaseAgent):
         """Set up the agent states."""
         print("Publishing states is not implemented for FastApiAgent yet.")
 
-    async def aregister_definitions(self, instance_id):
+    async def aregister_definitions(self, instance_id: str, app_context: Any) -> None:
         """Register definitions with the agent."""
         print("Registering definitions is not implemented for FastApiAgent yet.")
 
-    async def ashelve(
-        self, instance_id, identifier, resource_id, label=None, description=None
-    ):
+    async def ashelve(self, instance_id, identifier, resource_id, label=None, description=None):
         return identifier
+
+    async def alock(self, key, assignation):
+        """Publish a patch to the agent.  Will forward the patch to all connected clients"""
+        message = messages.LockEvent(
+            key=key,
+            assignation=assignation,
+        )
+        await self.transport.asend(message)
+
+    async def aunlock(self, key):
+        """Publish a patch to the agent.  Will forward the patch to all connected clients"""
+        message = messages.UnlockEvent(
+            key=key,
+        )
+        await self.transport.asend(message)
 
     async def apublish_patch(self, interface, patch: jsonpatch.JsonPatch) -> None:
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""

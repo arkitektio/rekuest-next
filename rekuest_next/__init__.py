@@ -24,7 +24,7 @@ from .app import (
 
 try:
     from .arkitekt import RekuestNextService
-except ImportError as e:
+except ImportError:
     pass
 
 

@@ -14,8 +14,7 @@ from rekuest_next.actors.functional import (
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
 )
-from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import ActorBuilder, AnyFunction, OnProvide, OnUnprovide
+from rekuest_next.actors.types import ActorBuilder, AnyFunction
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.api.schema import (
     DefinitionInput,
@@ -37,8 +36,6 @@ def reactify(
     structure_registry: StructureRegistry,
     bypass_shrink: bool = False,
     bypass_expand: bool = False,
-    on_provide: Optional[OnProvide] = None,
-    on_unprovide: Optional[OnUnprovide] = None,
     description: str | None = None,
     stateful: bool = False,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
@@ -52,7 +49,7 @@ def reactify(
     in_process: bool = False,
     logo: str | None = None,
     name: str | None = None,
-    sync: Optional[SyncGroup] = None,
+    locks: Optional[List[str]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Reactify a function
 
@@ -101,7 +98,7 @@ def reactify(
         "state_returns": state_returns,
         "context_variables": context_variables,
         "context_returns": context_returns,
-        "sync": sync,
+        "locks": locks,
     }
 
     if is_coroutine:

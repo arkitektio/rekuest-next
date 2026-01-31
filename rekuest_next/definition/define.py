@@ -295,9 +295,7 @@ def convert_object_to_port(
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.LIST,
             assignWidget=assign_widget,
@@ -337,9 +335,7 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(
-            cls=value_cls, registry=registry, nullable=False, key="..."
-        )
+        child = convert_object_to_port(cls=value_cls, registry=registry, nullable=False, key="...")
         return PortInput(
             kind=PortKind.DICT,
             assignWidget=assign_widget,
@@ -475,7 +471,6 @@ def prepare_definition(
     collections: List[str] | None = None,
     interfaces: Optional[List[str]] = None,
     description: str | None = None,
-    stateful: bool = False,
     is_test_for: Optional[List[str]] = None,
     port_label_map: Optional[Dict[str, str]] = None,
     port_description_map: Optional[Dict[str, str]] = None,
@@ -484,6 +479,7 @@ def prepare_definition(
     omitfirst: int | None = None,
     omitlast: int | None = None,
     logo: str | None = None,
+    stateful: bool = False,
     omitkeys: list[str] | None = None,
     return_annotations: Optional[List[Any]] = None,
     allow_dev: bool = True,
@@ -505,9 +501,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -547,9 +541,7 @@ def prepare_definition(
 
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map: Dict[str, str] = {
         param.arg_name: param.arg_name for param in docstring.params
     }
@@ -569,9 +561,7 @@ def prepare_definition(
         )
     elif docstring.returns:
         doc_param_description_map.update({"return0": docstring.returns.description})
-        doc_param_label_map.update(
-            {"return0": docstring.returns.return_name or "return0"}
-        )
+        doc_param_label_map.update({"return0": docstring.returns.return_name or "return0"})
 
     if port_label_map:
         doc_param_label_map.update(port_label_map)
@@ -697,9 +687,7 @@ def prepare_definition(
         action_name = name
 
     elif docstring.long_description:
-        action_name = docstring.short_description or snake_to_title_case(
-            function.__name__
-        )
+        action_name = docstring.short_description or snake_to_title_case(function.__name__)
         description = description or docstring.long_description
 
     else:

@@ -2,12 +2,16 @@
 
 from typing import Dict, List, runtime_checkable, Protocol, Optional
 from rekuest_next.actors.types import Actor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
-    from rekuest_next.api.schema import ImplementationInput, StateSchemaInput
+    from rekuest_next.api.schema import (
+        ImplementationInput,
+        StateSchemaInput,
+        LockSchemaInput,
+    )
     from rekuest_next.agents.hooks.registry import StartupHook, BackgroundTask
 
 
@@ -17,7 +21,7 @@ class AgentExtension(Protocol):
 
     cleanup: bool = False
 
-    async def astart(self, instance_id: str) -> None:
+    async def astart(self, instance_id: str, app_context: Any) -> None:
         """This should be called when the agent starts"""
         ...
 
@@ -68,6 +72,14 @@ class AgentExtension(Protocol):
 
         Returns:
             List[ImplementationInput]: The implementations for this extension.
+        """
+        ...
+
+    def get_lock_schemas(self) -> Dict[str, "LockSchemaInput"]:
+        """Get the lock schemas for this extension.
+
+        Returns:
+            Dict[str, LockSchemaInput]: Map of interface to lock schema.
         """
         ...
 

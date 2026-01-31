@@ -25,7 +25,7 @@ async def iterate_with_progress(
         completed += 1
         try:
             await aprogress(100 * completed / iterations)
-        except Exception as e:
+        except Exception:
             pass
         return result
 
@@ -55,7 +55,7 @@ async def gather_with_progress(
         completed += 1
         try:
             await aprogress(100 * completed / iterations)
-        except Exception as e:
+        except Exception:
             pass
         return result
 

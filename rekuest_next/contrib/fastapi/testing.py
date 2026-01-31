@@ -9,19 +9,15 @@ import contextlib
 import json
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Generator, Optional
+from dataclasses import dataclass
+from typing import Any, Generator, Optional
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from starlette.testclient import WebSocketTestSession
 
-from rekuest_next.agents.extensions.default import DefaultExtension
-from rekuest_next.agents.registry import ExtensionRegistry
 from rekuest_next.app import AppRegistry
-from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.structures.registry import StructureRegistry
 
 from .agent import FastApiAgent
 
@@ -57,6 +53,10 @@ class BufferedEvent:
         """Check if this is a DONE event."""
         return self.event_type == "DONE"
 
+    def is_end_state(self) -> bool:
+        """Check if this is an end state event (DONE or ERROR)."""
+        return self.event_type in {"DONE", "ERROR", "CRITICAL", "CANCELLED"}
+
     def is_yield(self) -> bool:
         """Check if this is a YIELD event."""
         return self.event_type == "YIELD"
@@ -64,6 +64,10 @@ class BufferedEvent:
     def is_error(self) -> bool:
         """Check if this is an ERROR event."""
         return self.event_type == "ERROR"
+
+    def is_criticial(self) -> bool:
+        """Check if this is a CRITICAL event."""
+        return self.event_type == "CRITICAL"
 
     def is_progress(self) -> bool:
         """Check if this is a PROGRESS event."""
@@ -725,7 +729,7 @@ class AsyncAgentTestClient:
         interface: str,
         args: dict[str, Any],
         extension: str = "default",
-        use_implementation_route: bool = True,
+        use_implementation_route: bool = False,
     ) -> AssignmentResult:
         """Assign work to the agent.
 
@@ -741,9 +745,9 @@ class AsyncAgentTestClient:
         if use_implementation_route:
             path = f"/{interface}"
         else:
-            path = f"/assign/{interface}"
+            path = "/assign"
 
-        response = await self.post(path, json=args)
+        response = await self.post(path, json={"args": args, "interface": interface})
 
         if response.status_code != 200:
             raise RuntimeError(
@@ -798,6 +802,39 @@ class AsyncAgentTestClient:
             try:
                 event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.1))
                 collected.append(event)
+            except asyncio.TimeoutError:
+                continue
+
+        return collected
+
+    async def collect_until_end_state(
+        self,
+        assignation_id: str,
+        timeout: float = 5.0,
+    ) -> list[BufferedEvent]:
+        """Collect events until a DONE or ERROR event is received for the assignation.
+
+        Args:
+            assignation_id: The assignation ID to wait for.
+            timeout: Maximum time to wait in seconds.
+
+        Returns:
+            A list of all events collected (including the DONE or ERROR event).
+        """
+        collected: list[BufferedEvent] = []
+        deadline = asyncio.get_event_loop().time() + timeout
+
+        while True:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                raise TimeoutError("Timeout waiting for end state event")
+
+            try:
+                event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.5))
+                collected.append(event)
+
+                if event.assignation == assignation_id and event.is_end_state():
+                    break
             except asyncio.TimeoutError:
                 continue
 

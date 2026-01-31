@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from rekuest_next.api.schema import PortInput
-from typing import Optional, Type, TypeVar, Callable, overload
+from typing import Optional, Type, TypeVar, Callable, overload, Any
 from fieldz import fields  # type: ignore
 from rekuest_next.protocols import AnyState
 from rekuest_next.structures.registry import (
@@ -19,9 +19,7 @@ from rekuest_next.structures.default import get_default_structure_registry
 T = TypeVar("T", bound=AnyState)
 
 
-def inspect_state_schema(
-    cls: Type[T], structure_registry: StructureRegistry
-) -> StateSchemaInput:
+def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) -> StateSchemaInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
@@ -38,6 +36,50 @@ def inspect_state_schema(
         ports.append(port)
 
     return StateSchemaInput(ports=tuple(ports), name=getattr(cls, "__rekuest_state__"))
+
+
+def statify(cls: Type[T], required_locks: Optional[list[str]] = None) -> Type[T]:
+    """Alias for state decorator."""
+
+    def new_get_attribute(self, name: str) -> Any:
+        if name == "is_state":
+            return True
+        return super(cls, self).__getattribute__(name)
+
+    def new_set_attribute(self, name: str, value: Any) -> None:
+        from rekuest_next.actors.context import get_current_assignation_helper
+        from rekuest_next.actors.errors import NotWithinAnAssignationError
+        from rekuest_next.agents.hooks.startup import startup_context
+
+        try:
+            assignation_helper = get_current_assignation_helper()
+            if assignation_helper is None:
+                raise RuntimeError(
+                    "You CANNOT set state attributes outside of an action context. This is an anti-pattern."
+                )
+
+            actor = assignation_helper.actor
+            if required_locks:
+                missing_locks = actor.missing_locks(required_locks)
+                if missing_locks:
+                    raise RuntimeError(
+                        f"The state {cls.__name__} requires the following locks: {missing_locks} you are calling set from within a context that doesn't hold the required locks. This is an anti-pattern."
+                    )
+
+        except NotWithinAnAssignationError:
+            try:
+                startup_context.get()
+            except LookupError:
+                raise RuntimeError(
+                    "You CANNOT set state attributes outside of an action or startup context. This is an anti-pattern."
+                )
+
+        super(cls, self).__setattr__(name, value)
+
+    cls.__getattribute__ = new_get_attribute  # type: ignore
+    cls.__setattr__ = new_set_attribute  # type: ignore
+
+    return cls
 
 
 @overload
@@ -60,6 +102,7 @@ def state(  # type: ignore[valid-type]
     *function: Type[T],
     local_only: bool = False,
     name: Optional[str] = None,
+    required_locks: Optional[list[str]] = None,
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Type[T] | Callable[[Type[T]], Type[T]]:
@@ -116,11 +159,13 @@ def state(  # type: ignore[valid-type]
             except TypeError:
                 cls = dataclass(cls)
 
-            setattr(cls, "__rekuest_state__", name)
+            setattr(cls, "__rekuest_state__", cls.__name__ if name is None else name)
             setattr(cls, "__rekuest_state_local__", local_only)
 
             state_schema = inspect_state_schema(cls, structure_registry)
             print("Registering state schema:", name)
+
+            cls = statify(cls, required_locks=required_locks)
 
             registry.register_at_interface(
                 name or cls.__name__, cls, state_schema, structure_registry

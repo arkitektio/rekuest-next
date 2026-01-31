@@ -7,7 +7,6 @@ from typing import AsyncGenerator, Callable, Tuple
 
 from rekuest_next import messages
 from rekuest_next.actors.types import Agent
-from rekuest_next.api.schema import Assignation
 
 
 # -------------------------------------------------------

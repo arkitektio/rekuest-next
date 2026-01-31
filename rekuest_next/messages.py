@@ -71,6 +71,8 @@ class FromAgentMessageType(str, Enum):
     INTERRUPTED = "INTERRUPTED"
     HEARTBEAT_ANSWER = "HEARTBEAT_ANSWER"
     STATE_PATCH = "STATE_PATCH"
+    LOCK = "LOCK"
+    UNLOCK = "UNLOCK"
 
 
 class Message(BaseModel):
@@ -409,6 +411,31 @@ class StatePatchEvent(Message):
     type: Literal[FromAgentMessageType.STATE_PATCH] = FromAgentMessageType.STATE_PATCH
     interface: str
     patch: str
+
+
+class LockEvent(Message):
+    """A state patch event
+
+    A state patch event is sent when the agent wants to send a state patch
+    to the rekuest backend. This is used to
+    send state patches from the agent to the rekuest backend
+    """
+
+    type: Literal[FromAgentMessageType.LOCK] = FromAgentMessageType.LOCK
+    key: str
+    assignation: str
+
+
+class UnlockEvent(Message):
+    """A state patch event
+
+    A state patch event is sent when the agent wants to send a state patch
+    to the rekuest backend. This is used to
+    send state patches from the agent to the rekuest backend
+    """
+
+    type: Literal[FromAgentMessageType.UNLOCK] = FromAgentMessageType.UNLOCK
+    key: str
 
 
 class AssignInquiry(BaseModel):

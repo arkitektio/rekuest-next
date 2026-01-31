@@ -21,24 +21,14 @@ from rekuest_next.actors.types import Shelver
 from rekuest_next.structures.types import JSONSerializable
 from .predication import predicate_port_input
 import datetime as dt
-from enum import Enum
-from typing import Any, Dict, List, Sequence, Tuple, cast
+from typing import Sequence, Tuple
 
 from rekuest_next.api.schema import ChildPortNestedChildren
 
-from rekuest_next.api.schema import (
-    PortKind,
-)
-from rath.scalars import ID
 from rekuest_next.structures.errors import (
-    PortShrinkingError,
-    StructureShrinkingError,
     PortExpandingError,
-    StructureExpandingError,
 )
-from rekuest_next.structures.types import JSONSerializable
 from .predication import predicate_serializable_port
-import datetime as dt
 
 
 async def aexpand_arg(

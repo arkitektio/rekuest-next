@@ -24,7 +24,6 @@ from rekuest_next.api.schema import (
     AssignInput,
     HookInput,
     Action,
-    find as find_node,
     afind as afind_node,
     Reservation,
     Implementation,

@@ -2,7 +2,6 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-import sys
 from typing import Any, AsyncGenerator, Callable, Dict, List, Self
 from koil.helpers import iterate_spawned, run_spawned  # type: ignore
 from pydantic import BaseModel, Field
@@ -58,7 +57,7 @@ class AsyncFuncActor(SerializingActor):
             )
         )
 
-        async with self.sync:
+        async with self.sync_context(assignment.assignation, assignment.interface):
             try:
                 input_kwargs = await expand_inputs(
                     self.definition,
@@ -183,7 +182,7 @@ class AsyncGenActor(SerializingActor):
             )
         )
 
-        async with self.sync:
+        async with self.sync_context(assignment.assignation, assignment.interface):
             try:
                 input_kwargs = await expand_inputs(
                     self.definition,
@@ -225,9 +224,7 @@ class AsyncGenActor(SerializingActor):
                                     skip_shrinking=not self.shrink_outputs,
                                 )
                             except SerializationError as ex:
-                                logger.critical(
-                                    "Output serialization error", exc_info=True
-                                )
+                                logger.critical("Output serialization error", exc_info=True)
                                 await self.asend(
                                     message=messages.ErrorEvent(
                                         assignation=assignment.assignation,

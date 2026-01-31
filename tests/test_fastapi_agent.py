@@ -4,7 +4,6 @@ This module tests the FastAPI agent using AsyncAgentTestClient
 for full async integration testing with proper event handling.
 """
 
-import asyncio
 from typing import Generator
 
 import pytest
@@ -381,20 +380,16 @@ async def test_multiple_users_can_assign() -> None:
 
 
 @pytest.mark.asyncio(scope="session")
-async def test_assign_unknown_interface_returns_error() -> None:
+async def test_assign_unknown_interface_does_not_return_error() -> None:
     """Test that assigning to an unknown interface returns an error."""
     app, agent, _ = await create_test_setup()
 
     async with AsyncAgentTestClient(app, agent) as client:
-        response = await client.post(
-            "/assign",
-            json={
-                "interface": "nonexistent_function",
-                "args": {},
-            },
-        )
-        # Should return 404 or similar error
-        assert response.status_code in [404, 400, 422]
+        result = await client.assign("non_existent_function", {"a": 1, "b": 1})
+        events = await client.collect_until_end_state(result.assignation_id)
+        print(events)
+        error_events = [e for e in events if e.is_criticial()]
+        assert len(error_events) == 1, f"Should receive one error event {events}"
 
 
 # =============================================================================

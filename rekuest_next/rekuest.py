@@ -18,11 +18,11 @@ from typing import (
     Dict,
     List,
     Tuple,
+    Any,
 )
-
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import ActorBuilder, OnProvide, OnUnprovide
+from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
@@ -67,7 +67,7 @@ class RekuestNext(Composition):
         implementation_registry: Optional[DefinitionRegistry] = None,
         in_process: bool = False,
         dynamic: bool = False,
-        sync: Optional[SyncGroup] = None,
+        locks: Optional[list[str]] = None,
     ) -> Tuple[DefinitionInput, ActorBuilder]:
         """Register a function or actor with optional configuration parameters.
 
@@ -121,7 +121,7 @@ class RekuestNext(Composition):
             validators=validators,
             in_process=in_process,
             dynamic=dynamic,
-            sync=sync,
+            locks=locks,
         )
 
     def register_startup(self, function: StartupFunction, name: str | None = None) -> None:
@@ -154,26 +154,26 @@ class RekuestNext(Composition):
             registry=default_extension.app_registry.hooks_registry,
         )
 
-    def run(self, instance_id: str | None = None) -> None:
+    def run(self, context: Any | None = None) -> None:
         """
         Run the application.
         """
-        return unkoil(self.arun, instance_id=instance_id)
+        return unkoil(self.arun, context=context)
 
-    def run_detached(self, instance_id: str | None = None) -> KoilFuture[None]:
+    def run_detached(self, context: Any | None = None) -> KoilFuture[None]:
         """
         Run the application detached.
         """
-        return unkoil_task(self.arun, instance_id=instance_id)
+        return unkoil_task(self.arun, context=context)
 
-    async def arun(self, instance_id: str | None = None) -> None:
+    async def arun(self, context: Any | None = None) -> None:
         """
         Run the application.
         """
-        await self.agent.aprovide(instance_id=instance_id)
+        await self.agent.aprovide(context=context)
 
-    async def arun_tests(self, instance_id: str | None = None) -> None:
+    async def arun_tests(self, context: Any | None = None) -> None:
         """
         Run the application tests.
         """
-        await self.agent.atest(instance_id=instance_id)
+        await self.agent.atest(context=context)

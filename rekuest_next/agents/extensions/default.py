@@ -1,11 +1,15 @@
 """Default extension for rekuest-next."""
 
 from pydantic import ConfigDict, Field, BaseModel
-from rekuest_next.api.schema import ImplementationInput, StateSchemaInput
+from rekuest_next.api.schema import (
+    ImplementationInput,
+    LockSchemaInput,
+    StateSchemaInput,
+)
 from rekuest_next.app import AppRegistry, get_default_app_registry
 
 from rekuest_next.actors.types import Actor
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Any
 
 from rekuest_next.agents.errors import ExtensionError
 from rekuest_next.agents.hooks.registry import StartupHook, BackgroundTask
@@ -76,6 +80,31 @@ class DefaultExtension(BaseModel):
         """
         return dict(self.app_registry.state_registry.state_schemas)
 
+    def get_lock_schemas(self) -> Dict[str, LockSchemaInput]:
+        """Get the lock schemas for this extension.
+
+        Returns:
+            Dict[str, LockSchemaInput]: Map of interface to lock schema.
+        """
+
+        schemas: Dict[str, LockSchemaInput] = {}
+
+        for (
+            interface,
+            schema,
+        ) in self.app_registry.implementation_registry.implementations.items():
+            logger.debug(f"Lock schema for interface {interface}: {schema}")
+
+            if schema.locks is not None:
+                for lock in schema.locks:
+                    if lock not in schemas:
+                        schemas[lock] = LockSchemaInput(
+                            key=lock,
+                            description=f"Lock schema for {lock}",
+                        )
+
+        return schemas
+
     def get_startup_hooks(self) -> Dict[str, StartupHook]:
         """Get the startup hooks for this extension.
 
@@ -103,12 +132,12 @@ class DefaultExtension(BaseModel):
         """
         return list(self.app_registry.implementation_registry.implementations.values())
 
-    async def astart(self, instance_id: str) -> None:
+    async def astart(self, instance_id: str, app_context: Any) -> None:
         """This should be called when the agent starts"""
 
         self._instance_id = instance_id
-
         self._state_lock = asyncio.Lock()
+        self._app_context = app_context
 
     def should_cleanup_on_init(self) -> bool:
         """Should the extension cleanup its implementations?"""

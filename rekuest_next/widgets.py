@@ -247,7 +247,7 @@ def withEffect(
     )
 
 
-def withDescriptor(key: str, value: Any) -> DescriptorInput:
+def withDescriptor(key: str, value: JSONSerializable) -> DescriptorInput:
     """A decorator to add a description to a widget.
 
     Args:
