@@ -131,7 +131,6 @@ class AgentTestClient:
     def __init__(
         self,
         app: FastAPI,
-        agent: FastApiAgent,
         ws_path: str = "/ws",
         as_user: Optional[str] = None,
     ) -> None:
@@ -146,7 +145,6 @@ class AgentTestClient:
                 init message with the user info.
         """
         self.app = app
-        self.agent = agent
         self.ws_path = ws_path
         self.as_user = as_user
         self._client: Optional[TestClient] = None
@@ -542,7 +540,6 @@ class AsyncAgentTestClient:
     def __init__(
         self,
         app: FastAPI,
-        agent: FastApiAgent,
         ws_path: str = "/ws",
         as_user: Optional[str] = None,
         base_url: str = "http://test",
@@ -559,7 +556,6 @@ class AsyncAgentTestClient:
             base_url: The base URL for HTTP requests.
         """
         self.app = app
-        self.agent = agent
         self.ws_path = ws_path
         self.as_user = as_user
         self.base_url = base_url
@@ -977,6 +973,7 @@ def create_test_lifespan(
 
 def create_test_app_and_agent(
     instance_id: str = "test-instance",
+    app_registry: Optional["AppRegistry"] = None,
 ) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
@@ -1016,7 +1013,7 @@ def create_test_app_and_agent(
     from rekuest_next.app import AppRegistry
     from rekuest_next.contrib.fastapi.routes import configure_fastapi
 
-    app_registry = AppRegistry()
+    app_registry = app_registry or AppRegistry()
 
     app = FastAPI(
         title="Test API",

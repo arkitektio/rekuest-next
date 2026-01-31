@@ -64,7 +64,7 @@ async def test_app_has_routes() -> None:
     """Test that the app has the expected routes configured."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         route_paths = [route.path for route in app.routes]  # type: ignore
 
         # Check that agent routes are present
@@ -81,7 +81,7 @@ async def test_openapi_schema_includes_implementation() -> None:
     """Test that the OpenAPI schema includes the implementation."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         response = await client.get("/openapi.json")
         assert response.status_code == 200
 
@@ -105,7 +105,7 @@ async def test_assign_work() -> None:
     """Test assigning work to an implementation."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 5, "b": 3})
 
         assert result.status == "submitted"
@@ -117,7 +117,7 @@ async def test_assign_with_as_user() -> None:
     """Test assigning work with as_user parameter."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent, as_user="test-user-123") as client:
+    async with AsyncAgentTestClient(app, as_user="test-user-123") as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 2})
 
         assert result.status == "submitted"
@@ -129,7 +129,7 @@ async def test_assign_and_get_result() -> None:
     """Test a full assign cycle and collect events until done."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         # Assign work
         assign_result = await client.assign("add_numbers", {"a": 2, "b": 3})
         assert assign_result.status == "submitted"
@@ -147,7 +147,7 @@ async def test_assign_and_check_yield_returns() -> None:
     """Test that YIELD event contains the correct return value."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         # Assign work
         assign_result = await client.assign("add_numbers", {"a": 10, "b": 20})
 
@@ -174,7 +174,7 @@ async def test_generator_function_assignment() -> None:
     """Test assigning work to a generator function."""
     app, agent, _ = await create_generator_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("count_up", {"start": 1, "end": 3})
 
         assert result.status == "submitted"
@@ -191,7 +191,7 @@ async def test_generator_yields_multiple_values() -> None:
     """Test that generator yields multiple values."""
     app, agent, _ = await create_generator_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("count_up", {"start": 1, "end": 3})
 
         events = await client.collect_until_done(result.assignation_id)
@@ -214,7 +214,7 @@ async def test_get_assignations_endpoint() -> None:
     """Test the GET /assignations endpoint."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         response = await client.get("/assignations")
         assert response.status_code == 200
         data = response.json()
@@ -231,7 +231,7 @@ async def test_assignation_appears_in_list() -> None:
     """
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         # Assign work
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
 
@@ -256,7 +256,7 @@ async def test_get_single_assignation() -> None:
     """
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         # Assign work
         result = await client.assign("add_numbers", {"a": 5, "b": 5})
 
@@ -277,7 +277,7 @@ async def test_get_nonexistent_assignation_returns_404() -> None:
     """Test that getting a nonexistent assignation returns 404."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         response = await client.get("/assignations/nonexistent-id")
         assert response.status_code == 404
 
@@ -292,7 +292,7 @@ async def test_receive_single_event() -> None:
     """Test receiving a single event."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
 
         event = await client.receive_event(timeout=5.0)
@@ -306,7 +306,7 @@ async def test_collect_multiple_events() -> None:
     """Test collecting multiple events."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
 
         # Collect up to 3 events
@@ -321,7 +321,7 @@ async def test_collect_until_done_timeout() -> None:
     """Test that collect_until_done works with timeout."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
 
         # Should complete before timeout
@@ -341,7 +341,7 @@ async def test_as_user_header_in_post() -> None:
     """Test that as_user parameter adds x-session-user header to POST requests."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent, as_user="header-test-user") as client:
+    async with AsyncAgentTestClient(app, as_user="header-test-user") as client:
         # The assign method should include the header
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
         assert result.status == "submitted"
@@ -352,7 +352,7 @@ async def test_as_user_header_in_get() -> None:
     """Test that as_user parameter adds x-session-user header to GET requests."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent, as_user="header-test-user") as client:
+    async with AsyncAgentTestClient(app, as_user="header-test-user") as client:
         response = await client.get("/assignations")
         assert response.status_code == 200
 
@@ -362,11 +362,11 @@ async def test_multiple_users_can_assign() -> None:
     """Test that multiple users can assign work."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent, as_user="user-1") as client1:
+    async with AsyncAgentTestClient(app, as_user="user-1") as client1:
         result1 = await client1.assign("add_numbers", {"a": 1, "b": 1})
         assert result1.status == "submitted"
 
-    async with AsyncAgentTestClient(app, agent, as_user="user-2") as client2:
+    async with AsyncAgentTestClient(app, as_user="user-2") as client2:
         result2 = await client2.assign("add_numbers", {"a": 2, "b": 2})
         assert result2.status == "submitted"
 
@@ -384,7 +384,7 @@ async def test_assign_unknown_interface_does_not_return_error() -> None:
     """Test that assigning to an unknown interface returns an error."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("non_existent_function", {"a": 1, "b": 1})
         events = await client.collect_until_end_state(result.assignation_id)
         print(events)
@@ -402,7 +402,7 @@ async def test_buffered_event_is_done() -> None:
     """Test BufferedEvent.is_done() method."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
         events = await client.collect_until_done(result.assignation_id)
 
@@ -415,7 +415,7 @@ async def test_buffered_event_is_yield() -> None:
     """Test BufferedEvent.is_yield() method."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 1, "b": 1})
         events = await client.collect_until_done(result.assignation_id)
 
@@ -428,7 +428,7 @@ async def test_buffered_event_get_returns() -> None:
     """Test BufferedEvent.get_returns() method."""
     app, agent, _ = await create_test_setup()
 
-    async with AsyncAgentTestClient(app, agent) as client:
+    async with AsyncAgentTestClient(app) as client:
         result = await client.assign("add_numbers", {"a": 7, "b": 8})
         events = await client.collect_until_done(result.assignation_id)
 
