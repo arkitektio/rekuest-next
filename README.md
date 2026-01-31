@@ -8,6 +8,7 @@
 [![PyPI status](https://img.shields.io/pypi/status/rekuest-next.svg)](https://pypi.python.org/pypi/rekuest-next/)
 
 self-documenting asynchronous scalable RPC based on provisionable untrusted actors
+acccessible via fastapi or deployed in the arkitekt platform.
 
 ## Idea
 
