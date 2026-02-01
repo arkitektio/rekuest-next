@@ -24,6 +24,7 @@ from rekuest_next.protocols import AnyContext, AnyState
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.actors.sync import SyncGroup
+from rekuest_next.state.lock import acquired_locks
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +50,7 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
-    )
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     locks: Optional[Tuple[str, ...]] = Field(
@@ -63,13 +62,8 @@ class Actor(BaseModel):
         description="The sync group to use for this actor. This is used to synchronize access to the actor.",
     )
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _currently_holding_locks: List[str] = PrivateAttr(default_factory=lambda: [])
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -77,14 +71,6 @@ class Actor(BaseModel):
         if values.get("sync") is None:
             values["sync"] = SyncGroup()
         return values
-
-    def holds_locks(self, keys: List[str]) -> bool:
-        """Check if the actor holds the given locks."""
-        return all(key in self._currently_holding_locks for key in keys)
-
-    def missing_locks(self, keys: List[str]) -> List[str]:
-        """Get the list of locks that the actor is missing from the given keys."""
-        return [key for key in keys if key not in self._currently_holding_locks]
 
     @contextlib.asynccontextmanager
     async def sync_context(self: Self, assignation_id: str, interface: str):
@@ -119,10 +105,10 @@ class Actor(BaseModel):
                 await sync_key_group.acquire()
 
             # Then acquire the regular sync group
-            async with self.sync:
-                self._currently_holding_locks = self.locks or []
 
-                yield
+            async with self.sync:
+                with acquired_locks(*(self.locks or [])):
+                    yield
         finally:
             # Release sync key locks
             if sync_key_group:
@@ -226,9 +212,7 @@ class Actor(BaseModel):
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(
-                    f"Task {key} was cancelled through applicaction. Setting Critical"
-                )
+                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
@@ -317,20 +301,14 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(
-                                assignation=message.assignation
-                            ),
+                            message=messages.CancelledEvent(assignation=message.assignation),
                         )
 
                 else:
-                    logger.warning(
-                        "Race Condition: Task was already done before cancellation"
-                    )
+                    logger.warning("Race Condition: Task was already done before cancellation")
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(
-                            assignation=message.assignation
-                        ),
+                        message=messages.CancelledEvent(assignation=message.assignation),
                     )
 
             else:

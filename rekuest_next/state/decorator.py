@@ -19,7 +19,9 @@ from rekuest_next.structures.default import get_default_structure_registry
 T = TypeVar("T", bound=AnyState)
 
 
-def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) -> StateSchemaInput:
+def inspect_state_schema(
+    cls: Type[T], structure_registry: StructureRegistry
+) -> StateSchemaInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
@@ -41,40 +43,28 @@ def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) ->
 def statify(cls: Type[T], required_locks: Optional[list[str]] = None) -> Type[T]:
     """Alias for state decorator."""
 
-    def new_get_attribute(self, name: str) -> Any:
+    set_required_locks = set(required_locks or [])
+
+    def new_get_attribute(self: T, name: str) -> Any:
         if name == "is_state":
             return True
         return super(cls, self).__getattribute__(name)
 
-    def new_set_attribute(self, name: str, value: Any) -> None:
-        from rekuest_next.actors.context import get_current_assignation_helper
-        from rekuest_next.actors.errors import NotWithinAnAssignationError
-        from rekuest_next.agents.hooks.startup import startup_context
+    def new_set_attribute(self: T, name: str, value: Any) -> None:
+        from rekuest_next.state.lock import get_acquired_locks
+        from rekuest_next.state.publish import get_current_publisher
 
-        try:
-            assignation_helper = get_current_assignation_helper()
-            if assignation_helper is None:
-                raise RuntimeError(
-                    "You CANNOT set state attributes outside of an action context. This is an anti-pattern."
-                )
-
-            actor = assignation_helper.actor
-            if required_locks:
-                missing_locks = actor.missing_locks(required_locks)
-                if missing_locks:
-                    raise RuntimeError(
-                        f"The state {cls.__name__} requires the following locks: {missing_locks} you are calling set from within a context that doesn't hold the required locks. This is an anti-pattern."
-                    )
-
-        except NotWithinAnAssignationError:
-            try:
-                startup_context.get()
-            except LookupError:
-                raise RuntimeError(
-                    "You CANNOT set state attributes outside of an action or startup context. This is an anti-pattern."
-                )
+        current_locks = get_acquired_locks()
+        missing_locks = set_required_locks - current_locks
+        if missing_locks:
+            raise RuntimeError(
+                f"The state {cls.__name__} requires the following locks: {missing_locks} you are calling set from within a context that doesn't hold the required locks. This is an anti-pattern."
+            )
 
         super(cls, self).__setattr__(name, value)
+        publisher = get_current_publisher()
+        if publisher is not None:
+            publisher.publish(self)
 
     cls.__getattribute__ = new_get_attribute  # type: ignore
     cls.__setattr__ = new_set_attribute  # type: ignore

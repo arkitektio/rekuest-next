@@ -116,14 +116,6 @@ class Actor(Protocol):
 
     agent: Agent
 
-    def holds_locks(self, keys: List[str]) -> bool:
-        """Check if the actor holds the given locks."""
-        ...
-
-    def missing_locks(self, keys: List[str]) -> List[str]:
-        """Get the list of locks that the actor is missing from the given keys."""
-        ...
-
     async def abreak(self, assignation_id: str) -> bool:
         """Break the actor. This method will break the actor and return None.
         This is used to break the actor"""

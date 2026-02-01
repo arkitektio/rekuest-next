@@ -18,7 +18,11 @@ async def apublish(state: AnyState) -> None:
     Args:
         state (AnyState): The state to publish.
     """
-    await get_current_assignation_helper().apublish_state(state)
+    from rekuest_next.state.publish import publish_context
+
+    publisher = publish_context.get()
+    if publisher is not None:
+        await publisher.adirect_publish(state)
 
 
 def publish(state: AnyState) -> None:
@@ -29,7 +33,11 @@ def publish(state: AnyState) -> None:
     Args:
         state (AnyState): The state to publish.
     """
-    return unkoil(apublish, state)
+    from rekuest_next.state.publish import publish_context
+
+    publisher = publish_context.get()
+    if publisher is not None:
+        publisher.direct_publish(state)
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
