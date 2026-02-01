@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.30.1 (2026-01-31)
+
+### Bug Fixes
+
+- Remove agent from async agent
+  ([`08b4f37`](https://github.com/arkitektio/rekuest-next/commit/08b4f37c6db580d4f4a2979472b65e39f9d3a9bf))
+
+
 ## v0.30.0 (2026-01-31)
 
 ### Bug Fixes
