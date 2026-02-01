@@ -15,9 +15,7 @@ T = TypeVar("T")
 
 def is_context(cls: T) -> bool:
     """Checks if the class is a context."""
-    print(f"Checking if {cls} is a context")
     x = getattr(cls, "__rekuest_context__", False)
-    print(f"Result: {x is not False}")
     return x is not False
 
 
