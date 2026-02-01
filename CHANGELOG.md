@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.32.0 (2026-02-01)
+
+
 ## v0.31.0 (2026-02-01)
+
+### Features
+
+- Fix locks
+  ([`fd14b42`](https://github.com/arkitektio/rekuest-next/commit/fd14b4251ff5c33d8877aefbd24ff6550dd8d6bf))
 
 
 ## v0.30.1 (2026-01-31)
