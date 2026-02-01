@@ -6,18 +6,22 @@ import inspect
 
 import inflection
 
+from rekuest_next.definition.define import get_non_null_variants, is_tuple
 from rekuest_next.protocols import AnyContext, AnyFunction
 
 
-T = TypeVar("T", bound=Type[AnyContext])
+T = TypeVar("T")
 
 
-def is_context(cls: Type[T]) -> bool:
+def is_context(cls: T) -> bool:
     """Checks if the class is a context."""
-    return getattr(cls, "__rekuest_context__", False)
+    print(f"Checking if {cls} is a context")
+    x = getattr(cls, "__rekuest_context__", False)
+    print(f"Result: {x is not False}")
+    return x is not False
 
 
-def get_context_name(cls: Type[T]) -> str:
+def get_context_name(cls: T) -> str:
     """Returns the context name of the class."""
 
     x = getattr(cls, "__rekuest_context__", None)
@@ -60,8 +64,10 @@ def prepare_context_variables(
     returns = sig.return_annotation
 
     if hasattr(returns, "_name"):
-        if returns._name == "Tuple":
-            for index, cls in enumerate(returns.__args__):
+        if is_tuple(returns):
+            print("Preparing context variables for tuple return type")
+            for index, cls in enumerate(get_non_null_variants(returns)):
+                print("Checking return value:", cls, "at index:", index)
                 if is_context(cls):
                     state_returns[index] = cls.__rekuest_context__
         else:

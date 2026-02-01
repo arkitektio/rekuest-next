@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Protocol, Union, runtime_checkable
+from typing import Any, Awaitable, Protocol, Union, runtime_checkable, Tuple
 
 
 @runtime_checkable
@@ -30,13 +30,10 @@ class AnyState(Protocol):
     pass
 
 
-@runtime_checkable
-class AnyContext(Protocol):
-    """A function that takes a passport and a transport and returns an actor.
-    This method will create the actor and return it.
-    """
+AnyContext = Any
 
-    pass
+SingleStartUpReturn = AnyContext | AnyState | None
+StartupTypes = SingleStartUpReturn | Tuple[SingleStartUpReturn, ...]
 
 
 @runtime_checkable
@@ -107,9 +104,7 @@ class StartupFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(
-        self, instance_id: str
-    ) -> Awaitable[AnyContext | AnyState | None] | AnyContext | AnyState | None:
+    def __call__(self, app_context: Any) -> Awaitable[StartupTypes] | StartupTypes:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -129,7 +124,7 @@ class AsyncStartupFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self, instance_id: str) -> Awaitable[AnyContext | AnyState | None]:
+    def __call__(self, app_context: Any) -> Awaitable[StartupTypes]:
         """Create the actor and return it. This method will create the actor and
         return it.
         """
@@ -149,7 +144,7 @@ class ThreadedStartupFunction(Protocol):
     This method will create the actor and return it.
     """
 
-    def __call__(self, instance_id: str) -> AnyContext | AnyState | None:
+    def __call__(self, app_context: Any) -> StartupTypes:
         """Create the actor and return it. This method will create the actor and
         return it.
         """

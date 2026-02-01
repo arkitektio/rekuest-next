@@ -3,7 +3,6 @@
 import logging
 from typing import Any, Callable, TypeAlias
 
-from rekuest_next.agents.context import is_context
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     EffectInput,
@@ -11,7 +10,6 @@ from rekuest_next.api.schema import (
     ValidatorInput,
 )
 from rekuest_next.definition.errors import DefinitionError
-from rekuest_next.state.predicate import is_state
 from rekuest_next.structures.types import JSONSerializable
 
 # Type alias for annotation parser return type
@@ -57,6 +55,10 @@ class DefaultAddin:
 
 def is_local_var(type_: Any) -> bool:  # noqa: ANN401
     """Check if the type is a local variable (context or state)."""
+
+    from rekuest_next.state.predicate import is_state
+    from rekuest_next.agents.context import is_context
+
     return is_context(type_) or is_state(type_)
 
 
