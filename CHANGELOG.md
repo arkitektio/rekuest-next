@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.32.1 (2026-02-01)
+
+
 ## v0.32.0 (2026-02-01)
+
+### Bug Fixes
+
+- Smaler fixes
+  ([`8ed4ddc`](https://github.com/arkitektio/rekuest-next/commit/8ed4ddc21671b4ae7d876e5eff9186fe3b8b8f20))
 
 
 ## v0.31.0 (2026-02-01)
