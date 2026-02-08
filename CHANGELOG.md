@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.33.0 (2026-02-08)
+
+### Bug Fixes
+
+- Upgrade koil
+  ([`c2c7fbd`](https://github.com/arkitektio/rekuest-next/commit/c2c7fbd2eb7e8f2e6854eaf27e3e2c1bb1845037))
+
+### Features
+
+- Add better model and state behaviours
+  ([`2e4ea9a`](https://github.com/arkitektio/rekuest-next/commit/2e4ea9aa4be476e909981514779f0eb13a4223a0))
+
+
 ## v0.32.1 (2026-02-01)
 
 
