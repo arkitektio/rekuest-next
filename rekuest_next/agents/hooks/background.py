@@ -43,9 +43,13 @@ class WrappedBackgroundTask(BackgroundTask):
         # check if has context argument
         inspect.signature(func).parameters
 
-        self.state_variables, self.state_returns = prepare_state_variables(func)
+        self.state_variables, self.state_returns, self.required_state_locks = (
+            prepare_state_variables(func)
+        )
 
-        self.context_variables, self.context_returns = prepare_context_variables(func)
+        self.context_variables, self.context_returns, self.required_context_locks = (
+            prepare_context_variables(func)
+        )
 
     async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
         """Run the background task in the event loop"""
@@ -54,7 +58,9 @@ class WrappedBackgroundTask(BackgroundTask):
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
+                raise StateRequirementsNotMet(
+                    f"Context requirements not met: {e}"
+                ) from e
 
         for key, value in self.state_variables.items():
             try:
@@ -79,9 +85,13 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
         # check if has context argument
         inspect.signature(func).parameters
 
-        self.state_variables, self.state_returns = prepare_state_variables(func)
+        self.state_variables, self.state_returns, self.required_state_locks = (
+            prepare_state_variables(func)
+        )
 
-        self.context_variables, self.context_returns = prepare_context_variables(func)
+        self.context_variables, self.context_returns, self.required_context_locks = (
+            prepare_context_variables(func)
+        )
         self.thread_pool = ThreadPoolExecutor(1)
 
     async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
@@ -91,7 +101,9 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
+                raise StateRequirementsNotMet(
+                    f"Context requirements not met: {e}"
+                ) from e
 
         for key, value in self.state_variables.items():
             try:
@@ -120,7 +132,9 @@ def background(
 
 @overload
 def background(
-    *args: TBackground, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *args: TBackground,
+    name: Optional[str] = None,
+    registry: Optional[HooksRegistry] = None,
 ) -> TBackground | Callable[[TBackground], TBackground]: ...
 
 

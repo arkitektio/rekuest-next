@@ -15,7 +15,11 @@ from rekuest_next.actors.functional import (
     FunctionalThreadedGenActor,
 )
 from rekuest_next.actors.types import ActorBuilder, AnyFunction
-from rekuest_next.agents.context import prepare_context_variables
+from rekuest_next.agents.context import (
+    get_all_context_locks,
+    get_context_locks,
+    prepare_context_variables,
+)
 from rekuest_next.api.schema import (
     DefinitionInput,
     PortGroupInput,
@@ -49,6 +53,7 @@ def reactify(
     in_process: bool = False,
     logo: str | None = None,
     name: str | None = None,
+    auto_locks: bool = True,
     locks: Optional[List[str]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Reactify a function
@@ -58,8 +63,21 @@ def reactify(
     from the rekuest server.
     """
 
-    state_variables, state_returns = prepare_state_variables(function)
-    context_variables, context_returns = prepare_context_variables(function)
+    state_variables, state_returns, required_state_locks = prepare_state_variables(
+        function
+    )
+    context_variables, context_returns, required_context_locks = (
+        prepare_context_variables(function)
+    )
+
+    if not locks and auto_locks:
+        locks = []
+        for lock in required_context_locks.values():
+            locks.extend(lock)
+        for lock in required_state_locks.values():
+            locks.extend(lock)
+        locks = list(set(locks))
+        print(f"Auto-detected locks for actor: {function}: {locks}")
 
     if state_variables:
         stateful = True

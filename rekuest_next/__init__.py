@@ -13,7 +13,7 @@ from .remote import (
     acall_raw,
 )
 from .declare import declare, protocol
-from .structures.model import model
+from .structures.model import model, model_field
 from .state.decorator import state
 from .app import (
     AppRegistry,

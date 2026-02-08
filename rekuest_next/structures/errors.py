@@ -12,6 +12,7 @@ class SerializationError(RekuestError):
 class ExpandingError(SerializationError):
     """Base class for all expanding errors."""
 
+    __port = None
     pass
 
 

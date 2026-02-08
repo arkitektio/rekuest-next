@@ -35,7 +35,9 @@ from rekuest_next.state.predicate import get_state_name, is_state
 from rekuest_next.state.utils import get_return_length, prepare_state_variables
 
 
-startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar("startup_hook_context")
+startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "startup_hook_context"
+)
 
 
 class InspectHookMixin:
@@ -67,8 +69,12 @@ class WrappedStartupHook(StartupHook):
 
         self.return_length = get_return_length(self.signature)
 
-        self.state_variables, self.state_returns = prepare_state_variables(self.func)
-        self.context_variables, self.context_returns = prepare_context_variables(self.func)
+        self.state_variables, self.state_returns, self.required_state_locks = (
+            prepare_state_variables(self.func)
+        )
+        self.context_variables, self.context_returns, self.required_context_locks = (
+            prepare_context_variables(self.func)
+        )
 
         assert len(self.state_variables) == 0, (
             "Threaded startup hooks cannot have state variables as arguments"
@@ -77,7 +83,9 @@ class WrappedStartupHook(StartupHook):
             "Threaded startup hooks cannot have context variables as arguments"
         )
 
-        assert (len(self.state_returns) + len(self.context_returns)) == self.return_length, (
+        assert (
+            len(self.state_returns) + len(self.context_returns)
+        ) == self.return_length, (
             "Threaded startup can only return state and context variables"
         )
 
@@ -143,8 +151,12 @@ class ThreadedStartupHook(StartupHook):
 
         self.return_length = get_return_length(self.signature)
 
-        self.state_variables, self.state_returns = prepare_state_variables(self.func)
-        self.context_variables, self.context_returns = prepare_context_variables(self.func)
+        self.state_variables, self.state_returns, self.required_state_locks = (
+            prepare_state_variables(self.func)
+        )
+        self.context_variables, self.context_returns, self.required_context_locks = (
+            prepare_context_variables(self.func)
+        )
 
         assert len(self.state_variables) == 0, (
             "Threaded startup hooks cannot have state variables as arguments"
@@ -153,7 +165,9 @@ class ThreadedStartupHook(StartupHook):
             "Threaded startup hooks cannot have context variables as arguments"
         )
 
-        assert (len(self.state_returns) + len(self.context_returns)) == self.return_length, (
+        assert (
+            len(self.state_returns) + len(self.context_returns)
+        ) == self.return_length, (
             "Threaded startup can only return state and context variables"
         )
 

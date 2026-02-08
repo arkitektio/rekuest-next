@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from rekuest_next.api.schema import PortInput
 from typing import Optional, Type, TypeVar, Callable, overload, Any
-from fieldz import fields  # type: ignore
+from fieldz import fields, Field  # type: ignore
 from rekuest_next.protocols import AnyState
 from rekuest_next.structures.registry import (
     StructureRegistry,
@@ -34,7 +34,15 @@ def inspect_state_schema(
                 f"Field {field.name} has no type annotation. Please add a type annotation."
             )
 
-        port = convert_object_to_port(type, field.name, structure_registry)  # type: ignore
+        port = convert_object_to_port(
+            cls=type,
+            key=field.name,
+            description=field.description or field.metadata.get("description", None),
+            validators=field.metadata.get("validators", None),
+            label=field.metadata.get("label", None),
+            default=field.default if field.default != Field.MISSING else None,
+            registry=structure_registry,
+        )  # type: ignore
         ports.append(port)
 
     return StateSchemaInput(ports=tuple(ports), name=getattr(cls, "__rekuest_state__"))
@@ -44,6 +52,7 @@ def statify(cls: Type[T], required_locks: Optional[list[str]] = None) -> Type[T]
     """Alias for state decorator."""
 
     set_required_locks = set(required_locks or [])
+    setattr(cls, "__rekuest_state_locks__", set_required_locks)
 
     def new_get_attribute(self: T, name: str) -> Any:
         if name == "is_state":
@@ -58,7 +67,7 @@ def statify(cls: Type[T], required_locks: Optional[list[str]] = None) -> Type[T]
         missing_locks = set_required_locks - current_locks
         if missing_locks:
             raise RuntimeError(
-                f"The state {cls.__name__} requires the following locks: {missing_locks} you are calling set from within a context that doesn't hold the required locks. This is an anti-pattern."
+                f"The state {cls.__name__} requires the following locks: {missing_locks} you are calling set from within a context that doesn't hold the required locks. This is an anti-pattern. Maybe you didn't speciy the state in the dependencies for this action, or you used the ReadOnly version of the state in the action arguments"
             )
 
         super(cls, self).__setattr__(name, value)
@@ -83,6 +92,7 @@ def state(
     *,
     name: Optional[str] = None,
     local_only: bool = False,
+    required_locks: Optional[list[str]] = None,
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[T], T]: ...

@@ -7,7 +7,12 @@ from rekuest_next.definition.define import (
     is_nullable,
     is_tuple,
 )
-from rekuest_next.state.predicate import get_state_name, is_state
+from rekuest_next.state.predicate import (
+    get_state_locks,
+    get_state_name,
+    is_read_only_state,
+    is_state,
+)
 from typing import Tuple
 from typing import Dict, Any
 import inspect
@@ -35,7 +40,7 @@ def get_return_length(signature: inspect.Signature) -> int:
 
 def prepare_state_variables(
     function: AnyFunction,
-) -> Tuple[Dict[str, str], Dict[int, str]]:
+) -> Tuple[Dict[str, str], Dict[int, str], Dict[str, list[str]]]:
     """Prepare the state variables for the function.
 
     Args:
@@ -48,10 +53,14 @@ def prepare_state_variables(
     parameters = sig.parameters
 
     state_variables: Dict[str, str] = {}
+    required_state_locks: Dict[str, list[str]] = {}
     state_returns: Dict[int, str] = {}
 
     for key, value in parameters.items():
         if is_state(value.annotation):
+            state_variables[key] = get_state_name(value.annotation)
+            required_state_locks[key] = get_state_locks(value.annotation)
+        elif is_read_only_state(value.annotation):
             state_variables[key] = get_state_name(value.annotation)
 
     returns = sig.return_annotation
@@ -65,4 +74,4 @@ def prepare_state_variables(
             if is_state(returns):
                 state_returns[0] = get_state_name(returns)
 
-    return state_variables, state_returns
+    return state_variables, state_returns, required_state_locks
