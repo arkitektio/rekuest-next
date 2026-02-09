@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.34.0 (2026-02-09)
+
+### Features
+
+- New evented model
+  ([`5a7bd3c`](https://github.com/arkitektio/rekuest-next/commit/5a7bd3c643ef2e2edfeb27d38788456807918c7e))
+
+
 ## v0.33.0 (2026-02-08)
 
 ### Bug Fixes
