@@ -69,22 +69,24 @@ class WrappedStartupHook(StartupHook):
 
         self.return_length = get_return_length(self.signature)
 
-        self.state_variables, self.state_returns, self.required_state_locks = (
-            prepare_state_variables(self.func)
-        )
-        self.context_variables, self.context_returns, self.required_context_locks = (
-            prepare_context_variables(self.func)
-        )
+        (
+            self.state_variables,
+            self.state_returns,
+        ) = prepare_state_variables(self.func)
+        (
+            self.context_variables,
+            self.context_returns,
+        ) = prepare_context_variables(self.func)
 
-        assert len(self.state_variables) == 0, (
+        assert self.state_variables.count == 0, (
             "Threaded startup hooks cannot have state variables as arguments"
         )
-        assert len(self.context_variables) == 0, (
+        assert self.context_variables.count == 0, (
             "Threaded startup hooks cannot have context variables as arguments"
         )
 
         assert (
-            len(self.state_returns) + len(self.context_returns)
+            self.state_returns.count + self.context_returns.count
         ) == self.return_length, (
             "Threaded startup can only return state and context variables"
         )
@@ -112,11 +114,10 @@ class WrappedStartupHook(StartupHook):
         contexts: Dict[str, Any] = {}
 
         for index, return_value in enumerate(returns):
-            print("Processing return value:", return_value, "index:", index)
-            if index in self.state_returns:
-                states[self.state_returns[index]] = return_value
-            elif index in self.context_returns:
-                contexts[self.context_returns[index]] = return_value
+            if index in self.state_returns.state_returns:
+                states[self.state_returns.state_returns[index]] = return_value
+            elif index in self.context_returns.context_returns:
+                contexts[self.context_returns.context_returns[index]] = return_value
             else:
                 raise StartupHookError(
                     f"Startup hook must return state or context variables. Other returns are not allowed {self.context_returns}, {self.state_returns}"
@@ -151,22 +152,20 @@ class ThreadedStartupHook(StartupHook):
 
         self.return_length = get_return_length(self.signature)
 
-        self.state_variables, self.state_returns, self.required_state_locks = (
-            prepare_state_variables(self.func)
-        )
-        self.context_variables, self.context_returns, self.required_context_locks = (
-            prepare_context_variables(self.func)
+        self.state_variables, self.state_returns = prepare_state_variables(self.func)
+        self.context_variables, self.context_returns = prepare_context_variables(
+            self.func
         )
 
-        assert len(self.state_variables) == 0, (
+        assert self.state_variables.count == 0, (
             "Threaded startup hooks cannot have state variables as arguments"
         )
-        assert len(self.context_variables) == 0, (
+        assert self.context_variables.count == 0, (
             "Threaded startup hooks cannot have context variables as arguments"
         )
 
         assert (
-            len(self.state_returns) + len(self.context_returns)
+            self.state_returns.count + self.context_returns.count
         ) == self.return_length, (
             "Threaded startup can only return state and context variables"
         )
@@ -197,11 +196,10 @@ class ThreadedStartupHook(StartupHook):
         contexts: Dict[str, Any] = {}
 
         for index, return_value in enumerate(returns):
-            print("Processing return value:", return_value, "index:", index)
-            if index in self.state_returns:
-                states[self.state_returns[index]] = return_value
-            elif index in self.context_returns:
-                contexts[self.context_returns[index]] = return_value
+            if index in self.state_returns.state_returns:
+                states[self.state_returns.state_returns[index]] = return_value
+            elif index in self.context_returns.context_returns:
+                contexts[self.context_returns.context_returns[index]] = return_value
             else:
                 raise StartupHookError(
                     "Startup hook must return state or context variables. Other returns are not allowed"

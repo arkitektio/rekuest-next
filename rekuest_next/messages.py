@@ -1,6 +1,6 @@
 """Messages that are used to communicate between the rekuest backend and the agent"""
 
-from typing import Any, Optional, Literal, Union, Dict
+from typing import Any, List, Optional, Literal, Union, Dict
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from pydantic import Field
@@ -400,6 +400,21 @@ class HeartbeatEvent(Message):
     )
 
 
+class EnvelopePatch(BaseModel):
+    op: str
+    path: str
+    value: Any
+    old_value: Any
+
+
+class Envelope(BaseModel):
+    state_name: str
+    rev: int
+    base_rev: int
+    ts: float
+    patches: List[EnvelopePatch]  # Shrunk patches
+
+
 class StatePatchEvent(Message):
     """A state patch event
 
@@ -409,8 +424,7 @@ class StatePatchEvent(Message):
     """
 
     type: Literal[FromAgentMessageType.STATE_PATCH] = FromAgentMessageType.STATE_PATCH
-    interface: str
-    patch: str
+    envelope: Envelope
 
 
 class LockEvent(Message):

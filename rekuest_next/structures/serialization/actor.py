@@ -42,6 +42,26 @@ def _format_path_tree(path: Sequence[str] | None) -> str:
     return "\n".join(lines)
 
 
+def to_shrink_port_error(
+    port: PortInput,
+    value: Any,
+    message: str,
+    *,
+    path: Sequence[str] | None = None,
+    depth: int | None = None,
+) -> ShrinkingError:
+    """Helper function to create a ShrinkingError with port context."""
+    depth_info = f"Depth: {depth}" if depth is not None else "Depth: unknown"
+    tree_info = _format_path_tree(path)
+    return ShrinkingError(
+        "Error shrinking value with nested path:\n"
+        f"{tree_info}\n"
+        f"Port: {port.key} ({port.kind})\n"
+        f"{depth_info}\n"
+        f"Reason: {message}"
+    )
+
+
 def to_port_error(
     port: PortInput,
     value: Any,
@@ -497,6 +517,9 @@ async def ashrink_return(
     value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry,
     shelver: Shelver,
+    *,
+    path: Sequence[str] | None = None,
+    depth: int = 0,
 ) -> JSONSerializable:
     """Shrink a value through a port
 
@@ -517,14 +540,22 @@ async def ashrink_return(
             if port.nullable:
                 return None
             else:
-                raise ValueError(
-                    f"{port} is not nullable (optional) but your provided None"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Port {port.key} is not nullable (optional) but received None",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
         if port.kind == PortKind.UNION:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is union but does not have children {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is union but does not have children. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             for index, possible_port in enumerate(port.children):
@@ -536,52 +567,90 @@ async def ashrink_return(
                             value,
                             structure_registry=structure_registry,
                             shelver=shelver,
+                            path=[*(path or []), f"{port.key}[{index}]"]
+                            if path is not None
+                            else [f"{port.key}[{index}]"],
+                            depth=depth + 1,
                         ),
                     }
 
-            raise ShrinkingError(
-                f"Port is union butn none of the predicated for this port held true {port.children}"
+            raise to_shrink_port_error(
+                port,
+                value,
+                f"Port is union but none of the predicates for this port held true. Children: {[c.key for c in port.children]}",
+                path=[*(path or []), port.key] if path is not None else [port.key],
+                depth=depth,
             )
 
         if port.kind == PortKind.DICT:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is dict but does not have children {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is dict but does not have children. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             if not isinstance(value, dict):
-                raise ShrinkingError(
-                    f"Port is dict but value is not a dict {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Port is dict but value is not a dict, got {type(value).__name__}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             if len(port.children) != 1:
-                raise ShrinkingError(
-                    f"Port is dict but has more than one child {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Port is dict but has {len(port.children)} children (expected 1). Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
             dict_port = port.children[0]
 
-            assert isinstance(value, dict), f"Expected dict got {value}"
             return {
                 key: await ashrink_return(
                     dict_port,
-                    value,
+                    val,
                     structure_registry=structure_registry,
                     shelver=shelver,
+                    path=[*(path or []), port.key, key]
+                    if path is not None
+                    else [port.key, key],
+                    depth=depth + 1,
                 )
-                for key, value in value.items()  # type: ignore
+                for key, val in value.items()
             }
 
         if port.kind == PortKind.LIST:
-            assert isinstance(value, list), f"Expected list got {value}"
+            if not isinstance(value, list):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Port is list but value is not a list, got {type(value).__name__}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
 
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is list but does not have children {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is list but does not have children. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             if len(port.children) != 1:
-                raise ShrinkingError(
-                    f"Port is list but has more than one child {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Port is list but has {len(port.children)} children (expected 1). Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             return await asyncio.gather(
@@ -591,68 +660,97 @@ async def ashrink_return(
                         item,
                         structure_registry=structure_registry,
                         shelver=shelver,
+                        path=[*(path or []), f"{port.key}[{index}]"]
+                        if path is not None
+                        else [f"{port.key}[{index}]"],
+                        depth=depth + 1,
                     )
-                    for item in cast(List[Any], value)
+                    for index, item in enumerate(cast(List[Any], value))
                 ]
             )
 
         if port.kind == PortKind.MODEL:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port is model but does not have children {port.children}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is model but does not have children. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
             if not port.identifier:
-                raise ShrinkingError(
-                    f"Port is model but does not have identifier {port.identifier}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is model but does not have identifier. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
-            try:
-                shrinked_args = await asyncio.gather(
-                    *[
-                        ashrink_return(
-                            port,
-                            getattr(value, port.key),
-                            structure_registry=structure_registry,
-                            shelver=shelver,
-                        )
-                        for port in port.children
-                    ]
-                )
-
-                if not port.children:
-                    raise ShrinkingError(
-                        f"Port is model but does not have children {port.children}"
+            shrinked_args = await asyncio.gather(
+                *[
+                    ashrink_return(
+                        child_port,
+                        getattr(value, child_port.key),
+                        structure_registry=structure_registry,
+                        shelver=shelver,
+                        path=[*(path or []), port.key, child_port.key]
+                        if path is not None
+                        else [port.key, child_port.key],
+                        depth=depth + 1,
                     )
+                    for child_port in port.children
+                ]
+            )
 
-                shrinked_params = {
-                    port.key: val for port, val in zip(port.children, shrinked_args)
-                }
+            shrinked_params = {
+                child_port.key: val
+                for child_port, val in zip(port.children, shrinked_args)
+            }
 
-                return shrinked_params
-
-            except Exception as e:
-                raise PortShrinkingError(
-                    f"Couldn't shrink Children {port.children}"
-                ) from e
+            return shrinked_params
 
         if port.kind == PortKind.INT:
-            assert isinstance(value, int), f"Expected int got {value}"
+            if not isinstance(value, int):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Expected int, got {type(value).__name__}: {repr(value)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
             return int(value)
 
         if port.kind == PortKind.FLOAT:
-            assert isinstance(value, float) or isinstance(value, int), (
-                f"Expected float (or int) got {value}"
-            )
+            if not isinstance(value, (float, int)):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Expected float (or int), got {type(value).__name__}: {repr(value)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
             return float(value)
 
         if port.kind == PortKind.DATE:
-            assert isinstance(value, dt.datetime), f"Expected date got {value}"
+            if not isinstance(value, dt.datetime):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Expected datetime, got {type(value).__name__}: {repr(value)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
             return value.isoformat()
 
         if port.kind == PortKind.MEMORY_STRUCTURE:
             if not port.identifier:
-                raise ShrinkingError(
-                    f"Port is memory structure but does not have identifier {port.identifier}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is memory structure but does not have identifier. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
 
             return await shelver.aput_on_shelve(
@@ -661,16 +759,24 @@ async def ashrink_return(
 
         if port.kind == PortKind.STRUCTURE:
             if not port.identifier:
-                raise ShrinkingError(
-                    f"Port is structure but does not have identifier {port.identifier}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    "Port is structure but does not have identifier. Please report this to the developers.",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 )
             fstruc = structure_registry.get_fullfilled_structure(port.identifier)
             try:
                 shrink = await fstruc.ashrink(value)
                 return str(shrink)
             except Exception as e:
-                raise StructureShrinkingError(
-                    f"Error shrinking {repr(value)} with Structure {port.identifier}"
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Error shrinking with Structure {port.identifier}: {str(e)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
                 ) from e
 
         if port.kind == PortKind.BOOL:
@@ -680,42 +786,81 @@ async def ashrink_return(
                 elif value.lower() == "false":
                     return False
                 else:
-                    raise ShrinkingError(
-                        f"Can't shrink {value} of type {type(value)} to {port.kind}. We only accept"
-                        " strings with true or false"
-                    ) from None
+                    raise to_shrink_port_error(
+                        port,
+                        value,
+                        f"Can't shrink string '{value}' to bool. We only accept 'true' or 'false'",
+                        path=[*(path or []), port.key]
+                        if path is not None
+                        else [port.key],
+                        depth=depth,
+                    )
             if isinstance(value, int):
                 if value == 1:
                     return True
                 elif value == 0:
                     return False
                 else:
-                    raise ShrinkingError(
-                        f"Can't shrink {value} of type {type(value)} to {port.kind}. We only accept"
-                        " ints with 0 or 1"
-                    ) from None
+                    raise to_shrink_port_error(
+                        port,
+                        value,
+                        f"Can't shrink int {value} to bool. We only accept 0 or 1",
+                        path=[*(path or []), port.key]
+                        if path is not None
+                        else [port.key],
+                        depth=depth,
+                    )
 
             if isinstance(value, bool):
                 return value
 
-            raise ShrinkingError(
-                f"Can't shrink {value} of type {type(value)} to {port.kind}. We only accept"
-                " strings, ints and bools"
-            ) from None
+            raise to_shrink_port_error(
+                port,
+                value,
+                f"Expected bool, str, or int, got {type(value).__name__}: {repr(value)}",
+                path=[*(path or []), port.key] if path is not None else [port.key],
+                depth=depth,
+            )
 
         if port.kind == PortKind.STRING:
-            assert isinstance(value, str), f"Expected str got {value}"
+            if not isinstance(value, str):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Expected str, got {type(value).__name__}: {repr(value)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
             return str(value)
 
         if port.kind == PortKind.ENUM:
-            assert isinstance(value, Enum), f"Expected str got {value}"
+            if not isinstance(value, Enum):
+                raise to_shrink_port_error(
+                    port,
+                    value,
+                    f"Expected Enum, got {type(value).__name__}: {repr(value)}",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
             return value.name
 
-        raise NotImplementedError(f"Should be implemented by subclass {port}")
+        raise to_shrink_port_error(
+            port,
+            value,
+            f"Unsupported port kind: {port.kind}",
+            path=[*(path or []), port.key] if path is not None else [port.key],
+            depth=depth,
+        )
 
+    except ShrinkingError:
+        raise
     except Exception as e:
-        raise PortShrinkingError(
-            f"Couldn't shrink value {value} with port {port}"
+        raise to_shrink_port_error(
+            port,
+            value,
+            f"Unexpected error: {str(e)}",
+            path=[*(path or []), port.key] if path is not None else [port.key],
+            depth=depth,
         ) from e
 
 
@@ -753,16 +898,18 @@ async def shrink_outputs(
 
     if not skip_shrinking:
         shrinked_returns_future = [
-            ashrink_return(port, val, structure_registry, shelver=shelver)
+            ashrink_return(
+                port,
+                val,
+                structure_registry,
+                shelver=shelver,
+                path=[port.key],
+                depth=0,
+            )
             for port, val in zip(action.returns, returns)
         ]
-        try:
-            shrinked_returns = await asyncio.gather(*shrinked_returns_future)
-            return {
-                port.key: val for port, val in zip(action.returns, shrinked_returns)
-            }
-        except Exception as e:
-            raise ShrinkingError(f"Couldn't shrink Returns {returns}: {str(e)}") from e
+        shrinked_returns = await asyncio.gather(*shrinked_returns_future)
+        return {port.key: val for port, val in zip(action.returns, shrinked_returns)}
     else:
         return {port.key: val for port, val in zip(action.returns, returns)}
 
@@ -1083,7 +1230,7 @@ async def aexpand_actor_return(
             return None
         else:
             raise PortExpandingError(
-                f"{port} is not nullable (optional) but your provided None"
+                f"{port.key} is not nullable (optional) but your provided None"
             )
 
     if port.kind == PortKind.DICT:

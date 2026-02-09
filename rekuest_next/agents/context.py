@@ -3,7 +3,7 @@
 from typing import Callable, List, Optional, Tuple, Type, TypeVar, overload
 from typing import Dict, Any
 import inspect
-
+from dataclasses import dataclass
 import inflection
 
 from rekuest_next.definition.define import get_non_null_variants, is_tuple
@@ -108,9 +108,35 @@ def context(  # type: ignore[valid-type]
     raise ValueError("You can only register one class at a time.")
 
 
+@dataclass
+class PreparedContextVariables:
+    context_variables: Dict[str, str]
+    required_context_locks: Dict[str, list[str]]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of state variables."""
+        return len(self.context_variables)
+
+    @property
+    def required_locks_amount(self) -> int:
+        """Get the amount of locks."""
+        return len(self.required_context_locks)
+
+
+@dataclass
+class PreparedContextReturns:
+    context_returns: Dict[int, str]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of context variables."""
+        return len(self.context_returns)
+
+
 def prepare_context_variables(
     function: AnyFunction,
-) -> Tuple[Dict[str, Any], Dict[int, Any], Dict[str, list[str]]]:
+) -> Tuple[PreparedContextVariables, PreparedContextReturns]:
     """Prepares the context variables for a function.
 
     Args:
@@ -136,15 +162,18 @@ def prepare_context_variables(
 
     if hasattr(returns, "_name"):
         if is_tuple(returns):
-            print("Preparing context variables for tuple return type")
             for index, cls in enumerate(get_non_null_variants(returns)):
-                print("Checking return value:", cls, "at index:", index)
                 if is_context(cls):
                     state_returns[index] = cls.__rekuest_context__
         else:
             if is_context(returns):
                 state_returns[0] = returns.__rekuest_context__
-    return state_variables, state_returns, required_locks
+    return (
+        PreparedContextVariables(
+            context_variables=state_variables, required_context_locks=required_locks
+        ),
+        PreparedContextReturns(context_returns=state_returns),
+    )
 
 
 def get_all_context_locks(cls: List[Type[AnyContext]]) -> list[str]:

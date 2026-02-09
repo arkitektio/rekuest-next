@@ -37,7 +37,7 @@ def publish(state: AnyState) -> None:
 
     publisher = publish_context.get()
     if publisher is not None:
-        publisher.direct_publish(state)
+        print("Currently not implemented")
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:

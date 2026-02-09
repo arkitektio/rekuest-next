@@ -1,5 +1,8 @@
 from typing import Any, Awaitable, Protocol, Union, runtime_checkable, Tuple
 
+from rekuest_next.api.schema import StateSchemaInput
+from rekuest_next.structures.registry import StructureRegistry
+
 
 @runtime_checkable
 class AnyFunction(Protocol):
@@ -21,11 +24,20 @@ class AnyFunction(Protocol):
         ...
 
 
+class EventedConfig(Protocol):
+    state_name: str
+    state_schema: StateSchemaInput
+    structure_registry: StructureRegistry
+    publish_interval: float
+
+
 @runtime_checkable
 class AnyState(Protocol):
     """A function that takes a passport and a transport and returns an actor.
     This method will create the actor and return it.
     """
+
+    __rekuest__config__: EventedConfig
 
     pass
 

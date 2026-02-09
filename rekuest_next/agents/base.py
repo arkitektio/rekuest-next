@@ -7,56 +7,68 @@ for managing the lifecycle of the actors that are spawned from it.
 
 import asyncio
 import logging
-from types import TracebackType
-from typing import Any, Dict, List, Optional, Self, Type
 import uuid
+from types import TracebackType
+from typing import Any, Dict, Generic, List, Optional, Self, Type, TypeVar
 
+import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
 
 
-from rekuest_next.agents.lock import TaskLock
-from rekuest_next.api.schema import (
-    StateSchemaInput,
-    acreate_state_schema,
-    aget_implementation,
-    aset_agent_states,
-    StateImplementationInput,
-    StateSchema,
-)
-import jsonpatch  # type: ignore[import-untyped]
 from koil import unkoil
 from koil.composition import KoiledModel
-from rekuest_next.actors.types import Passport, Actor
+from rekuest_next import acall, messages
 from rekuest_next.actors.sync import SyncKeyManager
+from rekuest_next.actors.types import Actor, Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.hooks.registry import StartupHookReturns
+from rekuest_next.agents.lock import TaskLock
 from rekuest_next.agents.registry import (
     ExtensionRegistry,
     get_default_extension_registry,
 )
-from rekuest_next.state.lock import acquired_locks
-from rekuest_next.state.shrink import ashrink_state
+from rekuest_next.agents.state_worker import RevisedState, StateWorker
 from rekuest_next.agents.transport.types import AgentTransport
+from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.api.schema import (
-    Implementation,
     Agent,
+    Implementation,
+    PortInput,
+    StateImplementationInput,
+    StateSchema,
+    StateSchemaInput,
+    acreate_state_schema,
     aensure_agent,
+    aget_implementation,
+    aset_agent_states,
+    aset_extension_implementations,
     ashelve,
     aunshelve,
-    aset_extension_implementations,
 )
-from rekuest_next import acall, messages
 from rekuest_next.protocols import AnyState
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.scalars import Identifier
-from rekuest_next.state.proxies import StateProxy
+from rekuest_next.state.lock import acquired_locks
+from rekuest_next.state.observable import EventedConfig, make_evented
+from rekuest_next.state.predicate import get_state_name
+from rekuest_next.state.publish import Patch
+from rekuest_next.state.shrink import ashrink_state
+from rekuest_next.structures.default import get_default_structure_registry
+from rekuest_next.structures.serialization.actor import ashrink_return
+from rekuest_next.structures.serialization.postman import ashrink_arg
 from rekuest_next.structures.types import JSONSerializable
-from typing import Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
 AppContext = TypeVar("AppContext")
 ContextType = TypeVar("ContextType")
+
+
+import asyncio
+import time
+from weakref import ref
+
+# Import your protocols/types
 
 
 class BaseAgent(KoiledModel, Generic[AppContext]):
@@ -89,7 +101,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     shelve: Dict[str, Any] = Field(default_factory=dict)
     transport: AgentTransport
     extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
-    proxies: Dict[str, StateProxy] = Field(default_factory=dict)
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
         description="Maps context keys to context values registed with @context",
@@ -118,6 +129,10 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         default_factory=dict,
         description="Maps actor id to the task that is running the actor",
     )
+    managed_publisher_tasks: Dict[str, asyncio.Task[None]] = Field(
+        default_factory=dict,
+        description="Maps state name to the task that is running the publisher for that state",
+    )
 
     _errorfuture: Optional[asyncio.Future[Exception]] = None
     _agent: Optional[Agent] = None
@@ -141,6 +156,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     _collected_startup_hooks: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
     _collected_background_workers: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
     _state_class_interface_map: Dict[type, str] = PrivateAttr(default_factory=lambda: {})
+    _state_workers: Dict[str, StateWorker] = PrivateAttr(default_factory=lambda: {})
 
     started: bool = False
     running: bool = False
@@ -153,6 +169,19 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     async def aunlock(self, key: str) -> None:
         """Signal that an assignation has released a lock."""
         return None
+
+    async def aget_read_only_proxy(self, key: str) -> AnyState:
+        """Acquire a read-only state proxy for a given key."""
+        return self.states[key]
+
+    async def aget_write_proxy(self, key: str) -> AnyState:
+        """Acquire a write state proxy for a given key."""
+        return self.states[key]
+
+    def publish_patch(self, interface: str, patch: Patch) -> None:
+        """Publish a patch to the agent. This is used to publish patches to the
+        agent from the actor."""
+        self._state_workers[interface].put_patch(patch)
 
     def get_locks_for_keys(self, keys: List[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
@@ -251,6 +280,14 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         description: Optional[str] = None,
     ) -> str:
         raise NotImplementedError("ashelve not implemented in BaseAgent")
+
+    async def aget_revised_state(self, interface: str) -> RevisedState:
+        """Get the last shrunk state for a given interface. This is used to get the last shrunk state for
+        the publisher."""
+        if interface not in self._state_workers:
+            raise AgentException(f"No state worker found for interface {interface}")
+
+        return await self._state_workers[interface].aget_revision()
 
     async def aput_on_shelve(
         self,
@@ -415,6 +452,22 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         """
         logger.info("Tearing down the agent")
 
+        for background_task in self._background_tasks.values():
+            background_task.cancel()
+
+        for background_task in self._background_tasks.values():
+            try:
+                await background_task
+            except asyncio.CancelledError:
+                pass
+
+        for state_worker in self.managed_publisher_tasks.values():
+            state_worker.cancel()
+            try:
+                await state_worker
+            except asyncio.CancelledError:
+                pass
+
         for actor_task in self.managed_actor_tasks.values():
             actor_task.cancel()
         # just stopping the actor, not cancelling the provision..
@@ -523,24 +576,36 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         for interface, startup_value in hook_return.states.items():
             # Set the actual state value
-            self.states[interface] = startup_value
+
+            config = EventedConfig(
+                state_schema=state_schemas[interface],
+                state_name=interface,
+                required_locks=startup_value.__rekuest_state_required_locks__,
+                publish_interval=startup_value.__rekuest_state_publish_interval__,
+                structure_registry=startup_value.__rekuest_structure_registry__,
+            )
+
+            self.states[interface] = make_evented(
+                startup_value,
+                config=config,
+                path="",
+            )
 
             # Set the state schema that is needed to shrink the state
             self._interface_stateschema_input_map[interface] = state_schemas[interface]
 
-            # Shrink the state to the schema
-            startup_shrunk_value = await self.ashrink_state(
-                interface=interface, state=startup_value
-            )
+            state_worker = StateWorker(state_instance=startup_value, agent=self, config=config)
+            self._state_workers[interface] = state_worker
 
-            # Set the shrunk state value
-            self._current_shrunk_states[interface] = startup_shrunk_value
+            self.managed_publisher_tasks[interface] = asyncio.create_task(state_worker.start())
+
+            revision = await state_worker.aget_revision()
 
             implementations.append(
                 StateImplementationInput(
                     interface=interface,
                     stateSchema=state_schemas[interface],
-                    initial=startup_shrunk_value,
+                    initial=revision.data,
                 )
             )
 
@@ -576,42 +641,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
 
-    async def aset_state(self, interface: str, value: AnyState) -> None:  # noqa: ANN401
-        """Set the state of the extension. This will be called when the agent starts"""
-
-        if interface not in self.states:
-            raise AgentException(f"State {interface} not found in agent {self.name}")
-
-        if interface not in self._current_shrunk_states:
-            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
-
-        if interface not in self._interface_stateschema_input_map:
-            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
-
-        if not self.instance_id:
-            raise AgentException("Instance id is not set. The agent is not initialized")
-
-        old_shrunk_state = self._current_shrunk_states[interface]
-        new_shrunk_state = await self.ashrink_state(interface=interface, state=value)
-
-        patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)
-        await self.apublish_patch(interface=interface, patch=patch)
-
-        # type: ignore
-        self._current_shrunk_states[interface] = new_shrunk_state
-        self.states[interface] = value
-
-    async def apublish_patch(self, interface: str, patch: jsonpatch.JsonPatch) -> None:
+    async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
-        raise NotImplementedError("apublish_patch not implemented in BaseAgent")
-
-    async def apublish_state(self, state: AnyState) -> None:
-        """Publish a state to the agent.  Will forward the state to the transport"""
-        interface = self.get_interface_for_state_class(type(state))
-        if interface not in self.states:
-            raise AgentException(f"State {interface} not found in agent {self.name}")
-
-        await self.aset_state(interface=interface, value=state)
+        raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
     # Agent Related Getters
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
@@ -624,7 +656,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     def get_context_for_type(self, context: Type[ContextType]) -> ContextType:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
-        from rekuest_next.agents.context import is_context, get_context_name
+        from rekuest_next.agents.context import get_context_name, is_context
 
         if not self.running:
             raise AgentException("Agent is not running. Contexts are not available yet.")
@@ -713,6 +745,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                     timeout=20,
                 )
                 for i in answer.states:
+                    print(f"Startup hook {key} returned state {i} with value {answer.states[i]}")
                     if i in states:
                         raise StartupHookError(f"State {i} already defined")
                     states[i] = answer.states[i]
@@ -798,7 +831,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             self.running = True
             await self.transport.aconnect(self.instance_id)
             async for message in self.transport.areceive():
-                print(f"Received message: {message}")
                 await self.process(message)
         except asyncio.CancelledError:
             logger.info(f"Provisioning task cancelled. We are running {self.transport}")

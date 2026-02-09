@@ -16,11 +16,14 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from rekuest_next.actors.errors import UnknownMessageError
+from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent
 from rekuest_next import messages
 from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.protocols import AnyContext, AnyState
+from rekuest_next.state.publish import direct_publishing
+from rekuest_next.state.utils import PreparedStateReturns, PreparedStateVariables
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.actors.sync import SyncGroup
@@ -50,7 +53,9 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
+    id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
+    )
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     locks: Optional[Tuple[str, ...]] = Field(
@@ -62,8 +67,12 @@ class Actor(BaseModel):
         description="The sync group to use for this actor. This is used to synchronize access to the actor.",
     )
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -107,8 +116,9 @@ class Actor(BaseModel):
             # Then acquire the regular sync group
 
             async with self.sync:
-                with acquired_locks(*(self.locks or [])):
-                    yield
+                with direct_publishing(self.agent):
+                    with acquired_locks(*(self.locks or [])):
+                        yield
         finally:
             # Release sync key locks
             if sync_key_group:
@@ -212,7 +222,9 @@ class Actor(BaseModel):
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
+                logger.info(
+                    f"Task {key} was cancelled through applicaction. Setting Critical"
+                )
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
@@ -301,14 +313,20 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             self,
-                            message=messages.CancelledEvent(assignation=message.assignation),
+                            message=messages.CancelledEvent(
+                                assignation=message.assignation
+                            ),
                         )
 
                 else:
-                    logger.warning("Race Condition: Task was already done before cancellation")
+                    logger.warning(
+                        "Race Condition: Task was already done before cancellation"
+                    )
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(assignation=message.assignation),
+                        message=messages.CancelledEvent(
+                            assignation=message.assignation
+                        ),
                     )
 
             else:
@@ -338,6 +356,19 @@ class SerializingActor(Actor):
     definition: DefinitionInput = Field(
         description="The definition of the actor, describing what arguents and return values it provides"
     )
+    state_returns: PreparedStateReturns = Field(
+        description="The state returns of the actor"
+    )
+    state_variables: PreparedStateVariables = Field(
+        description="The state variables of the actor"
+    )
+    context_variables: PreparedContextVariables = Field(
+        description="The context variables of the actor"
+    )
+    context_returns: PreparedContextReturns = Field(
+        description="The context returns of the actor"
+    )
+
     structure_registry: StructureRegistry = Field(
         default=get_default_structure_registry(),
         description="The structure regsistry to use for this actor",
@@ -350,10 +381,6 @@ class SerializingActor(Actor):
         default=True,
         description="Whether to shrink the outputs of the actor. Can overwrite the default behaviour of the actor to shrink the outputs with the structure registry.",
     )
-    state_variables: Dict[str, Any] = Field(
-        default_factory=dict, description="The state variables of the actor"
-    )
-    context_variables: Dict[str, Any] = Field(default_factory=dict)
 
     async def aget_locals(
         self: Self,
@@ -363,15 +390,21 @@ class SerializingActor(Actor):
         state_kwargs: Mapping[str, AnyContext | AnyState] = {}
         context_kwargs: Mapping[str, AnyContext] = {}
 
-        for key, interface in self.context_variables.items():
+        for key, interface in self.context_variables.context_variables.items():
             try:
                 context_kwargs[key] = await self.agent.aget_context(interface)
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        for key, interface in self.state_variables.items():
+        for key, interface in self.state_variables.write_state_variables.items():
             try:
-                state_kwargs[key] = await self.agent.aget_state(interface)
+                state_kwargs[key] = await self.agent.aget_write_proxy(interface)
+            except KeyError as e:
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        for key, interface in self.state_variables.read_only_variables.items():
+            try:
+                state_kwargs[key] = await self.agent.aget_read_only_proxy(interface)
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
@@ -382,14 +415,7 @@ class SerializingActor(Actor):
         Args:
             state_params (Mapping[str, AnyState]): The state params to sync with
         """
-        for key, _ in self.state_variables.items():
-            if key in state_params:
-                state = state_params[key]
-                await self.agent.apublish_state(
-                    state,
-                )
-            else:
-                logger.warning(f"State {key} not found in state params")
+        return
 
 
 Actor.model_rebuild()

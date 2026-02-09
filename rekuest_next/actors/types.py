@@ -5,6 +5,7 @@ from rekuest_next import messages
 from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
+from rekuest_next.state.publish import Patch
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import PortGroupInput, ValidatorInput
 from rekuest_next.definition.define import (
@@ -64,10 +65,22 @@ class Agent(Protocol):
         locks on the agent."""
         ...
 
-    async def asend(self: "Agent", actor: "Actor", message: messages.FromAgentMessage) -> None:
+    async def asend(
+        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
+    ) -> None:
         """A function to send a message to the agent. This is used to send messages
         to the agent from the actor."""
 
+        ...
+
+    async def aget_read_only_proxy(self, interface: str) -> AnyState:  # noqa: ANN401
+        """Get a readonly state from the agent. This is used to get readonly states from the
+        agent from the actor."""
+        ...
+
+    async def aget_write_proxy(self, interface: str) -> AnyState:  # noqa: ANN401
+        """Get a writeable state from the agent. This is used to get writeable states from the
+        agent from the actor."""
         ...
 
     async def aput_on_shelve(
@@ -82,11 +95,6 @@ class Agent(Protocol):
     async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
         """Get a value from the shelve. This is used to get values from the
         shelve."""
-        ...
-
-    async def apublish_state(self, state: AnyState) -> None:  # noqa: ANN401
-        """Publish a state to the agent. This is used to publish states to the
-        agent from the actor."""
         ...
 
     async def aget_state(self, interface: str) -> AnyState:  # noqa: ANN401
@@ -107,6 +115,11 @@ class Agent(Protocol):
 
     async def atest(self, context: Any) -> None:
         """Run the tests. This method will run the tests and return None."""
+        ...
+
+    def publish_patch(self, instance: AnyState, patch: Patch) -> None:
+        """Publish a patch to the agent. This is used to publish patches to the
+        agent from the actor."""
         ...
 
 

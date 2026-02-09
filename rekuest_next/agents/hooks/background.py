@@ -58,9 +58,7 @@ class WrappedBackgroundTask(BackgroundTask):
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
         for key, value in self.state_variables.items():
             try:
@@ -85,27 +83,21 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
         # check if has context argument
         inspect.signature(func).parameters
 
-        self.state_variables, self.state_returns, self.required_state_locks = (
-            prepare_state_variables(func)
-        )
+        self.state_variables, self.state_returns = prepare_state_variables(func)
 
-        self.context_variables, self.context_returns, self.required_context_locks = (
-            prepare_context_variables(func)
-        )
+        self.context_variables, self.context_returns = prepare_context_variables(func)
         self.thread_pool = ThreadPoolExecutor(1)
 
     async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
         """Run the background task in a thread pool"""
         kwargs = {}
-        for key, value in self.context_variables.items():
+        for key, value in self.context_variables.context_variables.items():
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
+                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
 
-        for key, value in self.state_variables.items():
+        for key, value in self.state_variables.read_only_variables.items():
             try:
                 kwargs[key] = states[value]
             except KeyError as e:

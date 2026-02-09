@@ -126,8 +126,6 @@ class GraphQLPostman(KoiledModel):
 
                 unique_identifier = ass.reference
 
-                print(f"Received assignation event with reference: {ass}")
-
                 await self._ass_update_queues[unique_identifier].put(ass)
 
         except Exception:
