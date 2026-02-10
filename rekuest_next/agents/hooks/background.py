@@ -14,6 +14,7 @@ from typing import (
 import asyncio
 
 from koil.helpers import run_spawned
+from rekuest_next.actors.types import Agent
 from rekuest_next.agents.context import (
     prepare_context_variables,
 )
@@ -28,6 +29,7 @@ from rekuest_next.protocols import (
     ThreadedBackgroundFunction,
     AsyncBackgroundFunction,
 )
+from rekuest_next.state.publish import direct_publishing
 from rekuest_next.state.utils import prepare_state_variables
 
 
@@ -43,24 +45,24 @@ class WrappedBackgroundTask(BackgroundTask):
         # check if has context argument
         inspect.signature(func).parameters
 
-        self.state_variables, self.state_returns, self.required_state_locks = (
-            prepare_state_variables(func)
-        )
+        self.state_variables, self.state_returns = prepare_state_variables(func)
 
-        self.context_variables, self.context_returns, self.required_context_locks = (
-            prepare_context_variables(func)
-        )
+        self.context_variables, self.context_returns = prepare_context_variables(func)
 
-    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
+    async def arun(
+        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> None:
         """Run the background task in the event loop"""
         kwargs = {}
-        for key, value in self.context_variables.items():
+        for key, value in self.context_variables.context_variables.items():
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
+                raise StateRequirementsNotMet(
+                    f"Context requirements not met: {e}"
+                ) from e
 
-        for key, value in self.state_variables.items():
+        for key, value in self.state_variables.read_only_variables.items():
             try:
                 kwargs[key] = states[value]
             except KeyError as e:
@@ -68,7 +70,8 @@ class WrappedBackgroundTask(BackgroundTask):
                     f"State requirements not met: {e}. Available are {list(states.keys())}"
                 ) from e
 
-        return await self.func(**kwargs)
+        with direct_publishing(agent):
+            return await self.func(**kwargs)
 
 
 class WrappedThreadedBackgroundTask(BackgroundTask):
@@ -88,14 +91,22 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
         self.context_variables, self.context_returns = prepare_context_variables(func)
         self.thread_pool = ThreadPoolExecutor(1)
 
-    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
+    def run_with_publishing(self, agent: Agent, **kwargs: Any) -> None:
+        with direct_publishing(agent):
+            return self.func(**kwargs)
+
+    async def arun(
+        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> None:
         """Run the background task in a thread pool"""
         kwargs = {}
         for key, value in self.context_variables.context_variables.items():
             try:
                 kwargs[key] = contexts[value]
             except KeyError as e:
-                raise StateRequirementsNotMet(f"Context requirements not met: {e}") from e
+                raise StateRequirementsNotMet(
+                    f"Context requirements not met: {e}"
+                ) from e
 
         for key, value in self.state_variables.read_only_variables.items():
             try:
@@ -104,7 +115,8 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return await run_spawned(
-            self.func,
+            self.run_with_publishing,
+            agent,
             **kwargs,  # type: ignore[arg-type]
         )
 

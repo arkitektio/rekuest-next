@@ -66,7 +66,7 @@ def statify(
 
     def new_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
-        make_evented(self, config, "")
+        self = make_evented(self, config, "")
 
     cls.__init__ = new_init
 

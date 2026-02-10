@@ -739,7 +739,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         """Run the background tasks. This will be called when the agent starts."""
         for name, worker in self._collected_background_workers.items():
             task = asyncio.create_task(
-                worker.arun(contexts=self.contexts, states=self.states)
+                worker.arun(self, contexts=self.contexts, states=self.states)
             )
             task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(lambda x: print(f"Worker {name} finished"))
