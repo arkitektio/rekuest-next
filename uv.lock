@@ -1238,7 +1238,7 @@ wheels = [
 
 [[package]]
 name = "rekuest-next"
-version = "0.34.1"
+version = "0.34.3"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },

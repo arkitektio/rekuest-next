@@ -606,11 +606,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             # Set the actual state value
 
             config = startup_value.__rekuest_state_config__
-            self.states[interface] = make_evented(
-                startup_value,
-                config=config,
-                path="",
-            )
+            self.states[interface] = startup_value
 
             # Set the state schema that is needed to shrink the state
             self._interface_stateschema_input_map[interface] = state_schemas[interface]

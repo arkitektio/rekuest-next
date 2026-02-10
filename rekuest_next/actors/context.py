@@ -1,5 +1,6 @@
 """This module contains the Context API for the actors."""
 
+from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.actors.vars import (
     get_current_assignation_helper,
 )
@@ -7,7 +8,6 @@ from rekuest_next.api.schema import LogLevel
 from typing import Optional
 from rekuest_next import messages
 from rekuest_next.protocols import AnyState
-from koil import unkoil
 
 
 async def apublish(state: AnyState) -> None:
@@ -22,7 +22,7 @@ async def apublish(state: AnyState) -> None:
 
     publisher = publish_context.get()
     if publisher is not None:
-        await publisher.adirect_publish(state)
+        print("Currently not implemented")
 
 
 def publish(state: AnyState) -> None:
@@ -101,9 +101,12 @@ def progress(percentage: int, message: Optional[str] = None) -> None:
     Raises:
         ValueError: If the percentage is not between 0 and 100
     """
-
-    helper = get_current_assignation_helper()
-    helper.progress(int(percentage), message=message)
+    try:
+        helper = get_current_assignation_helper()
+        helper.progress(int(percentage), message=message)
+    except NotWithinAnAssignationError:
+        print(f"Progress: {percentage}% - {message if message else ''}")
+        pass
 
 
 async def aprogress(percentage: int, message: Optional[str] = None) -> None:
@@ -118,8 +121,12 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
     Raises:
         ValueError: If the percentage is not between 0 and 100
     """
-    helper = get_current_assignation_helper()
-    await helper.aprogress(int(percentage), message=message)
+    try:
+        helper = get_current_assignation_helper()
+        await helper.aprogress(int(percentage), message=message)
+    except NotWithinAnAssignationError:
+        print(f"Progress: {percentage}% - {message if message else ''}")
+        pass
 
 
 async def apausepoint() -> None:
@@ -129,9 +136,12 @@ async def apausepoint() -> None:
     A breakpoint can be caused to be activate by a user through
     the rekuest server.
     """
-
-    helper = get_current_assignation_helper()
-    await helper.abreakpoint()
+    try:
+        helper = get_current_assignation_helper()
+        await helper.abreakpoint()
+    except NotWithinAnAssignationError:  # pylint: disable=broad-except
+        # We don't want breakpoints to fail the actor if not supported
+        pass
 
 
 def pausepoint() -> None:
@@ -141,6 +151,9 @@ def pausepoint() -> None:
     A breakpoint can be caused to be activate by a user through
     the rekuest server.
     """
-
-    helper = get_current_assignation_helper()
-    helper.breakpoint()
+    try:
+        helper = get_current_assignation_helper()
+        helper.breakpoint()
+    except NotWithinAnAssignationError:  # pylint: disable=broad-except
+        # We don't want breakpoints to fail the actor if not supported
+        pass

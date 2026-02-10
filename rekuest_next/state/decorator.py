@@ -3,7 +3,7 @@
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Type, TypeVar, Callable, overload, Any, List
 from rekuest_next.api.schema import PortInput, StateSchemaInput
-from rekuest_next.state.observable import StateConfig
+from rekuest_next.state.observable import StateConfig, make_evented
 from rekuest_next.state.publish import get_current_publisher, noop_publisher
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
@@ -61,6 +61,14 @@ def statify(
         required_locks=required_locks or [],
         structure_registry=structure_registry,
     )
+
+    original_init = getattr(cls, "__init__", lambda self: None)
+
+    def new_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        make_evented(self, config, "")
+
+    cls.__init__ = new_init
 
     setattr(cls, "__rekuest_state_config__", config)
 

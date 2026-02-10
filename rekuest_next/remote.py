@@ -43,9 +43,6 @@ from rekuest_next.structures.serialization.postman import aexpand_returns, ashri
 from typing import TYPE_CHECKING
 from rekuest_next.errors import CriticalCallError, ErrorCallError
 
-if TYPE_CHECKING:
-    from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
-
 
 __all__ = [
     "find",
@@ -54,9 +51,7 @@ __all__ = [
 
 
 async def afind(
-    action_implementation_res: Union[
-        ID, Action, Implementation, Reservation, "DeclaredFunction", "DeclaredProtocol"
-    ],
+    action_implementation_res: Union[ID, Action, Implementation, Reservation],
 ) -> Action:
     from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
 
@@ -81,7 +76,10 @@ async def afind(
 
 def find(
     action_implementation_res: Union[
-        ID, Action, Implementation, Reservation, "DeclaredFunction", "DeclaredProtocol"
+        ID,
+        Action,
+        Implementation,
+        Reservation,
     ],
 ) -> Action:
     return unkoil(afind, action_implementation_res)
@@ -318,7 +316,9 @@ async def acall(
 
     structure_registry = get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     returns = await acall_raw(
         kwargs=shrinked_args,
@@ -334,7 +334,9 @@ async def acall(
         postman=postman,
     )
 
-    returns = await aexpand_returns(action, returns, structure_registry=structure_registry)
+    returns = await aexpand_returns(
+        action, returns, structure_registry=structure_registry
+    )
     if len(returns) == 1:
         return returns[0]
     return returns
@@ -378,7 +380,9 @@ async def aiterate(
 
     structure_registry = structure_registry or get_default_structure_registry()
 
-    shrinked_args = await ashrink_args(action, args, kwargs, structure_registry=structure_registry)
+    shrinked_args = await ashrink_args(
+        action, args, kwargs, structure_registry=structure_registry
+    )
 
     async for i in aiterate_raw(
         kwargs=shrinked_args,
@@ -392,7 +396,9 @@ async def aiterate(
         parent=parent,
         log=log,
     ):
-        returns = await aexpand_returns(action, i, structure_registry=structure_registry)
+        returns = await aexpand_returns(
+            action, i.returns, structure_registry=structure_registry
+        )
         if len(returns) == 1:
             yield returns[0]
         else:

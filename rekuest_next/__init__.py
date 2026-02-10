@@ -12,7 +12,17 @@ from .remote import (
     find,
     acall_raw,
 )
-from .actors.context import log, alog, progress, aprogress, apausepoint, pausepoint
+from .agents.context import context
+from .actors.context import (
+    log,
+    alog,
+    progress,
+    aprogress,
+    apausepoint,
+    pausepoint,
+    publish,
+    apublish,
+)
 from .declare import declare, protocol
 from .structures.model import model, model_field
 from .state.decorator import state
@@ -40,11 +50,14 @@ __all__ = [
     "alog",
     "progress",
     "aprogress",
+    "publish",
+    "apublish",
     "declare",
     "protocol",
     "model",
     "pausepoint",
     "apausepoint",
+    "context",
     "model_field",
     "state",
     "find",
