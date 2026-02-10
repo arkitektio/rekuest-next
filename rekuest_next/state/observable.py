@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Iterable, TypeVar, overload, SupportsIndex
+from typing import Any, Generic, Iterable, TypeVar, overload, SupportsIndex
 
 from rekuest_next.api.schema import StateSchemaInput
 from rekuest_next.state.lock import get_acquired_locks
@@ -52,7 +52,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class EventedDict(dict):
+class EventedDict(dict[K, V], Generic[K, V]):
     """A dictionary wrapper that emits JSON Patch operations on modification.
 
     Supports all standard dict mutation methods with proper JSON Patch semantics:
@@ -61,7 +61,7 @@ class EventedDict(dict):
     - replace: When an existing key's value is changed
     """
 
-    def __init__(self, data: dict, config: EventedConfig, path: str):
+    def __init__(self, data: dict[K, V], config: EventedConfig, path: str):
         super().__init__(data)
         self._config = config
         self._path = path

@@ -14,14 +14,15 @@ from rekuest_next.actors.functional import (
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
 )
-from rekuest_next.actors.types import ActorBuilder, AnyFunction
+from rekuest_next.actors.types import ActorBuilder, AnyFunction, ImplementationDetails
 from rekuest_next.agents.context import (
-    get_all_context_locks,
-    get_context_locks,
+    PreparedContextReturns,
+    PreparedContextVariables,
     prepare_context_variables,
 )
 from rekuest_next.api.schema import (
     DefinitionInput,
+    OptimisticInput,
     PortGroupInput,
     ValidatorInput,
 )
@@ -31,8 +32,13 @@ from rekuest_next.definition.define import (
     ReturnWidgetMap,
     prepare_definition,
 )
-from rekuest_next.state.utils import prepare_state_variables
+from rekuest_next.state.utils import (
+    PreparedStateReturns,
+    PreparedStateVariables,
+    prepare_state_variables,
+)
 from rekuest_next.structures.registry import StructureRegistry
+from dataclasses import dataclass
 
 
 def reactify(
@@ -55,7 +61,7 @@ def reactify(
     name: str | None = None,
     auto_locks: bool = True,
     locks: Optional[List[str]] = None,
-) -> Tuple[DefinitionInput, ActorBuilder]:
+) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Reactify a function
 
     This function takes a callable (of type async or sync function or generator) and
@@ -76,6 +82,14 @@ def reactify(
 
     if state_variables:
         stateful = True
+
+    implementation_details = ImplementationDetails(
+        state_variables=state_variables,
+        state_returns=state_returns,
+        context_variables=context_variables,
+        context_returns=context_returns,
+        locks=locks,
+    )
 
     definition = prepare_definition(
         function,
@@ -115,12 +129,28 @@ def reactify(
     }
 
     if is_coroutine:
-        return definition, partial(FunctionalFuncActor, **actor_attributes)
+        return (
+            definition,
+            implementation_details,
+            partial(FunctionalFuncActor, **actor_attributes),
+        )
     elif is_asyncgen:
-        return definition, partial(FunctionalGenActor, **actor_attributes)
+        return (
+            definition,
+            implementation_details,
+            partial(FunctionalGenActor, **actor_attributes),
+        )
     elif is_generatorfunction and not in_process:
-        return definition, partial(FunctionalThreadedGenActor, **actor_attributes)
+        return (
+            definition,
+            implementation_details,
+            partial(FunctionalThreadedGenActor, **actor_attributes),
+        )
     elif (is_function or is_method) and not in_process:
-        return definition, partial(FunctionalThreadedFuncActor, **actor_attributes)
+        return (
+            definition,
+            implementation_details,
+            partial(FunctionalThreadedFuncActor, **actor_attributes),
+        )
     else:
         raise NotImplementedError("No way of converting this to a function")

@@ -1415,6 +1415,10 @@ input ImplementationFilter {
 A implementation is a blueprint for a action. It is composed of a definition, a list of dependencies, and a list of params.
 """
 input ImplementationInput {
+  """
+  The optimistics of the definition. This is used to optimistically set state values when the action is assigned. This is used to provide a better user experience by optimistically setting state
+  """
+  optimistics: [OptimisticInput!] = null
   definition: DefinitionInput!
   dependencies: [AgentDependencyInput!]! = []
   interface: String
@@ -1761,6 +1765,13 @@ type Mutation {
 input OffsetPaginationInput {
   offset: Int! = 0
   limit: Int
+}
+
+" An optimistic is used to optimistically set state values when the action is assigned. This is used to provide a better user experience by optimistically setting state values when the action is assigned, instead of waiting for the action to be executed and the state to be updated. This will only ever happen on the frontend.\n\n"
+input OptimisticInput {
+  state: String!
+  path: String!
+  accessor: String = null
 }
 
 enum Ordering {
@@ -2252,7 +2263,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "eac36ba6-bc1c-4e44-8869-caa2b31f376c"
+  reference: String = "15129e68-7fc5-4ca1-ad7e-bfae405a9e34"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

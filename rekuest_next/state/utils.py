@@ -1,7 +1,10 @@
 """Decorator to register a class as a state."""
 
-from attr import dataclass
-from rekuest_next.actors.types import AnyFunction
+from rekuest_next.actors.types import (
+    AnyFunction,
+    PreparedStateReturns,
+    PreparedStateVariables,
+)
 from rekuest_next.definition.define import (
     get_non_null_variants,
     is_none_type,
@@ -37,33 +40,6 @@ def get_return_length(signature: inspect.Signature) -> int:
         else:
             return 1
     return 0
-
-
-@dataclass
-class PreparedStateVariables:
-    write_state_variables: Dict[str, str]
-    read_only_variables: Dict[str, str]
-    required_state_locks: Dict[str, list[str]]
-
-    @property
-    def count(self) -> int:
-        """Get the amount of state variables."""
-        return len(self.write_state_variables) + len(self.read_only_variables)
-
-    @property
-    def required_locks_amount(self) -> int:
-        """Get the amount of locks."""
-        return len(self.required_state_locks)
-
-
-@dataclass
-class PreparedStateReturns:
-    state_returns: Dict[int, str]
-
-    @property
-    def count(self) -> int:
-        """Get the amount of state returns."""
-        return len(self.state_returns)
 
 
 def prepare_state_variables(

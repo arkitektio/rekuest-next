@@ -20,7 +20,7 @@ def test_actify_function(simple_registry: StructureRegistry) -> None:
 
         return 1
 
-    defi, actor_builder = reactify(func, simple_registry)
+    defi, impl_d, actor_builder = reactify(func, simple_registry)
     assert defi.kind == ActionKind.FUNCTION
 
 
@@ -36,7 +36,7 @@ def test_actify_generator(simple_registry: StructureRegistry) -> None:
 
         yield 1
 
-    defi, actor_builder = reactify(gen, simple_registry)
+    defi, impl_d, actor_builder = reactify(gen, simple_registry)
     assert defi.kind == ActionKind.GENERATOR
 
 
@@ -51,4 +51,4 @@ def test_actify_generator(simple_registry: StructureRegistry) -> None:
 def test_actify_matrix_functions(simple_registry: StructureRegistry, func: Callable) -> None:
     """Test if different function types are correctly buildable into actor definitions."""
 
-    defi, actor_builder = reactify(func, simple_registry)
+    defi, impl_d, actor_builder = reactify(func, simple_registry)

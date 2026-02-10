@@ -16,7 +16,10 @@ from typing import (
 )
 import inflection
 from rekuest_next.actors.errors import NotWithinAnAssignationError
-from rekuest_next.coercible_types import DependencyCoercible
+from rekuest_next.coercible_types import (
+    DependencyCoercible,
+    OptimisticCoercible,
+)
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
@@ -71,7 +74,9 @@ R = TypeVar("R")
 class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(self, func: AnyFunction, interface: str, definition: DefinitionInput) -> None:
+    def __init__(
+        self, func: AnyFunction, interface: str, definition: DefinitionInput
+    ) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.interface = interface
@@ -81,14 +86,18 @@ class WrappedFunction(Generic[P, R]):
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = my_implementation_at(helper.actor.agent.instance_id, self.interface)
+        implementation = my_implementation_at(
+            helper.actor.agent.instance_id, self.interface
+        )
 
         return call(implementation, *args, parent=helper.assignment, **kwargs)
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = await amy_implementation_at(helper.actor.agent.instance_id, self.interface)
+        implementation = await amy_implementation_at(
+            helper.actor.agent.instance_id, self.interface
+        )
 
         return await acall(implementation, *args, parent=helper.assignment, **kwargs)
 
@@ -143,6 +152,7 @@ def register_func(
     dynamic: bool = False,
     stateful: bool = False,
     in_process: bool = False,
+    optimistics: Optional[List[OptimisticCoercible]] = None,
     locks: Optional[List[str]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the provided definition registry.
@@ -176,7 +186,7 @@ def register_func(
     """
     interface = interface or interface_name(function_or_actor)
 
-    definition, actor_builder = actifier(
+    definition, implementation_details, actor_builder = actifier(
         function_or_actor,
         structure_registry,
         widgets=widgets,
@@ -200,13 +210,16 @@ def register_func(
             definition=definition,
             dependencies=tuple(
                 [
-                    x if isinstance(x, AgentDependencyInput) else x.to_dependency_input()
+                    x
+                    if isinstance(x, AgentDependencyInput)
+                    else x.to_dependency_input()
                     for x in (dependencies or [])
                 ]
             ),
             logo=logo,
             dynamic=dynamic,
-            locks=tuple(locks) if locks else None,
+            locks=implementation_details.locks or [],
+            optimistics=optimistics if optimistics else [],
         ),
         actor_builder,
     )
@@ -270,6 +283,7 @@ def register(
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     implementation_registry: Optional[DefinitionRegistry] = None,
+    optimistics: Optional[List[OptimisticCoercible]] = None,
     in_process: bool = False,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
@@ -321,6 +335,7 @@ def register(  # type: ignore[valid-type]
     effects: Optional[Dict[str, List[EffectInput]]] = None,
     is_test_for: Optional[List[str]] = None,
     logo: Optional[str] = None,
+    optimistics: Optional[List[OptimisticCoercible]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     implementation_registry: Optional[DefinitionRegistry] = None,
@@ -371,7 +386,9 @@ def register(  # type: ignore[valid-type]
     Returns:
         Union[T, Callable[[T], T]]: The registered function or a decorator.
     """
-    implementation_registry = implementation_registry or get_default_implementation_registry()
+    implementation_registry = (
+        implementation_registry or get_default_implementation_registry()
+    )
     structure_registry = structure_registry or get_default_structure_registry()
 
     if len(func) > 1:
@@ -394,6 +411,7 @@ def register(  # type: ignore[valid-type]
             widgets=widgets,
             logo=logo,
             effects=effects,
+            optimistics=optimistics,
             collections=collections,
             interfaces=interfaces,
             port_groups=port_groups,
@@ -434,6 +452,7 @@ def register(  # type: ignore[valid-type]
                 effects=effects,
                 collections=collections,
                 interfaces=interfaces,
+                optimistics=optimistics,
                 stateful=stateful,
                 logo=logo,
                 port_groups=port_groups,
@@ -443,7 +462,9 @@ def register(  # type: ignore[valid-type]
             )
 
             setattr(function_or_actor, "__definition__", definition)
-            setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
+            setattr(
+                function_or_actor, "__definition_hash__", hash_definition(definition)
+            )
             setattr(
                 function_or_actor,
                 "__interface__",

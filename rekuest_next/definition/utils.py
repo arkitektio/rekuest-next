@@ -7,6 +7,7 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
     EffectInput,
     ReturnWidgetInput,
+    OptimisticInput,
     ValidatorInput,
 )
 from rekuest_next.definition.errors import DefinitionError

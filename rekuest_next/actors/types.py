@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
 from rekuest_next.actors.sync import SyncGroup
+from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.publish import Patch
@@ -17,9 +18,46 @@ from rekuest_next.definition.define import (
 from typing import Optional, List, Dict, Tuple
 from pydantic import BaseModel, Field
 import uuid
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from rekuest_next.agents.registry import ExtensionRegistry
+
+
+@dataclass
+class PreparedStateVariables:
+    write_state_variables: Dict[str, str]
+    read_only_variables: Dict[str, str]
+    required_state_locks: Dict[str, list[str]]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of state variables."""
+        return len(self.write_state_variables) + len(self.read_only_variables)
+
+    @property
+    def required_locks_amount(self) -> int:
+        """Get the amount of locks."""
+        return len(self.required_state_locks)
+
+
+@dataclass
+class PreparedStateReturns:
+    state_returns: Dict[int, str]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of state returns."""
+        return len(self.state_returns)
+
+
+@dataclass
+class ImplementationDetails:
+    state_variables: PreparedStateVariables
+    state_returns: PreparedStateReturns
+    context_variables: PreparedContextVariables
+    context_returns: PreparedContextReturns
+    locks: Optional[List[str]]
 
 
 class Passport(BaseModel):
@@ -27,6 +65,15 @@ class Passport(BaseModel):
 
     instance_id: str
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+
+
+@runtime_checkable
+class ImplementationDetailsProtocol(Protocol):
+    state_variables: Any
+    state_returns: Any
+    context_variables: Any
+    context_returns: Any
+    locks: Optional[List[str]]
 
 
 @runtime_checkable
@@ -232,9 +279,10 @@ class Actifier(Protocol):
         interfaces: List[str] | None = None,
         in_process: bool = False,
         logo: str | None = None,
+        locks: Optional[List[str]] = None,
         name: str | None = None,
         sync: Optional[SyncGroup] = None,
-    ) -> Tuple[DefinitionInput, ActorBuilder]:
+    ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
         """A function that will inspect the function and return a definition and
         an actor builder. This method will inspect the function and return a
         definition and an actor builder.
