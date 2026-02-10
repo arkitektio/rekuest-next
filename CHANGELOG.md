@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.34.4 (2026-02-10)
+
+### Bug Fixes
+
+- Statify
+  ([`9be566e`](https://github.com/arkitektio/rekuest-next/commit/9be566eb40ba025d455c65d5833621ea48f7bac7))
+
+
 ## v0.34.3 (2026-02-10)
 
 
