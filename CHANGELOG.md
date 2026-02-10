@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.34.5 (2026-02-10)
+
+### Bug Fixes
+
+- Background workers getting a publisher
+  ([`0e56d2a`](https://github.com/arkitektio/rekuest-next/commit/0e56d2ab39c118324135072673c02f26d5cd1bd4))
+
+
 ## v0.34.4 (2026-02-10)
 
 ### Bug Fixes
