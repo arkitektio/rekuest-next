@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.34.1 (2026-02-10)
+
+### Bug Fixes
+
+- With optimistics
+  ([`2bcd856`](https://github.com/arkitektio/rekuest-next/commit/2bcd85691b4e0b90aca9d2aa03c723aaeb3b1ae7))
+
+
 ## v0.34.0 (2026-02-09)
 
 ### Features
