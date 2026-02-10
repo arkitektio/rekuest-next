@@ -3,6 +3,7 @@
 from typing import Type, TypeVar
 
 from rekuest_next.definition.define import is_annotated, get_args
+from rekuest_next.protocols import AnyState
 from rekuest_next.state.types import ReadOnly
 
 T = TypeVar("T")
@@ -37,7 +38,7 @@ def get_state_name(cls: Type[T]) -> str:
     return x
 
 
-def get_state_locks(cls: Type[T]) -> list[str]:
+def get_state_locks(cls: Type[AnyState]) -> list[str]:
     """Get the locks required for a state class."""
-    x = getattr(cls, "__rekuest_state_locks__", [])
+    x = cls.__rekuest_state_config__.required_locks
     return x

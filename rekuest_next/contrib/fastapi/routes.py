@@ -1034,7 +1034,6 @@ def configure_fastapi(
     add_schema: bool = True,
     add_states: bool = True,
     add_locks: bool = True,
-    add_gateway: bool = True,
     extension: str = "default",
     ws_path: str = "/ws",
     assignations_path: str = "/assignations",
@@ -1043,7 +1042,7 @@ def configure_fastapi(
     states_ws_path: str = "/states/ws",
     locks_path: str = "/locks",
     instance_id: str = "default",
-    context: Optional[Any] = None,
+    app_context: Optional[Any] = None,
 ) -> FastApiAgent:
     """Configure a FastAPI application with all agent routes, lifespan, and OpenAPI schemas.
 
@@ -1142,17 +1141,8 @@ def configure_fastapi(
         # Set agent on app state
         fastapi_app.state.agent = agent
 
-        if add_gateway:
-            fastapi_app.state.gateway = Gateway()
-
         async with agent:
-            provide_task = asyncio.create_task(
-                agent.aprovide(
-                    context={"context": context, "gateway": fastapi_app.state.gateway}
-                    if add_gateway
-                    else {"context": context}
-                )
-            )
+            provide_task = asyncio.create_task(agent.aprovide(context=app_context))
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Type, TypeVar, Callable, overload, Any, List
 from rekuest_next.api.schema import PortInput, StateSchemaInput
+from rekuest_next.state.observable import StateConfig
 from rekuest_next.state.publish import get_current_publisher, noop_publisher
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
@@ -52,6 +53,17 @@ def statify(
         structure_registry = get_default_structure_registry()
 
     state_schema = inspect_state_schema(cls, structure_registry)
+
+    config = StateConfig(
+        state_schema=state_schema,
+        state_name=getattr(cls, "__rekuest_state__", cls.__name__),
+        publish_interval=publish_interval,
+        required_locks=required_locks or [],
+        structure_registry=structure_registry,
+    )
+
+    setattr(cls, "__rekuest_state_config__", config)
+
     return cls, state_schema
 
 
@@ -103,10 +115,6 @@ def state(
                 cls = dataclass(cls)
 
             setattr(cls, "__rekuest_state__", cls.__name__ if name is None else name)
-            setattr(cls, "__rekuest_state_local__", local_only)
-            setattr(cls, "__rekuest_state_required_locks__", required_locks or [])
-            setattr(cls, "__rekuest_state_publish_interval__", publish_interval)
-            setattr(cls, "__rekuest_structure_registry__", structure_registry)
 
             # Apply Statify Logic
             cls, state_schema = statify(

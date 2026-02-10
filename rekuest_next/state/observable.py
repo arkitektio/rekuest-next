@@ -29,17 +29,19 @@ def _make_path(base: str, key: str | int) -> str:
 
 
 @dataclasses.dataclass
-class EventedConfig:
+class StateConfig:
     """Configuration for evented objects, storing the state interface name and schema."""
 
     state_name: str
     state_schema: StateSchemaInput
     structure_registry: StructureRegistry
-    publish_interval: float = 0.1  # Optional: Minimum interval between patches to prevent flooding
+    publish_interval: float = (
+        0.1  # Optional: Minimum interval between patches to prevent flooding
+    )
     required_locks: list[str] = dataclasses.field(default_factory=list)
 
 
-def _publish_patch(config: EventedConfig, patch: Patch) -> None:
+def _publish_patch(config: StateConfig, patch: Patch) -> None:
     """Helper to publish a patch through the current publisher."""
     publisher = get_current_publisher()
     if publisher and hasattr(publisher, "publish_patch"):
@@ -61,14 +63,16 @@ class EventedDict(dict[K, V], Generic[K, V]):
     - replace: When an existing key's value is changed
     """
 
-    def __init__(self, data: dict[K, V], config: EventedConfig, path: str):
+    def __init__(self, data: dict[K, V], config: StateConfig, path: str):
         super().__init__(data)
         self._config = config
         self._path = path
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
+        missing_locks = [
+            lock for lock in self._config.required_locks if lock not in acquired_locks
+        ]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -191,14 +195,16 @@ class EventedList(list):
     for 'add' operations.
     """
 
-    def __init__(self, iterable: Iterable, config: EventedConfig, path: str):
+    def __init__(self, iterable: Iterable, config: StateConfig, path: str):
         super().__init__(iterable)
         self._config = config
         self._path = path
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
+        missing_locks = [
+            lock for lock in self._config.required_locks if lock not in acquired_locks
+        ]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -243,7 +249,9 @@ class EventedList(list):
             super().__setitem__(
                 index,
                 [
-                    make_evented(v, self._config, _make_path(self._path, indices.start + i))
+                    make_evented(
+                        v, self._config, _make_path(self._path, indices.start + i)
+                    )
                     for i, v in enumerate(new_values)
                 ],
             )
@@ -296,7 +304,9 @@ class EventedList(list):
 
         item = make_evented(item, self._config, actual_path)
         super().append(item)
-        _publish_patch(self._config, Patch(op="add", path=append_path, value=item, old_value=None))
+        _publish_patch(
+            self._config, Patch(op="add", path=append_path, value=item, old_value=None)
+        )
 
     def insert(self, index: SupportsIndex, item: Any) -> None:
         """Insert item before index.
@@ -314,7 +324,9 @@ class EventedList(list):
 
         item = make_evented(item, self._config, full_path)
         super().insert(idx, item)
-        _publish_patch(self._config, Patch(op="add", path=full_path, value=item, old_value=None))
+        _publish_patch(
+            self._config, Patch(op="add", path=full_path, value=item, old_value=None)
+        )
         # Reindex items after the inserted position
         self._reindex_items(idx + 1)
 
@@ -439,7 +451,7 @@ class EventedList(list):
 
 def make_evented(
     obj: Any,
-    config: EventedConfig,
+    config: StateConfig,
     path: str = "",
 ) -> Any:
     """
@@ -459,7 +471,8 @@ def make_evented(
     # CASE B: List
     if isinstance(obj, list):
         wrapped_items = [
-            make_evented(item, config, path=_make_path(path, i)) for i, item in enumerate(obj)
+            make_evented(item, config, path=_make_path(path, i))
+            for i, item in enumerate(obj)
         ]
         return EventedList(wrapped_items, config, path)
 

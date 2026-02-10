@@ -8,8 +8,9 @@ from pydantic import BaseModel
 
 from rekuest_next import messages
 from rekuest_next.agents.utils import resolve_port_for_path
-from rekuest_next.protocols import AnyState, EventedConfig
+from rekuest_next.protocols import AnyState
 from rekuest_next.actors.types import Agent, Shelver
+from rekuest_next.state.observable import StateConfig
 from rekuest_next.state.shrink import ashrink_state
 from rekuest_next.structures.serialization.actor import ashrink_return
 
@@ -43,7 +44,7 @@ class StateWorker:
         self,
         state_instance: AnyState,
         agent: StatePublisher,
-        config: EventedConfig,
+        config: StateConfig,
     ):
         self.schema = config.state_schema
         self.name = config.state_name
