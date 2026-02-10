@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.34.3 (2026-02-10)
+
+
 ## v0.34.2 (2026-02-10)
+
+### Bug Fixes
+
+- Oh yes
+  ([`c88145f`](https://github.com/arkitektio/rekuest-next/commit/c88145fd87428184328077f82a93aa4dc9fe04bc))
 
 
 ## v0.34.1 (2026-02-10)
