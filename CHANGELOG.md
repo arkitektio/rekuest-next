@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v0.34.2 (2026-02-10)
+
+
 ## v0.34.1 (2026-02-10)
 
 ### Bug Fixes
+
+- State stuff
+  ([`dc1619e`](https://github.com/arkitektio/rekuest-next/commit/dc1619e6e1cd7949c566bfddb6ea665e90ab2537))
 
 - With optimistics
   ([`2bcd856`](https://github.com/arkitektio/rekuest-next/commit/2bcd85691b4e0b90aca9d2aa03c723aaeb3b1ae7))
