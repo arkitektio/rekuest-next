@@ -100,6 +100,9 @@ class Assign(Message):
     reservation: Optional[str] = Field(
         default=None, description="The reservation id if assigned through that"
     )
+    step: bool | None = Field(
+        default=None, description="Whether to step the assignation or not"
+    )
     assignation: str = Field(description="The assignation id")
     root: Optional[str] = Field(
         default=None,

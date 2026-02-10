@@ -20,6 +20,7 @@ from rekuest_next.agents.context import PreparedContextReturns, PreparedContextV
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent
 from rekuest_next import messages
+from rekuest_next.api.schema import pause
 from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.protocols import AnyContext, AnyState
 from rekuest_next.state.publish import direct_publishing
@@ -174,10 +175,11 @@ class Actor(BaseModel):
         normally this should handle a resume following an immediate resume.
 
         Args:
-            pause (Pause): The pause message containing the information about the
+            step (Step): The step message containing the information about the
                 actor that was stepped.
         """
-        return None
+        self._break_futures[step.assignation].set_result(True)
+        self._break_futures[step.assignation] = asyncio.Future()
 
     async def on_assign(
         self: Self,
@@ -234,11 +236,25 @@ class Actor(BaseModel):
                 )
 
     async def abreak(self: Self, assignation_id: str) -> bool:
-        """A function to break the actor. This is used to instruct the actor to
+        """A function to pause the actor. This is used to instruct the actor to
         stop processing the assignment at the current time
         """
+        print(self._break_futures)
         if assignation_id in self._break_futures:
+            print(f"Breaking on assignation_id {assignation_id}")
+            await self.agent.asend(
+                self,
+                message=messages.PausedEvent(
+                    assignation=assignation_id,
+                ),
+            )
             await self._break_futures[assignation_id]
+            await self.agent.asend(
+                self,
+                message=messages.ResumedEvent(
+                    assignation=assignation_id,
+                ),
+            )
             return True
         else:
             logger.warning(
@@ -288,6 +304,13 @@ class Actor(BaseModel):
         logger.info(f"Actor for {self.id}: Received {message}")
 
         if isinstance(message, messages.Assign):
+            if message.step:
+                # We are creating a break future already
+                print(
+                    f"Creating break future for assignation {message.assignation} in step"
+                )
+                self._break_futures[message.assignation] = asyncio.Future()
+
             task = asyncio.create_task(
                 self.on_assign(
                     message,
@@ -333,6 +356,16 @@ class Actor(BaseModel):
                 logger.error(
                     f"Actor for {self}: Received unassignment for unknown assignation {message.id}"
                 )
+
+        elif isinstance(message, messages.Pause):
+            await self.on_pause(message)
+
+        elif isinstance(message, messages.Step):
+            await self.on_step(message)
+
+        elif isinstance(message, messages.Resume):
+            await self.on_resume(message)
+
         else:
             raise UnknownMessageError(f"{message}")
 

@@ -18,14 +18,18 @@ from fastapi.routing import APIRoute
 from rekuest_next.api.schema import (
     AssignInput,
     CancelInput,
+    PauseInput,
+    StepInput,
+    ResumeInput,
     ImplementationInput,
     LockSchemaInput,
     PortInput,
     PortKind,
     StateSchemaInput,
+    resume,
 )
 from rekuest_next.app import AppRegistry
-from rekuest_next.messages import Assign, Cancel
+from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
 
 from .agent import FastApiAgent
 
@@ -285,6 +289,7 @@ def add_implementation_route(
             args=assign_input.args,
             reference=assign_input.reference,
             user="fastapi",
+            step=assign_input.step,
             app="fastapi",
             action="api_call",
         )
@@ -340,6 +345,9 @@ def add_agent_routes(
     assignations_path: str = "/assignations",
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
+    pause_path: str = "/pause",
+    resume_path: str = "/resume",
+    step_path: str = "/step",
 ) -> None:
     """Add all agent-related routes to a FastAPI application.
 
@@ -432,6 +440,8 @@ def add_agent_routes(
             }
         )
 
+        print(assign_input)
+
         assignation_id = str(uuid.uuid4())
         assign_message = Assign(
             interface=interface,
@@ -439,8 +449,13 @@ def add_agent_routes(
             assignation=assignation_id,
             args=assign_input.args,
             user=str(user),
+            step=assign_input.step,
             app="fastapi",
             action="api_call",
+        )
+
+        print(
+            f"Submitting assignation {assignation_id} for interface {interface} with args {assign_message}"
         )
 
         await agent.transport.asubmit(assign_message)
@@ -465,12 +480,15 @@ def add_agent_routes(
             }
         )
 
+        print(assign_input)
+
         assignation_id = str(uuid.uuid4())
         assign_message = Assign(
             interface=interface,
             extension=extension,
             assignation=assignation_id,
             args=assign_input.args,
+            step=assign_input.step,
             user=str(user),
             app="fastapi",
             action="api_call",
@@ -503,6 +521,81 @@ def add_agent_routes(
 
         await agent.transport.asubmit(assign_message)
         return {"status": "cancelling", "assignation": assign_input.assignation}
+
+    @app.post(f"{pause_path}")
+    async def pause_action(
+        request: Request,
+    ) -> dict:
+        """Pause an action assigned to the agent for processing.
+
+        Accepts the full PauseInput model with assignation and other fields.
+        """
+        user = get_user_from_request(request)
+        payload = await request.json()
+
+        # Parse the payload as PauseInput, using interface from route
+        assign_input = PauseInput(
+            **{
+                **payload,
+            }
+        )
+
+        assign_message = Pause(
+            assignation=assign_input.assignation,
+        )
+
+        await agent.transport.asubmit(assign_message)
+        return {"status": "pausing", "assignation": assign_input.assignation}
+
+    @app.post(f"{resume_path}")
+    async def resume_action(
+        request: Request,
+    ) -> dict:
+        """Resume an action assigned to the agent for processing.
+
+        Accepts the full ResumeInput model with assignation and other fields.
+        """
+        user = get_user_from_request(request)
+        payload = await request.json()
+
+        # Parse the payload as ResumeInput, using interface from route
+        assign_input = ResumeInput(
+            **{
+                **payload,
+            }
+        )
+
+        assign_message = Resume(
+            assignation=assign_input.assignation,
+        )
+
+        await agent.transport.asubmit(assign_message)
+        return {"status": "resuming", "assignation": assign_input.assignation}
+
+    @app.post(f"{step_path}")
+    async def step_action(
+        request: Request,
+    ) -> dict:
+        """Step an action assigned to the agent for processing.
+
+        Accepts the full StepInput model with assignation and other fields.
+        """
+        user = get_user_from_request(request)
+        payload = await request.json()
+
+        # Parse the payload as StepInput, using interface from route
+        assign_input = StepInput(
+            **{
+                **payload,
+            }
+        )
+
+        assign_message = Step(
+            assignation=assign_input.assignation,
+        )
+
+        await agent.transport.asubmit(assign_message)
+        return {"status": "stepping", "assignation": assign_input.assignation}
 
 
 def add_implementation_routes(

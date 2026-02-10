@@ -12,6 +12,7 @@ from .remote import (
     find,
     acall_raw,
 )
+from .actors.context import log, alog, progress, aprogress, apausepoint, pausepoint
 from .declare import declare, protocol
 from .structures.model import model, model_field
 from .state.decorator import state
@@ -34,6 +35,17 @@ __version__ = "0.4.1"
 
 __all__ = [
     "acall",
+    "call",
+    "log",
+    "alog",
+    "progress",
+    "aprogress",
+    "declare",
+    "protocol",
+    "model",
+    "pausepoint",
+    "apausepoint",
+    "model_field",
     "state",
     "find",
     "RekuestNextService",

@@ -16,6 +16,24 @@ mutation interrupt($input: InterruptInput!) {
   }
 }
 
+mutation pause($input: PauseInput!) {
+  pause(input: $input) {
+    ...Assignation
+  }
+}
+
+mutation step($input: StepInput!) {
+  step(input: $input) {
+    ...Assignation
+  }
+}
+
+mutation resume($input: ResumeInput!) {
+  resume(input: $input) {
+    ...Assignation
+  }
+}
+
 
 mutation collect($input: CollectInput!) {
   collect(input: $input) 

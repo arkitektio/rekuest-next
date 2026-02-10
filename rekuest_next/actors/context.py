@@ -122,7 +122,7 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
     await helper.aprogress(int(percentage), message=message)
 
 
-async def abreakpoint() -> None:
+async def apausepoint() -> None:
     """Await for a breakpoint
 
     This function is used to await for a breakpoint in the actor.
@@ -134,7 +134,7 @@ async def abreakpoint() -> None:
     await helper.abreakpoint()
 
 
-def breakpoint() -> None:
+def pausepoint() -> None:
     """Await for a breakpoint
 
     This function is used to await for a breakpoint in the actor.
