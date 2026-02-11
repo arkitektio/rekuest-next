@@ -15,13 +15,24 @@ from rekuest_next.definition.define import (
     EffectsMap,
     ReturnWidgetMap,
 )
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Callable
 from pydantic import BaseModel, Field
 import uuid
 from dataclasses import dataclass
 
+
 if TYPE_CHECKING:
     from rekuest_next.agents.registry import ExtensionRegistry
+
+
+@dataclass
+class AssignmentHook:
+    """A hook that is called when an assignment is received. This can be used to
+    modify the assignment before it is processed by the actor.
+    """
+
+    kind: str
+    hook: Callable[[messages.ToAgentMessage], Awaitable[None]]
 
 
 @dataclass
@@ -175,6 +186,15 @@ class Actor(Protocol):
     """An actor is a function that takes a passport and a transport"""
 
     agent: Agent
+
+    def install_assignment_hook(self, assignation: str, hook: AssignmentHook) -> None:
+        """Install an assignment hook for the current assignation.
+
+        Args:
+            assignation (str): The assignation to install the hook for.
+            hook (AssignmentHook): The hook to install.
+        """
+        ...
 
     async def abreak(self, assignation_id: str) -> bool:
         """Break the actor. This method will break the actor and return None.

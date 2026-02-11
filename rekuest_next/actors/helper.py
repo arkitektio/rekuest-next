@@ -8,7 +8,7 @@ from rekuest_next import messages
 from rekuest_next.actors.vars import (
     current_assignation_helper,
 )
-from rekuest_next.actors.types import Actor
+from rekuest_next.actors.types import Actor, AssignmentHook
 from rekuest_next.protocols import AnyState
 from rath.scalars import ID
 
@@ -44,6 +44,14 @@ class AssignmentHelper(BaseModel):
     def get_resolution(self) -> ID:
         """Get a dependency by its reference."""
         return self.assignment.resolution
+
+    def install_hook(self, hook: "AssignmentHook") -> None:
+        """Install an assignment hook for the current assignation.
+
+        Args:
+            hook (AssignmentHook): The hook to install.
+        """
+        self.actor.install_assignment_hook(self.assignment.assignation, hook)
 
     async def aprogress(self, progress: int, message: Optional[str] = None) -> None:
         """Send a progress message to the actor.

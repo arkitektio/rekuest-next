@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from rekuest_next.actors.errors import UnknownMessageError
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.agents.errors import StateRequirementsNotMet
-from rekuest_next.actors.types import Agent
+from rekuest_next.actors.types import Agent, AssignmentHook
 from rekuest_next import messages
 from rekuest_next.api.schema import pause
 from rekuest_next.definition.define import DefinitionInput
@@ -74,6 +74,9 @@ class Actor(BaseModel):
     _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
         default_factory=lambda: {}
     )
+    _running_assignment_hooks: Dict[str, AssignmentHook] = PrivateAttr(
+        default_factory=lambda: {},
+    )
 
     @model_validator(mode="before")
     def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
@@ -81,6 +84,17 @@ class Actor(BaseModel):
         if values.get("sync") is None:
             values["sync"] = SyncGroup()
         return values
+
+    def install_assignment_hook(
+        self, assignation_id: str, hook: AssignmentHook
+    ) -> None:
+        """Install an assignment hook for the given assignation ID.
+
+        Args:
+            assignation_id (str): The ID of the assignation to install the hook for.
+            hook (AssignmentHook): The hook to install.
+        """
+        self._running_assignment_hooks[assignation_id] = hook
 
     @contextlib.asynccontextmanager
     async def sync_context(self: Self, assignation_id: str, interface: str):
@@ -133,6 +147,14 @@ class Actor(BaseModel):
             resume (Resume): The resume message containing the information about the
                 actor that was resumed.
         """
+        if resume.assignation in self._running_assignment_hooks:
+            pause_hook = self._running_assignment_hooks[resume.assignation]
+            if pause_hook.kind == "resume":
+                logger.info(
+                    f"Calling pause hook {pause_hook.id} for assignation {resume.assignation}"
+                )
+                await pause_hook.hook(resume)
+
         if resume.assignation in self._break_futures:
             self._break_futures[resume.assignation].set_result(True)
             del self._break_futures[resume.assignation]
@@ -162,6 +184,14 @@ class Actor(BaseModel):
             pause (Pause): The pause message containing the information about the
                 actor that was paused.
         """
+        if pause.assignation in self._running_assignment_hooks:
+            pause_hook = self._running_assignment_hooks[pause.assignation]
+            if pause_hook.kind == "pause":
+                logger.info(
+                    f"Calling pause hook {pause_hook.id} for assignation {pause.assignation}"
+                )
+                await pause_hook.hook(pause)
+
         if pause.assignation in self._break_futures:
             logger.warning(
                 f"Actor {self.id} was paused but a break future was already set for {pause.assignation}"

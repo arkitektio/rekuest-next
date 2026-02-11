@@ -22,6 +22,7 @@ from .actors.context import (
     pausepoint,
     publish,
     apublish,
+    install_hook,
 )
 from .declare import declare, protocol
 from .structures.model import model, model_field
@@ -55,6 +56,9 @@ __all__ = [
     "declare",
     "protocol",
     "model",
+    "model_field",
+    "state",
+    "install_hook",
     "pausepoint",
     "apausepoint",
     "context",
