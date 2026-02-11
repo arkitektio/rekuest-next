@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.35.0 (2026-02-11)
+
+### Features
+
+- Now with hooks
+  ([`945276d`](https://github.com/arkitektio/rekuest-next/commit/945276d042180faceeab636556cb01da6f61294a))
+
+- Now with hooks
+  ([`e25641d`](https://github.com/arkitektio/rekuest-next/commit/e25641d6c4af95e7e18af235c10a6d4615b15eea))
+
+
 ## v0.34.5 (2026-02-10)
 
 ### Bug Fixes
