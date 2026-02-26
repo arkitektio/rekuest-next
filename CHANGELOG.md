@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.36.0 (2026-02-26)
+
+### Features
+
+- Add the hooks
+  ([`e92015f`](https://github.com/arkitektio/rekuest-next/commit/e92015f924f627d4d919b6d89e16ecb6c1f2955d))
+
+
 ## v0.35.0 (2026-02-11)
 
 ### Features
