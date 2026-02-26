@@ -44,9 +44,7 @@ logger = logging.getLogger(__name__)
 
 async def token_loader() -> str:
     """Dummy token loader function"""
-    raise NotImplementedError(
-        "Websocket transport does need a defined token_loader on Connection"
-    )
+    raise NotImplementedError("Websocket transport does need a defined token_loader on Connection")
 
 
 KICK_CODE = 3001
@@ -117,11 +115,7 @@ class WebsocketAgentTransport(AgentTransport):
                     token = await self.token_loader()
                     async with websockets.connect(
                         f"{self.endpoint_url}",
-                        ssl=(
-                            self.ssl_context
-                            if self.endpoint_url.startswith("wss")
-                            else None
-                        ),
+                        ssl=(self.ssl_context if self.endpoint_url.startswith("wss") else None),
                     ) as client:
                         retry = 0
                         logger.info("Agent on Websockets connected")
@@ -137,18 +131,14 @@ class WebsocketAgentTransport(AgentTransport):
                         self._healthy = True
 
                         async for message in client:
-                            assert isinstance(message, str), (
-                                "Message should be a string"
-                            )
+                            assert isinstance(message, str), "Message should be a string"
                             payload = InMessagePayload(message=json.loads(message))
                             logger.debug(f"<<<< {payload}")
 
                             if isinstance(payload.message, messages.Heartbeat):
                                 await self.asend(messages.HeartbeatEvent())
                             elif isinstance(payload.message, messages.Bounce):
-                                raise BounceError(
-                                    "Was bounced. Debug call to reconnect"
-                                )
+                                raise BounceError("Was bounced. Debug call to reconnect")
                             elif isinstance(payload.message, messages.Kick):
                                 raise KickError(
                                     f"Agent was kicked by the server: {payload.message.reason or 'No reason provided'}"
@@ -157,7 +147,6 @@ class WebsocketAgentTransport(AgentTransport):
                                 yield payload.message
 
                 except InvalidHandshake as e:
-                    print("Invalid Handshake received")
                     logger.warning(
                         (
                             "Websocket to"
@@ -167,15 +156,11 @@ class WebsocketAgentTransport(AgentTransport):
                         exc_info=True,
                     )
                     reload_token = True
-                    raise CorrectableConnectionFail(
-                        "Received an InvalidHandshake"
-                    ) from e
+                    raise CorrectableConnectionFail("Received an InvalidHandshake") from e
 
                 except BounceError as e:
                     logger.warning("Received Bounce message", exc_info=True)
-                    raise CorrectableConnectionFail(
-                        "Was bounced. Debug call to reconnect"
-                    ) from e
+                    raise CorrectableConnectionFail("Was bounced. Debug call to reconnect") from e
 
                 except KickError as e:
                     logger.warning("Agent was kicked by the server", exc_info=True)
@@ -197,7 +182,6 @@ class WebsocketAgentTransport(AgentTransport):
                         ) from e
 
                 except Exception as e:
-                    print("Unhandled exception in websocket", e)
                     logger.error("Websocket excepted closed definetely", exc_info=True)
                     logger.critical("Unhandled exception... ", exc_info=True)
                     raise DefiniteConnectionFail(e) from e
@@ -217,9 +201,7 @@ class WebsocketAgentTransport(AgentTransport):
                     logger.error("Max retries reached. Giving up")
                     raise DefiniteConnectionFail("Exceeded Number of Retries")
 
-                logger.info(
-                    f"Waiting for some time before retrying: {self.time_between_retries}"
-                )
+                logger.info(f"Waiting for some time before retrying: {self.time_between_retries}")
                 await asyncio.sleep(self.time_between_retries)
                 logger.info("Retrying to connect")
                 retry += 1

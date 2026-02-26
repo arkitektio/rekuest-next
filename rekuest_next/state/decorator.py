@@ -14,9 +14,7 @@ from fieldz import fields, Field
 T = TypeVar("T", bound=AnyState)
 
 
-def inspect_state_schema(
-    cls: Type[T], structure_registry: StructureRegistry
-) -> StateSchemaInput:
+def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) -> StateSchemaInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_port
 
@@ -131,8 +129,6 @@ def state(
                 structure_registry=structure_registry,
                 publish_interval=publish_interval,
             )
-
-            print(f"✅ Registered state '{name or cls.__name__}'")
 
             registry.register_at_interface(
                 name or cls.__name__, cls, state_schema, structure_registry

@@ -69,5 +69,4 @@ def resolve_port_for_path(schema: StateSchemaInput, path: str) -> Optional[PortI
                     # We have nowhere deeper to go
                     pass
 
-    print(f"Mapped {path} to port:", found_port)  # Debug statement
     return found_port

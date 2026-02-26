@@ -54,7 +54,6 @@ class BasePublisher:
 
     def publish_patch(self, interface: str, patch: Patch) -> None:
         """A function that calls indicated to the state_holder that the state was updated"""
-        print(f"Publishing patch for {interface}: {patch}")
         return self.state_holder.publish_patch(interface, patch)
 
     def __enter__(self) -> "BasePublisher":

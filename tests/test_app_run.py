@@ -16,7 +16,6 @@ async def test_run_and_cancel_app(
     simple_registry: StructureRegistry, async_deployed_app: DeployedRekuest
 ) -> None:
     """Test if the hases of to equal definitions are the same."""
-    """Test if the hases of to equal definitions are the same."""
 
     task = asyncio.create_task(async_deployed_app.rekuest.arun())
 

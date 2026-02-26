@@ -69,9 +69,7 @@ def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key
-                for child in port.children
-                if not child.nullable and child.default is None
+                child.key for child in port.children if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -151,9 +149,7 @@ def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
         app.state.agent = agent
 
         async with app.state.agent:
-            provide_task = asyncio.create_task(
-                app.state.agent.aprovide(instance_id=instance_id)
-            )
+            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield
@@ -189,9 +185,7 @@ def add_implementation_route(
     args_schema_name = f"{implementation.definition.name}Args"
 
     # Create args schema from ports
-    args_schema = create_json_schema_from_ports(
-        implementation.definition.args, args_schema_name
-    )
+    args_schema = create_json_schema_from_ports(implementation.definition.args, args_schema_name)
 
     # Create full request schema based on AssignInput model with args schema embedded
     request_schema = {
@@ -313,9 +307,7 @@ def add_implementation_route(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {
-                            "$ref": f"#/components/schemas/{request_schema_name}"
-                        }
+                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
                     }
                 },
             },
@@ -324,9 +316,7 @@ def add_implementation_route(
                     "description": "Successful Response",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -440,8 +430,6 @@ def add_agent_routes(
             }
         )
 
-        print(assign_input)
-
         assignation_id = str(uuid.uuid4())
         assign_message = Assign(
             interface=interface,
@@ -454,17 +442,11 @@ def add_agent_routes(
             action="api_call",
         )
 
-        print(
-            f"Submitting assignation {assignation_id} for interface {interface} with args {assign_message}"
-        )
-
         await agent.transport.asubmit(assign_message)
         return {"status": "submitted", "assignation": assignation_id}
 
     @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(
-        request: Request, interface: str, extension: str = "default"
-    ) -> dict:
+    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
         """Assign an action to the agent for processing.
 
         Accepts the full AssignInput model with args, policy, hooks, and other fields.
@@ -479,8 +461,6 @@ def add_agent_routes(
                 "interface": interface,
             }
         )
-
-        print(assign_input)
 
         assignation_id = str(uuid.uuid4())
         assign_message = Assign(
@@ -610,9 +590,7 @@ def add_implementation_routes(
         agent: The FastApiAgent with registered implementations.
         extension: The extension name to get implementations from.
     """
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.extension_registry.get(extension).get_static_implementations():
         add_implementation_route(app, agent, implementation)
 
 
@@ -636,9 +614,7 @@ def add_state_route(
 
     # Create JSON schema from the state schema ports
     response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(
-        state_schema.ports, response_schema_name
-    )
+    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
 
     # Store schema for OpenAPI generation
     if not hasattr(app, "_custom_schemas"):
@@ -663,9 +639,7 @@ def add_state_route(
                 }
             )
         except Exception as e:
-            logger.error(
-                f"Failed to get state for interface {interface}: {e}", exc_info=True
-            )
+            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Failed to serialize state: {str(e)}"},
@@ -685,9 +659,7 @@ def add_state_route(
                     "description": "Current state value",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -763,9 +735,7 @@ def add_lock_route(
                     "description": "Current lock value",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/locks/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/locks/{response_schema_name}"}
                         }
                     },
                 }
@@ -797,9 +767,7 @@ def add_schema_routes(
     async def get_implementation_schemas() -> dict:
         """Get all implementation schemas for the specified extension."""
         implementations = {}
-        for impl in agent.extension_registry.get(
-            extension
-        ).get_static_implementations():
+        for impl in agent.extension_registry.get(extension).get_static_implementations():
             implementations[impl.interface or impl.definition.name] = impl
 
         return {
