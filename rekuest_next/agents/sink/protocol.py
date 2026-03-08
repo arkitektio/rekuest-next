@@ -5,7 +5,6 @@ from typing import List, Optional, Protocol, runtime_checkable
 from kabinet.api.schema import ImplementationInput
 from rekuest_next.messages import JSONSerializable
 from rekuest_next.protocols import AnyState
-from xest_no import dt_to_epoch_ms
 
 
 # ==========================================
@@ -112,12 +111,11 @@ class StateSink(Protocol):
         ...
 
     # --- WRITE METHODS ---
-    # Need to be synchronous to ensure order is maintained, since the sink is responsible for enforcing that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity.
-    def dump_snapshot(self, req: WriteSnapshotReq):
+    async def adump_snapshot(self, req: WriteSnapshotReq):
         """Will store a full snapshot of the state at a given revision. This is intended to be used for periodic checkpointing to optimize retrieval, but can also be used by agents to manually create snapshots at important milestones (e.g., end of a user interaction)."""
         ...
 
-    def write_patch(self, req: WritePatchReq):
+    async def awrite_patch(self, req: WritePatchReq):
         """Writes a patch to the store. The sink should enforce that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity. The correlation_id can be used to group patches that belong to the same logical task or operation, which can be useful for retrieval and debugging."""
         ...
 

@@ -1,14 +1,8 @@
-import asyncio
-import json
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional, Protocol, runtime_checkable
 
-import aiosqlite
-
 from rekuest_next.messages import JSONSerializable
-from xest_no import dt_to_epoch_ms
 
 
 # ==========================================
@@ -25,6 +19,7 @@ class Snapshot:
     timepoint: datetime
     data: JSONSerializable
     revision: int
+    global_revision: Optional[int]
     session_id: str
 
 
@@ -33,6 +28,8 @@ class PatchEvent:
     timepoint: datetime
     current_rev: int
     future_rev: int
+    global_current_rev: int
+    global_future_rev: int
     correlation_id: str
     session_id: str
     patch: JSONSerializable
@@ -56,26 +53,15 @@ class SessionBoundary:
     end_time: datetime
 
 
-@dataclass
-class AroundWindow:
-    target_revision: int
-    radius_before: int
-    radius_after: int
-    initial_snapshot: Snapshot
-    intermediate_snapshots: List[Snapshot]
-    intermediate_patches: List[PatchEvent]
-    end_snapshot: Snapshot
-
-
 @runtime_checkable
 class StateRetriever(Protocol):
     # --- READ / RETRIEVE METHODS ---
 
-    async def ainitialize(self):
+    async def ainitialize(self) -> None:
         """Should be called once to set up the sink (e.g., create tables, indexes)."""
         ...
 
-    async def ateardown(self):
+    async def ateardown(self) -> None:
         """Cleans up resources, such as database connections."""
         ...
 
@@ -89,11 +75,33 @@ class StateRetriever(Protocol):
         self, session_id: str, state_id: Optional[str] = None
     ) -> Optional[SessionBoundary]: ...
 
-    async def aget_around_window(
+    async def aget_state_at_global_rev(
         self,
-        state_id: str,
-        target_revision: int,
+        global_revision: int,
+        state_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        radius_before: int = 100,
-        radius_after: int = 100,
-    ) -> Optional[AroundWindow]: ...
+    ) -> Snapshot | List[Snapshot] | None: ...
+
+    async def aget_state_at_local_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Snapshot | List[Snapshot] | None: ...
+
+    async def aget_forward_events_after_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        count: int = 100,
+    ) -> List[PatchEvent]: ...
+
+    async def aget_snapshots_around_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        before: int = 1,
+        after: int = 1,
+    ) -> List[Snapshot]: ...

@@ -9,12 +9,20 @@ import asyncio
 import contextlib
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from pydantic import BaseModel
 
+from rekuest_next.agents.retriever.protocol import (
+    PatchEvent as RetrieverPatchEvent,
+    SessionBoundary as RetrieverSessionBoundary,
+    Snapshot as RetrieverSnapshot,
+    TaskBoundary as RetrieverTaskBoundary,
+)
 from rekuest_next.api.schema import (
     AssignInput,
     CancelInput,
@@ -37,6 +45,106 @@ from .agent import FastApiAgent
 
 
 logger = logging.getLogger(__name__)
+
+
+class RetrieverSessionInfoResponse(BaseModel):
+    current_session: str | None
+
+
+class RetrieverTaskBoundaryResponse(BaseModel):
+    correlation_id: str
+    start_revision: int
+    end_revision: int
+    start_time: datetime
+    end_time: datetime
+
+
+class RetrieverSessionBoundaryResponse(BaseModel):
+    session_id: str
+    start_revision: int
+    end_revision: int
+    start_time: datetime
+    end_time: datetime
+
+
+class RetrieverSnapshotResponse(BaseModel):
+    timepoint: datetime
+    data: Any
+    revision: int
+    global_revision: int | None
+    session_id: str
+
+
+class RetrieverPatchEventResponse(BaseModel):
+    timepoint: datetime
+    current_rev: int
+    future_rev: int
+    global_current_rev: int
+    global_future_rev: int
+    correlation_id: str
+    session_id: str
+    patch: Any
+
+
+def _to_task_boundary_response(
+    boundary: RetrieverTaskBoundary,
+) -> RetrieverTaskBoundaryResponse:
+    return RetrieverTaskBoundaryResponse(
+        correlation_id=boundary.correlation_id,
+        start_revision=boundary.start_revision,
+        end_revision=boundary.end_revision,
+        start_time=boundary.start_time,
+        end_time=boundary.end_time,
+    )
+
+
+def _to_session_boundary_response(
+    boundary: RetrieverSessionBoundary,
+) -> RetrieverSessionBoundaryResponse:
+    return RetrieverSessionBoundaryResponse(
+        session_id=boundary.session_id,
+        start_revision=boundary.start_revision,
+        end_revision=boundary.end_revision,
+        start_time=boundary.start_time,
+        end_time=boundary.end_time,
+    )
+
+
+def _to_snapshot_response(snapshot: RetrieverSnapshot) -> RetrieverSnapshotResponse:
+    return RetrieverSnapshotResponse(
+        timepoint=snapshot.timepoint,
+        data=snapshot.data,
+        revision=snapshot.revision,
+        global_revision=snapshot.global_revision,
+        session_id=snapshot.session_id,
+    )
+
+
+def _to_patch_event_response(
+    event: RetrieverPatchEvent,
+) -> RetrieverPatchEventResponse:
+    return RetrieverPatchEventResponse(
+        timepoint=event.timepoint,
+        current_rev=event.current_rev,
+        future_rev=event.future_rev,
+        global_current_rev=event.global_current_rev,
+        global_future_rev=event.global_future_rev,
+        correlation_id=event.correlation_id,
+        session_id=event.session_id,
+        patch=event.patch,
+    )
+
+
+def _serialize_snapshot_result(
+    result: RetrieverSnapshot | list[RetrieverSnapshot] | None,
+) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
+    if result is None:
+        raise HTTPException(status_code=404, detail="No state found for the requested revision")
+
+    if isinstance(result, list):
+        return [_to_snapshot_response(snapshot) for snapshot in result]
+
+    return _to_snapshot_response(result)
 
 
 def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
@@ -71,9 +179,7 @@ def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key
-                for child in port.children
-                if not child.nullable and child.default is None
+                child.key for child in port.children if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -153,9 +259,7 @@ def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
         app.state.agent = agent
 
         async with app.state.agent:
-            provide_task = asyncio.create_task(
-                app.state.agent.aprovide(instance_id=instance_id)
-            )
+            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield
@@ -191,9 +295,7 @@ def add_implementation_route(
     args_schema_name = f"{implementation.definition.name}Args"
 
     # Create args schema from ports
-    args_schema = create_json_schema_from_ports(
-        implementation.definition.args, args_schema_name
-    )
+    args_schema = create_json_schema_from_ports(implementation.definition.args, args_schema_name)
 
     # Create full request schema based on AssignInput model with args schema embedded
     request_schema = {
@@ -315,9 +417,7 @@ def add_implementation_route(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {
-                            "$ref": f"#/components/schemas/{request_schema_name}"
-                        }
+                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
                     }
                 },
             },
@@ -326,9 +426,7 @@ def add_implementation_route(
                     "description": "Successful Response",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -458,9 +556,7 @@ def add_agent_routes(
         return {"status": "submitted", "assignation": assignation_id}
 
     @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(
-        request: Request, interface: str, extension: str = "default"
-    ) -> dict:
+    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
         """Assign an action to the agent for processing.
 
         Accepts the full AssignInput model with args, policy, hooks, and other fields.
@@ -591,119 +687,300 @@ def add_agent_routes(
         await agent.transport.asubmit(assign_message)
         return {"status": "stepping", "assignation": assign_input.assignation}
 
-    @app.get(f"/session_info")
-    async def session_info_action(
-        request: Request,
-    ) -> dict[str, Any]:
-        """Get information about the current session.
+    def _require_current_session() -> str:
+        if not agent.current_session:
+            raise HTTPException(status_code=404, detail="No active session")
+        return agent.current_session
 
-        Returns:
-            A dictionary containing the current session ID and other relevant information.
-        """
-        user = get_user_from_request(request)
+    @app.get("/session_info", response_model=RetrieverSessionInfoResponse)
+    async def session_info_action() -> RetrieverSessionInfoResponse:
+        """Get information about the currently active retriever session."""
+        return RetrieverSessionInfoResponse(current_session=agent.current_session)
 
-        agent.current_session
-
-        return {"current_session": agent.current_session}
-
-    @app.get(f"/active_session_boundaries")
-    async def session_boundaries_action(request: Request) -> dict:
-        """Get the boundaries of a specific session.
-
-        Args:
-            request: The incoming request.
-            session_id: The ID of the session.
-
-        Returns:
-            A dictionary containing the session boundaries.
-
-        """
-
-        boundaries = await agent.retriever.aget_session_boundaries(
-            session_id=agent.current_session
+    @app.get(
+        "/task_boundaries/{correlation_id}",
+        response_model=RetrieverTaskBoundaryResponse,
+    )
+    async def task_boundaries_action(
+        correlation_id: str,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverTaskBoundaryResponse:
+        """Get task boundaries for a correlation id."""
+        boundaries = await agent.retriever.aget_task_boundaries(
+            correlation_id=correlation_id,
+            state_id=state_id,
         )
+        if boundaries is None:
+            raise HTTPException(status_code=404, detail="Task boundaries not found")
+        return _to_task_boundary_response(boundaries)
 
-        print("Boundaries:", boundaries)
-
-        return boundaries.__dict__ if boundaries else {}
-
-    @app.get(f"/session_boundaries/{{session_id}}")
-    async def session_boundaries_action(request: Request, session_id: str) -> dict:
-        """Get the boundaries of a specific session.
-
-        Args:
-            request: The incoming request.
-            session_id: The ID of the session.
-
-        Returns:
-            A dictionary containing the session boundaries.
-
-        """
-
+    @app.get(
+        "/active_session_boundaries",
+        response_model=RetrieverSessionBoundaryResponse,
+    )
+    async def active_session_boundaries_action(
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSessionBoundaryResponse:
+        """Get retriever boundaries for the current session."""
+        session_id = _require_current_session()
         boundaries = await agent.retriever.aget_session_boundaries(
-            session_id=session_id
+            session_id=session_id,
+            state_id=state_id,
         )
+        if boundaries is None:
+            raise HTTPException(status_code=404, detail="Session boundaries not found")
+        return _to_session_boundary_response(boundaries)
 
-        return boundaries.__dict__ if boundaries else {}
-
-    @app.get(f"/state_around/{{session_id}}/{{state_id}}/{{target_revision}}")
+    @app.get(
+        "/session_boundaries/{session_id}",
+        response_model=RetrieverSessionBoundaryResponse,
+    )
     async def session_boundaries_action(
-        request: Request,
+        session_id: str,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSessionBoundaryResponse:
+        """Get retriever boundaries for a session."""
+        boundaries = await agent.retriever.aget_session_boundaries(
+            session_id=session_id,
+            state_id=state_id,
+        )
+        if boundaries is None:
+            raise HTTPException(status_code=404, detail="Session boundaries not found")
+        return _to_session_boundary_response(boundaries)
+
+    @app.get(
+        "/state_at_local/{session_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
+    )
+    async def state_at_local_revision(
+        session_id: str,
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
+        """Get one or many states at a local revision within a session."""
+        state_at_revision = await agent.retriever.aget_state_at_local_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        return _serialize_snapshot_result(state_at_revision)
+
+    @app.get(
+        "/state_at_local/{session_id}/{state_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse,
+        include_in_schema=False,
+    )
+    async def state_at_local_revision_compat(
         session_id: str,
         state_id: str,
         target_revision: int,
-        radius_before: int | None = None,
-        radius_after: int | None = None,
-    ) -> dict:
-        """Get the boundaries of a specific session.
-
-        Args:
-            request: The incoming request.
-            session_id: The ID of the session.
-
-        Returns:
-            A dictionary containing the session boundaries.
-
-        """
-
-        window_around = await agent.retriever.aget_around_window(
+    ) -> RetrieverSnapshotResponse:
+        """Backward-compatible local revision lookup for a single state."""
+        state_at_revision = await agent.retriever.aget_state_at_local_rev(
+            revision=target_revision,
             state_id=state_id,
-            target_revision=target_revision,
             session_id=session_id,
-            radius_before=radius_before or 100,
-            radius_after=radius_after or 100,
         )
+        serialized = _serialize_snapshot_result(state_at_revision)
+        if isinstance(serialized, list):
+            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
+        return serialized
 
-        return window_around.__dict__ if window_around else {}
+    @app.get(
+        "/state_at_global/{session_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
+    )
+    async def state_at_global_revision(
+        session_id: str,
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
+        """Get one or many states at a global revision within a session."""
+        state_at_revision = await agent.retriever.aget_state_at_global_rev(
+            global_revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        return _serialize_snapshot_result(state_at_revision)
 
-    @app.get(f"/current_around/{{state_id}}/{{target_revision}}")
-    async def session_boundaries_action(
-        request: Request,
+    @app.get(
+        "/state_at_global/{session_id}/{state_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse,
+        include_in_schema=False,
+    )
+    async def state_at_global_revision_compat(
+        session_id: str,
         state_id: str,
         target_revision: int,
-        radius_before: int | None = None,
-        radius_after: int | None = None,
-    ) -> dict:
-        """Get the boundaries of a specific session.
-
-        Args:
-            request: The incoming request.
-            session_id: The ID of the session.
-
-        Returns:
-            A dictionary containing the session boundaries.
-
-        """
-
-        window_around = await agent.retriever.aget_around_window(
+    ) -> RetrieverSnapshotResponse:
+        """Backward-compatible global revision lookup for a single state."""
+        state_at_revision = await agent.retriever.aget_state_at_global_rev(
+            global_revision=target_revision,
             state_id=state_id,
-            target_revision=target_revision,
-            session_id=agent.current_session,
-            radius_before=radius_before or 100,
-            radius_after=radius_after or 100,
+            session_id=session_id,
         )
+        serialized = _serialize_snapshot_result(state_at_revision)
+        if isinstance(serialized, list):
+            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
+        return serialized
 
-        return window_around.__dict__ if window_around else {}
+    @app.get(
+        "/current_state_at_local/{target_revision}",
+        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
+    )
+    async def current_state_at_local_revision(
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
+        """Get one or many states at a local revision in the current session."""
+        session_id = _require_current_session()
+        state_at_revision = await agent.retriever.aget_state_at_local_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        return _serialize_snapshot_result(state_at_revision)
+
+    @app.get(
+        "/current_state_at_local/{state_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse,
+        include_in_schema=False,
+    )
+    async def current_state_at_local_revision_compat(
+        state_id: str,
+        target_revision: int,
+    ) -> RetrieverSnapshotResponse:
+        """Backward-compatible local revision lookup in the current session."""
+        session_id = _require_current_session()
+        state_at_revision = await agent.retriever.aget_state_at_local_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        serialized = _serialize_snapshot_result(state_at_revision)
+        if isinstance(serialized, list):
+            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
+        return serialized
+
+    @app.get(
+        "/current_state_at_global/{target_revision}",
+        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
+    )
+    async def current_state_at_global_revision(
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
+        """Get one or many states at a global revision in the current session."""
+        session_id = _require_current_session()
+        state_at_revision = await agent.retriever.aget_state_at_global_rev(
+            global_revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        return _serialize_snapshot_result(state_at_revision)
+
+    @app.get(
+        "/current_state_at_global/{state_id}/{target_revision}",
+        response_model=RetrieverSnapshotResponse,
+        include_in_schema=False,
+    )
+    async def current_state_at_global_revision_compat(
+        state_id: str,
+        target_revision: int,
+    ) -> RetrieverSnapshotResponse:
+        """Backward-compatible global revision lookup in the current session."""
+        session_id = _require_current_session()
+        state_at_revision = await agent.retriever.aget_state_at_global_rev(
+            global_revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+        )
+        serialized = _serialize_snapshot_result(state_at_revision)
+        if isinstance(serialized, list):
+            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
+        return serialized
+
+    @app.get(
+        "/forward_events/{session_id}/{target_revision}",
+        response_model=list[RetrieverPatchEventResponse],
+    )
+    async def forward_events_after_local_revision(
+        session_id: str,
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+        count: int = Query(default=100, ge=1),
+    ) -> list[RetrieverPatchEventResponse]:
+        """Get forward events after a local revision within a session."""
+        events = await agent.retriever.aget_forward_events_after_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+            count=count,
+        )
+        return [_to_patch_event_response(event) for event in events]
+
+    @app.get(
+        "/forward_events/{session_id}/{state_id}/{target_revision}",
+        response_model=list[RetrieverPatchEventResponse],
+        include_in_schema=False,
+    )
+    async def forward_events_after_local_revision_compat(
+        session_id: str,
+        state_id: str,
+        target_revision: int,
+        count: int = Query(default=100, ge=1),
+    ) -> list[RetrieverPatchEventResponse]:
+        """Backward-compatible forward event lookup for a single state."""
+        events = await agent.retriever.aget_forward_events_after_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+            count=count,
+        )
+        return [_to_patch_event_response(event) for event in events]
+
+    @app.get(
+        "/snapshots_around/{session_id}/{target_revision}",
+        response_model=list[RetrieverSnapshotResponse],
+    )
+    async def snapshots_around_local_revision(
+        session_id: str,
+        target_revision: int,
+        state_id: str | None = Query(default=None),
+        before: int = Query(default=1, ge=0),
+        after: int = Query(default=1, ge=0),
+    ) -> list[RetrieverSnapshotResponse]:
+        """Get snapshots around a local revision within a session."""
+        snapshots = await agent.retriever.aget_snapshots_around_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+            before=before,
+            after=after,
+        )
+        return [_to_snapshot_response(snapshot) for snapshot in snapshots]
+
+    @app.get(
+        "/snapshots_around/{session_id}/{state_id}/{target_revision}",
+        response_model=list[RetrieverSnapshotResponse],
+        include_in_schema=False,
+    )
+    async def snapshots_around_local_revision_compat(
+        session_id: str,
+        state_id: str,
+        target_revision: int,
+        before: int = Query(default=1, ge=0),
+        after: int = Query(default=1, ge=0),
+    ) -> list[RetrieverSnapshotResponse]:
+        """Backward-compatible snapshot lookup for a single state."""
+        snapshots = await agent.retriever.aget_snapshots_around_rev(
+            revision=target_revision,
+            state_id=state_id,
+            session_id=session_id,
+            before=before,
+            after=after,
+        )
+        return [_to_snapshot_response(snapshot) for snapshot in snapshots]
 
 
 def add_implementation_routes(
@@ -718,9 +995,7 @@ def add_implementation_routes(
         agent: The FastApiAgent with registered implementations.
         extension: The extension name to get implementations from.
     """
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.extension_registry.get(extension).get_static_implementations():
         add_implementation_route(app, agent, implementation)
 
 
@@ -744,9 +1019,7 @@ def add_state_route(
 
     # Create JSON schema from the state schema ports
     response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(
-        state_schema.ports, response_schema_name
-    )
+    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
 
     # Store schema for OpenAPI generation
     if not hasattr(app, "_custom_schemas"):
@@ -771,9 +1044,7 @@ def add_state_route(
                 }
             )
         except Exception as e:
-            logger.error(
-                f"Failed to get state for interface {interface}: {e}", exc_info=True
-            )
+            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Failed to serialize state: {str(e)}"},
@@ -793,9 +1064,7 @@ def add_state_route(
                     "description": "Current state value",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/schemas/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
                         }
                     },
                 }
@@ -839,9 +1108,7 @@ def add_travel_routes(
                 }
             )
         except Exception as e:
-            logger.error(
-                f"Failed to get state for interface {interface}: {e}", exc_info=True
-            )
+            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Failed to serialize state: {str(e)}"},
@@ -925,9 +1192,7 @@ def add_lock_route(
                     "description": "Current lock value",
                     "content": {
                         "application/json": {
-                            "schema": {
-                                "$ref": f"#/components/locks/{response_schema_name}"
-                            }
+                            "schema": {"$ref": f"#/components/locks/{response_schema_name}"}
                         }
                     },
                 }
@@ -959,9 +1224,7 @@ def add_schema_routes(
     async def get_implementation_schemas() -> dict:
         """Get all implementation schemas for the specified extension."""
         implementations = {}
-        for impl in agent.extension_registry.get(
-            extension
-        ).get_static_implementations():
+        for impl in agent.extension_registry.get(extension).get_static_implementations():
             implementations[impl.interface or impl.definition.name] = impl
 
         return {

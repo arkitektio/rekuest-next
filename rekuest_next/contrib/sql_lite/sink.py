@@ -2,17 +2,15 @@ import asyncio
 import aiosqlite
 import json
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional, Any
+from typing import List, Optional
 
 from rekuest_next.api.schema import ImplementationInput
-from rekuest_next.messages import JSONSerializable
 from rekuest_next.agents.sink.protocol import (
     WriteSnapshotReq,
     WritePatchReq,
-    AnyState,
 )
+from rekuest_next.protocols import AnyState
 
 
 # 2. Helpers
@@ -35,27 +33,9 @@ class SQLLiteSink:
         self.db_path = db_path
         self.current_session_id: Optional[str] = None
 
-    async def processing_loop(self):
-        """Background task to process the queue and write to the database."""
-        while True:
-            item_type, req = await self.queue.get()
-            try:
-                if item_type == "snapshot":
-                    await self._adump_snapshot(req)
-                elif item_type == "patch":
-                    await self._awrite_patch(req)
-                else:
-                    raise ValueError(f"Unknown item type in queue: {item_type}")
-            except Exception as e:
-                print(f"Error processing {item_type}: {e}")
-            finally:
-                self.queue.task_done()
-
     # --- INITIALIZATION & SESSION MANAGEMENT ---
     async def ainitialize(self):
-        self.loop = asyncio.get_event_loop()
-        self.queue = asyncio.Queue()
-        self.processing_loop_task = self.loop.create_task(self.processing_loop())
+        self._write_lock = asyncio.Lock()
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
@@ -68,6 +48,7 @@ class SQLLiteSink:
                 CREATE TABLE IF NOT EXISTS state_snapshots (
                     state_id TEXT NOT NULL,
                     revision INTEGER NOT NULL,
+                    global_revision INTEGER NOT NULL,
                     event_time INTEGER NOT NULL,
                     session_id TEXT NOT NULL,
                     state_data TEXT NOT NULL,
@@ -82,6 +63,8 @@ class SQLLiteSink:
                     state_id TEXT NOT NULL,
                     current_rev INTEGER NOT NULL,
                     future_rev INTEGER NOT NULL,
+                    global_current_rev INTEGER NOT NULL,
+                    global_future_rev INTEGER NOT NULL,
                     event_time INTEGER NOT NULL,
                     correlation_id TEXT,
                     session_id TEXT NOT NULL,
@@ -107,7 +90,41 @@ class SQLLiteSink:
                 "CREATE INDEX IF NOT EXISTS idx_patches_session ON state_patches(state_id, session_id);"
             )
 
+            await self._aensure_column(
+                db,
+                table_name="state_snapshots",
+                column_name="global_revision",
+                column_definition="INTEGER NOT NULL DEFAULT 0",
+            )
+            await self._aensure_column(
+                db,
+                table_name="state_patches",
+                column_name="global_current_rev",
+                column_definition="INTEGER NOT NULL DEFAULT 0",
+            )
+            await self._aensure_column(
+                db,
+                table_name="state_patches",
+                column_name="global_future_rev",
+                column_definition="INTEGER NOT NULL DEFAULT 0",
+            )
+
             await db.commit()
+
+    async def _aensure_column(
+        self,
+        db: aiosqlite.Connection,
+        table_name: str,
+        column_name: str,
+        column_definition: str,
+    ) -> None:
+        async with db.execute(f"PRAGMA table_info({table_name})") as cursor:
+            existing_columns = [row[1] for row in await cursor.fetchall()]
+
+        if column_name not in existing_columns:
+            await db.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
+            )
 
     async def acreate_session(
         self, states: List[AnyState], implementations: List[ImplementationInput]
@@ -126,33 +143,31 @@ class SQLLiteSink:
         self.current_session_id = new_session
         return new_session
 
-    def dump_snapshot(self, req: WriteSnapshotReq):
-        self.loop.call_soon_threadsafe(lambda: self.queue.put_nowait(("snapshot", req)))
-
-    def write_patch(self, req: WritePatchReq):
-        self.loop.call_soon_threadsafe(lambda: self.queue.put_nowait(("patch", req)))
-
     # --- WRITE METHODS ---
-    async def _adump_snapshot(self, req: WriteSnapshotReq):
+    async def adump_snapshot(self, req: WriteSnapshotReq):
         target_session = req.session_id or self.current_session_id
         epoch_ms = dt_to_epoch_ms(req.event_time)
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                """
-                INSERT OR IGNORE INTO state_snapshots (state_id, revision, event_time, session_id, state_data) 
-                VALUES (?, ?, ?, ?, ?)
-            """,
-                (
-                    req.state_id,
-                    req.revision,
-                    epoch_ms,
-                    target_session,
-                    json.dumps(req.state_data),
-                ),
-            )
-            await db.commit()
+        async with self._write_lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT OR IGNORE INTO state_snapshots (
+                        state_id, revision, global_revision, event_time, session_id, state_data
+                    ) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        req.state_id,
+                        req.revision,
+                        req.global_revision,
+                        epoch_ms,
+                        target_session,
+                        json.dumps(req.state_data),
+                    ),
+                )
+                await db.commit()
 
-    async def _awrite_patch(self, req: WritePatchReq):
+    async def awrite_patch(self, req: WritePatchReq):
         if req.future_rev != req.current_rev + 1:
             raise ValueError(
                 f"Integrity Error: future_rev ({req.future_rev}) must be exactly "
@@ -163,43 +178,42 @@ class SQLLiteSink:
         epoch_ms = dt_to_epoch_ms(req.event_time)
 
         # We dump the value to a JSON string. If the op is "remove", value might be None.
-        value_as_json = json.dumps(req.value) if req.value != None else None
+        value_as_json = json.dumps(req.value) if req.value is not None else None
 
-        async with aiosqlite.connect(self.db_path) as db:
-            try:
-                await db.execute(
-                    """
-                    INSERT INTO state_patches (
-                        state_id, current_rev, future_rev, event_time, 
-                        correlation_id, session_id, op, path, value
-                    ) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        req.state_id,
-                        req.current_rev,
-                        req.future_rev,
-                        epoch_ms,
-                        req.correlation_id,
-                        target_session,
-                        req.op,
-                        req.path,
-                        value_as_json,
-                    ),
-                )
-                await db.commit()
-            except aiosqlite.IntegrityError as e:
-                raise RuntimeError(
-                    f"Database Integrity Violation on patch {req.current_rev}->{req.future_rev}: {e}"
-                )
+        async with self._write_lock:
+            async with aiosqlite.connect(self.db_path) as db:
+                try:
+                    await db.execute(
+                        """
+                        INSERT INTO state_patches (
+                            state_id, current_rev, future_rev, global_current_rev, global_future_rev, event_time, 
+                            correlation_id, session_id, op, path, value
+                        ) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            req.state_id,
+                            req.current_rev,
+                            req.future_rev,
+                            req.global_current_rev,
+                            req.global_future_rev,
+                            epoch_ms,
+                            req.correlation_id,
+                            target_session,
+                            req.op,
+                            req.path,
+                            value_as_json,
+                        ),
+                    )
+                    await db.commit()
+                except aiosqlite.IntegrityError as e:
+                    raise RuntimeError(
+                        f"Database Integrity Violation on patch {req.current_rev}->{req.future_rev}: {e}"
+                    )
 
     async def ateardown(self):
         """Cleans up resources, such as the background processing task."""
-        self.processing_loop_task.cancel()
-        try:
-            await self.processing_loop_task
-        except asyncio.CancelledError:
-            pass
+        return None
 
     async def is_cought_up_to(self, state_id: str, revision: int) -> bool:
         """Returns True if the sink has received patches/snapshots up to at least the given revision for the specified state_id."""

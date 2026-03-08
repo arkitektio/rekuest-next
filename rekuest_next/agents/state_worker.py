@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 import jsonpatch
 from typing import List, Optional, Any, Dict, Protocol
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from rekuest_next import messages
 from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.protocols import AnyState
-from rekuest_next.actors.types import Agent, Shelver
+from rekuest_next.actors.types import Shelver
 from rekuest_next.state.observable import StateConfig
 from rekuest_next.state.publish import Patch
 from rekuest_next.state.shrink import ashrink_state
@@ -28,9 +29,7 @@ class RevisedState(BaseModel):
 class StatePublisher(Shelver, Protocol):
     """Protocol for the StateWorker to publish patches to the agent."""
 
-    async def apublish_envelope(
-        self, state_name: str, envelope: messages.Envelope
-    ) -> None:
+    async def apublish_envelope(self, state_name: str, envelope: messages.Envelope) -> None:
         """Publish an envelope containing patches to the agent."""
         ...
 
@@ -85,7 +84,10 @@ class StateWorker:
 
             # We return a deep copy or a snapshot to ensure the publisher
             # isn't looking at a dict that _flush is currently mutating.
-            return RevisedState(revision=self._rev, data=self._last_shrunk_state)
+            return RevisedState(
+                revision=self._rev,
+                data=copy.deepcopy(self._last_shrunk_state),
+            )
 
     def put_patch(self, patch: Patch) -> None:
         """Called synchronously by the Observable mixin to buffer changes."""
@@ -161,18 +163,18 @@ class StateWorker:
                     )
 
                 network_patches.append(
-                    messages.EnvelopePatch(
-                        op=p.op, path=p.path, value=safe_value, old_value=None
-                    )
+                    messages.EnvelopePatch(op=p.op, path=p.path, value=safe_value, old_value=None)
                 )
 
+            if not network_patches:
+                return
+
             # 3. Atomic Update: Apply patches to local snapshot and increment rev
+            envelope: messages.Envelope | None = None
             async with self._lock:
                 if self._last_shrunk_state is not None:
-                    patch_dicts = [
-                        p.model_dump(exclude_none=True) for p in network_patches
-                    ]
-                    jsonpatch.apply_patch(
+                    patch_dicts = [p.model_dump(exclude_none=True) for p in network_patches]
+                    self._last_shrunk_state = jsonpatch.apply_patch(
                         self._last_shrunk_state, patch_dicts, in_place=True
                     )
 
@@ -189,7 +191,8 @@ class StateWorker:
                         self._rev
                     )  # Update published revision after successful patch application
 
-            await self.agent.apublish_envelope(self.name, envelope)
+            if envelope is not None:
+                await self.agent.apublish_envelope(self.name, envelope)
 
         except Exception as e:
             logger.exception(f"Error flushing state '{self.name}': {e}")

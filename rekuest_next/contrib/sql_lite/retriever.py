@@ -1,17 +1,13 @@
-import asyncio
 import aiosqlite
 import json
-import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Optional, cast
 
 from rekuest_next.agents.retriever.protocol import (
-    TaskBoundary,
-    SessionBoundary,
-    AroundWindow,
     PatchEvent,
+    SessionBoundary,
     Snapshot,
+    TaskBoundary,
 )
 from rekuest_next.messages import JSONSerializable
 
@@ -38,7 +34,7 @@ class SQLLiteRetriever:
         self.current_session_id: Optional[str] = None
 
     # --- INITIALIZATION & SESSION MANAGEMENT ---
-    async def ainitialize(self):
+    async def ainitialize(self) -> None:
         return None
 
     # --- READ / RETRIEVE METHODS ---
@@ -108,188 +104,264 @@ class SQLLiteRetriever:
                 start_time=epoch_ms_to_dt(row[2]),
                 end_time=epoch_ms_to_dt(row[3]),
             )
-        raise ValueError(
-            f"No patches found for session_id={session_id} and state_id={state_id}"
-        )
+        return None
 
-    async def aget_around_window(
+    async def aget_state_at_global_rev(
         self,
-        state_id: str,
-        target_revision: int,
-        session_id: Optional[str],
-        radius_before: int = 100,
-        radius_after: int = 100,
-    ) -> Optional[AroundWindow]:
-        start_rev = max(0, target_revision - radius_before)
-        end_rev = target_revision + radius_after
-
-        # SQLite natively handles our new op, path, value using a CASE statement.
-        # json_set creates/replaces, json_remove deletes. json(p.value) forces SQLite to treat it as valid JSON.
-        recursive_patch_query = """
-        WITH RECURSIVE
-        anchor_snapshot AS (
-            SELECT 
-                state_id, 
-                revision AS current_rev, 
-                revision AS future_rev, 
-                event_time, 
-                session_id AS entry_session_id,
-                state_data,     
-                NULL AS op,
-                NULL AS path,
-                NULL AS value,
-                NULL AS correlation_id
-            FROM state_snapshots
-            WHERE state_id = ? AND revision <= ?
-            ORDER BY revision DESC 
-            LIMIT 1
-        ),
-        state_builder(state_id, current_rev, future_rev, event_time, entry_session_id, current_state, op, path, value, correlation_id) AS (
-            SELECT state_id, current_rev, future_rev, event_time, entry_session_id, state_data, op, path, value, correlation_id
-            FROM anchor_snapshot
-
-            UNION ALL
-
-            SELECT 
-                p.state_id, 
-                p.current_rev, 
-                p.future_rev, 
-                p.event_time, 
-                p.session_id,
-                CASE p.op
-                    WHEN 'remove' THEN json_remove(sb.current_state, p.path)
-                    ELSE json_set(sb.current_state, p.path, json(p.value))
-                END,
-                p.op,
-                p.path,
-                p.value,
-                p.correlation_id
-            FROM state_builder sb
-            JOIN state_patches p ON p.state_id = sb.state_id AND p.current_rev = sb.future_rev
-            WHERE p.current_rev < ?
+        global_revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Snapshot | list[Snapshot] | None:
+        return await self._aget_state_at_revision(
+            target_revision=global_revision,
+            state_id=state_id,
+            session_id=session_id,
+            use_global_revision=True,
         )
-        SELECT current_rev, future_rev, event_time, entry_session_id, op, path, value, correlation_id, current_state
-        FROM state_builder
-        ORDER BY future_rev ASC;
-        """
 
-        snapshot_query = """
-        SELECT revision, event_time, session_id, state_data 
-        FROM state_snapshots 
-        WHERE state_id = ? AND revision > ? AND revision < ?
-        ORDER BY revision ASC;
+    async def aget_state_at_local_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Snapshot | list[Snapshot] | None:
+        return await self._aget_state_at_revision(
+            target_revision=revision,
+            state_id=state_id,
+            session_id=session_id,
+            use_global_revision=False,
+        )
+
+    async def aget_forward_events_after_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        count: int = 100,
+    ) -> list[PatchEvent]:
+        session_filter = "AND session_id = ?" if session_id is not None else ""
+        state_filter = "AND state_id = ?" if state_id is not None else ""
+        params: tuple[object, ...] = (revision, count)
+        if state_id is not None and session_id is not None:
+            params = (revision, state_id, session_id, count)
+        elif state_id is not None:
+            params = (revision, state_id, count)
+        elif session_id is not None:
+            params = (revision, session_id, count)
+
+        query = f"""
+        SELECT current_rev, future_rev, global_current_rev, global_future_rev,
+               event_time, correlation_id, session_id, op, path, value
+        FROM state_patches
+        WHERE current_rev >= ? {state_filter} {session_filter}
+        ORDER BY current_rev ASC, state_id ASC
+        LIMIT ?
         """
 
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                recursive_patch_query, (state_id, start_rev, end_rev)
-            ) as cursor:
+            async with db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+
+        return [self._row_to_patch_event(row) for row in rows]
+
+    async def aget_snapshots_around_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        before: int = 1,
+        after: int = 1,
+    ) -> list[Snapshot]:
+        state_ids = [state_id] if state_id is not None else await self._aget_state_ids(session_id)
+        collected: list[Snapshot] = []
+
+        for candidate_state_id in state_ids:
+            before_query = """
+        SELECT revision, global_revision, event_time, session_id, state_data
+        FROM state_snapshots
+        WHERE state_id = ? AND revision <= ? {session_filter}
+        ORDER BY revision DESC
+        LIMIT ?
+        """
+            after_query = """
+        SELECT revision, global_revision, event_time, session_id, state_data
+        FROM state_snapshots
+        WHERE state_id = ? AND revision > ? {session_filter}
+        ORDER BY revision ASC
+        LIMIT ?
+        """
+            session_filter = "AND session_id = ?" if session_id is not None else ""
+            before_params: tuple[object, ...] = (candidate_state_id, revision, before)
+            after_params: tuple[object, ...] = (candidate_state_id, revision, after)
+            if session_id is not None:
+                before_params = (candidate_state_id, revision, session_id, before)
+                after_params = (candidate_state_id, revision, session_id, after)
+
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    before_query.format(session_filter=session_filter), before_params
+                ) as cursor:
+                    before_rows = await cursor.fetchall()
+                async with db.execute(
+                    after_query.format(session_filter=session_filter), after_params
+                ) as cursor:
+                    after_rows = await cursor.fetchall()
+
+            collected.extend(
+                self._row_to_snapshot(row) for row in [*reversed(before_rows), *after_rows]
+            )
+
+        return collected
+
+    async def _aget_state_at_revision(
+        self,
+        target_revision: int,
+        state_id: Optional[str],
+        session_id: Optional[str],
+        use_global_revision: bool,
+    ) -> Snapshot | list[Snapshot] | None:
+        if state_id is None:
+            state_ids = await self._aget_state_ids(session_id)
+            snapshots = [
+                snapshot
+                for snapshot in [
+                    await self._aget_state_at_revision(
+                        target_revision=target_revision,
+                        state_id=candidate_state_id,
+                        session_id=session_id,
+                        use_global_revision=use_global_revision,
+                    )
+                    for candidate_state_id in state_ids
+                ]
+                if isinstance(snapshot, Snapshot)
+            ]
+            return snapshots
+
+        snapshot_revision_column = "global_revision" if use_global_revision else "revision"
+        patch_current_column = "global_current_rev" if use_global_revision else "current_rev"
+        patch_future_column = "global_future_rev" if use_global_revision else "future_rev"
+        session_filter = "AND session_id = ?" if session_id is not None else ""
+
+        anchor_query = f"""
+        SELECT revision, global_revision, event_time, session_id, state_data
+        FROM state_snapshots
+        WHERE state_id = ? AND {snapshot_revision_column} <= ? {session_filter}
+        ORDER BY {snapshot_revision_column} DESC
+        LIMIT 1
+        """
+        patch_query = f"""
+        SELECT current_rev, future_rev, global_current_rev, global_future_rev,
+               event_time, correlation_id, session_id, op, path, value
+        FROM state_patches
+        WHERE state_id = ? AND {patch_current_column} >= ? AND {patch_future_column} <= ? {session_filter}
+        ORDER BY {patch_current_column} ASC
+        """
+
+        anchor_params: tuple[object, ...] = (state_id, target_revision)
+        patch_start_revision = 0
+        if session_id is not None:
+            anchor_params = (state_id, target_revision, session_id)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(anchor_query, anchor_params) as cursor:
+                anchor_row = await cursor.fetchone()
+
+            if anchor_row is None:
+                return None
+
+            anchor_snapshot = self._row_to_snapshot(anchor_row)
+            patch_start_revision = (
+                anchor_snapshot.global_revision if use_global_revision else anchor_snapshot.revision
+            ) or 0
+
+            patch_params: tuple[object, ...] = (state_id, patch_start_revision, target_revision)
+            if session_id is not None:
+                patch_params = (state_id, patch_start_revision, target_revision, session_id)
+
+            async with db.execute(patch_query, patch_params) as cursor:
                 patch_rows = await cursor.fetchall()
 
-            if not patch_rows:
-                raise ValueError(
-                    f"No patches found for state_id={state_id} in the revision range {start_rev} to {end_rev}"
-                )
+        state_data = cast(JSONSerializable, json.loads(json.dumps(anchor_snapshot.data)))
+        last_snapshot = anchor_snapshot
+        for row in patch_rows:
+            patch_event = self._row_to_patch_event(row)
+            state_data = self._apply_patch_document(state_data, patch_event.patch)
+            last_snapshot = Snapshot(
+                timepoint=patch_event.timepoint,
+                data=state_data,
+                revision=patch_event.future_rev,
+                global_revision=patch_event.global_future_rev,
+                session_id=patch_event.session_id,
+            )
 
+        return last_snapshot
+
+    async def _aget_state_ids(self, session_id: Optional[str]) -> list[str]:
+        session_filter = "WHERE session_id = ?" if session_id is not None else ""
+        params: tuple[object, ...] = (session_id,) if session_id is not None else ()
+
+        async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
-                snapshot_query, (state_id, start_rev, end_rev)
+                f"SELECT DISTINCT state_id FROM state_snapshots {session_filter}", params
             ) as cursor:
-                snap_rows = await cursor.fetchall()
+                snapshot_state_ids = [row[0] for row in await cursor.fetchall()]
+            async with db.execute(
+                f"SELECT DISTINCT state_id FROM state_patches {session_filter}", params
+            ) as cursor:
+                patch_state_ids = [row[0] for row in await cursor.fetchall()]
 
-            latest_state_before_window = None
-            latest_rev_before_window = 0
-            latest_time_before_window_ms = 0
-            latest_session_before_window = ""
+        return sorted(set(snapshot_state_ids).union(patch_state_ids))
 
-            end_state_data = None
-            end_revision = 0
-            end_time_ms = 0
-            end_session = ""
+    def _apply_patch_document(
+        self,
+        state_data: JSONSerializable,
+        patch_document: JSONSerializable,
+    ) -> JSONSerializable:
+        import jsonpatch  # type: ignore[import-untyped]
 
-            intermediate_patches: List[PatchEvent] = []
-
-            for row in patch_rows:
-                (
-                    curr_rev,
-                    fut_rev,
-                    evt_time_ms,
-                    sess_id,
-                    op,
-                    path,
-                    value_str,
-                    corr_id,
-                    state_str,
-                ) = row
-
-                state_data = json.loads(state_str)
-
-                end_state_data = state_data
-                end_revision = fut_rev
-                end_time_ms = evt_time_ms
-                end_session = sess_id
-
-                if fut_rev <= start_rev:
-                    latest_state_before_window = state_data
-                    latest_rev_before_window = fut_rev
-                    latest_time_before_window_ms = evt_time_ms
-                    latest_session_before_window = sess_id
-                else:
-                    if op is not None:
-                        # Reconstruct the patch dictionary dynamically for the dataclass
-                        patch_val = (
-                            json.loads(value_str) if value_str is not None else None
-                        )
-                        patch_dict = {"op": op, "path": path}
-                        if op != "remove":
-                            patch_dict["value"] = patch_val
-
-                        intermediate_patches.append(
-                            PatchEvent(
-                                timepoint=epoch_ms_to_dt(evt_time_ms),
-                                current_rev=curr_rev,
-                                future_rev=fut_rev,
-                                correlation_id=corr_id,
-                                session_id=sess_id,
-                                patch=patch_dict,  # Keeping this generic in case your PatchEvent expects the dict
-                            )
-                        )
-
-            intermediate_snapshots: List[Snapshot] = []
-            for row in snap_rows:
-                rev, evt_time_ms, sess_id, state_str = row
-                intermediate_snapshots.append(
-                    Snapshot(
-                        timepoint=epoch_ms_to_dt(evt_time_ms),
-                        revision=rev,
-                        session_id=sess_id,
-                        data=json.loads(state_str),
-                    )
-                )
-
-        initial_snapshot = Snapshot(
-            timepoint=epoch_ms_to_dt(latest_time_before_window_ms),
-            data=latest_state_before_window,
-            revision=latest_rev_before_window,
-            session_id=latest_session_before_window,
+        return cast(
+            JSONSerializable,
+            jsonpatch.apply_patch(state_data, [patch_document], in_place=False),
         )
 
-        end_snapshot = Snapshot(
-            timepoint=epoch_ms_to_dt(end_time_ms),
-            data=end_state_data,
-            revision=end_revision,
-            session_id=end_session,
+    def _row_to_snapshot(self, row: tuple[Any, ...]) -> Snapshot:
+        revision, global_revision, event_time, session_id, state_data = row
+        return Snapshot(
+            timepoint=epoch_ms_to_dt(event_time),
+            data=json.loads(state_data),
+            revision=revision,
+            global_revision=global_revision,
+            session_id=session_id,
         )
 
-        return AroundWindow(
-            target_revision=target_revision,
-            radius_before=radius_before,
-            radius_after=radius_after,
-            initial_snapshot=initial_snapshot,
-            intermediate_snapshots=intermediate_snapshots,
-            intermediate_patches=intermediate_patches,
-            end_snapshot=end_snapshot,
+    def _row_to_patch_event(self, row: tuple[Any, ...]) -> PatchEvent:
+        (
+            current_rev,
+            future_rev,
+            global_current_rev,
+            global_future_rev,
+            event_time,
+            correlation_id,
+            session_id,
+            op,
+            path,
+            value,
+        ) = row
+        patch_document: dict[str, JSONSerializable] = {"op": op, "path": path}
+        if op != "remove":
+            patch_document["value"] = json.loads(value) if value is not None else None
+
+        return PatchEvent(
+            timepoint=epoch_ms_to_dt(event_time),
+            current_rev=current_rev,
+            future_rev=future_rev,
+            global_current_rev=global_current_rev,
+            global_future_rev=global_future_rev,
+            correlation_id=correlation_id or "",
+            session_id=session_id,
+            patch=patch_document,
         )
 
-    async def ateardown(self):
+    async def ateardown(self) -> None:
         """Cleans up resources, such as database connections."""
-        pass
+        return None

@@ -387,7 +387,6 @@ async def test_assign_unknown_interface_does_not_return_error() -> None:
     async with AsyncAgentTestClient(app) as client:
         result = await client.assign("non_existent_function", {"a": 1, "b": 1})
         events = await client.collect_until_end_state(result.assignation_id)
-        print(events)
         error_events = [e for e in events if e.is_criticial()]
         assert len(error_events) == 1, f"Should receive one error event {events}"
 

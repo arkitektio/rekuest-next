@@ -275,9 +275,7 @@ class Actor(BaseModel):
             )
             return True
         else:
-            logger.warning(
-                f"Currently no break future for {assignation_id} was found. Wasn't paused"
-            )
+            logger.debug(f"Currently no break future for {assignation_id} was found. Wasn't paused")
             return False
 
     def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:
