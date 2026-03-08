@@ -5,20 +5,20 @@ messages to be sent to the agent via HTTP API routes and WebSocket
 connections.
 """
 
-from email import message
-from types import TracebackType
-from typing import AsyncIterator, List, Optional, Self, Set, Any
 import asyncio
 import logging
-import jsonpatch
-from pydantic import ConfigDict, Field, PrivateAttr
-from fastapi import WebSocket, WebSocketDisconnect
+from email import message
+from types import TracebackType
+from typing import Any, AsyncIterator, List, Optional, Self, Set
 
+import jsonpatch
+from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ConfigDict, Field, PrivateAttr
+
+from rekuest_next import messages
 from rekuest_next.agents.base import BaseAgent
 from rekuest_next.agents.transport.base import AgentTransport
-from rekuest_next import messages
 from rekuest_next.api.schema import StateImplementationInput
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,7 @@ class FastAPIConnectionManager:
         await websocket.accept()
         async with self._lock:
             self._active_connections.add(websocket)
-        logger.info(
-            f"WebSocket connected. Total connections: {len(self._active_connections)}"
-        )
+        logger.info(f"WebSocket connected. Total connections: {len(self._active_connections)}")
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection from the manager.
@@ -56,9 +54,7 @@ class FastAPIConnectionManager:
         """
         async with self._lock:
             self._active_connections.discard(websocket)
-        logger.info(
-            f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
-        )
+        logger.info(f"WebSocket disconnected. Total connections: {len(self._active_connections)}")
 
     async def broadcast(self, message: str) -> None:
         """Send a message to all connected WebSocket clients.
@@ -66,9 +62,7 @@ class FastAPIConnectionManager:
         Args:
             message: The JSON string message to broadcast.
         """
-        logger.info(
-            f"Broadcasting to {len(self._active_connections)} clients: {message}"
-        )
+        logger.info(f"Broadcasting to {len(self._active_connections)} clients: {message}")
         async with self._lock:
             disconnected: List[WebSocket] = []
             for connection in self._active_connections:
@@ -116,9 +110,7 @@ class FastApiTransport(AgentTransport):
         description="The WebSocket connection manager for broadcasting messages.",
     )
 
-    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
-        default=None
-    )
+    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
     _connected: bool = PrivateAttr(default=False)
     _instance_id: Optional[str] = PrivateAttr(default=None)
 
@@ -286,10 +278,8 @@ class FastApiAgent(BaseAgent):
         """Register definitions with the agent."""
         print("Registering definitions is not implemented for FastApiAgent yet.")
 
-    async def ashelve(
-        self, instance_id, identifier, resource_id, label=None, description=None
-    ):
-        return identifier
+    async def ashelve(self, instance_id, identifier, resource_id, label=None, description=None):
+        raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
     async def alock(self, key, assignation):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
@@ -306,9 +296,7 @@ class FastApiAgent(BaseAgent):
         )
         await self.transport.asend(message)
 
-    async def apublish_envelope(
-        self, interface: str, envelope: messages.Envelope
-    ) -> None:
+    async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.StatePatchEvent(
             envelope=envelope,

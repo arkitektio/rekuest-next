@@ -35,16 +35,14 @@ class StateConfig:
     state_name: str
     state_schema: StateSchemaInput
     structure_registry: StructureRegistry
-    publish_interval: float = (
-        0.1  # Optional: Minimum interval between patches to prevent flooding
-    )
+    publish_interval: float = 0.1  # Optional: Minimum interval between patches to prevent flooding
     required_locks: list[str] = dataclasses.field(default_factory=list)
 
 
 def _publish_patch(config: StateConfig, patch: Patch) -> None:
     """Helper to publish a patch through the current publisher."""
     publisher = get_current_publisher()
-    if publisher and hasattr(publisher, "publish_patch"):
+    if publisher:
         publisher.publish_patch(config.state_name, patch)  # type: ignore
 
 
@@ -70,9 +68,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [
-            lock for lock in self._config.required_locks if lock not in acquired_locks
-        ]
+        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -202,9 +198,7 @@ class EventedList(list):
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [
-            lock for lock in self._config.required_locks if lock not in acquired_locks
-        ]
+        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -249,9 +243,7 @@ class EventedList(list):
             super().__setitem__(
                 index,
                 [
-                    make_evented(
-                        v, self._config, _make_path(self._path, indices.start + i)
-                    )
+                    make_evented(v, self._config, _make_path(self._path, indices.start + i))
                     for i, v in enumerate(new_values)
                 ],
             )
@@ -304,9 +296,7 @@ class EventedList(list):
 
         item = make_evented(item, self._config, actual_path)
         super().append(item)
-        _publish_patch(
-            self._config, Patch(op="add", path=append_path, value=item, old_value=None)
-        )
+        _publish_patch(self._config, Patch(op="add", path=append_path, value=item, old_value=None))
 
     def insert(self, index: SupportsIndex, item: Any) -> None:
         """Insert item before index.
@@ -324,9 +314,7 @@ class EventedList(list):
 
         item = make_evented(item, self._config, full_path)
         super().insert(idx, item)
-        _publish_patch(
-            self._config, Patch(op="add", path=full_path, value=item, old_value=None)
-        )
+        _publish_patch(self._config, Patch(op="add", path=full_path, value=item, old_value=None))
         # Reindex items after the inserted position
         self._reindex_items(idx + 1)
 
@@ -471,8 +459,7 @@ def make_evented(
     # CASE B: List
     if isinstance(obj, list):
         wrapped_items = [
-            make_evented(item, config, path=_make_path(path, i))
-            for i, item in enumerate(obj)
+            make_evented(item, config, path=_make_path(path, i)) for i, item in enumerate(obj)
         ]
         return EventedList(wrapped_items, config, path)
 

@@ -27,6 +27,10 @@ from rekuest_next.agents.registry import (
     ExtensionRegistry,
     get_default_extension_registry,
 )
+from rekuest_next.agents.retriever.memory_retriever import MemoryRetriever
+from rekuest_next.agents.retriever.protocol import StateRetriever
+from rekuest_next.agents.sink.memory_sink import MemorySink
+from rekuest_next.agents.sink.protocol import PatchEvent, StateSink, WritePatchReq
 from rekuest_next.agents.state_worker import RevisedState, StateWorker
 from rekuest_next.agents.transport.types import AgentTransport
 from rekuest_next.agents.utils import resolve_port_for_path
@@ -57,6 +61,7 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.serialization.actor import ashrink_return
 from rekuest_next.structures.serialization.postman import ashrink_arg
 from rekuest_next.structures.types import JSONSerializable
+from xest_no import WriteSnapshotReq
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +69,11 @@ AppContext = TypeVar("AppContext")
 ContextType = TypeVar("ContextType")
 
 
+# Import your protocols/types
+
 import asyncio
 import time
 from weakref import ref
-
-# Import your protocols/types
 
 
 class BaseAgent(KoiledModel, Generic[AppContext]):
@@ -98,9 +103,17 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         default="default",
         description="The instance id of the agent. This is used to identify the agent in the system.",
     )
-    shelve: Dict[str, Any] = Field(default_factory=dict)
+
+    # TODO: KV Store
+    shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
+    extension_registry: ExtensionRegistry = Field(
+        default_factory=get_default_extension_registry
+    )
+
+    sink: StateSink = Field(default_factory=lambda: MemorySink())
+    retriever: StateRetriever = Field(default_factory=lambda: MemoryRetriever())
+
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
         description="Maps context keys to context values registed with @context",
@@ -110,21 +123,29 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         description="Maps the state key to the state value. This is used to store the states of the agent.",
     )
     locks: Dict[str, TaskLock] = Field(default_factory=dict)
+
+    # TODO: Probably dead
     capture_condition: asyncio.Condition = Field(default_factory=asyncio.Condition)
     capture_active: bool = Field(default=False)
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
+    interface_implementation_map: Dict[str, Implementation] = Field(
+        default_factory=dict
+    )
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
+
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps assignation to actor id"
     )
+
+    # TODO Delete
     sync_key_manager: SyncKeyManager = Field(
         default_factory=SyncKeyManager,
         description="Manager for sync key locks across all implementations",
     )
+
     managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
         default_factory=dict,
         description="Maps actor id to the task that is running the actor",
@@ -150,14 +171,32 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         default_factory=lambda: {}  # typ
     )
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _collected_state_schemas: Dict[str, StateSchemaInput] = PrivateAttr(default_factory=lambda: {})
-    _collected_structure_registries: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _collected_state_schemas: Dict[str, StateSchemaInput] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _collected_structure_registries: Dict[str, Any] = PrivateAttr(
+        default_factory=lambda: {}
+    )
     _collected_startup_hooks: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _collected_background_workers: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _state_class_interface_map: Dict[type, str] = PrivateAttr(default_factory=lambda: {})
-    _state_workers: Dict[str, StateWorker] = PrivateAttr(default_factory=lambda: {})
+    _collected_background_workers: Dict[str, Any] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _state_class_interface_map: Dict[type, str] = PrivateAttr(
+        default_factory=lambda: {}
+    )
 
+    # Event based necessities
+    current_session: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="A unique identifier for the current session. This is used to group patches and snapshots that belong to the same logical session together. By default an agent start a new session when booting up",
+    )
+    _state_workers: Dict[str, StateWorker] = PrivateAttr(default_factory=lambda: {})
+    _state_revisions: Dict[str, int] = PrivateAttr(default_factory=lambda: {})
+    _event_queue: asyncio.Queue[PatchEvent] | None = PrivateAttr(default=None)
+    global_revision: int = 0
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -178,10 +217,53 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         """Acquire a write state proxy for a given key."""
         return self.states[key]
 
+    async def apatch_event_loop(self, key: str) -> None:
+        """Patch the event loop to process patches for a given key."""
+
     def publish_patch(self, interface: str, patch: Patch) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
+        current_rev = self._state_revisions.get(interface, 0)
+        future_global_rev = current_global_rev + 1
+        future_rev = current_rev + 1
+        current_global_rev = self.global_revision
+
+        if current_global_rev % 300 == 0:
+            logger.info(
+                f"Global revision {current_global_rev} reached. Consider shrinking the state for interface {interface} to optimize retrieval."
+            )
+            self.sink.write_patch(
+                WriteSnapshotReq(
+                    state_id=interface,
+                    current_rev=current_rev,
+                    future_rev=future_rev,
+                    global_current_rev=current_global_rev,
+                    global_future_rev=future_global_rev,
+                    op=patch.op,
+                    path=patch.path,
+                    value=patch.value,
+                    correlation_id=patch.correlation_id,
+                    session_id=self.current_session,
+                )
+            )
+
+        self.sink.write_patch(
+            WritePatchReq(
+                state_id=interface,
+                current_rev=current_rev,
+                future_rev=future_rev,
+                global_current_rev=current_global_rev,
+                global_future_rev=future_global_rev,
+                op=patch.op,
+                path=patch.path,
+                value=patch.value,
+                correlation_id=patch.correlation_id,
+                session_id=self.current_session,
+            )
+        )
         self._state_workers[interface].put_patch(patch)
+        self._state_revisions[interface] = future_rev
+        self.global_revision = future_global_rev
 
     def get_locks_for_keys(self, keys: List[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
@@ -235,7 +317,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                 if interface not in self.locks:
                     self.locks[interface] = TaskLock(self, lock_schema)
 
-    def get_structure_registry_for_interface(self, interface: str) -> "StructureRegistry":
+    def get_structure_registry_for_interface(
+        self, interface: str
+    ) -> "StructureRegistry":
         """Get the structure registry for a given interface from extensions.
 
         Args:
@@ -250,7 +334,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             if app_registry is not None:
                 state_schemas = extension.get_state_schemas()
                 if interface in state_schemas:
-                    return app_registry.state_registry.get_registry_for_interface(interface)
+                    return app_registry.state_registry.get_registry_for_interface(
+                        interface
+                    )
         raise AgentException(f"No structure registry found for interface {interface}")
 
     def get_interface_for_state_class(self, cls: type) -> str:
@@ -491,6 +577,10 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         await self.astop_background()
         await self.transport.adisconnect()
 
+        # Initialize the sink and retriever
+        await self.sink.ateardown()
+        await self.retriever.ateardown()
+
     async def aregister_definitions(self, instance_id: str, app_context: Any) -> None:
         """Register all implementations that are handled by extensiosn
 
@@ -521,14 +611,20 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             )
 
             for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = implementation
-                self.implementation_interface_map[implementation.id] = implementation.interface
+                self.interface_implementation_map[implementation.interface] = (
+                    implementation
+                )
+                self.implementation_interface_map[implementation.id] = (
+                    implementation.interface
+                )
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
-        logger.debug(f"Agent forwarding {message.id} from actor {actor.__class__.__name__}")
+        logger.debug(
+            f"Agent forwarding {message.id} from actor {actor.__class__.__name__}"
+        )
         await self.transport.asend(message)
 
     async def aregister_state_schemas(self) -> Dict[str, StateSchema]:
@@ -559,13 +655,17 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         )
         return shrinked_state
 
-    async def apublish_states(self, state_implementation: List[StateImplementationInput]) -> None:
+    async def apublish_states(
+        self, state_implementation: List[StateImplementationInput]
+    ) -> None:
         states = await aset_agent_states(
             instance_id=self.instance_id,
             implementations=state_implementation,
         )
 
-    async def ainit_states(self, hook_return: StartupHookReturns, app_context: Any = None) -> None:  # noqa: ANN401
+    async def ainit_states(
+        self, hook_return: StartupHookReturns, app_context: Any = None
+    ) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
 
         if not self.instance_id:
@@ -583,10 +683,14 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             # Set the state schema that is needed to shrink the state
             self._interface_stateschema_input_map[interface] = state_schemas[interface]
 
-            state_worker = StateWorker(state_instance=startup_value, agent=self, config=config)
+            state_worker = StateWorker(
+                state_instance=startup_value, agent=self, config=config
+            )
             self._state_workers[interface] = state_worker
 
-            self.managed_publisher_tasks[interface] = asyncio.create_task(state_worker.start())
+            self.managed_publisher_tasks[interface] = asyncio.create_task(
+                state_worker.start()
+            )
 
             revision = await state_worker.aget_revision()
 
@@ -608,10 +712,14 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             raise AgentException(f"State {interface} not found in agent {self.name}")
 
         if interface not in self._current_shrunk_states:
-            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
+            raise AgentException(
+                f"Shrunk State {interface} not found in agent {self.name}"
+            )
 
         if interface not in self._interface_stateschema_input_map:
-            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
+            raise AgentException(
+                f"State Schema {interface} not found in agent {self.name}"
+            )
 
         if not self.instance_id:
             raise AgentException("Instance id is not set. The agent is not initialized")
@@ -630,7 +738,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         self._current_shrunk_states[interface] = new_shrunk_state
         self.states[interface] = value
 
-    async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
+    async def apublish_envelope(
+        self, interface: str, envelope: messages.Envelope
+    ) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
         raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
@@ -648,13 +758,17 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         from rekuest_next.agents.context import get_context_name, is_context
 
         if not self.running:
-            raise AgentException("Agent is not running. Contexts are not available yet.")
+            raise AgentException(
+                "Agent is not running. Contexts are not available yet."
+            )
 
         if is_context(context):
             context_name = get_context_name(context)
             return self.contexts[context_name]
 
-        raise AgentException(f"Context for type {context} not found in agent {self.name}")
+        raise AgentException(
+            f"Context for type {context} not found in agent {self.name}"
+        )
 
     async def aget_app_context(self) -> AppContext:
         """Get the app context from the agent. This is used to get the
@@ -695,6 +809,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
+
         for name, worker in self._collected_background_workers.items():
             task = asyncio.create_task(
                 worker.arun(self, contexts=self.contexts, states=self.states)
@@ -709,7 +824,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             task.cancel()
 
         try:
-            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self._background_tasks.values(), return_exceptions=True
+            )
         except asyncio.CancelledError:
             pass
 
@@ -760,6 +877,10 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         # Run startup hooks from extensions
 
+        # Initialize the sink and retriever
+        await self.sink.ainitialize()
+        await self.retriever.ainitialize()
+
         # Inspect all locks
         locks = [lock.lock_schema.key for lock in self.locks.values()]
 
@@ -769,18 +890,27 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             )
             await self.ainit_states(hook_return=hook_return, app_context=app_context)
 
-        for context_key, context_value in hook_return.contexts.items():
-            self.contexts[context_key] = context_value
-
-        await self.arun_background()
-
         for extension in self.extension_registry.agent_extensions.values():
             await extension.astart(instance_id=instance_id, app_context=app_context)
+
+        for context_key, context_value in hook_return.contexts.items():
+            self.contexts[context_key] = context_value
 
         await self.aregister_definitions(
             instance_id=self.instance_id,
             app_context=app_context,
         )
+
+        self.current_session = await self.sink.acreate_session(
+            states=list(self.states.values()),
+            implementations=list(self.interface_implementation_map.values()),
+        )
+        self.global_revision = (
+            0  # Make sure to reset the global revision when starting the agent
+        )
+        # TODO: Maybe  we should load this from the last session
+
+        await self.arun_background()
         self._errorfuture = asyncio.Future()
 
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
@@ -793,7 +923,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         """
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
+            raise ProvisionException(
+                f"Extension {assign.extension} not found in agent {self.name}"
+            )
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -844,8 +976,12 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         self._app_context = context
 
         try:
-            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
-            await self.astart(instance_id=self.instance_id, app_context=self._app_context)
+            logger.info(
+                f"Launching provisioning task. We are running {self.instance_id}"
+            )
+            await self.astart(
+                instance_id=self.instance_id, app_context=self._app_context
+            )
             print("Starting to listen for requests")
             await self.aloop()
         except asyncio.CancelledError:
@@ -866,7 +1002,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         provide_task = None
 
         try:
-            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
+            logger.info(
+                f"Launching provisioning task. We are running {self.instance_id}"
+            )
             await self.astart(instance_id=self.instance_id)
             logger.info("Starting to listen for requests")
 
@@ -880,9 +1018,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                 test_runners: list[Implementation] = []
 
                 try:
-
                     for test_implemtation in test_runners:
-
                         try:
                             task = acall(
                                 implementation=test_implemtation,
@@ -895,7 +1031,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                             raise e
 
                 except Exception as e:
-                    print(f"Testing implementation for interface {key} failed: {str(e)}")
+                    print(
+                        f"Testing implementation for interface {key} failed: {str(e)}"
+                    )
                     raise e
 
             provide_task.cancel()
@@ -967,7 +1105,9 @@ class RekuestAgent(BaseAgent):
 
     pass
 
-    async def asend_state(self, interface: str, state_patch: jsonpatch.JsonPatch) -> None:
+    async def asend_state(
+        self, interface: str, state_patch: jsonpatch.JsonPatch
+    ) -> None:
         """Publish a state to the agent.  Will forward the state to the transport"""
         from rekuest_next.api.schema import aupdate_state
 
@@ -982,7 +1122,9 @@ class RekuestAgent(BaseAgent):
         # "state is a one way street"
         return None
 
-    async def ashelve(self, instance_id, identifier, value, label=None, description=None) -> str:
+    async def ashelve(
+        self, instance_id, identifier, value, label=None, description=None
+    ) -> str:
         drawer = await ashelve(
             instance_id=self.instance_id,
             identifier=identifier,

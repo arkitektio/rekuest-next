@@ -20,7 +20,6 @@ from rekuest_next.agents.context import PreparedContextReturns, PreparedContextV
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent, AssignmentHook
 from rekuest_next import messages
-from rekuest_next.api.schema import pause
 from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.protocols import AnyContext, AnyState
 from rekuest_next.state.publish import direct_publishing

@@ -11,6 +11,7 @@ from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.protocols import AnyState
 from rekuest_next.actors.types import Agent, Shelver
 from rekuest_next.state.observable import StateConfig
+from rekuest_next.state.publish import Patch
 from rekuest_next.state.shrink import ashrink_state
 from rekuest_next.structures.serialization.actor import ashrink_return
 
@@ -34,6 +35,7 @@ class StatePublisher(Shelver, Protocol):
         ...
 
 
+# Update Dispatcher
 class StateWorker:
     """
     Manages the buffer, squashing, shrinking, and network loop
@@ -51,8 +53,9 @@ class StateWorker:
         self.interval = config.publish_interval
         self.structure_registry = config.structure_registry
         self.agent = agent
-
         self._state_reference = state_instance
+        self._published_rev: Optional[int] = None  # Tracks the last published revision
+
         self._last_shrunk_state: Optional[Dict[str, Any]] = None
         self._rev = 0
         self._running = False
@@ -62,7 +65,7 @@ class StateWorker:
         self._lock = asyncio.Lock()
 
         # Async-friendly queue for incoming patches from the Observable
-        self._queue: asyncio.Queue[messages.EnvelopePatch] = asyncio.Queue()
+        self._queue: asyncio.Queue[Patch] = asyncio.Queue()
 
     async def aget_revision(self) -> RevisedState:
         """
@@ -71,18 +74,20 @@ class StateWorker:
         """
         async with self._lock:
             if self._last_shrunk_state is None:
+                print("Initial capture for state", self.name)
                 self._last_shrunk_state = await ashrink_state(
                     self._state_reference,
                     self.schema,
                     structure_reg=self.structure_registry,
                     shelver=self.agent,
                 )
+                print("Initial capture complete for state", self.name)
 
             # We return a deep copy or a snapshot to ensure the publisher
             # isn't looking at a dict that _flush is currently mutating.
             return RevisedState(revision=self._rev, data=self._last_shrunk_state)
 
-    def put_patch(self, patch: messages.EnvelopePatch) -> None:
+    def put_patch(self, patch: Patch) -> None:
         """Called synchronously by the Observable mixin to buffer changes."""
         self._queue.put_nowait(patch)
 
@@ -104,6 +109,7 @@ class StateWorker:
             while self._running:
                 # 1. Block until at least one patch arrives (0% CPU while idle)
                 first_patch = await self._queue.get()
+                self._rev += 1  # Increment revision for the incoming patch
                 raw_patches = [first_patch]
 
                 # 2. Debounce: Wait for 'interval' to collect more patches
@@ -113,6 +119,7 @@ class StateWorker:
                 # 3. Drain the queue of all patches accumulated during the wait
                 while not self._queue.empty():
                     raw_patches.append(self._queue.get_nowait())
+                    self._rev += 1
 
                 # 4. Process the batch
                 await self._flush(raw_patches)
@@ -127,7 +134,7 @@ class StateWorker:
             logger.exception(f"Fatal error in StateWorker '{self.name}': {e}")
             raise
 
-    async def _flush(self, raw_patches: List[messages.EnvelopePatch]):
+    async def _flush(self, raw_patches: List[Patch]):
         """Logic for squashing, shrinking, and updating the local snapshot."""
         if not raw_patches:
             return
@@ -139,6 +146,7 @@ class StateWorker:
                 return
 
             # 2. Serialize values for the network
+            # asyncioously shrink any complex structures in the patches using the schema and structure registry
             network_patches: List[messages.EnvelopePatch] = []
             for p in optimized:
                 port = self._resolve_port(p.path)
@@ -168,17 +176,18 @@ class StateWorker:
                         self._last_shrunk_state, patch_dicts, in_place=True
                     )
 
-                base_rev = self._rev
-                self._rev += 1
+                    # 4. Construct and Publish
+                    envelope = messages.Envelope(
+                        state_name=self.name,
+                        rev=self._rev,
+                        base_rev=self._published_rev or 0,
+                        ts=time.time(),
+                        patches=network_patches,
+                    )
 
-            # 4. Construct and Publish
-            envelope = messages.Envelope(
-                state_name=self.name,
-                rev=self._rev,
-                base_rev=base_rev,
-                ts=time.time(),
-                patches=network_patches,
-            )
+                    self._published_rev = (
+                        self._rev
+                    )  # Update published revision after successful patch application
 
             await self.agent.apublish_envelope(self.name, envelope)
 
@@ -189,14 +198,10 @@ class StateWorker:
         """Traverses the schema to find the PortInput for a given JSON path."""
         return resolve_port_for_path(self.schema, path)
 
-    def _squash(
-        self, patches: List[messages.EnvelopePatch]
-    ) -> List[messages.EnvelopePatch]:
+    def _squash(self, patches: List[Patch]) -> List[Patch]:
         """
         Chronological squash: Only the last operation for a specific path
         within this batch is kept, unless paths are nested.
         """
-        latest_ops: Dict[str, messages.EnvelopePatch] = {}
-        for p in patches:
-            latest_ops[p.path] = p
-        return list(latest_ops.values())
+        # NOT IMPLEMENTED CORRECTLY YET
+        return list(patches)

@@ -29,6 +29,8 @@ from rekuest_next.api.schema import (
     resume,
 )
 from rekuest_next.app import AppRegistry
+from rekuest_next.contrib.sql_lite.retriever import SQLLiteRetriever
+from rekuest_next.contrib.sql_lite.sink import SQLLiteSink
 from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
 
 from .agent import FastApiAgent
@@ -69,7 +71,9 @@ def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key for child in port.children if not child.nullable and child.default is None
+                child.key
+                for child in port.children
+                if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -149,7 +153,9 @@ def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
         app.state.agent = agent
 
         async with app.state.agent:
-            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
+            provide_task = asyncio.create_task(
+                app.state.agent.aprovide(instance_id=instance_id)
+            )
             provide_task.add_done_callback(_handle_provide_task_done)
 
             yield
@@ -185,7 +191,9 @@ def add_implementation_route(
     args_schema_name = f"{implementation.definition.name}Args"
 
     # Create args schema from ports
-    args_schema = create_json_schema_from_ports(implementation.definition.args, args_schema_name)
+    args_schema = create_json_schema_from_ports(
+        implementation.definition.args, args_schema_name
+    )
 
     # Create full request schema based on AssignInput model with args schema embedded
     request_schema = {
@@ -307,7 +315,9 @@ def add_implementation_route(
                 "required": True,
                 "content": {
                     "application/json": {
-                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
+                        "schema": {
+                            "$ref": f"#/components/schemas/{request_schema_name}"
+                        }
                     }
                 },
             },
@@ -316,7 +326,9 @@ def add_implementation_route(
                     "description": "Successful Response",
                     "content": {
                         "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
+                            "schema": {
+                                "$ref": f"#/components/schemas/{response_schema_name}"
+                            }
                         }
                     },
                 }
@@ -446,7 +458,9 @@ def add_agent_routes(
         return {"status": "submitted", "assignation": assignation_id}
 
     @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
+    async def assign_action(
+        request: Request, interface: str, extension: str = "default"
+    ) -> dict:
         """Assign an action to the agent for processing.
 
         Accepts the full AssignInput model with args, policy, hooks, and other fields.
@@ -577,6 +591,120 @@ def add_agent_routes(
         await agent.transport.asubmit(assign_message)
         return {"status": "stepping", "assignation": assign_input.assignation}
 
+    @app.get(f"/session_info")
+    async def session_info_action(
+        request: Request,
+    ) -> dict[str, Any]:
+        """Get information about the current session.
+
+        Returns:
+            A dictionary containing the current session ID and other relevant information.
+        """
+        user = get_user_from_request(request)
+
+        agent.current_session
+
+        return {"current_session": agent.current_session}
+
+    @app.get(f"/active_session_boundaries")
+    async def session_boundaries_action(request: Request) -> dict:
+        """Get the boundaries of a specific session.
+
+        Args:
+            request: The incoming request.
+            session_id: The ID of the session.
+
+        Returns:
+            A dictionary containing the session boundaries.
+
+        """
+
+        boundaries = await agent.retriever.aget_session_boundaries(
+            session_id=agent.current_session
+        )
+
+        print("Boundaries:", boundaries)
+
+        return boundaries.__dict__ if boundaries else {}
+
+    @app.get(f"/session_boundaries/{{session_id}}")
+    async def session_boundaries_action(request: Request, session_id: str) -> dict:
+        """Get the boundaries of a specific session.
+
+        Args:
+            request: The incoming request.
+            session_id: The ID of the session.
+
+        Returns:
+            A dictionary containing the session boundaries.
+
+        """
+
+        boundaries = await agent.retriever.aget_session_boundaries(
+            session_id=session_id
+        )
+
+        return boundaries.__dict__ if boundaries else {}
+
+    @app.get(f"/state_around/{{session_id}}/{{state_id}}/{{target_revision}}")
+    async def session_boundaries_action(
+        request: Request,
+        session_id: str,
+        state_id: str,
+        target_revision: int,
+        radius_before: int | None = None,
+        radius_after: int | None = None,
+    ) -> dict:
+        """Get the boundaries of a specific session.
+
+        Args:
+            request: The incoming request.
+            session_id: The ID of the session.
+
+        Returns:
+            A dictionary containing the session boundaries.
+
+        """
+
+        window_around = await agent.retriever.aget_around_window(
+            state_id=state_id,
+            target_revision=target_revision,
+            session_id=session_id,
+            radius_before=radius_before or 100,
+            radius_after=radius_after or 100,
+        )
+
+        return window_around.__dict__ if window_around else {}
+
+    @app.get(f"/current_around/{{state_id}}/{{target_revision}}")
+    async def session_boundaries_action(
+        request: Request,
+        state_id: str,
+        target_revision: int,
+        radius_before: int | None = None,
+        radius_after: int | None = None,
+    ) -> dict:
+        """Get the boundaries of a specific session.
+
+        Args:
+            request: The incoming request.
+            session_id: The ID of the session.
+
+        Returns:
+            A dictionary containing the session boundaries.
+
+        """
+
+        window_around = await agent.retriever.aget_around_window(
+            state_id=state_id,
+            target_revision=target_revision,
+            session_id=agent.current_session,
+            radius_before=radius_before or 100,
+            radius_after=radius_after or 100,
+        )
+
+        return window_around.__dict__ if window_around else {}
+
 
 def add_implementation_routes(
     app: FastAPI,
@@ -590,7 +718,9 @@ def add_implementation_routes(
         agent: The FastApiAgent with registered implementations.
         extension: The extension name to get implementations from.
     """
-    for implementation in agent.extension_registry.get(extension).get_static_implementations():
+    for implementation in agent.extension_registry.get(
+        extension
+    ).get_static_implementations():
         add_implementation_route(app, agent, implementation)
 
 
@@ -614,7 +744,9 @@ def add_state_route(
 
     # Create JSON schema from the state schema ports
     response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
+    response_schema = create_json_schema_from_ports(
+        state_schema.ports, response_schema_name
+    )
 
     # Store schema for OpenAPI generation
     if not hasattr(app, "_custom_schemas"):
@@ -639,7 +771,9 @@ def add_state_route(
                 }
             )
         except Exception as e:
-            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to get state for interface {interface}: {e}", exc_info=True
+            )
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Failed to serialize state: {str(e)}"},
@@ -659,12 +793,68 @@ def add_state_route(
                     "description": "Current state value",
                     "content": {
                         "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
+                            "schema": {
+                                "$ref": f"#/components/schemas/{response_schema_name}"
+                            }
                         }
                     },
                 }
             },
         },
+    )
+
+    app.router.routes.append(route)
+
+
+def add_travel_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    states_path: str = "/travel",
+) -> None:
+    """Add a GET route for a specific state to the FastAPI app.
+
+    Args:
+        app: The FastAPI application.
+        agent: The FastApiAgent with the state.
+        interface: The interface name for the state.
+        state_schema: The state schema input.
+        states_path: Base path for state routes.
+    """
+
+    async def get_around_window() -> JSONResponse:
+        """Get the current state value."""
+        if interface not in agent.states:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "State not initialized", "interface": interface},
+            )
+
+        # Otherwise try to shrink it now
+        try:
+            revised_state = await agent.retriever.aget_round(interface)
+            return JSONResponse(
+                content={
+                    "revision": revised_state.revision,
+                    "state": revised_state.data,
+                }
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to get state for interface {interface}: {e}", exc_info=True
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Failed to serialize state: {str(e)}"},
+            )
+
+    route = APIRoute(
+        path=route_path,
+        endpoint=get_around_window,
+        methods=["GET"],
+        summary=f"Get {state_schema.name} state",
+        description=f"Get the current value of the {state_schema.name} state",
+        tags=["States"],
+        response_class=JSONResponse,
     )
 
     app.router.routes.append(route)
@@ -735,7 +925,9 @@ def add_lock_route(
                     "description": "Current lock value",
                     "content": {
                         "application/json": {
-                            "schema": {"$ref": f"#/components/locks/{response_schema_name}"}
+                            "schema": {
+                                "$ref": f"#/components/locks/{response_schema_name}"
+                            }
                         }
                     },
                 }
@@ -767,7 +959,9 @@ def add_schema_routes(
     async def get_implementation_schemas() -> dict:
         """Get all implementation schemas for the specified extension."""
         implementations = {}
-        for impl in agent.extension_registry.get(extension).get_static_implementations():
+        for impl in agent.extension_registry.get(
+            extension
+        ).get_static_implementations():
             implementations[impl.interface or impl.definition.name] = impl
 
         return {
@@ -1165,9 +1359,13 @@ def configure_fastapi(
     extension_registry = ExtensionRegistry()
     extension_registry.register(default_extension)
 
+    db_file = f"db_like.db"
+
     # Create the FastApiAgent with the extension registry
     agent = FastApiAgent(
         extension_registry=extension_registry,
+        retriever=SQLLiteRetriever(db_path=db_file),
+        sink=SQLLiteSink(db_path=db_file),
     )
 
     # Add agent routes immediately (WebSocket, assignations, assign endpoints)
