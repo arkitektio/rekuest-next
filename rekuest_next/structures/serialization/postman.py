@@ -211,7 +211,7 @@ async def ashrink_arg(
                 shrinked_params: dict[str, Any] = {
                     port.key: val for port, val in zip(port.children, shrinked_args)
                 }
-                shrinked_params["__identifier__"] = port.identifier
+                shrinked_params["__identifier"] = port.identifier
                 return shrinked_params
 
             except Exception as e:
@@ -403,17 +403,17 @@ async def aexpand_return(
         if not isinstance(value, dict):
             raise PortExpandingError(f"Expected value to be a dict, but got {type(value)}")
 
-        if "__identifier__" not in value:
-            raise PortExpandingError(f"Expected value to have __identifier__ key, but got {value}")
+        if "__identifier" not in value:
+            raise PortExpandingError(f"Expected value to have __identifier key, but got {value}")
 
         if "object" not in value:
             raise PortExpandingError(f"Expected value to have object key, but got {value}")
 
-        identifier = value["__identifier__"]
+        identifier = value["__identifier"]
         object = value["object"]
         if identifier != port.identifier:
             raise PortExpandingError(
-                f"Expected value to have __identifier__ {port.identifier}, but got {identifier}"
+                f"Expected value to have __identifier {port.identifier}, but got {identifier}"
             )
 
         if not isinstance(object, (str, int)):

@@ -710,7 +710,7 @@ async def ashrink_return(
             }
 
             # Add shrinked identifier
-            shrinked_params["__identifier__"] = port.identifier
+            shrinked_params["__identifier"] = port.identifier
 
             return shrinked_params
 
@@ -758,7 +758,7 @@ async def ashrink_return(
                 )
 
             return {
-                "__identifier__": port.identifier,
+                "__identifier": port.identifier,
                 "object": await shelver.aput_on_shelve(Identifier.validate(port.identifier), value),
             }
 
@@ -774,7 +774,7 @@ async def ashrink_return(
             fstruc = structure_registry.get_fullfilled_structure(port.identifier)
             try:
                 shrink = await fstruc.ashrink(value)
-                return {"__identifier__": port.identifier, "object": shrink}
+                return {"__identifier": port.identifier, "object": shrink}
             except Exception as e:
                 raise to_shrink_port_error(
                     port,
