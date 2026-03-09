@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.0.1 (2026-03-09)
+
+### Bug Fixes
+
+- Incorrect identifie handeling
+  ([`82961e5`](https://github.com/arkitektio/rekuest-next/commit/82961e54ce434337a6a253a658aaaa5dd51e8a64))
+
+
 ## v1.0.0 (2026-03-09)
 
 ### Features
