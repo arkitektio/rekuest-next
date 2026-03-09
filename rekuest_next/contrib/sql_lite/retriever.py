@@ -46,14 +46,14 @@ class SQLLiteRetriever:
         # Using strict parameterization for safety
         if state_id is None:
             query = """
-            SELECT MIN(current_rev), MAX(future_rev), MIN(event_time), MAX(event_time)
+            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
             FROM state_patches
             WHERE correlation_id = ?;
             """
             params = (correlation_id,)
         else:
             query = """
-            SELECT MIN(current_rev), MAX(future_rev), MIN(event_time), MAX(event_time)
+            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
             FROM state_patches
             WHERE state_id = ? AND correlation_id = ?;
             """
@@ -66,8 +66,8 @@ class SQLLiteRetriever:
         if row and row[0] is not None:
             return TaskBoundary(
                 correlation_id=correlation_id,
-                start_revision=row[0],
-                end_revision=row[1],
+                start_global_revision=row[0],
+                end_global_revision=row[1],
                 start_time=epoch_ms_to_dt(row[2]),
                 end_time=epoch_ms_to_dt(row[3]),
             )
@@ -79,14 +79,14 @@ class SQLLiteRetriever:
         # Completely eliminating f-strings for SQL structural queries to prevent injection
         if state_id is None:
             query = """
-            SELECT MIN(current_rev), MAX(future_rev), MIN(event_time), MAX(event_time)
+            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
             FROM state_patches
             WHERE session_id = ?;
             """
             params = (session_id,)
         else:
             query = """
-            SELECT MIN(current_rev), MAX(future_rev), MIN(event_time), MAX(event_time)
+            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
             FROM state_patches
             WHERE session_id = ? AND state_id = ?;
             """
@@ -99,8 +99,8 @@ class SQLLiteRetriever:
         if row and row[0] is not None:
             return SessionBoundary(
                 session_id=session_id,
-                start_revision=row[0],
-                end_revision=row[1],
+                start_global_revision=row[0],
+                end_global_revision=row[1],
                 start_time=epoch_ms_to_dt(row[2]),
                 end_time=epoch_ms_to_dt(row[3]),
             )
@@ -134,32 +134,69 @@ class SQLLiteRetriever:
 
     async def aget_forward_events_after_rev(
         self,
-        revision: int,
+        global_revision: int,
         state_id: Optional[str] = None,
         session_id: Optional[str] = None,
         count: int = 100,
     ) -> list[PatchEvent]:
         session_filter = "AND session_id = ?" if session_id is not None else ""
         state_filter = "AND state_id = ?" if state_id is not None else ""
-        params: tuple[object, ...] = (revision, count)
+        params: tuple[object, ...] = (global_revision, count)
         if state_id is not None and session_id is not None:
-            params = (revision, state_id, session_id, count)
+            params = (global_revision, state_id, session_id, count)
         elif state_id is not None:
-            params = (revision, state_id, count)
+            params = (global_revision, state_id, count)
         elif session_id is not None:
-            params = (revision, session_id, count)
+            params = (global_revision, session_id, count)
 
         query = f"""
-        SELECT current_rev, future_rev, global_current_rev, global_future_rev,
+     SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
-        WHERE current_rev >= ? {state_filter} {session_filter}
-        ORDER BY current_rev ASC, state_id ASC
+        WHERE global_current_rev >= ? {state_filter} {session_filter}
+        ORDER BY global_current_rev ASC, state_id ASC, current_rev ASC
         LIMIT ?
         """
 
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+
+        return [self._row_to_patch_event(row) for row in rows]
+
+    async def aget_patch_events_between_global_revs(
+        self,
+        from_global_revision: int,
+        to_global_revision: int,
+        state_ids: list[str] | None = None,
+        session_id: str | None = None,
+    ) -> list[PatchEvent]:
+        if to_global_revision < from_global_revision:
+            return []
+
+        state_filter = ""
+        params: list[object] = [from_global_revision, to_global_revision]
+
+        if state_ids:
+            placeholders = ", ".join("?" for _ in state_ids)
+            state_filter = f"AND state_id IN ({placeholders})"
+            params.extend(state_ids)
+
+        session_filter = "AND session_id = ?" if session_id is not None else ""
+        if session_id is not None:
+            params.append(session_id)
+
+        query = f"""
+        SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
+               event_time, correlation_id, session_id, op, path, value
+        FROM state_patches
+        WHERE global_current_rev >= ? AND global_future_rev <= ?
+              {state_filter} {session_filter}
+        ORDER BY global_current_rev ASC, state_id ASC, current_rev ASC
+        """
+
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(query, tuple(params)) as cursor:
                 rows = await cursor.fetchall()
 
         return [self._row_to_patch_event(row) for row in rows]
@@ -250,7 +287,7 @@ class SQLLiteRetriever:
         LIMIT 1
         """
         patch_query = f"""
-        SELECT current_rev, future_rev, global_current_rev, global_future_rev,
+         SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
         WHERE state_id = ? AND {patch_current_column} >= ? AND {patch_future_column} <= ? {session_filter}
@@ -336,6 +373,7 @@ class SQLLiteRetriever:
 
     def _row_to_patch_event(self, row: tuple[Any, ...]) -> PatchEvent:
         (
+            state_id,
             current_rev,
             future_rev,
             global_current_rev,
@@ -353,6 +391,7 @@ class SQLLiteRetriever:
 
         return PatchEvent(
             timepoint=epoch_ms_to_dt(event_time),
+            state_id=state_id,
             current_rev=current_rev,
             future_rev=future_rev,
             global_current_rev=global_current_rev,

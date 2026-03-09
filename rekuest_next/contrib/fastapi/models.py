@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RetrieverSessionInfoResponse(BaseModel):
@@ -13,21 +13,21 @@ class RetrieverSessionInfoResponse(BaseModel):
 
 
 class RetrieverTaskBoundaryResponse(BaseModel):
-    """Response describing the revision boundaries of a task."""
+    """Response describing the global revision boundaries of a task."""
 
     correlation_id: str
-    start_revision: int
-    end_revision: int
+    start_global_revision: int
+    end_global_revision: int
     start_time: datetime
     end_time: datetime
 
 
 class RetrieverSessionBoundaryResponse(BaseModel):
-    """Response describing the revision boundaries of a session."""
+    """Response describing the global revision boundaries of a session."""
 
     session_id: str
-    start_revision: int
-    end_revision: int
+    start_global_revision: int
+    end_global_revision: int
     start_time: datetime
     end_time: datetime
 
@@ -46,6 +46,7 @@ class RetrieverPatchEventResponse(BaseModel):
     """Response representing a persisted patch event."""
 
     timepoint: datetime
+    state_id: str
     current_rev: int
     future_rev: int
     global_current_rev: int
@@ -53,6 +54,14 @@ class RetrieverPatchEventResponse(BaseModel):
     correlation_id: str
     session_id: str
     patch: Any
+
+
+class StateSegmentsResponse(BaseModel):
+    """Response representing persisted patches within a global revision range."""
+
+    from_global_revision: int
+    to_global_revision: int
+    patches: list[RetrieverPatchEventResponse]
 
 
 class TaskView(BaseModel):
@@ -93,6 +102,7 @@ class StateCollectionResponse(BaseModel):
     current_global_revision: int | None
     count: int
     states: dict[str, StateView]
+    recent_patches: list[RetrieverPatchEventResponse] = Field(default_factory=lambda: [])
 
 
 class LockView(BaseModel):
@@ -108,3 +118,18 @@ class LockCollectionResponse(BaseModel):
 
     count: int
     locks: dict[str, LockView]
+
+
+class WebSocketSubscriptionInit(BaseModel):
+    """Init payload sent by websocket clients after connecting.
+
+    All filter lists are optional. When omitted, the websocket receives all
+    messages of that category. State batching can be customized per state key
+    through `state_update_intervals`. Use `"*"` for a default interval.
+    """
+
+    type: str | None = None
+    action_keys: list[str] | None = None
+    state_keys: list[str] | None = None
+    lock_keys: list[str] | None = None
+    state_update_intervals: dict[str, float] | None = None

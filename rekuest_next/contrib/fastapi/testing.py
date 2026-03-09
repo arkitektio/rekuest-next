@@ -124,14 +124,14 @@ class AgentTestClient:
     Attributes:
         app: The FastAPI application under test.
         agent: The FastApiAgent instance.
-        ws_path: The WebSocket endpoint path (default: "/wstasks").
+        ws_path: The WebSocket endpoint path (default: "/ws").
         as_user: The user to impersonate for requests and WebSocket init.
     """
 
     def __init__(
         self,
         app: FastAPI,
-        ws_path: str = "/wstasks",
+        ws_path: str = "/ws",
         as_user: Optional[str] = None,
     ) -> None:
         """Initialize the AgentTestClient.
@@ -165,15 +165,10 @@ class AgentTestClient:
         self._websocket = self._client.websocket_connect(self.ws_path, headers=headers)
         self._websocket.__enter__()
 
-        # Send init message if as_user is set
+        init_message = {"type": "INIT"}
         if self.as_user:
-            init_message = json.dumps(
-                {
-                    "type": "INIT",
-                    "user": self.as_user,
-                }
-            )
-            self._websocket.send_text(init_message)
+            init_message["user"] = self.as_user
+        self._websocket.send_text(json.dumps(init_message))
 
         return self
 
@@ -533,14 +528,14 @@ class AsyncAgentTestClient:
     Attributes:
         app: The FastAPI application under test.
         agent: The FastApiAgent instance.
-        ws_path: The WebSocket endpoint path (default: "/wstasks").
+        ws_path: The WebSocket endpoint path (default: "/ws").
         as_user: The user to impersonate for requests and WebSocket init.
     """
 
     def __init__(
         self,
         app: FastAPI,
-        ws_path: str = "/wstasks",
+        ws_path: str = "/ws",
         as_user: Optional[str] = None,
         base_url: str = "http://test",
     ) -> None:
@@ -586,15 +581,10 @@ class AsyncAgentTestClient:
         self._websocket = self._test_client.websocket_connect(self.ws_path, headers=headers)
         self._websocket.__enter__()
 
-        # Send init message if as_user is set
+        init_message = {"type": "INIT"}
         if self.as_user:
-            init_message = json.dumps(
-                {
-                    "type": "INIT",
-                    "user": self.as_user,
-                }
-            )
-            self._websocket.send_text(init_message)
+            init_message["user"] = self.as_user
+        self._websocket.send_text(json.dumps(init_message))
 
         # Start WebSocket listener task
         self._stop_ws.clear()

@@ -149,15 +149,15 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
         state_id="QueuedCounterState",
     )
     assert boundaries is not None
-    assert boundaries.start_revision == 0
-    assert boundaries.end_revision == 1
+    assert boundaries.start_global_revision == 0
+    assert boundaries.end_global_revision == 1
 
     session_boundaries = await retriever.aget_session_boundaries(
         session_id=session_id,
         state_id="QueuedCounterState",
     )
     assert session_boundaries is not None
-    assert session_boundaries.end_revision == 1
+    assert session_boundaries.end_global_revision == 1
 
     state_at_local = await retriever.aget_state_at_local_rev(
         state_id="QueuedCounterState",
@@ -180,7 +180,7 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
 
     forward_events = await retriever.aget_forward_events_after_rev(
         state_id="QueuedCounterState",
-        revision=0,
+        global_revision=0,
         session_id=session_id,
         count=10,
     )
@@ -215,7 +215,7 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     assert sorted(snapshot.data["value"] for snapshot in all_state_at_global) == [1, 11]
 
     all_forward_events = await retriever.aget_forward_events_after_rev(
-        revision=0,
+        global_revision=0,
         session_id=session_id,
         count=10,
     )

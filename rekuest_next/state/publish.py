@@ -3,6 +3,7 @@ from contextvars import ContextVar
 
 from attr import dataclass
 
+from rekuest_next.api.schema import PortInput
 from rekuest_next.structures.types import JSONSerializable
 
 publish_context: ContextVar[Optional["Publisher"]] = ContextVar("publish_context", default=None)
@@ -14,11 +15,15 @@ class Patch:
     path: str
     value: Any = None
     old_value: Any = None
+    port: PortInput | None = None
     correlation_id: Optional[str] = None
 
     def __str__(self):
         return (
-            f"Patch(op={self.op}, path={self.path}, value={self.value}, old_value={self.old_value})"
+            "Patch("
+            f"op={self.op}, path={self.path}, value={self.value}, "
+            f"old_value={self.old_value}, port={getattr(self.port, 'key', None)}"
+            ")"
         )
 
     def to_rfc_compliant_json_patch(self) -> dict[str, JSONSerializable]:

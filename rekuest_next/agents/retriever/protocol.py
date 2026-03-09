@@ -26,6 +26,7 @@ class Snapshot:
 @dataclass
 class PatchEvent:
     timepoint: datetime
+    state_id: str
     current_rev: int
     future_rev: int
     global_current_rev: int
@@ -38,8 +39,8 @@ class PatchEvent:
 @dataclass
 class TaskBoundary:
     correlation_id: str
-    start_revision: int
-    end_revision: int
+    start_global_revision: int
+    end_global_revision: int
     start_time: datetime
     end_time: datetime
 
@@ -47,8 +48,8 @@ class TaskBoundary:
 @dataclass
 class SessionBoundary:
     session_id: str
-    start_revision: int
-    end_revision: int
+    start_global_revision: int
+    end_global_revision: int
     start_time: datetime
     end_time: datetime
 
@@ -68,12 +69,14 @@ class StateRetriever(Protocol):
     async def aget_task_boundaries(
         self, correlation_id: str, state_id: Optional[str] = None
     ) -> Optional[TaskBoundary]:
-        """Given a state_id and a correlation_id, returns the start and end revisions and timestamps for that task. This allows agents to query the history of a specific operation or task, which can be useful for debugging, auditing, or reconstructing the sequence of events that led to a particular state."""
+        """Return the global revision boundaries and timestamps for a task."""
         ...
 
     async def aget_session_boundaries(
         self, session_id: str, state_id: Optional[str] = None
-    ) -> Optional[SessionBoundary]: ...
+    ) -> Optional[SessionBoundary]:
+        """Return the global revision boundaries and timestamps for a session."""
+        ...
 
     async def aget_state_at_global_rev(
         self,
@@ -91,10 +94,20 @@ class StateRetriever(Protocol):
 
     async def aget_forward_events_after_rev(
         self,
-        revision: int,
+        global_revision: int,
         state_id: Optional[str] = None,
         session_id: Optional[str] = None,
         count: int = 100,
+    ) -> List[PatchEvent]:
+        """Return patch events whose global revision range starts at or after `global_revision`."""
+        ...
+
+    async def aget_patch_events_between_global_revs(
+        self,
+        from_global_revision: int,
+        to_global_revision: int,
+        state_ids: Optional[List[str]] = None,
+        session_id: Optional[str] = None,
     ) -> List[PatchEvent]: ...
 
     async def aget_snapshots_around_rev(

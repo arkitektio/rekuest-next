@@ -67,9 +67,7 @@ def create_lifespan(
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
             except Exception as exc:
-                logger.error(
-                    "Error during provide task shutdown: %s", exc, exc_info=True
-                )
+                logger.error("Error during provide task shutdown: %s", exc, exc_info=True)
 
     return lifespan
 
@@ -78,6 +76,7 @@ def add_agent_routes(
     app: FastAPI,
     agent: FastApiAgent[Any],
     get_user_from_request: Optional[Callable[[Request], object]] = None,
+    ws_path: str = "/ws",
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
     pause_path: str = "/pause",
@@ -91,6 +90,7 @@ def add_agent_routes(
         build_core_router(
             agent,
             user_getter,
+            ws_path=ws_path,
             assign_path=assign_path,
             cancel_path=cancel_path,
             pause_path=pause_path,
@@ -104,12 +104,11 @@ def add_task_routes(
     app: FastAPI,
     agent: FastApiAgent[T],
     tasks_path: str = "/tasks",
-    tasks_ws_path: str = "/wstasks",
 ) -> None:
     """Include task overview routes."""
     _include_router(
         app,
-        build_task_router(agent, tasks_path=tasks_path, tasks_ws_path=tasks_ws_path),
+        build_task_router(agent, tasks_path=tasks_path),
     )
 
 
@@ -126,14 +125,11 @@ def add_state_routes(
     app: FastAPI,
     agent: FastApiAgent,
     states_path: str = "/states",
-    states_ws_path: str = "/wsstates",
 ) -> None:
     """Include state overview routes."""
     _include_router(
         app,
-        build_state_router(
-            agent, states_path=states_path, states_ws_path=states_ws_path
-        ),
+        build_state_router(agent, states_path=states_path),
     )
 
 
@@ -145,21 +141,18 @@ def add_state_detail_routes(
 ) -> None:
     """Include conditional state detail and retriever routes."""
     state_schemas = state_schemas or agent.get_state_schemas()
-    _include_router(
-        app, build_state_detail_router(agent, state_schemas, states_path=states_path)
-    )
+    _include_router(app, build_state_detail_router(agent, state_schemas, states_path=states_path))
 
 
 def add_lock_routes(
     app: FastAPI,
     agent: FastApiAgent,
     locks_path: str = "/locks",
-    locks_ws_path: str = "/wslocks",
 ) -> None:
     """Include lock overview routes."""
     _include_router(
         app,
-        build_lock_router(agent, locks_path=locks_path, locks_ws_path=locks_ws_path),
+        build_lock_router(agent, locks_path=locks_path),
     )
 
 
@@ -196,13 +189,11 @@ def configure_fastapi(
     add_tasks: bool = True,
     add_task_details: bool = True,
     extension: str = "default",
+    ws_path: str = "/ws",
     tasks_path: str = "/tasks",
-    tasks_ws_path: str = "/ws/tasks",
     assign_path: str = "/assign",
     states_path: str = "/states",
-    states_ws_path: str = "/ws/states",
     locks_path: str = "/locks",
-    locks_ws_path: str = "/ws/locks",
     app_context: T | None = None,
 ) -> FastApiAgent[T]:
     """Configure a FastAPI app with a refactored set of agent route groups."""
@@ -224,24 +215,18 @@ def configure_fastapi(
         app,
         agent,
         get_user_from_request=get_user_from_request,
+        ws_path=ws_path,
         assign_path=assign_path,
     )
 
     @contextlib.asynccontextmanager
     async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
         if add_tasks:
-            add_task_routes(
-                fastapi_app, agent, tasks_path=tasks_path, tasks_ws_path=tasks_ws_path
-            )
+            add_task_routes(fastapi_app, agent, tasks_path=tasks_path)
         if add_task_details:
             add_task_detail_routes(fastapi_app, agent, tasks_path=tasks_path)
         if add_states:
-            add_state_routes(
-                fastapi_app,
-                agent,
-                states_path=states_path,
-                states_ws_path=states_ws_path,
-            )
+            add_state_routes(fastapi_app, agent, states_path=states_path)
         if add_state_details:
             add_state_detail_routes(
                 fastapi_app,
@@ -250,9 +235,7 @@ def configure_fastapi(
                 state_schemas=await agent.aget_state_schemas(),
             )
         if add_locks:
-            add_lock_routes(
-                fastapi_app, agent, locks_path=locks_path, locks_ws_path=locks_ws_path
-            )
+            add_lock_routes(fastapi_app, agent, locks_path=locks_path)
         if add_implementations:
             add_implementation_routes(fastapi_app, agent, extension=extension)
         if add_schema:
@@ -270,9 +253,7 @@ def configure_fastapi(
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
             except Exception as exc:
-                logger.error(
-                    "Error during provide task shutdown: %s", exc, exc_info=True
-                )
+                logger.error("Error during provide task shutdown: %s", exc, exc_info=True)
 
     app.router.lifespan_context = lifespan
     return agent

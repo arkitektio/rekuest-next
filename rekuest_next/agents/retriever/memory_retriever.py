@@ -42,8 +42,8 @@ class MemoryRetriever:
 
         return TaskBoundary(
             correlation_id=correlation_id,
-            start_revision=min(patch.current_rev for patch in patches),
-            end_revision=max(patch.future_rev for patch in patches),
+            start_global_revision=min(patch.global_current_rev for patch in patches),
+            end_global_revision=max(patch.global_future_rev for patch in patches),
             start_time=min(patch.event_time for patch in patches),
             end_time=max(patch.event_time for patch in patches),
         )
@@ -61,8 +61,8 @@ class MemoryRetriever:
 
         return SessionBoundary(
             session_id=session_id,
-            start_revision=min(patch.current_rev for patch in patches),
-            end_revision=max(patch.future_rev for patch in patches),
+            start_global_revision=min(patch.global_current_rev for patch in patches),
+            end_global_revision=max(patch.global_future_rev for patch in patches),
             start_time=min(patch.event_time for patch in patches),
             end_time=max(patch.event_time for patch in patches),
         )
@@ -95,7 +95,7 @@ class MemoryRetriever:
 
     async def aget_forward_events_after_rev(
         self,
-        revision: int,
+        global_revision: int,
         state_id: Optional[str] = None,
         session_id: Optional[str] = None,
         count: int = 100,
@@ -103,13 +103,39 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.current_rev >= revision
+            if patch.global_current_rev >= global_revision
             and (state_id is None or patch.state_id == state_id)
             and (session_id is None or patch.session_id == session_id)
         ]
         return [
             self._to_patch_event(patch)
-            for patch in sorted(patches, key=lambda item: (item.current_rev, item.state_id))[:count]
+            for patch in sorted(
+                patches,
+                key=lambda item: (item.global_current_rev, item.state_id, item.current_rev),
+            )[:count]
+        ]
+
+    async def aget_patch_events_between_global_revs(
+        self,
+        from_global_revision: int,
+        to_global_revision: int,
+        state_ids: Optional[list[str]] = None,
+        session_id: Optional[str] = None,
+    ) -> list[PatchEvent]:
+        patches = [
+            patch
+            for patch in self._get_patches()
+            if patch.global_current_rev >= from_global_revision
+            and patch.global_future_rev <= to_global_revision
+            and (state_ids is None or patch.state_id in state_ids)
+            and (session_id is None or patch.session_id == session_id)
+        ]
+        return [
+            self._to_patch_event(patch)
+            for patch in sorted(
+                patches,
+                key=lambda item: (item.global_current_rev, item.state_id, item.current_rev),
+            )
         ]
 
     async def aget_snapshots_around_rev(
@@ -237,6 +263,7 @@ class MemoryRetriever:
     def _to_patch_event(self, patch: WritePatchReq) -> PatchEvent:
         return PatchEvent(
             timepoint=patch.event_time,
+            state_id=patch.state_id,
             current_rev=patch.current_rev,
             future_rev=patch.future_rev,
             global_current_rev=patch.global_current_rev,

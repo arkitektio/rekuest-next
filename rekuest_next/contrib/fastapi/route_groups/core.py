@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Callable
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, WebSocket
 
 from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
 from rekuest_next.api.schema import AssignInput, CancelInput, PauseInput, ResumeInput, StepInput
@@ -15,6 +15,7 @@ from rekuest_next.contrib.fastapi.agent import FastApiAgent
 def build_core_router(
     agent: FastApiAgent,
     get_user_from_request: Callable[[Request], Any],
+    ws_path: str = "/ws",
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
     pause_path: str = "/pause",
@@ -23,10 +24,14 @@ def build_core_router(
 ) -> APIRouter:
     """Build the core command routes for task lifecycle control.
 
-    The dedicated websocket routes live in the task, state, and lock route
-    groups. This router only exposes command-style HTTP endpoints.
+    The websocket endpoint expects an init JSON payload after connect with
+    optional `action_keys`, `state_keys`, and `lock_keys` arrays.
     """
     router = APIRouter(tags=["Agent"])
+
+    async def websocket_endpoint(websocket: WebSocket) -> None:
+        """Serve the unified websocket endpoint for tasks, states, and locks."""
+        await agent.handle_websocket(websocket)
 
     async def assign_base_action(request: Request, extension: str = "default") -> dict[str, str]:
         """Submit a task using the interface provided in the request body."""
@@ -106,6 +111,7 @@ def build_core_router(
         await agent.transport.asubmit(Step(assignation=step_input.assignation))
         return {"status": "stepping", "assignation": step_input.assignation}
 
+    router.add_api_websocket_route(ws_path, websocket_endpoint)
     router.add_api_route(assign_path, assign_base_action, methods=["POST"])
     router.add_api_route(f"{assign_path}/{{interface}}", assign_action, methods=["POST"])
     router.add_api_route(cancel_path, cancel_action, methods=["POST"])
