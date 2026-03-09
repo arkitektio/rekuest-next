@@ -157,6 +157,14 @@ class AgentTestClient:
         self._client = TestClient(self.app)
         self._client.__enter__()
 
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            agent = getattr(self.app.state, "agent", None)
+            transport = getattr(agent, "transport", None)
+            if transport is not None and getattr(transport, "connected", False):
+                break
+            time.sleep(0.01)
+
         # Connect to WebSocket with headers if as_user is set
         headers: dict[str, str] = {}
         if self.as_user:
@@ -568,6 +576,14 @@ class AsyncAgentTestClient:
         # Use TestClient for lifespan handling
         self._test_client = TestClient(self.app)
         self._test_client.__enter__()
+
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while asyncio.get_event_loop().time() < deadline:
+            agent = getattr(self.app.state, "agent", None)
+            transport = getattr(agent, "transport", None)
+            if transport is not None and getattr(transport, "connected", False):
+                break
+            await asyncio.sleep(0.01)
 
         # Create async HTTP client
         transport = ASGITransport(app=self.app)  # type: ignore
@@ -1014,8 +1030,8 @@ def create_test_app_and_agent(
     agent = configure_fastapi(
         app=app,
         app_registry=app_registry,
-        instance_id=instance_id,
     )
+    agent.instance_id = instance_id
 
     return app, agent, app_registry
 

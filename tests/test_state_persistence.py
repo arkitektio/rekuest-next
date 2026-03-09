@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import asyncio
 import pytest
+from pydantic import PrivateAttr
 
 from rekuest_next import messages
 from rekuest_next.agents.base import BaseAgent
@@ -19,17 +20,11 @@ class QueuedCounterState:
     value: int = 0
 
 
-class DummyStateWorker:
-    def __init__(self) -> None:
-        self.patches: list[Patch] = []
-
-    def put_patch(self, patch: Patch) -> None:
-        self.patches.append(patch)
-
-
 class DummyAgent(BaseAgent[None]):
+    _published_envelopes: list[messages.Envelope] = PrivateAttr(default_factory=list)
+
     async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
-        return None
+        self._published_envelopes.append(envelope)
 
     async def apublish_states(self, state_implementation):
         return None
@@ -41,12 +36,36 @@ class DummyAgent(BaseAgent[None]):
         return self.states[interface].__rekuest_state_config__.structure_registry
 
 
+class DelayedCatchupSink(MemorySink):
+    def __init__(self, delay: float) -> None:
+        super().__init__()
+        self.delay = delay
+        self._caught_up_revisions: dict[str, int] = {}
+        self._tasks: list[asyncio.Task[None]] = []
+
+    async def awrite_patch(self, req: WritePatchReq):
+        async def _persist_later() -> None:
+            await asyncio.sleep(self.delay)
+            self.store.patches.append(req)
+            self._caught_up_revisions[req.state_id] = req.future_rev
+
+        self._tasks.append(asyncio.create_task(_persist_later()))
+
+    async def is_cought_up_to(self, state_id: str, revision: int) -> bool:
+        return self._caught_up_revisions.get(state_id, 0) >= revision
+
+    async def ateardown(self):
+        if self._tasks:
+            await asyncio.gather(*self._tasks)
+        await super().ateardown()
+
+
 @pytest.mark.asyncio
-async def test_agent_queues_patches_and_periodically_snapshots() -> None:
+async def test_agent_queues_patches_and_publishes_envelopes() -> None:
     state_instance = QueuedCounterState()
     interface = state_instance.__rekuest_state_config__.state_name
+    value_port = state_instance.__rekuest_state_config__.state_schema.ports[0]
     sink = MemorySink()
-    worker = DummyStateWorker()
 
     agent = DummyAgent(
         transport=TestAgentTransport(),
@@ -61,17 +80,16 @@ async def test_agent_queues_patches_and_periodically_snapshots() -> None:
     )
     agent._current_shrunk_states[interface] = {"value": 0}
     agent._state_revisions[interface] = 0
-    agent._state_workers[interface] = worker  # type: ignore[assignment]
     agent._event_queue = asyncio.Queue()
     agent._patch_processor_task = asyncio.create_task(agent.apatch_event_loop())
 
     agent.publish_patch(
         interface,
-        Patch(op="replace", path="/value", value=1, correlation_id="corr-1"),
+        Patch(op="replace", path="/value", value=1, port=value_port, correlation_id="corr-1"),
     )
     agent.publish_patch(
         interface,
-        Patch(op="replace", path="/value", value=2, correlation_id="corr-1"),
+        Patch(op="replace", path="/value", value=2, port=value_port, correlation_id="corr-1"),
     )
 
     await asyncio.wait_for(agent._event_queue.join(), timeout=1)
@@ -80,14 +98,11 @@ async def test_agent_queues_patches_and_periodically_snapshots() -> None:
     assert agent._current_shrunk_states[interface]["value"] == 2
     assert agent._state_revisions[interface] == 2
     assert agent.global_revision == 2
-    assert len(sink.store.snapshots) == 1
-    assert sink.store.snapshots[0].revision == 2
-    assert sink.store.snapshots[0].state_data["value"] == 2
-    assert len(worker.patches) == 2
+    assert sink.store.snapshots == []
+    assert len(agent._published_envelopes) == 2
+    assert [envelope.patches[0].value for envelope in agent._published_envelopes] == [1, 2]
 
-    agent._patch_processor_task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await agent._patch_processor_task
+    await agent.atear_down()
 
 
 @pytest.mark.asyncio
@@ -230,3 +245,38 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     )
     assert len(all_snapshots) == 2
     assert sorted(snapshot.data["value"] for snapshot in all_snapshots) == [0, 10]
+
+
+@pytest.mark.asyncio
+async def test_agent_teardown_waits_for_sink_catch_up() -> None:
+    state_instance = QueuedCounterState()
+    interface = state_instance.__rekuest_state_config__.state_name
+    value_port = state_instance.__rekuest_state_config__.state_schema.ports[0]
+    sink = DelayedCatchupSink(delay=0.05)
+
+    agent = DummyAgent(
+        transport=TestAgentTransport(),
+        sink=sink,
+        retriever=MemoryRetriever(),
+        sink_catch_up_timeout=1.0,
+        sink_catch_up_poll_interval=0.01,
+    )
+    agent.states[interface] = state_instance
+    agent.current_session = "session-1"
+    agent._interface_stateschema_input_map[interface] = (
+        state_instance.__rekuest_state_config__.state_schema
+    )
+    agent._current_shrunk_states[interface] = {"value": 0}
+    agent._state_revisions[interface] = 0
+    agent._event_queue = asyncio.Queue()
+    agent._patch_processor_task = asyncio.create_task(agent.apatch_event_loop())
+
+    agent.publish_patch(
+        interface,
+        Patch(op="replace", path="/value", value=1, port=value_port, correlation_id="corr-1"),
+    )
+
+    await agent.atear_down()
+
+    assert [patch.value for patch in sink.store.patches] == [1]
+    assert await sink.is_cought_up_to(interface, 1)
