@@ -100,9 +100,7 @@ class Assign(Message):
     reservation: Optional[str] = Field(
         default=None, description="The reservation id if assigned through that"
     )
-    step: bool | None = Field(
-        default=None, description="Whether to step the assignation or not"
-    )
+    step: bool | None = Field(default=None, description="Whether to step the assignation or not")
     assignation: str = Field(description="The assignation id")
     root: Optional[str] = Field(
         default=None,
@@ -121,9 +119,7 @@ class Assign(Message):
     reference: Optional[str] = Field(
         default=None, description="A reference that the assinger provided"
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(
-        description="The arguments that was sendend"
-    )
+    args: Dict[str, ShallowJSONSerializable] = Field(description="The arguments that was sendend")
     message: Optional[str] = None
     user: str = Field(..., description="The assinging user")
     org: Optional[str] = Field(
@@ -398,9 +394,7 @@ class HeartbeatEvent(Message):
     heartbeat events, but only reply to them.
     """
 
-    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
-        FromAgentMessageType.HEARTBEAT_ANSWER
-    )
+    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = FromAgentMessageType.HEARTBEAT_ANSWER
 
 
 class EnvelopePatch(BaseModel):
@@ -529,4 +523,7 @@ FromAgentMessage = Union[
     PausedEvent,
     CancelledEvent,
     InterruptedEvent,
+    StatePatchEvent,
+    LockEvent,
+    UnlockEvent,
 ]

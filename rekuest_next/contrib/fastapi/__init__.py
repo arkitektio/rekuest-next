@@ -1,6 +1,13 @@
 """FastAPI integration for rekuest_next agents."""
 
-from .agent import FastApiAgent, FastApiTransport, FastAPIConnectionManager
+from .agent import (
+    FastApiAgent,
+    FastApiTransport,
+    FastAPIConnectionManager,
+    LockConnectionManager,
+    StateConnectionManager,
+    TaskConnectionManager,
+)
 from .routes import (
     configure_fastapi,
     create_lifespan,
@@ -23,6 +30,9 @@ __all__ = [
     "FastApiAgent",
     "FastApiTransport",
     "FastAPIConnectionManager",
+    "TaskConnectionManager",
+    "StateConnectionManager",
+    "LockConnectionManager",
     "configure_fastapi",
     "create_lifespan",
     "add_agent_routes",

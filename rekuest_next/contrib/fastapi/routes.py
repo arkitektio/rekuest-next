@@ -30,16 +30,23 @@ from rekuest_next.api.schema import (
     StepInput,
     ResumeInput,
     ImplementationInput,
-    LockSchemaInput,
     PortInput,
     PortKind,
-    StateSchemaInput,
     resume,
 )
 from rekuest_next.app import AppRegistry
 from rekuest_next.contrib.sql_lite.retriever import SQLLiteRetriever
 from rekuest_next.contrib.sql_lite.sink import SQLLiteSink
 from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
+from rekuest_next.contrib.fastapi.route_groups import (
+    add_lock_route,
+    add_lock_routes,
+    add_lock_websocket_route,
+    add_state_route,
+    add_state_routes,
+    add_state_websocket_route,
+    add_task_websocket_route,
+)
 
 from .agent import FastApiAgent
 
@@ -474,6 +481,10 @@ def add_agent_routes(
     async def websocket_endpoint(websocket: WebSocket):
         """WebSocket endpoint for receiving agent events."""
         await agent.transport.handle_websocket(websocket)
+
+    add_task_websocket_route(app, agent, f"{ws_path}/task")
+    add_state_websocket_route(app, agent, f"{ws_path}/state")
+    add_lock_websocket_route(app, agent, f"{ws_path}/locks")
 
     @app.get(assignations_path)
     async def get_assignations() -> dict:
@@ -999,82 +1010,6 @@ def add_implementation_routes(
         add_implementation_route(app, agent, implementation)
 
 
-def add_state_route(
-    app: FastAPI,
-    agent: FastApiAgent,
-    interface: str,
-    state_schema: StateSchemaInput,
-    states_path: str = "/states",
-) -> None:
-    """Add a GET route for a specific state to the FastAPI app.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with the state.
-        interface: The interface name for the state.
-        state_schema: The state schema input.
-        states_path: Base path for state routes.
-    """
-    route_path = f"{states_path}/{interface}"
-
-    # Create JSON schema from the state schema ports
-    response_schema_name = f"{state_schema.name}State"
-    response_schema = create_json_schema_from_ports(state_schema.ports, response_schema_name)
-
-    # Store schema for OpenAPI generation
-    if not hasattr(app, "_custom_schemas"):
-        app._custom_schemas = {}
-    app._custom_schemas[response_schema_name] = response_schema
-
-    async def get_state_endpoint() -> JSONResponse:
-        """Get the current state value."""
-        if interface not in agent.states:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "State not initialized", "interface": interface},
-            )
-
-        # Otherwise try to shrink it now
-        try:
-            revised_state = await agent.aget_revised_state(interface)
-            return JSONResponse(
-                content={
-                    "revision": revised_state.revision,
-                    "state": revised_state.data,
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Failed to serialize state: {str(e)}"},
-            )
-
-    route = APIRoute(
-        path=route_path,
-        endpoint=get_state_endpoint,
-        methods=["GET"],
-        summary=f"Get {state_schema.name} state",
-        description=f"Get the current value of the {state_schema.name} state",
-        tags=["States"],
-        response_class=JSONResponse,
-        openapi_extra={
-            "responses": {
-                "200": {
-                    "description": "Current state value",
-                    "content": {
-                        "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
-                        }
-                    },
-                }
-            },
-        },
-    )
-
-    app.router.routes.append(route)
-
-
 def add_travel_routes(
     app: FastAPI,
     agent: FastApiAgent,
@@ -1122,82 +1057,6 @@ def add_travel_routes(
         description=f"Get the current value of the {state_schema.name} state",
         tags=["States"],
         response_class=JSONResponse,
-    )
-
-    app.router.routes.append(route)
-
-
-def add_lock_route(
-    app: FastAPI,
-    agent: FastApiAgent,
-    interface: str,
-    lock_schema: LockSchemaInput,
-    locks_path: str = "/locks",
-) -> None:
-    """Add a GET route for a specific state to the FastAPI app.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with the state.
-        interface: The interface name for the state.
-        state_schema: The state schema input.
-        locks_path: Base path for lock routes.
-    """
-    route_path = f"{locks_path}/{interface}"
-
-    # Create JSON schema from the lock schema ports
-    response_schema_name = f"{lock_schema.key}Lock"
-    response_schema = {
-        "type": "object",
-        "title": response_schema_name,
-        "properties": {
-            "key": {"type": "string", "description": "The lock key"},
-            "task_id": {"type": "string", "description": "The task holding the lock"},
-        },
-    }
-
-    # Store schema for OpenAPI generation
-    if not hasattr(app, "_custom_schemas"):
-        app._custom_schemas = {}
-    app._custom_schemas[response_schema_name] = response_schema
-
-    async def get_lock_endpoint() -> JSONResponse:
-        """Get the current lock value."""
-        if interface not in agent.locks:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "Lock not initialized", "interface": interface},
-            )
-
-        locking_task = agent.locks[interface].locking_task
-
-        return JSONResponse(
-            content={
-                "key": lock_schema.key,
-                "task_id": str(locking_task) if locking_task else None,
-            }
-        )
-
-    route = APIRoute(
-        path=route_path,
-        endpoint=get_lock_endpoint,
-        methods=["GET"],
-        summary=f"Get {lock_schema.key} lock",
-        description=f"Get the current value of the {lock_schema.key} lock",
-        tags=["Locks"],
-        response_class=JSONResponse,
-        openapi_extra={
-            "responses": {
-                "200": {
-                    "description": "Current lock value",
-                    "content": {
-                        "application/json": {
-                            "schema": {"$ref": f"#/components/locks/{response_schema_name}"}
-                        }
-                    },
-                }
-            },
-        },
     )
 
     app.router.routes.append(route)
@@ -1257,195 +1116,6 @@ def add_schema_routes(
             "count": len(lock_schemas),
             "locks": lock_schemas,
         }
-
-
-def add_state_routes(
-    app: FastAPI,
-    agent: FastApiAgent,
-    states_path: str = "/states",
-    states_ws_path: str = "/states/ws",
-) -> None:
-    """Add routes for all registered states in the agent.
-
-    This adds:
-    - GET /states - list all available states
-    - GET /states/{interface} - get the current value of a specific state
-    - WebSocket /states/ws - subscribe to state updates
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with registered states.
-        states_path: Base path for state routes.
-        states_ws_path: Path for the state updates WebSocket.
-    """
-
-    # Collect state schemas from all extensions
-    collected_state_schemas = {}
-    for extension in agent.extension_registry.agent_extensions.values():
-        collected_state_schemas.update(extension.get_state_schemas())
-
-    # Add route to list all states
-    @app.get(states_path)
-    async def list_states() -> dict:
-        """List all registered states and their current values."""
-        states_info = {}
-        # Collect state schemas from all extensions
-        ext_state_schemas = {}
-        for ext in agent.extension_registry.agent_extensions.values():
-            ext_state_schemas.update(ext.get_state_schemas())
-
-        for interface, schema in ext_state_schemas.items():
-            state_data = {
-                "name": schema.name,
-                "interface": interface,
-                "initialized": interface in agent.states,
-            }
-
-            # Include current value if initialized
-            if interface in agent._current_shrunk_states:
-                state_data["value"] = agent._current_shrunk_states[interface]
-
-            states_info[interface] = state_data
-
-        return {
-            "count": len(states_info),
-            "states": states_info,
-        }
-
-    # Collect state schemas from all extensions
-    all_state_schemas = {}
-    for extension in agent.extension_registry.agent_extensions.values():
-        all_state_schemas.update(extension.get_state_schemas())
-
-    # Add individual state routes for each registered state
-    for interface, state_schema in all_state_schemas.items():
-        add_state_route(app, agent, interface, state_schema, states_path)
-
-    # Add WebSocket for state updates
-    @app.websocket(states_ws_path)
-    async def state_updates_websocket(websocket: WebSocket):
-        """WebSocket endpoint for subscribing to state updates.
-
-        Clients connect and receive real-time state change notifications.
-        State updates are sent as JSON messages with the format:
-        {"interface": "state_name", "value": {...}}
-        """
-        await agent.transport.connection_manager.connect(websocket)
-        try:
-            # Send current state values on connect
-            # Collect state schemas from all extensions
-            ext_state_schemas = {}
-            for ext in agent.extension_registry.agent_extensions.values():
-                ext_state_schemas.update(ext.get_state_schemas())
-
-            for interface in ext_state_schemas:
-                if interface in agent._current_shrunk_states:
-                    await websocket.send_json(
-                        {
-                            "type": "STATE_INIT",
-                            "interface": interface,
-                            "value": agent._current_shrunk_states[interface],
-                        }
-                    )
-
-            # Keep connection open - state updates will be broadcast separately
-            while True:
-                await websocket.receive()
-        except Exception:
-            pass
-        finally:
-            await agent.transport.connection_manager.disconnect(websocket)
-
-
-def add_lock_routes(
-    app: FastAPI,
-    agent: FastApiAgent,
-    locks_path: str = "/locks",
-    locks_ws_path: str = "/locks/ws",
-) -> None:
-    """Add routes for all registered locks in the agent.
-
-    This adds:
-    - GET /locks - list all available locks
-    - GET /locks/{interface} - get the current value of a specific lock
-    - WebSocket /locks/ws - subscribe to lock updates
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with registered locks.
-        locks_path: Base path for lock routes.
-        locks_ws_path: Path for the lock updates WebSocket.
-    """
-
-    # Collect state schemas from all extensions
-    collected_state_schemas = {}
-    for extension in agent.extension_registry.agent_extensions.values():
-        collected_state_schemas.update(extension.get_state_schemas())
-
-    # Add route to list all locks
-    @app.get(locks_path)
-    async def list_locks() -> dict:
-        """List all registered locks and their current values."""
-        locks_info = {}
-
-        for interface, lock in agent.locks.items():
-            locking_task = lock.locking_task
-
-            lock_data = {
-                "key": lock.lock_schema.key,
-                "task_id": str(locking_task) if locking_task else None,
-            }
-
-            locks_info[interface] = lock_data
-
-        return {
-            "count": len(locks_info),
-            "locks": locks_info,
-        }
-
-    # Collect lock schemas from all extensions
-    all_lock_schemas = {}
-    for extension in agent.extension_registry.agent_extensions.values():
-        all_lock_schemas.update(extension.get_lock_schemas())
-
-    # Add individual lock routes for each registered lock
-    for interface, lock_schema in all_lock_schemas.items():
-        add_lock_route(app, agent, interface, lock_schema, locks_path)
-
-    # Add WebSocket for lock updates
-    @app.websocket(locks_ws_path)
-    async def lock_updates_websocket(websocket: WebSocket):
-        """WebSocket endpoint for subscribing to lock updates.
-
-        Clients connect and receive real-time lock change notifications.
-        Lock updates are sent as JSON messages with the format:
-        {"interface": "lock_name", "value": {...}}
-        """
-        await agent.transport.connection_manager.connect(websocket)
-        try:
-            # Send current lock values on connect
-            # Collect lock schemas from all extensions
-            ext_lock_schemas = {}
-            for ext in agent.extension_registry.agent_extensions.values():
-                ext_lock_schemas.update(ext.get_lock_schemas())
-
-            for interface in ext_lock_schemas:
-                if interface in agent._current_shrunk_locks:
-                    await websocket.send_json(
-                        {
-                            "type": "LOCK_INIT",
-                            "interface": interface,
-                            "value": agent._current_shrunk_locks[interface],
-                        }
-                    )
-
-            # Keep connection open - lock updates will be broadcast separately
-            while True:
-                await websocket.receive()
-        except Exception:
-            pass
-        finally:
-            await agent.transport.connection_manager.disconnect(websocket)
 
 
 def add_sync_key_routes(
@@ -1525,23 +1195,6 @@ def configure_openapi(app: FastAPI) -> None:
         return app.openapi_schema
 
     app.openapi = custom_openapi
-
-
-class Gateway:
-    def __init__(self):
-        self.queues = {}
-
-    def publish(self, channel: str, message: Any):
-        if channel not in self.queues:
-            self.queues[channel] = asyncio.Queue()
-        self.queues[channel].put_nowait(message)
-
-    async def alisten(self, channel: str):
-        if channel not in self.queues:
-            self.queues[channel] = asyncio.Queue()
-
-        async for message in self.queues[channel]:
-            yield message
 
 
 def configure_fastapi(

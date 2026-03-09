@@ -29,12 +29,16 @@ def epoch_ms_to_dt(ms: int) -> datetime:
 # 3. The Unified Store Class
 # ==========================================
 class SQLLiteSink:
-    def __init__(self, db_path: str = "ff.db"):
+    """A sink implementation that uses a SQLite database to store state snapshots and patches. This sink is designed for durability and can be used in production environments where persistence is required. It ensures that patches are written in order and provides methods for checking if the sink is caught up to a certain revision."""
+
+    def __init__(self, db_path: str = "ff.db") -> None:
+        """Initializes the SQLLiteSink with the path to the SQLite database file. The sink will use this database to store snapshots and patches. If the file does not exist, it will be created automatically."""
         self.db_path = db_path
         self.current_session_id: Optional[str] = None
 
     # --- INITIALIZATION & SESSION MANAGEMENT ---
-    async def ainitialize(self):
+    async def ainitialize(self) -> None:
+        """Initializes the SQLLiteSink by creating necessary tables and indexes if they don't exist. This should be called once at the start of the agent's lifecycle."""
         self._write_lock = asyncio.Lock()
 
         async with aiosqlite.connect(self.db_path) as db:
@@ -129,6 +133,7 @@ class SQLLiteSink:
     async def acreate_session(
         self, states: List[AnyState], implementations: List[ImplementationInput]
     ) -> str:
+        """Create a new session and return its ID. Should be called at the start of a new logical session. By default this will be called automatically on each agent startup, but can also be called manually if the agent wants to manage sessions itself (e.g., create a new session for each user interaction)."""
         new_session = str(uuid.uuid4())
         created_at_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
         print(f"Creating new session: {new_session} at {created_at_ms} ms")
@@ -144,7 +149,8 @@ class SQLLiteSink:
         return new_session
 
     # --- WRITE METHODS ---
-    async def adump_snapshot(self, req: WriteSnapshotReq):
+    async def adump_snapshot(self, req: WriteSnapshotReq) -> None:
+        """Will store a full snapshot of the state at a given revision. This is intended to be used for periodic checkpointing to optimize retrieval, but can also be used by agents to manually create snapshots at important milestones (e.g., end of a user interaction)."""
         target_session = req.session_id or self.current_session_id
         epoch_ms = dt_to_epoch_ms(req.event_time)
         async with self._write_lock:
@@ -167,7 +173,8 @@ class SQLLiteSink:
                 )
                 await db.commit()
 
-    async def awrite_patch(self, req: WritePatchReq):
+    async def awrite_patch(self, req: WritePatchReq) -> None:
+        """Writes a patch to the store. The sink should enforce that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity. The correlation_id can be used to group patches that belong to the same logical task or operation, which can be useful for retrieval and debugging."""
         if req.future_rev != req.current_rev + 1:
             raise ValueError(
                 f"Integrity Error: future_rev ({req.future_rev}) must be exactly "

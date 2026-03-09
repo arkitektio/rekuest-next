@@ -7,11 +7,8 @@ connections.
 
 import asyncio
 import logging
-from email import message
 from types import TracebackType
 from typing import Any, AsyncIterator, List, Optional, Self, Set
-
-import jsonpatch
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
 
@@ -21,6 +18,32 @@ from rekuest_next.agents.transport.base import AgentTransport
 from rekuest_next.api.schema import StateImplementationInput
 
 logger = logging.getLogger(__name__)
+
+
+def _is_state_message(message: messages.Message) -> bool:
+    return isinstance(message, messages.StatePatchEvent)
+
+
+def _is_lock_message(message: messages.Message) -> bool:
+    return isinstance(message, (messages.LockEvent, messages.UnlockEvent))
+
+
+def _task_routing_key(message: messages.Message) -> str | None:
+    if _is_state_message(message) or _is_lock_message(message):
+        return None
+    return getattr(message, "assignation", None)
+
+
+def _state_routing_key(message: messages.Message) -> str | None:
+    if not isinstance(message, messages.StatePatchEvent):
+        return None
+    return message.envelope.state_name
+
+
+def _lock_routing_key(message: messages.Message) -> str | None:
+    if not isinstance(message, (messages.LockEvent, messages.UnlockEvent)):
+        return None
+    return message.key
 
 
 class FastAPIConnectionManager:
@@ -44,7 +67,9 @@ class FastAPIConnectionManager:
         await websocket.accept()
         async with self._lock:
             self._active_connections.add(websocket)
-        logger.info(f"WebSocket connected. Total connections: {len(self._active_connections)}")
+        logger.info(
+            f"WebSocket connected. Total connections: {len(self._active_connections)}"
+        )
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection from the manager.
@@ -54,7 +79,9 @@ class FastAPIConnectionManager:
         """
         async with self._lock:
             self._active_connections.discard(websocket)
-        logger.info(f"WebSocket disconnected. Total connections: {len(self._active_connections)}")
+        logger.info(
+            f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
+        )
 
     async def broadcast(self, message: str) -> None:
         """Send a message to all connected WebSocket clients.
@@ -62,7 +89,9 @@ class FastAPIConnectionManager:
         Args:
             message: The JSON string message to broadcast.
         """
-        logger.info(f"Broadcasting to {len(self._active_connections)} clients: {message}")
+        logger.info(
+            f"Broadcasting to {len(self._active_connections)} clients: {message}"
+        )
         async with self._lock:
             disconnected: List[WebSocket] = []
             for connection in self._active_connections:
@@ -94,6 +123,82 @@ class FastAPIConnectionManager:
         return len(self._active_connections)
 
 
+class RoutedConnectionManager(FastAPIConnectionManager):
+    """Connection manager that routes messages to subscribers by key."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._subscriptions: dict[WebSocket, set[str] | None] = {}
+
+    def get_routing_key(self, message: messages.Message) -> str | None:
+        """Return the routing key for a message, or `None` to ignore it."""
+        raise NotImplementedError
+
+    async def connect(
+        self,
+        websocket: WebSocket,
+        subscriptions: set[str] | None = None,
+    ) -> None:
+        await websocket.accept()
+        async with self._lock:
+            self._active_connections.add(websocket)
+            self._subscriptions[websocket] = subscriptions
+        logger.info(
+            f"WebSocket connected. Total connections: {len(self._active_connections)}"
+        )
+
+    async def disconnect(self, websocket: WebSocket) -> None:
+        async with self._lock:
+            self._active_connections.discard(websocket)
+            self._subscriptions.pop(websocket, None)
+        logger.info(
+            f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
+        )
+
+    async def broadcast_model(self, message: messages.Message) -> None:
+        routing_key = self.get_routing_key(message)
+        if routing_key is None:
+            return
+
+        message_json = message.model_dump_json()
+        async with self._lock:
+            disconnected: List[WebSocket] = []
+            for connection in self._active_connections:
+                subscriptions = self._subscriptions.get(connection)
+                if subscriptions is not None and routing_key not in subscriptions:
+                    continue
+                try:
+                    await connection.send_text(message_json)
+                except Exception as e:
+                    logger.warning(f"Failed to send message to WebSocket: {e}")
+                    disconnected.append(connection)
+
+            for conn in disconnected:
+                self._active_connections.discard(conn)
+                self._subscriptions.pop(conn, None)
+
+
+class TaskConnectionManager(RoutedConnectionManager):
+    """Connection manager for task-scoped websocket subscriptions."""
+
+    def get_routing_key(self, message: messages.Message) -> str | None:
+        return _task_routing_key(message)
+
+
+class StateConnectionManager(RoutedConnectionManager):
+    """Connection manager for state-scoped websocket subscriptions."""
+
+    def get_routing_key(self, message: messages.Message) -> str | None:
+        return _state_routing_key(message)
+
+
+class LockConnectionManager(RoutedConnectionManager):
+    """Connection manager for lock-scoped websocket subscriptions."""
+
+    def get_routing_key(self, message: messages.Message) -> str | None:
+        return _lock_routing_key(message)
+
+
 class FastApiTransport(AgentTransport):
     """Transport for FastAPI-based agents.
 
@@ -109,8 +214,22 @@ class FastApiTransport(AgentTransport):
         default_factory=FastAPIConnectionManager,
         description="The WebSocket connection manager for broadcasting messages.",
     )
+    task_connection_manager: TaskConnectionManager = Field(
+        default_factory=TaskConnectionManager,
+        description="The WebSocket connection manager for task updates.",
+    )
+    state_connection_manager: StateConnectionManager = Field(
+        default_factory=StateConnectionManager,
+        description="The WebSocket connection manager for state updates.",
+    )
+    lock_connection_manager: LockConnectionManager = Field(
+        default_factory=LockConnectionManager,
+        description="The WebSocket connection manager for lock updates.",
+    )
 
-    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
+    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
+        default=None
+    )
     _connected: bool = PrivateAttr(default=False)
     _instance_id: Optional[str] = PrivateAttr(default=None)
 
@@ -145,7 +264,7 @@ class FastApiTransport(AgentTransport):
             return message.assignation
         return getattr(message, "assignation", getattr(message, "id", "unknown"))
 
-    async def asend(self, message: messages.FromAgentMessage) -> None:
+    async def asend(self, message: messages.Message) -> None:
         """Send a message from the agent to connected clients.
 
         This broadcasts the message to all connected WebSocket clients.
@@ -158,6 +277,9 @@ class FastApiTransport(AgentTransport):
 
         # Broadcast to all WebSocket clients
         await self.connection_manager.broadcast(message_json)
+        await self.task_connection_manager.broadcast_model(message)
+        await self.state_connection_manager.broadcast_model(message)
+        await self.lock_connection_manager.broadcast_model(message)
 
     async def aconnect(self, instance_id: str) -> None:
         """Connect the transport.
@@ -221,6 +343,68 @@ class FastApiTransport(AgentTransport):
         finally:
             await self.connection_manager.disconnect(websocket)
 
+    async def _handle_scoped_websocket(
+        self,
+        websocket: WebSocket,
+        connection_manager: RoutedConnectionManager,
+        subscriptions: set[str] | None = None,
+        initial_message: dict[str, Any] | None = None,
+    ) -> None:
+        await connection_manager.connect(websocket, subscriptions=subscriptions)
+        if initial_message is not None:
+            await websocket.send_json(initial_message)
+        try:
+            while True:
+                await websocket.receive()
+        except WebSocketDisconnect:
+            logger.info("WebSocket client disconnected")
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            await connection_manager.disconnect(websocket)
+
+    async def handle_task_websocket(
+        self,
+        websocket: WebSocket,
+        assignation_ids: set[str] | None = None,
+        initial_message: dict[str, Any] | None = None,
+    ) -> None:
+        """Handle a task-specific websocket connection."""
+        await self._handle_scoped_websocket(
+            websocket,
+            self.task_connection_manager,
+            subscriptions=assignation_ids,
+            initial_message=initial_message,
+        )
+
+    async def handle_state_websocket(
+        self,
+        websocket: WebSocket,
+        state_keys: set[str] | None = None,
+        initial_message: dict[str, Any] | None = None,
+    ) -> None:
+        """Handle a state-specific websocket connection."""
+        await self._handle_scoped_websocket(
+            websocket,
+            self.state_connection_manager,
+            subscriptions=state_keys,
+            initial_message=initial_message,
+        )
+
+    async def handle_lock_websocket(
+        self,
+        websocket: WebSocket,
+        lock_keys: set[str] | None = None,
+        initial_message: dict[str, Any] | None = None,
+    ) -> None:
+        """Handle a lock-specific websocket connection."""
+        await self._handle_scoped_websocket(
+            websocket,
+            self.lock_connection_manager,
+            subscriptions=lock_keys,
+            initial_message=initial_message,
+        )
+
     async def __aenter__(self) -> Self:
         """Enter the context manager."""
         return self
@@ -278,7 +462,9 @@ class FastApiAgent(BaseAgent):
         """Register definitions with the agent."""
         print("Registering definitions is not implemented for FastApiAgent yet.")
 
-    async def ashelve(self, instance_id, identifier, resource_id, label=None, description=None):
+    async def ashelve(
+        self, instance_id, identifier, resource_id, label=None, description=None
+    ):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
     async def alock(self, key, assignation):
@@ -296,7 +482,9 @@ class FastApiAgent(BaseAgent):
         )
         await self.transport.asend(message)
 
-    async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
+    async def apublish_envelope(
+        self, interface: str, envelope: messages.Envelope
+    ) -> None:
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.StatePatchEvent(
             envelope=envelope,
