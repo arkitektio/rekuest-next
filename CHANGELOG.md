@@ -1,6 +1,31 @@
 # CHANGELOG
 
 
+## v0.37.0 (2026-03-09)
+
+### Bug Fixes
+
+- Add state_updates
+  ([`d28d9f6`](https://github.com/arkitektio/rekuest-next/commit/d28d9f6c35fad92bb838db1cc5441d43413f449f))
+
+- Fix tests
+  ([`92be8e0`](https://github.com/arkitektio/rekuest-next/commit/92be8e012428b078649084029efe97021f5e49fb))
+
+- More things
+  ([`b1dd48e`](https://github.com/arkitektio/rekuest-next/commit/b1dd48e0a45b74a7feb13a4bee25a181e5aa8fe0))
+
+- Some minor stuff
+  ([`f465fcd`](https://github.com/arkitektio/rekuest-next/commit/f465fcd7c5648cee2ff26225cd57c5e689b724d0))
+
+- Try to match ui
+  ([`4d6de67`](https://github.com/arkitektio/rekuest-next/commit/4d6de678d4e7ce3c79a6a6a195a414e865e44b67))
+
+### Features
+
+- Add states to the mix
+  ([`790f6bc`](https://github.com/arkitektio/rekuest-next/commit/790f6bc6bb3640f93227a5918baedaa63aed048f))
+
+
 ## v0.36.0 (2026-02-26)
 
 ### Features
