@@ -20,7 +20,6 @@ from rekuest_next.agents.context import PreparedContextReturns, PreparedContextV
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent, AssignmentHook
 from rekuest_next import messages
-from rekuest_next.api.schema import pause
 from rekuest_next.definition.define import DefinitionInput
 from rekuest_next.protocols import AnyContext, AnyState
 from rekuest_next.state.publish import direct_publishing
@@ -276,9 +275,7 @@ class Actor(BaseModel):
             )
             return True
         else:
-            logger.warning(
-                f"Currently no break future for {assignation_id} was found. Wasn't paused"
-            )
+            logger.debug(f"Currently no break future for {assignation_id} was found. Wasn't paused")
             return False
 
     def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:

@@ -1,15 +1,16 @@
 """FastAPI integration for rekuest_next agents."""
 
-from .agent import FastApiAgent, FastApiTransport, FastAPIConnectionManager
+from .agent import (
+    FastAPIConnectionManager,
+    FastApiAgent,
+    FastApiTransport,
+)
 from .routes import (
     configure_fastapi,
     create_lifespan,
     add_agent_routes,
     add_implementation_routes,
-    add_implementation_route,
     add_state_routes,
-    add_state_route,
-    configure_openapi,
 )
 from .testing import (
     AgentTestClient,
@@ -27,10 +28,7 @@ __all__ = [
     "create_lifespan",
     "add_agent_routes",
     "add_implementation_routes",
-    "add_implementation_route",
     "add_state_routes",
-    "add_state_route",
-    "configure_openapi",
     # Testing utilities
     "AgentTestClient",
     "AsyncAgentTestClient",

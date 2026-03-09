@@ -157,6 +157,14 @@ class AgentTestClient:
         self._client = TestClient(self.app)
         self._client.__enter__()
 
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            agent = getattr(self.app.state, "agent", None)
+            transport = getattr(agent, "transport", None)
+            if transport is not None and getattr(transport, "connected", False):
+                break
+            time.sleep(0.01)
+
         # Connect to WebSocket with headers if as_user is set
         headers: dict[str, str] = {}
         if self.as_user:
@@ -165,15 +173,10 @@ class AgentTestClient:
         self._websocket = self._client.websocket_connect(self.ws_path, headers=headers)
         self._websocket.__enter__()
 
-        # Send init message if as_user is set
+        init_message = {"type": "INIT"}
         if self.as_user:
-            init_message = json.dumps(
-                {
-                    "type": "INIT",
-                    "user": self.as_user,
-                }
-            )
-            self._websocket.send_text(init_message)
+            init_message["user"] = self.as_user
+        self._websocket.send_text(json.dumps(init_message))
 
         return self
 
@@ -574,6 +577,14 @@ class AsyncAgentTestClient:
         self._test_client = TestClient(self.app)
         self._test_client.__enter__()
 
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while asyncio.get_event_loop().time() < deadline:
+            agent = getattr(self.app.state, "agent", None)
+            transport = getattr(agent, "transport", None)
+            if transport is not None and getattr(transport, "connected", False):
+                break
+            await asyncio.sleep(0.01)
+
         # Create async HTTP client
         transport = ASGITransport(app=self.app)  # type: ignore
         self._http_client = AsyncClient(transport=transport, base_url=self.base_url)
@@ -586,15 +597,10 @@ class AsyncAgentTestClient:
         self._websocket = self._test_client.websocket_connect(self.ws_path, headers=headers)
         self._websocket.__enter__()
 
-        # Send init message if as_user is set
+        init_message = {"type": "INIT"}
         if self.as_user:
-            init_message = json.dumps(
-                {
-                    "type": "INIT",
-                    "user": self.as_user,
-                }
-            )
-            self._websocket.send_text(init_message)
+            init_message["user"] = self.as_user
+        self._websocket.send_text(json.dumps(init_message))
 
         # Start WebSocket listener task
         self._stop_ws.clear()
@@ -1008,7 +1014,7 @@ def create_test_app_and_agent(
 
     Note:
         Implementation routes are added dynamically when the lifespan starts.
-        The agent routes (WebSocket, assignations) are added immediately.
+        The agent routes (task/state/lock websockets and task commands) are added immediately.
     """
     from rekuest_next.app import AppRegistry
     from rekuest_next.contrib.fastapi.routes import configure_fastapi
@@ -1024,8 +1030,8 @@ def create_test_app_and_agent(
     agent = configure_fastapi(
         app=app,
         app_registry=app_registry,
-        instance_id=instance_id,
     )
+    agent.instance_id = instance_id
 
     return app, agent, app_registry
 

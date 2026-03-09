@@ -1,93 +1,359 @@
-"""FastAPI Agent module for rekuest_next.
+"""FastAPI agent transport and websocket helpers.
 
-This module provides a FastAPI-based agent transport that allows
-messages to be sent to the agent via HTTP API routes and WebSocket
-connections.
+The FastAPI integration exposes one websocket endpoint. Clients send an init
+payload after connecting to declare which task action keys, state keys, and
+lock keys they want to receive. They can additionally provide
+`state_update_intervals` to control per-state batching and squashing for
+frontend state updates. Outgoing agent messages are then filtered by message
+type and the matching subscription set.
 """
 
-from email import message
-from types import TracebackType
-from typing import AsyncIterator, List, Optional, Self, Set, Any
 import asyncio
+import copy
 import logging
-import jsonpatch
-from pydantic import ConfigDict, Field, PrivateAttr
+import time
+from dataclasses import dataclass, field as dataclass_field
+from types import TracebackType
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Self,
+    TypeVar,
+)
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ConfigDict, Field, PrivateAttr
 
+from rekuest_next import messages
 from rekuest_next.agents.base import BaseAgent
 from rekuest_next.agents.transport.base import AgentTransport
-from rekuest_next import messages
-from rekuest_next.api.schema import StateImplementationInput
-
+from rekuest_next.api.schema import StateImplementationInput, StateSchemaInput
+from rekuest_next.contrib.fastapi.models import (
+    LockView,
+    StateCollectionResponse,
+    StateView,
+    TaskCollectionResponse,
+    TaskView,
+    WebSocketSubscriptionInit,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class FastAPIConnectionManager:
-    """Manages WebSocket connections for FastAPI agents.
+def _is_state_message(message: messages.FromAgentMessage) -> bool:
+    """Return whether a message belongs to the state update stream."""
+    return isinstance(message, messages.StatePatchEvent)
 
-    This class tracks active WebSocket connections and allows broadcasting
-    messages to all connected clients.
-    """
+
+def _is_lock_message(message: messages.FromAgentMessage) -> bool:
+    """Return whether a message belongs to the lock update stream."""
+    return isinstance(message, (messages.LockEvent, messages.UnlockEvent))
+
+
+def _task_routing_key(message: messages.FromAgentMessage) -> str | None:
+    """Resolve a default task routing key from a task-scoped message."""
+    if _is_state_message(message) or _is_lock_message(message):
+        return None
+    return getattr(message, "assignation", None)
+
+
+def _state_routing_key(message: messages.FromAgentMessage) -> str | None:
+    """Resolve the state name used for state websocket subscriptions."""
+    if not isinstance(message, messages.StatePatchEvent):
+        return None
+    return message.envelope.state_name
+
+
+def _lock_routing_key(message: messages.FromAgentMessage) -> str | None:
+    """Resolve the lock key used for lock websocket subscriptions."""
+    if not isinstance(message, (messages.LockEvent, messages.UnlockEvent)):
+        return None
+    return message.key
+
+
+@dataclass(frozen=True)
+class _WebSocketSubscriptions:
+    """Normalized websocket subscription filters."""
+
+    action_keys: set[str] | None = None
+    state_keys: set[str] | None = None
+    lock_keys: set[str] | None = None
+    state_update_intervals: dict[str, float] | None = None
+
+    @classmethod
+    def from_init(cls, payload: WebSocketSubscriptionInit) -> "_WebSocketSubscriptions":
+        """Build normalized subscription sets from an init payload."""
+
+        def _normalize(values: list[str] | None) -> set[str] | None:
+            if values is None:
+                return None
+            normalized = {value for value in values if value}
+            return normalized or None
+
+        return cls(
+            action_keys=_normalize(payload.action_keys),
+            state_keys=_normalize(payload.state_keys),
+            lock_keys=_normalize(payload.lock_keys),
+            state_update_intervals=payload.state_update_intervals,
+        )
+
+    def get_state_update_interval(self, state_name: str) -> float:
+        """Return the configured batching interval for a state key."""
+        if self.state_update_intervals is None:
+            return 0.0
+        interval = self.state_update_intervals.get(
+            state_name,
+            self.state_update_intervals.get("*", 0.0),
+        )
+        return max(interval, 0.0)
+
+
+@dataclass
+class _BufferedStateEnvelope:
+    """Buffered state envelope fragments for one connection and state."""
+
+    state_name: str
+    base_rev: int
+    rev: int
+    patches: list[messages.EnvelopePatch] = dataclass_field(default_factory=list)
+
+
+@dataclass
+class _ManagedWebSocketConnection:
+    """Connection state for a single websocket client."""
+
+    subscriptions: _WebSocketSubscriptions
+    pending_states: dict[str, _BufferedStateEnvelope] = dataclass_field(
+        default_factory=dict
+    )
+    flush_tasks: dict[str, asyncio.Task[None]] = dataclass_field(default_factory=dict)
+
+
+class FastAPIConnectionManager:
+    """Manage websocket connections for multiplexed task, state, and lock updates."""
 
     def __init__(self) -> None:
-        """Initialize the connection manager."""
-        self._active_connections: Set[WebSocket] = set()
+        """Initialize empty connection and subscription registries."""
+        self._active_connections: set[WebSocket] = set()
+        self._connections: dict[WebSocket, _ManagedWebSocketConnection] = {}
         self._lock = asyncio.Lock()
+        self.task_routing_key_resolver: (
+            Callable[[messages.FromAgentMessage], str | None] | None
+        ) = None
 
-    async def connect(self, websocket: WebSocket) -> None:
-        """Accept and register a new WebSocket connection.
+    def get_task_routing_key(self, message: messages.FromAgentMessage) -> str | None:
+        """Resolve the task routing key for an outgoing message."""
+        if self.task_routing_key_resolver is not None:
+            return self.task_routing_key_resolver(message)
+        return _task_routing_key(message)
+
+    async def connect(
+        self,
+        websocket: WebSocket,
+        subscriptions: _WebSocketSubscriptions,
+    ) -> None:
+        """Register an accepted websocket with its subscriptions.
 
         Args:
-            websocket: The WebSocket connection to register.
+            websocket: The websocket connection to register.
+            subscriptions: The normalized subscription filters for the websocket.
         """
-        await websocket.accept()
         async with self._lock:
             self._active_connections.add(websocket)
+            self._connections[websocket] = _ManagedWebSocketConnection(
+                subscriptions=subscriptions
+            )
         logger.info(
             f"WebSocket connected. Total connections: {len(self._active_connections)}"
         )
 
     async def disconnect(self, websocket: WebSocket) -> None:
-        """Remove a WebSocket connection from the manager.
+        """Remove a websocket connection and its subscriptions.
 
         Args:
-            websocket: The WebSocket connection to remove.
+            websocket: The websocket connection to remove.
         """
+        flush_tasks: list[asyncio.Task[None]] = []
         async with self._lock:
             self._active_connections.discard(websocket)
+            connection_state = self._connections.pop(websocket, None)
+            if connection_state is not None:
+                flush_tasks = list(connection_state.flush_tasks.values())
+        for flush_task in flush_tasks:
+            flush_task.cancel()
         logger.info(
             f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
         )
 
-    async def broadcast(self, message: str) -> None:
-        """Send a message to all connected WebSocket clients.
+    async def broadcast_model(self, message: messages.FromAgentMessage) -> None:
+        """Broadcast a message to websocket clients that subscribed to it.
 
         Args:
-            message: The JSON string message to broadcast.
+            message: The outgoing agent message to distribute.
         """
-        logger.info(
-            f"Broadcasting to {len(self._active_connections)} clients: {message}"
-        )
+        if _is_state_message(message):
+            await self._buffer_or_broadcast_state_message(message)
+            return
+
+        message_json = message.model_dump_json()
         async with self._lock:
             disconnected: List[WebSocket] = []
             for connection in self._active_connections:
+                connection_state = self._connections.get(connection)
+                if connection_state is None or not self._matches_subscription(
+                    connection_state.subscriptions, message
+                ):
+                    continue
                 try:
-                    await connection.send_text(message)
+                    await connection.send_text(message_json)
                 except Exception as e:
                     logger.warning(f"Failed to send message to WebSocket: {e}")
                     disconnected.append(connection)
 
-            # Clean up disconnected clients
-            for conn in disconnected:
-                self._active_connections.discard(conn)
+        for connection in disconnected:
+            await self.disconnect(connection)
+
+    async def _buffer_or_broadcast_state_message(
+        self,
+        message: messages.StatePatchEvent,
+    ) -> None:
+        """Batch or immediately forward a state patch event per connection."""
+        state_name = message.envelope.state_name
+        immediate_connections: list[WebSocket] = []
+
+        async with self._lock:
+            for websocket in self._active_connections:
+                connection_state = self._connections.get(websocket)
+                if connection_state is None or not self._matches_subscription(
+                    connection_state.subscriptions, message
+                ):
+                    continue
+
+                interval = connection_state.subscriptions.get_state_update_interval(
+                    state_name
+                )
+                if interval <= 0:
+                    immediate_connections.append(websocket)
+                    continue
+
+                buffered = connection_state.pending_states.get(state_name)
+                if buffered is None:
+                    buffered = _BufferedStateEnvelope(
+                        state_name=state_name,
+                        base_rev=message.envelope.base_rev,
+                        rev=message.envelope.rev,
+                    )
+                    connection_state.pending_states[state_name] = buffered
+
+                buffered.rev = message.envelope.rev
+                buffered.patches.extend(
+                    patch.model_copy(deep=True) for patch in message.envelope.patches
+                )
+
+                flush_task = connection_state.flush_tasks.get(state_name)
+                if flush_task is None or flush_task.done():
+                    connection_state.flush_tasks[state_name] = asyncio.create_task(
+                        self._flush_state_buffer(websocket, state_name, interval)
+                    )
+
+        message_json = message.model_dump_json()
+        for websocket in immediate_connections:
+            try:
+                await websocket.send_text(message_json)
+            except Exception as e:
+                logger.warning(f"Failed to send message to WebSocket: {e}")
+                await self.disconnect(websocket)
+
+    async def _flush_state_buffer(
+        self,
+        websocket: WebSocket,
+        state_name: str,
+        interval: float,
+    ) -> None:
+        """Flush a buffered state patch batch for one websocket and state."""
+        try:
+            ts = (time.time(),)
+        except asyncio.CancelledError:
+            return
+
+        state_event: messages.StatePatchEvent | None = None
+        async with self._lock:
+            connection_state = self._connections.get(websocket)
+            if connection_state is None:
+                return
+
+            buffered = connection_state.pending_states.pop(state_name, None)
+            connection_state.flush_tasks.pop(state_name, None)
+            if buffered is None:
+                return
+
+            squashed_patches = self._squash_state_patches(buffered.patches)
+            if not squashed_patches:
+                return
+
+            state_event = messages.StatePatchEvent(
+                envelope=messages.Envelope(
+                    state_name=state_name,
+                    rev=buffered.rev,
+                    base_rev=buffered.base_rev,
+                    ts=asyncio.get_running_loop().time(),
+                    patches=squashed_patches,
+                )
+            )
+
+        try:
+            await websocket.send_text(state_event.model_dump_json())
+        except Exception as e:
+            logger.warning(f"Failed to send message to WebSocket: {e}")
+            await self.disconnect(websocket)
+
+    def _squash_state_patches(
+        self,
+        patches: list[messages.EnvelopePatch],
+    ) -> list[messages.EnvelopePatch]:
+        """Squash repeated operations on the same JSON path within one batch."""
+        latest_by_path: dict[str, tuple[int, messages.EnvelopePatch]] = {}
+        for index, patch in enumerate(patches):
+            latest_by_path[patch.path] = (index, patch)
+        return [
+            patch
+            for _, patch in sorted(latest_by_path.values(), key=lambda item: item[0])
+        ]
+
+    def _matches_subscription(
+        self,
+        subscriptions: _WebSocketSubscriptions,
+        message: messages.FromAgentMessage,
+    ) -> bool:
+        """Return whether a message matches a websocket subscription set."""
+        if _is_state_message(message):
+            state_key = _state_routing_key(message)
+            return state_key is not None and (
+                subscriptions.state_keys is None
+                or state_key in subscriptions.state_keys
+            )
+
+        if _is_lock_message(message):
+            lock_key = _lock_routing_key(message)
+            return lock_key is not None and (
+                subscriptions.lock_keys is None or lock_key in subscriptions.lock_keys
+            )
+
+        action_key = self.get_task_routing_key(message)
+        return action_key is not None and (
+            subscriptions.action_keys is None or action_key in subscriptions.action_keys
+        )
 
     async def send_personal(self, websocket: WebSocket, message: str) -> None:
-        """Send a message to a specific WebSocket client.
+        """Send a raw message to one websocket client.
 
         Args:
-            websocket: The target WebSocket connection.
-            message: The JSON string message to send.
+            websocket: The target websocket connection.
+            message: The JSON message payload.
         """
         try:
             await websocket.send_text(message)
@@ -103,17 +369,15 @@ class FastAPIConnectionManager:
 class FastApiTransport(AgentTransport):
     """Transport for FastAPI-based agents.
 
-    This transport allows the agent to receive messages from HTTP API routes
-    and send responses back via WebSocket connections.
-
-    Messages can be submitted to the agent via the `asubmit` method (called
-    from API routes) and the agent will process them. Responses and events
-    are broadcast to all connected WebSocket clients.
+    This transport accepts incoming command messages from HTTP routes through
+    `asubmit()` and forwards outgoing agent messages through a single websocket
+    manager. Each websocket connection announces the task, state, and lock keys
+    it wants to receive during its init handshake.
     """
 
     connection_manager: FastAPIConnectionManager = Field(
         default_factory=FastAPIConnectionManager,
-        description="The WebSocket connection manager for broadcasting messages.",
+        description="The websocket connection manager for multiplexed updates.",
     )
 
     _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
@@ -154,18 +418,18 @@ class FastApiTransport(AgentTransport):
         return getattr(message, "assignation", getattr(message, "id", "unknown"))
 
     async def asend(self, message: messages.FromAgentMessage) -> None:
-        """Send a message from the agent to connected clients.
+        """Route an outgoing agent message by message type and subscriptions.
 
-        This broadcasts the message to all connected WebSocket clients.
+        Task messages are matched against `action_keys`, state patch messages
+        against `state_keys`, and lock lifecycle messages against `lock_keys`.
+        The connection manager handles the actual per-socket filtering.
 
         Args:
-            message: The message to send.
+            message: The message to send to subscribed websocket clients.
         """
         message_json = message.model_dump_json()
         logger.info(f"Agent sending message: {message_json}")
-
-        # Broadcast to all WebSocket clients
-        await self.connection_manager.broadcast(message_json)
+        await self.connection_manager.broadcast_model(message)
 
     async def aconnect(self, instance_id: str) -> None:
         """Connect the transport.
@@ -204,23 +468,43 @@ class FastApiTransport(AgentTransport):
         self._receive_queue = None
         logger.info("FastAPI transport disconnected")
 
-    async def handle_websocket(self, websocket: WebSocket) -> None:
-        """Handle a WebSocket connection.
+    async def handle_websocket(
+        self,
+        websocket: WebSocket,
+        build_initial_payload: Callable[
+            [WebSocketSubscriptionInit], Awaitable[dict[str, Any] | None]
+        ]
+        | None = None,
+    ) -> None:
+        """Serve the unified websocket endpoint.
 
-        This method should be called from a FastAPI WebSocket route.
-        The WebSocket is used to send FromAgentMessage updates to the client.
-        Clients connect and receive real-time updates (progress, done, error, etc.).
-
-        All commands (assign, cancel, pause, resume) should be sent via API routes.
+        The websocket must send a JSON init payload immediately after connect.
+        The payload may contain `action_keys`, `state_keys`, and `lock_keys`
+        arrays that define which updates should be delivered. It may also
+        contain `state_update_intervals`, a dictionary of per-state debounce
+        intervals in seconds used for batching and squashing state updates.
 
         Args:
-            websocket: The WebSocket connection to handle.
+            websocket: The accepted websocket connection.
+            build_initial_payload: Optional callback used to construct the first
+                snapshot message after the init payload has been received.
         """
-        await self.connection_manager.connect(websocket)
+        await websocket.accept()
         try:
-            # Keep the connection open - client just listens for broadcasts
+            init_data = await websocket.receive_json()
+            if not isinstance(init_data, dict):
+                raise ValueError("Websocket init payload must be a JSON object")
+
+            init_payload = WebSocketSubscriptionInit.model_validate(init_data)
+            subscriptions = _WebSocketSubscriptions.from_init(init_payload)
+            await self.connection_manager.connect(websocket, subscriptions)
+
+            if build_initial_payload is not None:
+                initial_message = await build_initial_payload(init_payload)
+                if initial_message is not None:
+                    await websocket.send_json(initial_message)
+
             while True:
-                # Use receive to keep connection alive and detect disconnects
                 await websocket.receive()
         except WebSocketDisconnect:
             logger.info("WebSocket client disconnected")
@@ -243,12 +527,15 @@ class FastApiTransport(AgentTransport):
         await self.adisconnect()
 
 
-class FastApiAgent(BaseAgent):
+T = TypeVar("T")
+
+
+class FastApiAgent(BaseAgent[T], Generic[T]):
     """An Agent that uses FastAPI as its web framework.
 
-    This agent uses the FastApiTransport to receive messages from HTTP
-    API routes and WebSocket connections, making it suitable for building
-    REST APIs that can trigger agent actions.
+    This agent uses `FastApiTransport` to receive messages from HTTP
+    API routes and to publish multiplexed websocket updates for tasks,
+    states, and locks over a single `/ws` endpoint.
 
     Example usage:
 
@@ -262,7 +549,7 @@ class FastApiAgent(BaseAgent):
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
-        await agent.transport.handle_websocket(websocket)
+        await agent.handle_websocket(websocket)
 
     @app.post("/assign")
     async def assign_action(action: dict):
@@ -278,6 +565,192 @@ class FastApiAgent(BaseAgent):
         description="The FastAPI transport for this agent.",
     )
 
+    def model_post_init(self, __context: Any) -> None:
+        """Wire task routing so websocket subscriptions use action keys."""
+        super().model_post_init(__context)
+        self.transport.connection_manager.task_routing_key_resolver = (
+            self.get_task_action_key_for_message
+        )
+
+    async def abuild_websocket_init_message(
+        self,
+        init_payload: WebSocketSubscriptionInit,
+    ) -> dict[str, Any]:
+        """Build the initial websocket snapshot for a newly connected client."""
+        tasks = await self.aget_task_views(init_payload.action_keys)
+        states = await self.aget_state_views(init_payload.state_keys)
+        locks = await self.aget_lock_views(init_payload.lock_keys)
+        return {
+            "type": "INIT",
+            "tasks": tasks.model_dump(mode="json"),
+            "states": states.model_dump(mode="json"),
+            "locks": {
+                "count": len(locks),
+                "locks": {
+                    key: value.model_dump(mode="json") for key, value in locks.items()
+                },
+            },
+        }
+
+    async def handle_websocket(self, websocket: WebSocket) -> None:
+        """Serve the unified websocket endpoint for this agent."""
+        await self.transport.handle_websocket(
+            websocket,
+            build_initial_payload=self.abuild_websocket_init_message,
+        )
+
+    def build_task_action_key(self, assign_message: messages.Assign) -> str:
+        """Build the routing key used for task websocket subscriptions."""
+        return (
+            assign_message.interface
+            or assign_message.action
+            or assign_message.assignation
+        )
+
+    def get_task_action_key_for_message(self, message: messages.Message) -> str | None:
+        """Resolve the task action key for an outgoing message."""
+        assignation = getattr(message, "assignation", None)
+        if assignation is None:
+            return None
+        assign_message = self.managed_assignments.get(assignation)
+        if assign_message is None:
+            return None
+        return self.build_task_action_key(assign_message)
+
+    async def aget_task_views(
+        self,
+        action_keys: list[str] | None = None,
+    ) -> TaskCollectionResponse:
+        """Return the current task overview filtered by action keys."""
+        normalized_action_keys = set(action_keys) if action_keys else None
+        tasks: dict[str, TaskView] = {}
+
+        for assignation_id, assign_message in self.managed_assignments.items():
+            action_key = self.build_task_action_key(assign_message)
+            if (
+                normalized_action_keys is not None
+                and action_key not in normalized_action_keys
+            ):
+                continue
+
+            tasks[assignation_id] = TaskView(
+                assignation=assignation_id,
+                action_key=action_key,
+                interface=assign_message.interface,
+                extension=assign_message.extension,
+                user=assign_message.user,
+                app=assign_message.app,
+                action=assign_message.action,
+                running=assignation_id in self.running_assignments,
+                actor_id=self.running_assignments.get(assignation_id),
+            )
+
+        return TaskCollectionResponse(count=len(tasks), tasks=tasks)
+
+    async def aget_state_views(
+        self,
+        state_keys: list[str] | None = None,
+    ) -> StateCollectionResponse:
+        """Return current state values and revisions filtered by state keys."""
+        selected_keys = set(state_keys) if state_keys else None
+        states: dict[str, StateView] = {}
+
+        for interface, state_schema in self._collected_state_schemas.items():
+            if selected_keys is not None and interface not in selected_keys:
+                continue
+            states[interface] = StateView(
+                interface=interface,
+                name=state_schema.name,
+                initialized=interface in self.states,
+                local_revision=self._state_revisions.get(interface, 0),
+                value=copy.deepcopy(self._current_shrunk_states.get(interface)),
+            )
+
+        return StateCollectionResponse(
+            current_session=self.current_session,
+            current_global_revision=self.global_revision,
+            count=len(states),
+            states=states,
+        )
+
+    async def aget_checkout_state_views(
+        self,
+        global_revision_id: int,
+        state_keys: list[str] | None = None,
+        session_id: str | None = None,
+    ) -> StateCollectionResponse:
+        """Return reconstructed state values for a historical global revision."""
+        selected_keys = set(state_keys) if state_keys else None
+        resolved_session_id = session_id or self.current_session
+        states: dict[str, StateView] = {}
+
+        for interface, state_schema in self._collected_state_schemas.items():
+            if selected_keys is not None and interface not in selected_keys:
+                continue
+
+            snapshot = await self.retriever.aget_state_at_global_rev(
+                global_revision_id,
+                state_id=interface,
+                session_id=resolved_session_id,
+            )
+
+            if snapshot is None or isinstance(snapshot, list):
+                states[interface] = StateView(
+                    interface=interface,
+                    name=state_schema.name,
+                    initialized=False,
+                    local_revision=0,
+                    value=None,
+                )
+                continue
+
+            states[interface] = StateView(
+                interface=interface,
+                name=state_schema.name,
+                initialized=True,
+                local_revision=snapshot.revision,
+                value=copy.deepcopy(snapshot.data),
+            )
+
+        return StateCollectionResponse(
+            current_session=resolved_session_id,
+            current_global_revision=global_revision_id,
+            count=len(states),
+            states=states,
+        )
+
+    def get_state_schemas(self) -> dict[str, StateSchemaInput]:
+        """Return all collected state schema inputs."""
+        return dict(self._collected_state_schemas)
+
+    async def aget_state_schemas(self) -> dict[str, StateSchemaInput]:
+        """Return all collected state schema inputs."""
+        return self.get_state_schemas()
+
+    async def aget_lock_views(
+        self,
+        lock_keys: list[str] | None = None,
+    ) -> dict[str, LockView]:
+        """Return current lock values filtered by lock key or interface."""
+        selected_keys = set(lock_keys) if lock_keys else None
+        locks: dict[str, LockView] = {}
+
+        for interface, lock in self.locks.items():
+            if (
+                selected_keys is not None
+                and interface not in selected_keys
+                and lock.lock_schema.key not in selected_keys
+            ):
+                continue
+            locking_task = lock.locking_task
+            locks[interface] = LockView(
+                interface=interface,
+                key=lock.lock_schema.key,
+                task_id=str(locking_task) if locking_task else None,
+            )
+
+        return locks
+
     async def apublish_states(self, list: List[StateImplementationInput]) -> None:
         """Set up the agent states."""
         print("Publishing states is not implemented for FastApiAgent yet.")
@@ -289,9 +762,9 @@ class FastApiAgent(BaseAgent):
     async def ashelve(
         self, instance_id, identifier, resource_id, label=None, description=None
     ):
-        return identifier
+        raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
-    async def alock(self, key, assignation):
+    async def alock(self, key: str, assignation: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.LockEvent(
             key=key,
@@ -299,7 +772,7 @@ class FastApiAgent(BaseAgent):
         )
         await self.transport.asend(message)
 
-    async def aunlock(self, key):
+    async def aunlock(self, key: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.UnlockEvent(
             key=key,
@@ -307,7 +780,7 @@ class FastApiAgent(BaseAgent):
         await self.transport.asend(message)
 
     async def apublish_envelope(
-        self, interface: str, envelope: messages.Envelope
+        self, state_name: str, envelope: messages.Envelope
     ) -> None:
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.StatePatchEvent(

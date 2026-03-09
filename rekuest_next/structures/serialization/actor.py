@@ -653,6 +653,8 @@ async def ashrink_return(
                     depth=depth,
                 )
 
+            print("Shrinking list port", port.key, "with value", value)
+
             return await asyncio.gather(
                 *[
                     ashrink_return(
