@@ -136,7 +136,6 @@ class SQLLiteSink:
         """Create a new session and return its ID. Should be called at the start of a new logical session. By default this will be called automatically on each agent startup, but can also be called manually if the agent wants to manage sessions itself (e.g., create a new session for each user interaction)."""
         new_session = str(uuid.uuid4())
         created_at_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
-        print(f"Creating new session: {new_session} at {created_at_ms} ms")
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(

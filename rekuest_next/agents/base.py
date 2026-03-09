@@ -1070,7 +1070,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         try:
             logger.info(f"Launching provisioning task. We are running {self.instance_id}")
             await self.astart(instance_id=self.instance_id, app_context=self._app_context)
-            print("Starting to listen for requests")
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
