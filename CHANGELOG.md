@@ -1,6 +1,9 @@
 # CHANGELOG
 
 
+## v0.37.1 (2026-03-09)
+
+
 ## v0.37.0 (2026-03-09)
 
 ### Bug Fixes
@@ -13,6 +16,9 @@
 
 - More things
   ([`b1dd48e`](https://github.com/arkitektio/rekuest-next/commit/b1dd48e0a45b74a7feb13a4bee25a181e5aa8fe0))
+
+- No more prints
+  ([`4e3d32d`](https://github.com/arkitektio/rekuest-next/commit/4e3d32d59d89495d62150cf4a67e66057a7a5386))
 
 - Some minor stuff
   ([`f465fcd`](https://github.com/arkitektio/rekuest-next/commit/f465fcd7c5648cee2ff26225cd57c5e689b724d0))
