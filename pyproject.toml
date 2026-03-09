@@ -1,6 +1,6 @@
 [project]
 name = "rekuest-next"
-version = "0.37.1" 
+version = "1.0.0" 
 readme = "README.md"
 readme-content-type = "text/markdown"
 homepage = "https://arkitekt.live"

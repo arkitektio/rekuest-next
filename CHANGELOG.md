@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.0.0 (2026-03-09)
+
+### Features
+
+- New dict based serialization for models and dicts
+  ([`e4eb9d0`](https://github.com/arkitektio/rekuest-next/commit/e4eb9d07342791bcf550b22b59d17bc6a6fd9a80))
+
+
 ## v0.37.1 (2026-03-09)
 
 
