@@ -189,3 +189,64 @@ def predicate_serializable_port(
         return fstruc.predicate(value)
 
     raise ValueError(f"Unknown port kind: {port.kind} to predicate")
+
+
+def predicate_json_with_port(
+    port: PortInput,
+    value: Any,  # noqa: ANN401
+    structure_registry: StructureRegistry,
+) -> bool:
+    """Check if the value is of the correct type for the structure.
+
+    Args:
+        port (Union[Port, PortInput]): The port to check.
+        value (Any): The value to check.
+        structure_registry (StructureRegistry, optional): The structure registry. Defaults to None.
+    Returns:
+        bool: True if the value is of the correct type for the structure, False otherwise.
+    """
+    if port.kind == PortKind.INT:
+        return isinstance(value, int)
+    if port.kind == PortKind.FLOAT:
+        return isinstance(value, float)
+    if port.kind == PortKind.BOOL:
+        return isinstance(value, bool)
+    if port.kind == PortKind.STRING:
+        return isinstance(value, str)
+    if port.kind == PortKind.STRUCTURE:
+        if not isinstance(value, dict):
+            return False
+        if not "__identifier__" in value:
+            return False
+        if value["__identifier__"] != port.identifier:
+            return False
+        if value["__identifier__"] == port.identifier:
+            return True
+    if port.kind == PortKind.MODEL:
+        if not isinstance(value, dict):
+            return False
+        if not "__identifier__" in value:
+            return False
+        if value["__identifier__"] != port.identifier:
+            return False
+        if value["__identifier__"] == port.identifier:
+            return True
+    if port.kind == PortKind.MEMORY_STRUCTURE:
+        if not isinstance(value, dict):
+            return False
+        if not "__identifier__" in value:
+            return False
+        if value["__identifier__"] != port.identifier:
+            return False
+        if value["__identifier__"] == port.identifier:
+            return True
+    if port.kind == PortKind.ENUM:
+        if not value in map(lambda x: x.value, port.choices):
+            return False
+        return True
+    if port.kind == PortKind.DICT:
+        if not isinstance(value, dict):
+            return False
+    if port.kind == PortKind.LIST:
+        if not isinstance(value, list):
+            return False

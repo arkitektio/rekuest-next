@@ -157,7 +157,16 @@ async def test_shrinking_nested_structure(
         {},
         structure_registry=simple_registry,
     )
-    assert args == {"name": {"hallo": "3"}, "rep": ["3"]}
+
+    assert isinstance(args["name"]["hallo"], dict), (
+        "Should be a dict with __identifier and object keys"
+    )
+    assert isinstance(args["rep"][0], dict), "Should be a dict with __identifier and object keys"
+
+    assert args == {
+        "name": {"hallo": {"__identifier": "mock/serializable", "object": "3"}},
+        "rep": [{"__identifier": "mock/serializable", "object": "3"}],
+    }, f"Should be the shrinked version of the input is: {args}"
 
 
 @pytest.mark.expand

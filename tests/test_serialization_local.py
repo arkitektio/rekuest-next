@@ -25,6 +25,6 @@ async def test_local_structures(simple_registry: StructureRegistry, mock_shelver
         shelver=mock_shelver,
     )
     assert "return0" in shrinks, "Expected return_0 to be in shrinks"
-    assert shrinks["return0"] in mock_shelver.shelve, (
-        f"Expected {shrinks['return0']} to be in shelve"
+    assert shrinks["return0"]["object"] in mock_shelver.shelve, (
+        f"Expected {shrinks['return0']['object']} to be in shelve"
     )

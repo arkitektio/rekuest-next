@@ -66,7 +66,10 @@ async def test_expand_structure(simple_registry: StructureRegistry, mock_shelver
 
     args = await expand_inputs(
         functional_definition,
-        {"rep": 3, "name": 3},
+        {
+            "rep": {"__identifier": "mock/serializable", "object": "3"},
+            "name": {"__identifier": "mock/serializable", "object": "3"},
+        },
         structure_registry=simple_registry,
         shelver=mock_shelver,
     )
@@ -107,7 +110,10 @@ async def test_expand_nested_structure(
 
     args = await expand_inputs(
         functional_definition,
-        {"rep": ["3"], "name": {"lala": "3"}},
+        {
+            "rep": [{"__identifier": "mock/serializable", "object": "3"}],
+            "name": {"lala": {"__identifier": "mock/serializable", "object": "3"}},
+        },
         structure_registry=simple_registry,
         shelver=mock_shelver,
     )

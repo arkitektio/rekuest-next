@@ -190,42 +190,18 @@ async def aexpand_arg(
                 depth=depth,
             )
 
-        assert "use" in value, "No use in vaalue"
-        index = value["use"]
-        true_value = value["value"]
-
-        if isinstance(index, str):
-            index = int(index)
-
-        if not isinstance(index, int):
-            raise to_port_error(
-                port,
-                value,
-                "Can't expand value to union port. We only accept ints in as index in unions. Please report this to the developers.",
-                path=path,
-                depth=depth,
-            )
-        try:
-            child = port.children[index]
-        except IndexError as e:
-            raise to_port_error(
-                port,
-                value,
-                f"The index {index} is out of range for this union port which has {len(port.children)} children.",
-                path=path,
-                depth=depth,
-            ) from e
-
-        return await aexpand_arg(
-            child,
-            true_value,
-            structure_registry=structure_registry,
-            shelver=shelver,
-            path=[*(path or []), f"{port.key}[{index}]"]
-            if path is not None
-            else [f"{port.key}[{index}]"],
-            depth=depth + 1,
-        )
+        for index, possible_port in enumerate(port.children):
+            if predicate_serializable_port(possible_port, value, structure_registry):
+                return await aexpand_arg(
+                    possible_port,
+                    value,
+                    structure_registry=structure_registry,
+                    shelver=shelver,
+                    path=[*(path or []), f"{port.key}[{index}]"]
+                    if path is not None
+                    else [f"{port.key}[{index}]"],
+                    depth=depth + 1,
+                )
 
     if port.kind == PortKind.LIST:
         if not port.children:
@@ -418,16 +394,53 @@ async def aexpand_arg(
         return await shelver.aget_from_shelve(value)
 
     if port.kind == PortKind.STRUCTURE:
-        if not isinstance(value, (str, int)):
+        if not isinstance(value, (dict)):
             raise to_port_error(
                 port,
                 value,
-                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
-                " strings and ints",
+                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept dicts for structures",
             ) from None
 
-        if isinstance(value, int):
-            value = str(value)
+        if "__identifier" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing __identifier key in dict",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if value["__identifier"] != port.identifier:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Identifier mismatch: expected {port.identifier}, got {value['__identifier']}",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if "object" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing object key in dict",
+                path=path,
+                depth=depth,
+            ) from None
+
+        object = value["object"]
+
+        if not isinstance(object, (str, int)):
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept strings and ints in the object key",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if isinstance(object, int):
+            object = str(object)
 
         if not port.identifier:
             raise to_port_error(
@@ -442,7 +455,7 @@ async def aexpand_arg(
         fstruc = structure_registry.get_fullfilled_structure(port.identifier)
 
         try:
-            expanded = await fstruc.aexpand(ID.validate(value))
+            expanded = await fstruc.aexpand(ID.validate(object))
             return expanded
         except Exception as e:
             raise to_port_error(
@@ -554,19 +567,16 @@ async def ashrink_return(
 
             for index, possible_port in enumerate(port.children):
                 if predicate_port_input(possible_port, value, structure_registry):
-                    return {
-                        "use": index,
-                        "value": await ashrink_return(
-                            possible_port,
-                            value,
-                            structure_registry=structure_registry,
-                            shelver=shelver,
-                            path=[*(path or []), f"{port.key}[{index}]"]
-                            if path is not None
-                            else [f"{port.key}[{index}]"],
-                            depth=depth + 1,
-                        ),
-                    }
+                    return await ashrink_return(
+                        possible_port,
+                        value,
+                        structure_registry=structure_registry,
+                        shelver=shelver,
+                        path=[*(path or []), f"{port.key}[{index}]"]
+                        if path is not None
+                        else [f"{port.key}[{index}]"],
+                        depth=depth + 1,
+                    )
 
             raise to_shrink_port_error(
                 port,
@@ -699,6 +709,9 @@ async def ashrink_return(
                 child_port.key: val for child_port, val in zip(port.children, shrinked_args)
             }
 
+            # Add shrinked identifier
+            shrinked_params["__identifier__"] = port.identifier
+
             return shrinked_params
 
         if port.kind == PortKind.INT:
@@ -744,7 +757,10 @@ async def ashrink_return(
                     depth=depth,
                 )
 
-            return await shelver.aput_on_shelve(Identifier.validate(port.identifier), value)
+            return {
+                "__identifier__": port.identifier,
+                "object": await shelver.aput_on_shelve(Identifier.validate(port.identifier), value),
+            }
 
         if port.kind == PortKind.STRUCTURE:
             if not port.identifier:
@@ -758,7 +774,7 @@ async def ashrink_return(
             fstruc = structure_registry.get_fullfilled_structure(port.identifier)
             try:
                 shrink = await fstruc.ashrink(value)
-                return str(shrink)
+                return {"__identifier__": port.identifier, "object": shrink}
             except Exception as e:
                 raise to_shrink_port_error(
                     port,
