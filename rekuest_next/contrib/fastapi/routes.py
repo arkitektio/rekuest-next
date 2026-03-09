@@ -1,997 +1,166 @@
-"""FastAPI route configuration for rekuest_next agents.
+"""FastAPI route orchestration for rekuest_next agents."""
 
-This module provides utilities to configure a FastAPI app with agent routes,
-including WebSocket endpoints, assignation management, and auto-generated
-routes for registered implementations.
-"""
+from __future__ import annotations
 
 import asyncio
 import contextlib
 import logging
-import uuid
-from datetime import datetime
-from typing import Any, Callable, Dict, Optional
+from collections.abc import AsyncIterator, Callable
+from typing import Any, Optional, TypeVar
 
-from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
-from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute
-from pydantic import BaseModel
+from fastapi import APIRouter, FastAPI, Request
 
-from rekuest_next.agents.retriever.protocol import (
-    PatchEvent as RetrieverPatchEvent,
-    SessionBoundary as RetrieverSessionBoundary,
-    Snapshot as RetrieverSnapshot,
-    TaskBoundary as RetrieverTaskBoundary,
-)
-from rekuest_next.api.schema import (
-    AssignInput,
-    CancelInput,
-    PauseInput,
-    StepInput,
-    ResumeInput,
-    ImplementationInput,
-    PortInput,
-    PortKind,
-    resume,
-)
 from rekuest_next.app import AppRegistry
+from rekuest_next.contrib.fastapi.agent import FastApiAgent
+from rekuest_next.contrib.fastapi.detail_routes import (
+    build_state_detail_router,
+    build_task_detail_router,
+)
+from rekuest_next.contrib.fastapi.openapi_utils import (
+    configure_openapi,
+    create_json_schema_from_ports,
+    port_to_json_schema,
+    register_router_custom_schemas,
+)
+from rekuest_next.contrib.fastapi.route_groups import (
+    add_implementation_route,
+    build_core_router,
+    build_implementation_router,
+    build_lock_router,
+    build_schema_router,
+    build_state_router,
+    build_task_router,
+)
 from rekuest_next.contrib.sql_lite.retriever import SQLLiteRetriever
 from rekuest_next.contrib.sql_lite.sink import SQLLiteSink
-from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
-from rekuest_next.contrib.fastapi.route_groups import (
-    add_lock_route,
-    add_lock_routes,
-    add_lock_websocket_route,
-    add_state_route,
-    add_state_routes,
-    add_state_websocket_route,
-    add_task_websocket_route,
-)
-
-from .agent import FastApiAgent
-
 
 logger = logging.getLogger(__name__)
 
 
-class RetrieverSessionInfoResponse(BaseModel):
-    current_session: str | None
+def _default_user_from_request(_: Request) -> str:
+    return "anonymous"
 
 
-class RetrieverTaskBoundaryResponse(BaseModel):
-    correlation_id: str
-    start_revision: int
-    end_revision: int
-    start_time: datetime
-    end_time: datetime
+def _include_router(app: FastAPI, router: APIRouter) -> None:
+    app.include_router(router)
+    register_router_custom_schemas(app, router)
 
 
-class RetrieverSessionBoundaryResponse(BaseModel):
-    session_id: str
-    start_revision: int
-    end_revision: int
-    start_time: datetime
-    end_time: datetime
+T = TypeVar("T")
 
 
-class RetrieverSnapshotResponse(BaseModel):
-    timepoint: datetime
-    data: Any
-    revision: int
-    global_revision: int | None
-    session_id: str
-
-
-class RetrieverPatchEventResponse(BaseModel):
-    timepoint: datetime
-    current_rev: int
-    future_rev: int
-    global_current_rev: int
-    global_future_rev: int
-    correlation_id: str
-    session_id: str
-    patch: Any
-
-
-def _to_task_boundary_response(
-    boundary: RetrieverTaskBoundary,
-) -> RetrieverTaskBoundaryResponse:
-    return RetrieverTaskBoundaryResponse(
-        correlation_id=boundary.correlation_id,
-        start_revision=boundary.start_revision,
-        end_revision=boundary.end_revision,
-        start_time=boundary.start_time,
-        end_time=boundary.end_time,
-    )
-
-
-def _to_session_boundary_response(
-    boundary: RetrieverSessionBoundary,
-) -> RetrieverSessionBoundaryResponse:
-    return RetrieverSessionBoundaryResponse(
-        session_id=boundary.session_id,
-        start_revision=boundary.start_revision,
-        end_revision=boundary.end_revision,
-        start_time=boundary.start_time,
-        end_time=boundary.end_time,
-    )
-
-
-def _to_snapshot_response(snapshot: RetrieverSnapshot) -> RetrieverSnapshotResponse:
-    return RetrieverSnapshotResponse(
-        timepoint=snapshot.timepoint,
-        data=snapshot.data,
-        revision=snapshot.revision,
-        global_revision=snapshot.global_revision,
-        session_id=snapshot.session_id,
-    )
-
-
-def _to_patch_event_response(
-    event: RetrieverPatchEvent,
-) -> RetrieverPatchEventResponse:
-    return RetrieverPatchEventResponse(
-        timepoint=event.timepoint,
-        current_rev=event.current_rev,
-        future_rev=event.future_rev,
-        global_current_rev=event.global_current_rev,
-        global_future_rev=event.global_future_rev,
-        correlation_id=event.correlation_id,
-        session_id=event.session_id,
-        patch=event.patch,
-    )
-
-
-def _serialize_snapshot_result(
-    result: RetrieverSnapshot | list[RetrieverSnapshot] | None,
-) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-    if result is None:
-        raise HTTPException(status_code=404, detail="No state found for the requested revision")
-
-    if isinstance(result, list):
-        return [_to_snapshot_response(snapshot) for snapshot in result]
-
-    return _to_snapshot_response(result)
-
-
-def port_to_json_schema(port: PortInput) -> Dict[str, Any]:
-    """Convert a Port definition to a JSON Schema object, handling nested children."""
-    schema: Dict[str, Any] = {}
-
-    # Add title and description
-    if port.label:
-        schema["title"] = port.label
-    if port.description:
-        schema["description"] = port.description
-
-    # Map PortKind to JSON Schema types
-    if port.kind == PortKind.INT:
-        schema["type"] = "integer"
-    elif port.kind == PortKind.STRING:
-        schema["type"] = "string"
-    elif port.kind == PortKind.BOOL:
-        schema["type"] = "boolean"
-    elif port.kind == PortKind.FLOAT:
-        schema["type"] = "number"
-    elif port.kind == PortKind.LIST:
-        schema["type"] = "array"
-        if port.children:
-            schema["items"] = port_to_json_schema(port.children[0])
-        else:
-            schema["items"] = {}
-    elif port.kind == PortKind.DICT or port.kind == PortKind.STRUCTURE:
-        schema["type"] = "object"
-        if port.children:
-            schema["properties"] = {
-                child.key: port_to_json_schema(child) for child in port.children
-            }
-            required = [
-                child.key for child in port.children if not child.nullable and child.default is None
-            ]
-            if required:
-                schema["required"] = required
-        else:
-            schema["additionalProperties"] = True
-    else:
-        schema["type"] = ["string", "number", "boolean", "object", "array", "null"]
-
-    # Handle identifier
-    if port.identifier:
-        schema["x-identifier"] = port.identifier
-
-    # Handle choices (enum)
-    if port.choices:
-        schema["enum"] = [choice.value for choice in port.choices]
-
-    # Handle default value
-    if port.default is not None:
-        schema["default"] = port.default
-
-    # Handle nullable
-    if port.nullable:
-        if "type" in schema and isinstance(schema["type"], str):
-            schema["type"] = [schema["type"], "null"]
-
-    return schema
-
-
-def create_json_schema_from_ports(
-    ports: tuple[PortInput, ...], schema_title: str
-) -> Dict[str, Any]:
-    """Create a JSON Schema object from a list of ports."""
-    if not ports:
-        return {"type": "object", "title": schema_title, "properties": {}}
-
-    properties = {}
-    required = []
-
-    for port in ports:
-        properties[port.key] = port_to_json_schema(port)
-        if not port.nullable and port.default is None:
-            required.append(port.key)
-
-    schema = {"type": "object", "title": schema_title, "properties": properties}
-    if required:
-        schema["required"] = required
-
-    return schema
-
-
-def _handle_provide_task_done(task: asyncio.Task) -> None:
-    """Callback to handle provide task completion and log any errors."""
-    try:
-        exc = task.exception()
-        if exc is not None:
-            logger.error(f"Provide task failed with error: {exc}", exc_info=exc)
-    except asyncio.CancelledError:
-        logger.info("Provide task was cancelled")
-    except asyncio.InvalidStateError:
-        pass
-
-
-def create_lifespan(agent: FastApiAgent, instance_id: str = "default"):
-    """Create a lifespan context manager for a FastAPI app using the agent.
-
-    Args:
-        agent: The FastApiAgent to use.
-        instance_id: The instance ID for the agent.
-
-    Returns:
-        An async context manager for FastAPI lifespan.
-    """
+def create_lifespan(
+    agent: FastApiAgent[T],
+    app_context: T | None = None,
+) -> Callable[[FastAPI], contextlib.AbstractAsyncContextManager[None]]:
+    """Create a FastAPI lifespan manager for a configured agent."""
 
     @contextlib.asynccontextmanager
-    async def lifespan(app: FastAPI):
-        """Lifespan context manager for FastAPI app using FastApiAgent."""
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.agent = agent
-
-        async with app.state.agent:
-            provide_task = asyncio.create_task(app.state.agent.aprovide(instance_id=instance_id))
-            provide_task.add_done_callback(_handle_provide_task_done)
-
+        async with agent:
+            provide_task = asyncio.create_task(agent.aprovide(context=app_context))
             yield
-
             provide_task.cancel()
             try:
                 await provide_task
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
-            except Exception as e:
-                logger.error(f"Error during provide task shutdown: {e}", exc_info=True)
+            except Exception as exc:
+                logger.error(
+                    "Error during provide task shutdown: %s", exc, exc_info=True
+                )
 
     return lifespan
 
 
-def add_implementation_route(
-    app: FastAPI,
-    agent: FastApiAgent,
-    implementation: ImplementationInput,
-) -> None:
-    """Add a route for a specific implementation to the FastAPI app.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent handling the implementation.
-        implementation: The implementation to create a route for.
-    """
-    route_path = f"/{implementation.interface or implementation.definition.name}"
-
-    # Create JSON schemas from the definition
-    request_schema_name = f"{implementation.definition.name}Request"
-    response_schema_name = f"{implementation.definition.name}Response"
-    args_schema_name = f"{implementation.definition.name}Args"
-
-    # Create args schema from ports
-    args_schema = create_json_schema_from_ports(implementation.definition.args, args_schema_name)
-
-    # Create full request schema based on AssignInput model with args schema embedded
-    request_schema = {
-        "type": "object",
-        "title": request_schema_name,
-        "properties": {
-            "args": args_schema,
-            "policy": {
-                "type": "object",
-                "description": "The policy for the assignation",
-            },
-            "instanceId": {"type": "string", "description": "The instance ID"},
-            "action": {"type": "string", "description": "The action ID"},
-            "dependency": {"type": "string", "description": "The dependency"},
-            "resolution": {"type": "string", "description": "The resolution ID"},
-            "implementation": {
-                "type": "string",
-                "description": "The implementation ID",
-            },
-            "agent": {"type": "string", "description": "The agent ID"},
-            "actionHash": {"type": "string", "description": "The action hash"},
-            "method": {"type": "string", "description": "The method"},
-            "reservation": {"type": "string", "description": "The reservation ID"},
-            "interface": {"type": "string", "description": "The interface name"},
-            "hooks": {
-                "type": "array",
-                "items": {"type": "object"},
-                "description": "Hooks for the assignation",
-            },
-            "reference": {"type": "string", "description": "A reference string"},
-            "parent": {"type": "string", "description": "The parent assignation ID"},
-            "cached": {
-                "type": "boolean",
-                "description": "Whether to use cached results",
-                "default": False,
-            },
-            "log": {
-                "type": "boolean",
-                "description": "Whether to log the assignation",
-                "default": False,
-            },
-            "capture": {
-                "type": "boolean",
-                "description": "Whether to capture the assignation",
-                "default": False,
-            },
-            "ephemeral": {
-                "type": "boolean",
-                "description": "Whether the assignation is ephemeral",
-                "default": False,
-            },
-            "dependencies": {
-                "type": "object",
-                "description": "Dependencies for the assignation",
-            },
-            "isHook": {
-                "type": "boolean",
-                "description": "Whether this is a hook assignation",
-            },
-            "step": {
-                "type": "boolean",
-                "description": "Whether to step through the assignation",
-            },
-        },
-        "required": ["args", "instanceId", "cached", "log", "capture", "ephemeral"],
-    }
-
-    response_schema = create_json_schema_from_ports(
-        implementation.definition.returns, response_schema_name
-    )
-
-    # Store schemas for OpenAPI generation
-    if not hasattr(app, "_custom_schemas"):
-        app._custom_schemas = {}
-    app._custom_schemas[request_schema_name] = request_schema
-    app._custom_schemas[response_schema_name] = response_schema
-
-    async def implementation_endpoint(request: Request) -> JSONResponse:
-        """Execute the implementation with the provided payload."""
-        payload = await request.json()
-
-        # Parse the payload as AssignInput, using interface from route
-        assign_input = AssignInput(
-            **{
-                **payload,
-                "interface": implementation.interface,
-                "instanceId": payload.get("instanceId", "fastapi_instance"),
-            }
-        )
-
-        assign = Assign(
-            interface=assign_input.interface or implementation.definition.name,
-            extension="default",
-            assignation=str(uuid.uuid4()),
-            args=assign_input.args,
-            reference=assign_input.reference,
-            user="fastapi",
-            step=assign_input.step,
-            app="fastapi",
-            action="api_call",
-        )
-
-        result = await agent.transport.asubmit(assign)
-        return JSONResponse(content={"status": "submitted", "task_id": result})
-
-    route = APIRoute(
-        path=route_path,
-        endpoint=implementation_endpoint,
-        methods=["POST"],
-        summary=implementation.definition.name,
-        description=implementation.definition.description
-        or f"Execute {implementation.definition.name} action",
-        tags=list(implementation.definition.collections)
-        if implementation.definition.collections
-        else [],
-        response_class=JSONResponse,
-        openapi_extra={
-            "requestBody": {
-                "required": True,
-                "content": {
-                    "application/json": {
-                        "schema": {"$ref": f"#/components/schemas/{request_schema_name}"}
-                    }
-                },
-            },
-            "responses": {
-                "200": {
-                    "description": "Successful Response",
-                    "content": {
-                        "application/json": {
-                            "schema": {"$ref": f"#/components/schemas/{response_schema_name}"}
-                        }
-                    },
-                }
-            },
-        },
-    )
-
-    app.router.routes.append(route)
-
-
 def add_agent_routes(
     app: FastAPI,
-    agent: FastApiAgent,
-    get_user_from_request: Optional[Callable[[Request], Any]] = None,
-    ws_path: str = "/ws",
-    assignations_path: str = "/assignations",
+    agent: FastApiAgent[Any],
+    get_user_from_request: Optional[Callable[[Request], object]] = None,
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
     pause_path: str = "/pause",
     resume_path: str = "/resume",
     step_path: str = "/step",
 ) -> None:
-    """Add all agent-related routes to a FastAPI application.
-
-    This adds:
-    - WebSocket endpoint for receiving agent events
-    - GET /assignations - list running assignations
-    - GET /assignations/{id} - get specific assignation details
-    - POST /assign/{interface} - assign an action by interface name
-
-    Args:
-        app: The FastAPI application to add routes to.
-        agent: The FastApiAgent to use for handling requests.
-        get_user_from_request: Optional function to extract user from request.
-        ws_path: Path for the WebSocket endpoint.
-        assignations_path: Path for the assignations endpoints.
-        assign_path: Path for the assign endpoint.
-    """
-    if get_user_from_request is None:
-
-        def get_user_from_request(request: Request) -> str:
-            return "anonymous"
-
-    @app.websocket(ws_path)
-    async def websocket_endpoint(websocket: WebSocket):
-        """WebSocket endpoint for receiving agent events."""
-        await agent.transport.handle_websocket(websocket)
-
-    add_task_websocket_route(app, agent, f"{ws_path}/task")
-    add_state_websocket_route(app, agent, f"{ws_path}/state")
-    add_lock_websocket_route(app, agent, f"{ws_path}/locks")
-
-    @app.get(assignations_path)
-    async def get_assignations() -> dict:
-        """Get the list of currently running assignations."""
-        assignations = {}
-        for assignation_id, assign_message in agent.managed_assignments.items():
-            assignations[assignation_id] = {
-                "interface": assign_message.interface,
-                "extension": assign_message.extension,
-                "user": assign_message.user,
-                "app": assign_message.app,
-                "action": assign_message.action,
-                "args": assign_message.args,
-            }
-
-        return {
-            "count": len(assignations),
-            "assignations": assignations,
-        }
-
-    @app.get(f"{assignations_path}/{{assignation_id}}")
-    async def get_assignation(assignation_id: str) -> dict:
-        """Get details of a specific assignation."""
-        if assignation_id not in agent.managed_assignments:
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": "Assignation not found",
-                    "assignation": assignation_id,
-                },
-            )
-
-        assign_message = agent.managed_assignments[assignation_id]
-        return {
-            "assignation": assignation_id,
-            "interface": assign_message.interface,
-            "extension": assign_message.extension,
-            "user": assign_message.user,
-            "app": assign_message.app,
-            "action": assign_message.action,
-            "args": assign_message.args,
-        }
-
-    @app.post(f"{assign_path}")
-    async def assign_base_action(request: Request, extension: str = "default") -> dict:
-        """Assign an action to the agent for processing.
-
-        Accepts the full AssignInput model with args, policy, hooks, and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        interface = payload.pop("interface", None)
-
-        # Parse the payload as AssignInput, using interface from route
-        assign_input = AssignInput(
-            **{
-                **payload,
-                "cached": payload.get("cached", False),
-                "log": payload.get("log", False),
-                "capture": payload.get("capture", False),
-                "ephemeral": payload.get("ephemeral", False),
-                "instanceId": payload.get("instanceID", "fastapi_instance"),
-            }
-        )
-
-        assignation_id = str(uuid.uuid4())
-        assign_message = Assign(
-            interface=interface,
-            extension=extension,
-            assignation=assignation_id,
-            args=assign_input.args,
-            user=str(user),
-            step=assign_input.step,
-            app="fastapi",
-            action="api_call",
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assignation_id}
-
-    @app.post(f"{assign_path}/{{interface}}")
-    async def assign_action(request: Request, interface: str, extension: str = "default") -> dict:
-        """Assign an action to the agent for processing.
-
-        Accepts the full AssignInput model with args, policy, hooks, and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        # Parse the payload as AssignInput, using interface from route
-        assign_input = AssignInput(
-            **{
-                **payload,
-                "interface": interface,
-            }
-        )
-
-        assignation_id = str(uuid.uuid4())
-        assign_message = Assign(
-            interface=interface,
-            extension=extension,
-            assignation=assignation_id,
-            args=assign_input.args,
-            step=assign_input.step,
-            user=str(user),
-            app="fastapi",
-            action="api_call",
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assignation_id}
-
-    @app.post(f"{cancel_path}")
-    async def cancel_action(
-        request: Request,
-    ) -> dict:
-        """Cancel an action assigned to the agent for processing.
-
-        Accepts the full CancelInput model with assignation and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        # Parse the payload as AssignInput, using interface from route
-        assign_input = CancelInput(
-            **{
-                **payload,
-            }
-        )
-
-        assign_message = Cancel(
-            assignation=assign_input.assignation,
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "cancelling", "assignation": assign_input.assignation}
-
-    @app.post(f"{pause_path}")
-    async def pause_action(
-        request: Request,
-    ) -> dict:
-        """Pause an action assigned to the agent for processing.
-
-        Accepts the full PauseInput model with assignation and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        # Parse the payload as PauseInput, using interface from route
-        assign_input = PauseInput(
-            **{
-                **payload,
-            }
-        )
-
-        assign_message = Pause(
-            assignation=assign_input.assignation,
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "pausing", "assignation": assign_input.assignation}
-
-    @app.post(f"{resume_path}")
-    async def resume_action(
-        request: Request,
-    ) -> dict:
-        """Resume an action assigned to the agent for processing.
-
-        Accepts the full ResumeInput model with assignation and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        # Parse the payload as ResumeInput, using interface from route
-        assign_input = ResumeInput(
-            **{
-                **payload,
-            }
-        )
-
-        assign_message = Resume(
-            assignation=assign_input.assignation,
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "resuming", "assignation": assign_input.assignation}
-
-    @app.post(f"{step_path}")
-    async def step_action(
-        request: Request,
-    ) -> dict:
-        """Step an action assigned to the agent for processing.
-
-        Accepts the full StepInput model with assignation and other fields.
-        """
-        user = get_user_from_request(request)
-        payload = await request.json()
-
-        # Parse the payload as StepInput, using interface from route
-        assign_input = StepInput(
-            **{
-                **payload,
-            }
-        )
-
-        assign_message = Step(
-            assignation=assign_input.assignation,
-        )
-
-        await agent.transport.asubmit(assign_message)
-        return {"status": "stepping", "assignation": assign_input.assignation}
-
-    def _require_current_session() -> str:
-        if not agent.current_session:
-            raise HTTPException(status_code=404, detail="No active session")
-        return agent.current_session
-
-    @app.get("/session_info", response_model=RetrieverSessionInfoResponse)
-    async def session_info_action() -> RetrieverSessionInfoResponse:
-        """Get information about the currently active retriever session."""
-        return RetrieverSessionInfoResponse(current_session=agent.current_session)
-
-    @app.get(
-        "/task_boundaries/{correlation_id}",
-        response_model=RetrieverTaskBoundaryResponse,
+    """Include core agent routes."""
+    user_getter = get_user_from_request or _default_user_from_request
+    _include_router(
+        app,
+        build_core_router(
+            agent,
+            user_getter,
+            assign_path=assign_path,
+            cancel_path=cancel_path,
+            pause_path=pause_path,
+            resume_path=resume_path,
+            step_path=step_path,
+        ),
     )
-    async def task_boundaries_action(
-        correlation_id: str,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverTaskBoundaryResponse:
-        """Get task boundaries for a correlation id."""
-        boundaries = await agent.retriever.aget_task_boundaries(
-            correlation_id=correlation_id,
-            state_id=state_id,
-        )
-        if boundaries is None:
-            raise HTTPException(status_code=404, detail="Task boundaries not found")
-        return _to_task_boundary_response(boundaries)
 
-    @app.get(
-        "/active_session_boundaries",
-        response_model=RetrieverSessionBoundaryResponse,
-    )
-    async def active_session_boundaries_action(
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSessionBoundaryResponse:
-        """Get retriever boundaries for the current session."""
-        session_id = _require_current_session()
-        boundaries = await agent.retriever.aget_session_boundaries(
-            session_id=session_id,
-            state_id=state_id,
-        )
-        if boundaries is None:
-            raise HTTPException(status_code=404, detail="Session boundaries not found")
-        return _to_session_boundary_response(boundaries)
 
-    @app.get(
-        "/session_boundaries/{session_id}",
-        response_model=RetrieverSessionBoundaryResponse,
+def add_task_routes(
+    app: FastAPI,
+    agent: FastApiAgent[T],
+    tasks_path: str = "/tasks",
+    tasks_ws_path: str = "/wstasks",
+) -> None:
+    """Include task overview routes."""
+    _include_router(
+        app,
+        build_task_router(agent, tasks_path=tasks_path, tasks_ws_path=tasks_ws_path),
     )
-    async def session_boundaries_action(
-        session_id: str,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSessionBoundaryResponse:
-        """Get retriever boundaries for a session."""
-        boundaries = await agent.retriever.aget_session_boundaries(
-            session_id=session_id,
-            state_id=state_id,
-        )
-        if boundaries is None:
-            raise HTTPException(status_code=404, detail="Session boundaries not found")
-        return _to_session_boundary_response(boundaries)
 
-    @app.get(
-        "/state_at_local/{session_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    async def state_at_local_revision(
-        session_id: str,
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        """Get one or many states at a local revision within a session."""
-        state_at_revision = await agent.retriever.aget_state_at_local_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        return _serialize_snapshot_result(state_at_revision)
 
-    @app.get(
-        "/state_at_local/{session_id}/{state_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse,
-        include_in_schema=False,
-    )
-    async def state_at_local_revision_compat(
-        session_id: str,
-        state_id: str,
-        target_revision: int,
-    ) -> RetrieverSnapshotResponse:
-        """Backward-compatible local revision lookup for a single state."""
-        state_at_revision = await agent.retriever.aget_state_at_local_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        serialized = _serialize_snapshot_result(state_at_revision)
-        if isinstance(serialized, list):
-            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
-        return serialized
+def add_task_detail_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    tasks_path: str = "/tasks",
+) -> None:
+    """Include conditional task detail routes."""
+    _include_router(app, build_task_detail_router(agent, tasks_path=tasks_path))
 
-    @app.get(
-        "/state_at_global/{session_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    async def state_at_global_revision(
-        session_id: str,
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        """Get one or many states at a global revision within a session."""
-        state_at_revision = await agent.retriever.aget_state_at_global_rev(
-            global_revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        return _serialize_snapshot_result(state_at_revision)
 
-    @app.get(
-        "/state_at_global/{session_id}/{state_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse,
-        include_in_schema=False,
+def add_state_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    states_path: str = "/states",
+    states_ws_path: str = "/wsstates",
+) -> None:
+    """Include state overview routes."""
+    _include_router(
+        app,
+        build_state_router(
+            agent, states_path=states_path, states_ws_path=states_ws_path
+        ),
     )
-    async def state_at_global_revision_compat(
-        session_id: str,
-        state_id: str,
-        target_revision: int,
-    ) -> RetrieverSnapshotResponse:
-        """Backward-compatible global revision lookup for a single state."""
-        state_at_revision = await agent.retriever.aget_state_at_global_rev(
-            global_revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        serialized = _serialize_snapshot_result(state_at_revision)
-        if isinstance(serialized, list):
-            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
-        return serialized
 
-    @app.get(
-        "/current_state_at_local/{target_revision}",
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    async def current_state_at_local_revision(
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        """Get one or many states at a local revision in the current session."""
-        session_id = _require_current_session()
-        state_at_revision = await agent.retriever.aget_state_at_local_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        return _serialize_snapshot_result(state_at_revision)
 
-    @app.get(
-        "/current_state_at_local/{state_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse,
-        include_in_schema=False,
+def add_state_detail_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    states_path: str = "/states",
+    state_schemas: dict[str, object] | None = None,
+) -> None:
+    """Include conditional state detail and retriever routes."""
+    state_schemas = state_schemas or agent.get_state_schemas()
+    _include_router(
+        app, build_state_detail_router(agent, state_schemas, states_path=states_path)
     )
-    async def current_state_at_local_revision_compat(
-        state_id: str,
-        target_revision: int,
-    ) -> RetrieverSnapshotResponse:
-        """Backward-compatible local revision lookup in the current session."""
-        session_id = _require_current_session()
-        state_at_revision = await agent.retriever.aget_state_at_local_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        serialized = _serialize_snapshot_result(state_at_revision)
-        if isinstance(serialized, list):
-            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
-        return serialized
 
-    @app.get(
-        "/current_state_at_global/{target_revision}",
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    async def current_state_at_global_revision(
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        """Get one or many states at a global revision in the current session."""
-        session_id = _require_current_session()
-        state_at_revision = await agent.retriever.aget_state_at_global_rev(
-            global_revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        return _serialize_snapshot_result(state_at_revision)
 
-    @app.get(
-        "/current_state_at_global/{state_id}/{target_revision}",
-        response_model=RetrieverSnapshotResponse,
-        include_in_schema=False,
+def add_lock_routes(
+    app: FastAPI,
+    agent: FastApiAgent,
+    locks_path: str = "/locks",
+    locks_ws_path: str = "/wslocks",
+) -> None:
+    """Include lock overview routes."""
+    _include_router(
+        app,
+        build_lock_router(agent, locks_path=locks_path, locks_ws_path=locks_ws_path),
     )
-    async def current_state_at_global_revision_compat(
-        state_id: str,
-        target_revision: int,
-    ) -> RetrieverSnapshotResponse:
-        """Backward-compatible global revision lookup in the current session."""
-        session_id = _require_current_session()
-        state_at_revision = await agent.retriever.aget_state_at_global_rev(
-            global_revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-        serialized = _serialize_snapshot_result(state_at_revision)
-        if isinstance(serialized, list):
-            raise HTTPException(status_code=500, detail="Expected a single state snapshot")
-        return serialized
-
-    @app.get(
-        "/forward_events/{session_id}/{target_revision}",
-        response_model=list[RetrieverPatchEventResponse],
-    )
-    async def forward_events_after_local_revision(
-        session_id: str,
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-        count: int = Query(default=100, ge=1),
-    ) -> list[RetrieverPatchEventResponse]:
-        """Get forward events after a local revision within a session."""
-        events = await agent.retriever.aget_forward_events_after_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-            count=count,
-        )
-        return [_to_patch_event_response(event) for event in events]
-
-    @app.get(
-        "/forward_events/{session_id}/{state_id}/{target_revision}",
-        response_model=list[RetrieverPatchEventResponse],
-        include_in_schema=False,
-    )
-    async def forward_events_after_local_revision_compat(
-        session_id: str,
-        state_id: str,
-        target_revision: int,
-        count: int = Query(default=100, ge=1),
-    ) -> list[RetrieverPatchEventResponse]:
-        """Backward-compatible forward event lookup for a single state."""
-        events = await agent.retriever.aget_forward_events_after_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-            count=count,
-        )
-        return [_to_patch_event_response(event) for event in events]
-
-    @app.get(
-        "/snapshots_around/{session_id}/{target_revision}",
-        response_model=list[RetrieverSnapshotResponse],
-    )
-    async def snapshots_around_local_revision(
-        session_id: str,
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-        before: int = Query(default=1, ge=0),
-        after: int = Query(default=1, ge=0),
-    ) -> list[RetrieverSnapshotResponse]:
-        """Get snapshots around a local revision within a session."""
-        snapshots = await agent.retriever.aget_snapshots_around_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-            before=before,
-            after=after,
-        )
-        return [_to_snapshot_response(snapshot) for snapshot in snapshots]
-
-    @app.get(
-        "/snapshots_around/{session_id}/{state_id}/{target_revision}",
-        response_model=list[RetrieverSnapshotResponse],
-        include_in_schema=False,
-    )
-    async def snapshots_around_local_revision_compat(
-        session_id: str,
-        state_id: str,
-        target_revision: int,
-        before: int = Query(default=1, ge=0),
-        after: int = Query(default=1, ge=0),
-    ) -> list[RetrieverSnapshotResponse]:
-        """Backward-compatible snapshot lookup for a single state."""
-        snapshots = await agent.retriever.aget_snapshots_around_rev(
-            revision=target_revision,
-            state_id=state_id,
-            session_id=session_id,
-            before=before,
-            after=after,
-        )
-        return [_to_snapshot_response(snapshot) for snapshot in snapshots]
 
 
 def add_implementation_routes(
@@ -999,67 +168,8 @@ def add_implementation_routes(
     agent: FastApiAgent,
     extension: str = "default",
 ) -> None:
-    """Add routes for all registered implementations in an extension.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with registered implementations.
-        extension: The extension name to get implementations from.
-    """
-    for implementation in agent.extension_registry.get(extension).get_static_implementations():
-        add_implementation_route(app, agent, implementation)
-
-
-def add_travel_routes(
-    app: FastAPI,
-    agent: FastApiAgent,
-    states_path: str = "/travel",
-) -> None:
-    """Add a GET route for a specific state to the FastAPI app.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with the state.
-        interface: The interface name for the state.
-        state_schema: The state schema input.
-        states_path: Base path for state routes.
-    """
-
-    async def get_around_window() -> JSONResponse:
-        """Get the current state value."""
-        if interface not in agent.states:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "State not initialized", "interface": interface},
-            )
-
-        # Otherwise try to shrink it now
-        try:
-            revised_state = await agent.retriever.aget_round(interface)
-            return JSONResponse(
-                content={
-                    "revision": revised_state.revision,
-                    "state": revised_state.data,
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to get state for interface {interface}: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Failed to serialize state: {str(e)}"},
-            )
-
-    route = APIRoute(
-        path=route_path,
-        endpoint=get_around_window,
-        methods=["GET"],
-        summary=f"Get {state_schema.name} state",
-        description=f"Get the current value of the {state_schema.name} state",
-        tags=["States"],
-        response_class=JSONResponse,
-    )
-
-    app.router.routes.append(route)
+    """Include all implementation execution routes."""
+    _include_router(app, build_implementation_router(agent, extension=extension))
 
 
 def add_schema_routes(
@@ -1067,270 +177,120 @@ def add_schema_routes(
     agent: FastApiAgent,
     extension: str = "default",
 ) -> None:
-    """Add routes to get implementation and state schemas.
-
-    This adds:
-    - GET /schemas/implementations - list all implementation schemas
-    - GET /schemas/states - list all state schemas
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with registered implementations and states.
-        extension: The extension name to get implementations from.
-    """
-
-    @app.get("/schemas/implementations")
-    async def get_implementation_schemas() -> dict:
-        """Get all implementation schemas for the specified extension."""
-        implementations = {}
-        for impl in agent.extension_registry.get(extension).get_static_implementations():
-            implementations[impl.interface or impl.definition.name] = impl
-
-        return {
-            "count": len(implementations),
-            "implementations": implementations,
-        }
-
-    @app.get("/schemas/states")
-    async def get_state_schemas() -> dict:
-        """Get all registered state schemas."""
-        state_schemas = {}
-        for extension in agent.extension_registry.agent_extensions.values():
-            for interface, schema in extension.get_state_schemas().items():
-                state_schemas[interface] = schema
-
-        return {
-            "count": len(state_schemas),
-            "states": state_schemas,
-        }
-
-    @app.get("/schemas/locks")
-    async def get_lock_schemas() -> dict:
-        """Get all registered state schemas."""
-        lock_schemas = {}
-        for extension in agent.extension_registry.agent_extensions.values():
-            for interface, schema in extension.get_lock_schemas().items():
-                lock_schemas[interface] = schema
-
-        return {
-            "count": len(lock_schemas),
-            "locks": lock_schemas,
-        }
+    """Include schema inspection routes."""
+    _include_router(app, build_schema_router(agent, extension=extension))
 
 
-def add_sync_key_routes(
-    app: FastAPI,
-    agent: FastApiAgent,
-    sync_keys_path: str = "/sync-keys",
-) -> None:
-    """Add routes for sync key status to the FastAPI app.
-
-    Args:
-        app: The FastAPI application.
-        agent: The FastApiAgent with the sync key manager.
-        sync_keys_path: Base path for sync key routes.
-    """
-
-    @app.get(sync_keys_path)
-    async def get_sync_keys() -> dict:
-        """Get the status of all sync keys and their current holders."""
-        return {
-            "sync_keys": agent.sync_key_manager.get_all_status(),
-            "total": len(agent.sync_key_manager.get_all_keys()),
-        }
-
-    @app.get(f"{sync_keys_path}/{{key}}")
-    async def get_sync_key(key: str) -> dict:
-        """Get the status of a specific sync key."""
-        lock = agent.sync_key_manager.get_lock(key)
-        if lock is None:
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": "Sync key not found",
-                    "key": key,
-                },
-            )
-        return lock.get_status()
-
-    @app.get(f"{sync_keys_path}/{{key}}/interfaces")
-    async def get_sync_key_interfaces(key: str) -> dict:
-        """Get all interfaces that use a specific sync key."""
-        interfaces = agent.sync_key_manager.get_interfaces_for_key(key)
-        return {
-            "key": key,
-            "interfaces": list(interfaces),
-        }
-
-
-def configure_openapi(app: FastAPI) -> None:
-    """Configure custom OpenAPI schema generation to include implementation schemas.
-
-    Args:
-        app: The FastAPI application.
-    """
-
-    def custom_openapi():
-        if app.openapi_schema:
-            return app.openapi_schema
-
-        from fastapi.openapi.utils import get_openapi
-
-        openapi_schema = get_openapi(
-            title=app.title,
-            version=app.version,
-            description=app.description,
-            routes=app.routes,
-        )
-
-        if "components" not in openapi_schema:
-            openapi_schema["components"] = {}
-        if "schemas" not in openapi_schema["components"]:
-            openapi_schema["components"]["schemas"] = {}
-
-        if hasattr(app, "_custom_schemas"):
-            openapi_schema["components"]["schemas"].update(app._custom_schemas)
-
-        app.openapi_schema = openapi_schema
-        return app.openapi_schema
-
-    app.openapi = custom_openapi
+T = TypeVar("T")
 
 
 def configure_fastapi(
     app: FastAPI,
     app_registry: AppRegistry,
-    get_user_from_request: Optional[Callable[[Request], Any]] = None,
+    get_user_from_request: Optional[Callable[[Request], object]] = None,
     add_implementations: bool = True,
     add_schema: bool = True,
     add_states: bool = True,
+    add_state_details: bool = True,
     add_locks: bool = True,
+    add_tasks: bool = True,
+    add_task_details: bool = True,
     extension: str = "default",
-    ws_path: str = "/ws",
-    assignations_path: str = "/assignations",
+    tasks_path: str = "/tasks",
+    tasks_ws_path: str = "/ws/tasks",
     assign_path: str = "/assign",
     states_path: str = "/states",
-    states_ws_path: str = "/states/ws",
+    states_ws_path: str = "/ws/states",
     locks_path: str = "/locks",
-    instance_id: str = "default",
-    app_context: Optional[Any] = None,
-) -> FastApiAgent:
-    """Configure a FastAPI application with all agent routes, lifespan, and OpenAPI schemas.
-
-    This is the main entry point for setting up a FastAPI app with a rekuest agent.
-    It creates a FastApiAgent with a DefaultExtension using the provided AppRegistry,
-    sets up the lifespan to manage the agent lifecycle, adds all routes (WebSocket,
-    assignations, assign, implementation routes, state routes, and lock routes) and configures
-    OpenAPI schema generation.
-
-    The lifespan is configured to:
-    - Add implementation/state/schema/lock routes at startup (after all functions are registered)
-    - Start the agent and provide loop
-    - Clean up on shutdown
-
-    Args:
-        app: The FastAPI application to configure.
-        app_registry: The AppRegistry containing implementations, states, and hooks.
-        get_user_from_request: Optional function to extract user from request.
-        add_implementations: Whether to add routes for registered implementations.
-        add_states: Whether to add routes for registered states.
-        add_schema: Whether to add schema routes.
-        add_sync_keys: Whether to add routes for sync key status.
-        extension: The extension name for implementations.
-        ws_path: Path for the WebSocket endpoint.
-        assignations_path: Path for the assignations endpoints.
-        assign_path: Path for the assign endpoint.
-        states_path: Path for the states endpoints.
-        states_ws_path: Path for the states WebSocket endpoint.
-        sync_keys_path: Path for the sync keys endpoints.
-        instance_id: The instance ID for the agent.
-
-    Returns:
-        The created FastApiAgent instance.
-
-    Example:
-        ```python
-        from fastapi import FastAPI
-        from rekuest_next.app import AppRegistry
-        from rekuest_next.contrib.fastapi import configure_fastapi
-
-        app_registry = AppRegistry()
-
-        @app_registry.register
-        def my_function(x: int) -> int:
-            return x * 2
-
-        app = FastAPI()
-        agent = configure_fastapi(app, app_registry)
-        # Lifespan is automatically configured - no additional setup needed
-        ```
-    """
+    locks_ws_path: str = "/ws/locks",
+    app_context: T | None = None,
+) -> FastApiAgent[T]:
+    """Configure a FastAPI app with a refactored set of agent route groups."""
     from rekuest_next.agents.extensions.default import DefaultExtension
     from rekuest_next.agents.registry import ExtensionRegistry
 
-    # Create a DefaultExtension with the provided AppRegistry
     default_extension = DefaultExtension(app_registry=app_registry)
-
-    # Create an ExtensionRegistry and register the extension
     extension_registry = ExtensionRegistry()
     extension_registry.register(default_extension)
 
-    db_file = f"db_like.db"
-
-    # Create the FastApiAgent with the extension registry
-    agent = FastApiAgent(
+    db_file = "db_like.db"
+    agent: FastApiAgent[T] = FastApiAgent(  # type: ignore
         extension_registry=extension_registry,
         retriever=SQLLiteRetriever(db_path=db_file),
         sink=SQLLiteSink(db_path=db_file),
     )
 
-    # Add agent routes immediately (WebSocket, assignations, assign endpoints)
     add_agent_routes(
-        app=app,
-        agent=agent,
+        app,
+        agent,
         get_user_from_request=get_user_from_request,
-        ws_path=ws_path,
-        assignations_path=assignations_path,
         assign_path=assign_path,
     )
 
-    # Create and set the lifespan context manager
     @contextlib.asynccontextmanager
-    async def lifespan(fastapi_app: FastAPI):
-        """Lifespan context manager for FastAPI app using FastApiAgent."""
-        # Add dynamic routes at startup (after all functions are registered)
-        if add_implementations:
-            add_implementation_routes(fastapi_app, agent, extension)
-
+    async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
+        if add_tasks:
+            add_task_routes(
+                fastapi_app, agent, tasks_path=tasks_path, tasks_ws_path=tasks_ws_path
+            )
+        if add_task_details:
+            add_task_detail_routes(fastapi_app, agent, tasks_path=tasks_path)
         if add_states:
-            add_state_routes(fastapi_app, agent, states_path, states_ws_path)
-
-        if add_schema:
-            add_schema_routes(fastapi_app, agent, extension)
-
+            add_state_routes(
+                fastapi_app,
+                agent,
+                states_path=states_path,
+                states_ws_path=states_ws_path,
+            )
+        if add_state_details:
+            add_state_detail_routes(
+                fastapi_app,
+                agent,
+                states_path=states_path,
+                state_schemas=await agent.aget_state_schemas(),
+            )
         if add_locks:
-            add_lock_routes(fastapi_app, agent, locks_path)
+            add_lock_routes(
+                fastapi_app, agent, locks_path=locks_path, locks_ws_path=locks_ws_path
+            )
+        if add_implementations:
+            add_implementation_routes(fastapi_app, agent, extension=extension)
+        if add_schema:
+            add_schema_routes(fastapi_app, agent, extension=extension)
 
         configure_openapi(fastapi_app)
-
-        # Set agent on app state
         fastapi_app.state.agent = agent
 
         async with agent:
             provide_task = asyncio.create_task(agent.aprovide(context=app_context))
-            provide_task.add_done_callback(_handle_provide_task_done)
-
             yield
-
             provide_task.cancel()
             try:
                 await provide_task
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
-            except Exception as e:
-                logger.error(f"Error during provide task shutdown: {e}", exc_info=True)
+            except Exception as exc:
+                logger.error(
+                    "Error during provide task shutdown: %s", exc, exc_info=True
+                )
 
-    # Set the lifespan on the app's router
     app.router.lifespan_context = lifespan
-
     return agent
+
+
+__all__ = [
+    "add_agent_routes",
+    "add_implementation_route",
+    "add_implementation_routes",
+    "add_lock_routes",
+    "add_schema_routes",
+    "add_state_detail_routes",
+    "add_state_routes",
+    "add_task_detail_routes",
+    "add_task_routes",
+    "configure_fastapi",
+    "configure_openapi",
+    "create_json_schema_from_ports",
+    "create_lifespan",
+    "port_to_json_schema",
+]

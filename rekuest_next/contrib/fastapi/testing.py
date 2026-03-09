@@ -124,14 +124,14 @@ class AgentTestClient:
     Attributes:
         app: The FastAPI application under test.
         agent: The FastApiAgent instance.
-        ws_path: The WebSocket endpoint path (default: "/ws").
+        ws_path: The WebSocket endpoint path (default: "/wstasks").
         as_user: The user to impersonate for requests and WebSocket init.
     """
 
     def __init__(
         self,
         app: FastAPI,
-        ws_path: str = "/ws",
+        ws_path: str = "/wstasks",
         as_user: Optional[str] = None,
     ) -> None:
         """Initialize the AgentTestClient.
@@ -533,14 +533,14 @@ class AsyncAgentTestClient:
     Attributes:
         app: The FastAPI application under test.
         agent: The FastApiAgent instance.
-        ws_path: The WebSocket endpoint path (default: "/ws").
+        ws_path: The WebSocket endpoint path (default: "/wstasks").
         as_user: The user to impersonate for requests and WebSocket init.
     """
 
     def __init__(
         self,
         app: FastAPI,
-        ws_path: str = "/ws",
+        ws_path: str = "/wstasks",
         as_user: Optional[str] = None,
         base_url: str = "http://test",
     ) -> None:
@@ -1008,7 +1008,7 @@ def create_test_app_and_agent(
 
     Note:
         Implementation routes are added dynamically when the lifespan starts.
-        The agent routes (WebSocket, assignations) are added immediately.
+        The agent routes (task/state/lock websockets and task commands) are added immediately.
     """
     from rekuest_next.app import AppRegistry
     from rekuest_next.contrib.fastapi.routes import configure_fastapi

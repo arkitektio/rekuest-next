@@ -3,7 +3,6 @@
 from .agent import (
     FastApiAgent,
     FastApiTransport,
-    FastAPIConnectionManager,
     LockConnectionManager,
     StateConnectionManager,
     TaskConnectionManager,
@@ -13,10 +12,7 @@ from .routes import (
     create_lifespan,
     add_agent_routes,
     add_implementation_routes,
-    add_implementation_route,
     add_state_routes,
-    add_state_route,
-    configure_openapi,
 )
 from .testing import (
     AgentTestClient,
@@ -29,7 +25,6 @@ from .testing import (
 __all__ = [
     "FastApiAgent",
     "FastApiTransport",
-    "FastAPIConnectionManager",
     "TaskConnectionManager",
     "StateConnectionManager",
     "LockConnectionManager",
@@ -37,10 +32,7 @@ __all__ = [
     "create_lifespan",
     "add_agent_routes",
     "add_implementation_routes",
-    "add_implementation_route",
     "add_state_routes",
-    "add_state_route",
-    "configure_openapi",
     # Testing utilities
     "AgentTestClient",
     "AsyncAgentTestClient",

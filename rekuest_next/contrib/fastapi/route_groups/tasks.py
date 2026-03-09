@@ -1,64 +1,55 @@
-"""Task-related FastAPI route helpers."""
+"""Task overview and websocket route builders."""
 
-from typing import Any
+from __future__ import annotations
 
-from fastapi import FastAPI, WebSocket
+from typing import Any, TypeVar
+
+from fastapi import APIRouter, Query, WebSocket
 
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
+from rekuest_next.contrib.fastapi.models import TaskCollectionResponse
 
 from .common import normalize_filter_values
 
-
-def build_task_snapshot(
-    agent: FastApiAgent,
-    assignation_ids: list[str] | None = None,
-) -> dict[str, object]:
-    """Build the current task snapshot for websocket initialization."""
-    normalized_assignation_ids = normalize_filter_values(assignation_ids)
-    tasks: dict[str, dict[str, object | None]] = {}
-
-    for assignation_id, assign_message in agent.managed_assignments.items():
-        if (
-            normalized_assignation_ids is not None
-            and assignation_id not in normalized_assignation_ids
-        ):
-            continue
-
-        tasks[assignation_id] = {
-            "assignation": assignation_id,
-            "interface": assign_message.interface,
-            "extension": assign_message.extension,
-            "user": assign_message.user,
-            "app": assign_message.app,
-            "action": assign_message.action,
-            "running": assignation_id in agent.running_assignments,
-            "actor_id": agent.running_assignments.get(assignation_id),
-        }
-
-    return {
-        "count": len(tasks),
-        "tasks": tasks,
-    }
+T = TypeVar("T")
 
 
-def add_task_websocket_route(
-    app: FastAPI,
-    agent: FastApiAgent,
-    ws_path: str = "/ws/tasks",
-) -> None:
-    """Register the task websocket route."""
+def build_task_router(
+    agent: FastApiAgent[T],
+    tasks_path: str = "/tasks",
+    tasks_ws_path: str = "/ws/tasks",
+) -> APIRouter:
+    """Build overview routes for managed tasks."""
+    router = APIRouter(tags=["Tasks"])
 
-    @app.websocket(ws_path)
-    async def task_updates_websocket(websocket: WebSocket) -> None:
-        assignation_ids = normalize_filter_values(
-            list(websocket.query_params.getlist("assignation_ids"))
+    async def list_tasks(
+        action_keys: list[str] | None = Query(default=None),
+    ) -> TaskCollectionResponse:
+        normalized_action_keys = normalize_filter_values(action_keys)
+        return await agent.aget_task_views(normalized_action_keys)
+
+    async def task_updates(websocket: WebSocket) -> None:
+        action_keys = normalize_filter_values(
+            list(websocket.query_params.getlist("action_keys"))
         )
+        initial_payload = await agent.aget_task_views(action_keys)
         initial_message: dict[str, Any] = {
             "type": "TASK_INIT",
-            **build_task_snapshot(agent, assignation_ids),
+            **initial_payload.model_dump(mode="json"),
         }
         await agent.transport.handle_task_websocket(
             websocket,
-            assignation_ids=set(assignation_ids) if assignation_ids is not None else None,
+            action_keys=set(action_keys) if action_keys is not None else None,
             initial_message=initial_message,
         )
+
+    router.add_api_route(
+        tasks_path,
+        list_tasks,
+        methods=["GET"],
+        response_model=TaskCollectionResponse,
+        summary="List tasks",
+        description="List current tasks filtered by optional action keys.",
+    )
+    router.add_api_websocket_route(tasks_ws_path, task_updates)
+    return router
