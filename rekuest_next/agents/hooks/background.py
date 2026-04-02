@@ -30,29 +30,38 @@ from rekuest_next.protocols import (
     AsyncBackgroundFunction,
 )
 from rekuest_next.state.publish import direct_publishing
-from rekuest_next.state.utils import prepare_state_variables
+from rekuest_next.state.utils import prepare_appcontext, prepare_state_variables
 
 
-class WrappedBackgroundTask(BackgroundTask):
-    """Background task that runs in the event loop"""
-
-    def __init__(self, func: AsyncBackgroundFunction) -> None:
-        """Initialize the background task
-        Args:
-            func (Callable): The function to run in the background async
-        """
+class WithVariables:
+    def __init__(self, func: Callable[..., Any]) -> None:
         self.func = func
-        # check if has context argument
-        inspect.signature(func).parameters
-
         self.state_variables, self.state_returns = prepare_state_variables(func)
-
+        self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
         self.context_variables, self.context_returns = prepare_context_variables(func)
 
-    async def arun(
-        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
-    ) -> None:
-        """Run the background task in the event loop"""
+        # Check the arg length of the function and raise an error if it is more than the context and state variables
+        total_args = (
+            self.state_variables.count
+            + self.context_variables.count
+            + +self.app_context_variables.count
+        )
+        if len(inspect.signature(func).parameters) > total_args:
+            incorrect_args = set(inspect.signature(func).parameters.keys()) - set(
+                self.state_variables.variable_keys
+                + list(self.context_variables.context_variables.keys())
+                + list(self.app_context_variables.app_context_variables.keys())
+            )
+
+            raise ValueError(
+                f"Background function {func.__name__} has more arguments than the context and state variables. "
+                f"Expected at most {total_args} arguments, but got {len(inspect.signature(func).parameters)}."
+                f"{incorrect_args} are not valid argument names."
+            )
+
+    def get_kwargs(
+        self, contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> Dict[str, Any]:
         kwargs = {}
         for key, value in self.context_variables.context_variables.items():
             try:
@@ -70,11 +79,44 @@ class WrappedBackgroundTask(BackgroundTask):
                     f"State requirements not met: {e}. Available are {list(states.keys())}"
                 ) from e
 
+        for key, value in self.app_context_variables.app_context_variables.items():
+            try:
+                kwargs[key] = contexts[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(
+                    f"App context requirements not met: {e}"
+                ) from e
+
+        for key, value in self.state_variables.write_state_variables.items():
+            try:
+                kwargs[key] = states[value]
+            except KeyError as e:
+                raise StateRequirementsNotMet(
+                    f"State requirements not met: {e}. Available are {list(states.keys())}"
+                ) from e
+        return kwargs
+
+
+class WrappedBackgroundTask(WithVariables):
+    """Background task that runs in the event loop"""
+
+    def __init__(self, func: AsyncBackgroundFunction) -> None:
+        """Initialize the background task
+        Args:
+            func (Callable): The function to run in the background async
+        """
+        super().__init__(func)
+
+    async def arun(
+        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> None:
+        """Run the background task in the event loop"""
+        kwargs = self.get_kwargs(contexts, states)
         with direct_publishing(agent):
             return await self.func(**kwargs)
 
 
-class WrappedThreadedBackgroundTask(BackgroundTask):
+class WrappedThreadedBackgroundTask(WithVariables):
     """Background task that runs in a thread pool"""
 
     def __init__(self, func: ThreadedBackgroundFunction) -> None:
@@ -82,13 +124,7 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
         Args:
             func (Callable): The function to run in the background
         """
-        self.func = func
-        # check if has context argument
-        inspect.signature(func).parameters
-
-        self.state_variables, self.state_returns = prepare_state_variables(func)
-
-        self.context_variables, self.context_returns = prepare_context_variables(func)
+        super().__init__(func)
         self.thread_pool = ThreadPoolExecutor(1)
 
     def run_with_publishing(self, agent: Agent, **kwargs: Any) -> None:
@@ -99,21 +135,7 @@ class WrappedThreadedBackgroundTask(BackgroundTask):
         self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
     ) -> None:
         """Run the background task in a thread pool"""
-        kwargs = {}
-        for key, value in self.context_variables.context_variables.items():
-            try:
-                kwargs[key] = contexts[value]
-            except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
-
-        for key, value in self.state_variables.read_only_variables.items():
-            try:
-                kwargs[key] = states[value]
-            except KeyError as e:
-                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
-
+        kwargs = self.get_kwargs(contexts, states)
         return await run_spawned(
             self.run_with_publishing,
             agent,

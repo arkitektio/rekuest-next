@@ -1,4 +1,4 @@
-fragment ChildPortNested on Port {
+fragment ArgChildPortNested on ArgPort {
   key
   kind
   children {
@@ -17,12 +17,48 @@ fragment ChildPortNested on Port {
   default
 }
 
-fragment ChildPort on Port {
+fragment ArgChildPort on ArgPort {
   key
   kind
   identifier
   children {
-    ...ChildPortNested
+    ...ArgChildPortNested
+  }
+  choices {
+    value
+    label
+    description
+  }
+  nullable
+  default
+}
+
+
+fragment ReturnChildPortNested on ReturnPort {
+  key
+  kind
+  children {
+    key
+    identifier
+    nullable
+    kind
+  }
+  choices {
+    value
+    label
+    description
+  }
+  identifier
+  nullable
+  default
+}
+
+fragment ReturnChildPort on ReturnPort {
+  key
+  kind
+  identifier
+  children {
+    ...ReturnChildPortNested
   }
   choices {
     value
@@ -127,7 +163,7 @@ fragment ReturnWidget on ReturnWidget {
   ...ChoiceReturnWidget
 }
 
-fragment Port on Port {
+fragment ArgPort on ArgPort {
   __typename
   key
   label
@@ -137,13 +173,10 @@ fragment Port on Port {
   kind
   identifier
   children {
-    ...ChildPort
+    ...ArgChildPort
   }
-  assignWidget {
+  widget {
     ...PortAssignWidget
-  }
-  returnWidget {
-    ...ReturnWidget
   }
   choices {
     value
@@ -155,6 +188,32 @@ fragment Port on Port {
     errorMessage
     dependencies
     label
+  }
+  effects {
+    ...PortEffect
+  }
+}
+
+
+fragment ReturnPort on ReturnPort {
+  __typename
+  key
+  label
+  nullable
+  description
+  default
+  kind
+  identifier
+  children {
+    ...ReturnChildPort
+  }
+  widget {
+    ...ReturnWidget
+  }
+  choices {
+    value
+    label
+    description
   }
   effects {
     ...PortEffect

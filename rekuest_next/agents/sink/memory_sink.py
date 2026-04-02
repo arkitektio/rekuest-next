@@ -53,6 +53,6 @@ class MemorySink:
         """Writes a patch to the store. The sink should enforce that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity. The correlation_id can be used to group patches that belong to the same logical task or operation, which can be useful for retrieval and debugging."""
         self.store.patches.append(req)
 
-    async def is_cought_up_to(self, state_id: str, revision: int) -> bool:
+    async def is_cought_up_to(self, revision: int) -> bool:
         """Returns True if the sink has received patches/snapshots up to at least the given revision for the specified state_id. This can be used by agents to check if they are in sync with the latest state before performing operations that depend on up-to-date information."""
         return True

@@ -76,12 +76,13 @@ class AsyncFuncActor(SerializingActor):
                 )
                 return
 
-            context_kwargs, state_kwargs = await self.aget_locals()
+            context_kwargs, state_kwargs, dependency_kwargs = await self.aget_locals()
 
             params: Dict[str, Any] = {
                 **input_kwargs,
                 **context_kwargs,
                 **state_kwargs,
+                **dependency_kwargs,
             }
 
             logs = []
@@ -201,12 +202,13 @@ class AsyncGenActor(SerializingActor):
                 )
                 return
 
-            context_kwargs, state_kwargs = await self.aget_locals()
+            context_kwargs, state_kwargs, dependency_kwargs = await self.aget_locals()
 
             params: Dict[str, Any] = {
                 **input_kwargs,
                 **context_kwargs,
                 **state_kwargs,
+                **dependency_kwargs,
             }
 
             logs: List[str] = []

@@ -15,6 +15,15 @@ type Action {
   """Name of the action."""
   name: String!
 
+  """Key of the action, used for grouping and identification."""
+  key: String!
+
+  """The app this action belongs to."""
+  app: App!
+
+  """Version string of the action."""
+  version: String!
+
   """The kind or category of the action."""
   kind: ActionKind!
 
@@ -67,10 +76,10 @@ type Action {
   runs: [Assignation!]
 
   """Input arguments (ports) for the action."""
-  args: [Port!]!
+  args: [ArgPort!]!
 
   """Output values (ports) returned by the action."""
-  returns: [Port!]!
+  returns: [ReturnPort!]!
 
   """Port groups used in the action for organizing ports."""
   portGroups: [PortGroup!]!
@@ -145,9 +154,16 @@ A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
 """
 input ActionDependencyInput {
-  key: String!
+  """
+  The hash of the action. This is used to identify the action in the system.
+  """
   hash: ActionHash = null
+
+  """
+  The name of the action. This is used to identify the action in the system.
+  """
   name: String = null
+  key: String!
   description: String = null
   argMatches: [PortMatchInput!] = null
   returnMatches: [PortMatchInput!] = null
@@ -164,8 +180,12 @@ enum ActionField {
 }
 
 input ActionFilter {
-  search: String
   name: StrFilterLookup
+  AND: ActionFilter
+  OR: ActionFilter
+  NOT: ActionFilter
+  DISTINCT: Boolean
+  search: String
   ids: [ID!]
   demands: [PortDemandInput!]
   protocols: [String!]
@@ -173,10 +193,10 @@ input ActionFilter {
   inCollection: String
   usedBefore: DateTime
   usedAfter: DateTime
-  AND: ActionFilter
-  OR: ActionFilter
-  NOT: ActionFilter
-  DISTINCT: Boolean
+  stateful: Boolean
+
+  """Filter using app identifier"""
+  appIdentifier: String
 }
 
 """
@@ -244,6 +264,9 @@ type Agent {
   """Unique ID of the agent."""
   id: ID!
 
+  """Hash representing the agent's definition for change detection."""
+  hash: String!
+
   """Unique instance identifier on the agent."""
   instanceId: InstanceId!
 
@@ -252,6 +275,12 @@ type Agent {
 
   """Historical records of agent's hardware."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+
+  """Device associated with the agent."""
+  device: Device!
+
+  """User associated with the agent."""
+  user: User!
 
   """Implementations the agent can run."""
   implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
@@ -289,6 +318,12 @@ type Agent {
   """Assignations executed by this agent."""
   assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
 
+  """The app this agent belongs to."""
+  app: App!
+
+  """The release this agent belongs to."""
+  release: Release!
+
   """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
 
@@ -319,65 +354,79 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input AgentDependencyInput {
   """
-  The identifier of the agent. This is used to identify the agent in the system.
+  The name of the agent. This is used to identify the agent in the system.
   """
-  identifier: String = null
-  key: String!
   name: String = null
+
+  """
+  The maximum amount of viable instances for the agent. This is used to identify the demand in the system.
+  """
+  maxViableInstances: Int = null
+
+  """
+  A list of keys of other agent dependencies that are mutually exclusive with this one. This means two agent dependencies with mutually exclusive keys cannot be assigned to the same implementing agent. This is used to identify the demand in the system.
+  """
+  mutuallyExclusiveKeys: [String!] = null
+  key: String!
+  app: String = null
+  version: String = null
   description: String = null
   optional: Boolean! = false
   actionDemands: [ActionDependencyInput!] = null
+  autoResolvable: Boolean! = false
   minViableInstances: Int = null
   preferedInstances: Int = null
 }
 
 """A way to filter agents"""
 input AgentFilter {
-  scope: ScopeFilter = null
+  AND: AgentFilter
+  OR: AgentFilter
+  NOT: AgentFilter
+  DISTINCT: Boolean
+
+  """Filter by scope"""
+  scope: ScopeFilter
 
   """Filter by client ID of the app the agent is registered to"""
-  clientId: String = null
+  clientId: String
 
   """Filter by instance ID of the agent"""
-  instanceId: String = null
+  instanceId: String
 
   """Filter by IDs of the agents"""
-  ids: [ID!] = null
+  ids: [ID!]
 
   """Filter by extensions of the agents"""
-  extensions: [String!] = null
+  extensions: [String!]
 
   """Filter by implementations of the agents"""
-  hasImplementations: [String!] = null
+  hasImplementations: [String!]
 
   """Filter by states of the agents"""
-  hasStates: [String!] = null
+  hasStates: [String!]
 
   """Filter by pinned agents"""
-  pinned: Boolean = null
+  pinned: Boolean
 
   """Filter by name of the agents"""
-  search: String = null
-  dependency: String = null
+  search: String
+  dependency: ID
   distinct: Boolean
   actionDemands: [ActionDemandInput!]
   stateDemands: [SchemaDemandInput!]
 
   """Filter by user ID"""
-  user: ID = null
+  user: ID
 
   """Filter using app identifier"""
-  appIdentifier: ID = null
+  appIdentifier: ID
 
   """Filter based on version string"""
-  versionNumber: String = null
+  versionNumber: String
 
   """Filter based on device"""
-  deviceId: ID = null
-  AND: AgentFilter
-  OR: AgentFilter
-  NOT: AgentFilter
-  DISTINCT: Boolean
+  deviceId: ID
 }
 
 input AgentInput {
@@ -411,6 +460,38 @@ input AgentOrder {
   lastSeen: Ordering
 }
 
+"""A scene linking an agent to a 3D model."""
+type AgentScene {
+  id: ID!
+  transferFunction: String!
+  model: ThreeDModel!
+  agent: Agent!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""A way to filter agent scenes"""
+input AgentSceneFilter {
+  AND: AgentSceneFilter
+  OR: AgentSceneFilter
+  NOT: AgentSceneFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Filter by agent"""
+  agent: ID
+
+  """Filter by 3D model"""
+  model: ID
+}
+
+input AgentSceneOrder {
+  createdAt: Ordering
+  updatedAt: Ordering
+}
+
 """
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
@@ -432,6 +513,39 @@ input ArchiveStateInput {
 
 """The `Arg` scalar type represents a an Argument in a Action assignment"""
 scalar Arg
+
+type ArgPort {
+  provides: [Provides!]
+  key: String!
+  label: String
+  kind: PortKind!
+  description: String
+  identifier: Identifier
+  nullable: Boolean!
+  effects: [Effect!]
+  default: AnyDefault
+  children: [ArgPort!]
+  choices: [Choice!]
+  validators: [Validator!]
+  widget: AssignWidget
+}
+
+"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
+input ArgPortInput {
+  validators: [ValidatorInput!] = null
+  key: String!
+  label: String = null
+  kind: PortKind!
+  description: String = null
+  identifier: String = null
+  nullable: Boolean! = false
+  effects: [EffectInput!] = null
+  default: AnyDefault = null
+  children: [ArgPortInput!] = null
+  choices: [ChoiceInput!] = null
+  widget: AssignWidgetInput = null
+  requires: [RequiresInput!] = null
+}
 
 """The `Args` scalar type represents a Dictionary of arguments"""
 scalar Args
@@ -492,7 +606,7 @@ input AssignWidgetInput {
   hook: String = null
   ward: String = null
   fallback: AssignWidgetInput = null
-  filters: [PortInput!] = null
+  filters: [ArgPortInput!] = null
   dependencies: [String!] = []
 }
 
@@ -582,6 +696,14 @@ type Assignation {
   """The events"""
   events(filters: AssignationEventFilter, order: AssignationEventOrder, pagination: OffsetPaginationInput): [AssignationEvent!]!
 
+  """The dependency thats linked to the parents execution if applicable."""
+  dependency: String
+
+  """
+  The method of the dependency that caused this assignation, if applicable.
+  """
+  dependencyMethod: String
+
   """List of recent instructions for this assignation."""
   instructs: [AssignationInstruct!]!
 
@@ -632,11 +754,11 @@ type AssignationEvent {
 
 """A way to filter assignation events"""
 input AssignationEventFilter {
-  kind: [AssignationEventKind!]
   AND: AssignationEventFilter
   OR: AssignationEventFilter
   NOT: AssignationEventFilter
   DISTINCT: Boolean
+  kind: [AssignationEventKind!]
 }
 
 """The event kind of the assignationevent"""
@@ -669,6 +791,10 @@ enum AssignationField {
 
 input AssignationFilter {
   reservation: ReservationFilter
+  AND: AssignationFilter
+  OR: AssignationFilter
+  NOT: AssignationFilter
+  DISTINCT: Boolean
   ids: [ID!]
   status: [AssignationStatus!]
   instanceId: InstanceId
@@ -679,10 +805,6 @@ input AssignationFilter {
   createdBefore: DateTime
   createdAfter: DateTime
   agent: ID
-  AND: AssignationFilter
-  OR: AssignationFilter
-  NOT: AssignationFilter
-  DISTINCT: Boolean
 }
 
 """An instruct event for a specific assignation."""
@@ -756,19 +878,7 @@ enum AssignationTimestampField {
 }
 
 input AutoResolveInput {
-  implementation: ID!
-}
-
-type Binds {
-  implementations: [ID!]!
-  clients: [ID!]!
-  desiredInstances: Int!
-}
-
-input BindsInput {
-  implementations: [String!]
-  clients: [String!]
-  desiredInstances: Int! = 1
+  action: ID!
 }
 
 """The input for bouncing an agent."""
@@ -860,13 +970,13 @@ type Client {
 """A way to filter apps"""
 input ClientFilter {
   interface: StrFilterLookup
-  ids: [ID!]
-  hasImplementationsFor: [ActionHash!]
-  mine: Boolean
   AND: ClientFilter
   OR: ClientFilter
   NOT: ClientFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  hasImplementationsFor: [ActionHash!]
+  mine: Boolean
 }
 
 """A way to order apps"""
@@ -889,6 +999,13 @@ type Collection {
 
   """Actions included in this collection."""
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+}
+
+"""The input for creating an agent scene."""
+input CreateAgentSceneInput {
+  modelId: ID!
+  agentId: ID!
+  transferFunction: String!
 }
 
 """The input for creating a blok."""
@@ -967,6 +1084,18 @@ input CreateShortcutInput {
   bindNumber: Int = null
 }
 
+"""The input for creating a space."""
+input CreateSpaceInput {
+  key: String!
+  name: String!
+}
+
+"""The input for creating a space membership."""
+input CreateSpaceMembershipInput {
+  spaceId: String!
+  agentId: String!
+}
+
 """The input for creating a state schema."""
 input CreateStateSchemaInput {
   stateSchema: StateSchemaInput!
@@ -985,6 +1114,13 @@ input CreateTestResultInput {
   implementation: ID!
   passed: Boolean!
   result: String = null
+}
+
+"""The input for creating a 3D model."""
+input CreateThreeDModelInput {
+  name: String!
+  description: String = null
+  media: MediaLike!
 }
 
 """The input for creating a toolbox."""
@@ -1024,7 +1160,7 @@ type Dashboard {
 """Date with time (isoformat)"""
 scalar DateTime
 
-"A definition\n\n    Definitions are the building implementation for Actions and provide the\n    information needed to create a action. They are primarly composed of a name,\n    a description, and a list of ports.\n\n    Definitions provide a protocol of input and output, and do not contain\n    any information about the actual implementation of the action ( this is handled\n    by a implementation that implements a action).\n\n\n\n\n    "
+"A definition\n\n    Definitions are the building implementation for Actions and provide the\n    information needed to create a action. They are primarly composed of a name,\n    a description, and a list of ports.\n\n    Definitions provide a protocol of input and output, and do not contain\n    any information about the actual implementation of the action ( this is handled\n    by a implementation that implements a action).\n\n    "
 input DefinitionInput {
   """
   The description of the definition. This is the text that is displayed in the UI
@@ -1035,6 +1171,21 @@ input DefinitionInput {
   The collections of the definition. This is used to group definitions together in the UI
   """
   collections: [String!]! = []
+
+  """
+  The key of the definition. This is used to uniquely identify the definition
+  """
+  key: String!
+
+  """
+  The package of the function. Will default to the currents agent's app if not specified. This is used to group definitions together in the UI and provide a better user experience
+  """
+  package: String = null
+
+  """
+  The version of the definition. This is used to differentiate if the underyling algorithm has changed, i.e we would expect different results for the same input
+  """
+  version: String!
 
   """
   The name of the actions. This is used to uniquely identify the definition
@@ -1052,12 +1203,12 @@ input DefinitionInput {
   portGroups: [PortGroupInput!]! = []
 
   """The args of the definition. This is the input ports of the definition"""
-  args: [PortInput!]! = []
+  args: [ArgPortInput!]! = []
 
   """
   The returns of the definition. This is the output ports of the definition
   """
-  returns: [PortInput!]! = []
+  returns: [ReturnPortInput!]! = []
   tests: ActionDependencyInput = null
 
   """
@@ -1091,6 +1242,11 @@ input DeleteAgentInput {
   id: ID!
 }
 
+"""The input for deleting an agent scene."""
+input DeleteAgentSceneInput {
+  id: ID!
+}
+
 """The input for deleting a implementation."""
 input DeleteImplementationInput {
   implementation: ID!
@@ -1106,6 +1262,21 @@ input DeleteShortcutInput {
   id: ID!
 }
 
+"""The input for deleting a space."""
+input DeleteSpaceInput {
+  id: ID!
+}
+
+"""The input for deleting a space membership."""
+input DeleteSpaceMembershipInput {
+  id: ID!
+}
+
+"""The input for deleting a 3D model."""
+input DeleteThreeDModelInput {
+  id: ID!
+}
+
 enum DemandKind {
   ARGS
   RETURNS
@@ -1116,11 +1287,8 @@ type Dependency {
   """Unique ID of the dependency."""
   id: ID!
 
-  """Implementation this dependency belongs to."""
+  """The implementation this dependency belongs to."""
   implementation: Implementation!
-
-  """Original hash when the dependency was created."""
-  actionHash: ActionHash
 
   """Optional string identifier or tag for reference."""
   key: String!
@@ -1131,50 +1299,31 @@ type Dependency {
   """Optional description of the dependency."""
   description: String
 
-  """Protocols that this dependency needs to match."""
-  returnMatches: [PortMatch!]
+  """
+  Whether this dependency is auto resolvable or not. If so we will try to automatically resolve it based on the demands specified in the dependency and the capabilities of the available agents in the system. This is used to identify the demand in the system. Attention if any of the dependencies of this agent dependency is not auto resolvable, this dependency will also not be auto resolvable
+  """
+  autoResolvable: Boolean!
 
-  """Protocols that this dependency needs to match."""
-  argMatches: [PortMatch!]
+  """
+  Optional filter string to limit which agents can be bound to this dependency based on the app they belong to. The filter string should be in the format 'app_identifier:version' where version can be a specific version or a wildcard '*'. For example, 'my_app:*' would allow any agent belonging to 'my_app' regardless of version, while 'my_app:1.0.0' would only allow agents with that specific version.
+  """
+  appFilter: String
 
-  """Check if this dependency can be resolved by a connected agent."""
-  resolvable: Boolean!
+  """
+  Optional filter string to limit which agents can be bound to this dependency based on the version of the app they belong to. The filter string should be in the format 'version' where version can be a specific version or a wildcard '*'. For example, '*' would allow any version, while '1.0.0' would only allow agents with that specific version.
+  """
+  versionFilter: String
+
+  """List of action demands"""
+  actionDemands: [ActionDemand!]!
 }
 
 input DependencyFilter {
-  ids: [ID!]
   AND: DependencyFilter
   OR: DependencyFilter
   NOT: DependencyFilter
   DISTINCT: Boolean
-}
-
-type Descriptor {
-  key: String!
-  value: Arg!
-}
-
-input DescriptorInput {
-  key: String!
-  value: Arg!
-}
-
-type DescriptorMatch {
-  key: String
-  operator: DescriptorOperator
-  value: String
-}
-
-"""The operator for matching descriptors."""
-enum DescriptorOperator {
-  LTE
-  GTE
-  EQUALS
-  CONTAINS
-  NOT_EQUALS
-  IN
-  NOT_IN
-  EXISTS
+  ids: [ID!]
 }
 
 """Represents a device assigned to users within an organization."""
@@ -1233,11 +1382,11 @@ input FileDrawerFilter {
   shelve: ID
   agent: ID
   identifier: String
-  ids: [ID!]
   AND: FileDrawerFilter
   OR: FileDrawerFilter
   NOT: FileDrawerFilter
   DISTINCT: Boolean
+  ids: [ID!]
 }
 
 """Shelve on an agent for filesystem-based resources."""
@@ -1251,11 +1400,16 @@ type FilesystemShelve {
 
 """A way to filter shelved items"""
 input FilesystemShelveFilter {
-  ids: [ID!]
   AND: FilesystemShelveFilter
   OR: FilesystemShelveFilter
   NOT: FilesystemShelveFilter
   DISTINCT: Boolean
+  ids: [ID!]
+}
+
+input FinishMediaUploadInput {
+  storeId: String!
+  valid: Boolean! = true
 }
 
 enum Granularity {
@@ -1289,12 +1443,12 @@ type HardwareRecord {
 }
 
 input HardwareRecordFilter {
-  ids: [ID!]
-  cpuVendorName: String
   AND: HardwareRecordFilter
   OR: HardwareRecordFilter
   NOT: HardwareRecordFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  cpuVendorName: String
 }
 
 type HideEffect implements Effect {
@@ -1349,11 +1503,11 @@ type Implementation {
   """Arbitrary parameters for the implementation."""
   params: AnyDefault!
 
-  """Dependencies required by this implementation."""
-  dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
-
   """The resolved dependencies"""
   resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]!
+
+  """Dependencies required by this action."""
+  dependencies(filters: DependencyFilter, pagination: OffsetPaginationInput): [Dependency!]!
 
   """Constructed name for display, combining interface and agent name."""
   name: String!
@@ -1369,46 +1523,46 @@ type Implementation {
 }
 
 input ImplementationActionFilter {
-  search: String
-  name: String
-  ids: [ID!]
-  demands: [PortDemandInput!]
-  protocols: [String!]
-  kind: ActionKind
   AND: ImplementationActionFilter
   OR: ImplementationActionFilter
   NOT: ImplementationActionFilter
   DISTINCT: Boolean
+  search: String
+  name: String
+  ids: [ID!]
+  demands: [PortDemandInput!]
+  kind: ActionKind
+  protocols: [String!]
 }
 
 input ImplementationAgentFilter {
-  clientId: String
-  instanceId: String
-  ids: [ID!]
-  extensions: [String!]
-  hasImplementations: [String!]
-  hasStates: [String!]
   AND: ImplementationAgentFilter
   OR: ImplementationAgentFilter
   NOT: ImplementationAgentFilter
   DISTINCT: Boolean
+  clientId: String
+  ids: [ID!]
+  instanceId: String
+  extensions: [String!]
+  hasImplementations: [String!]
+  hasStates: [String!]
 }
 
 input ImplementationFilter {
   interface: StrFilterLookup
-  ids: [ID!]
-  actionHash: ActionHash
   action: ImplementationActionFilter
-  extension: String
   agent: ImplementationAgentFilter
-  parameters: [ParamPair!]
-  resolvableFor: ID
-  search: String
-  actionDemand: ActionDemandInput
   AND: ImplementationFilter
   OR: ImplementationFilter
   NOT: ImplementationFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  actionHash: ActionHash
+  extension: String
+  parameters: [ParamPair!]
+  resolvableFor: ID
+  search: String
+  actionDemand: ActionDemandInput
 }
 
 """
@@ -1452,12 +1606,12 @@ type InputInterfaceUsage {
 }
 
 input InputInterfaceUsageFilter {
-  ids: [ID!]
-  interface: ID
   AND: InputInterfaceUsageFilter
   OR: InputInterfaceUsageFilter
   NOT: InputInterfaceUsageFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  interface: ID
 }
 
 """Usage of an input structure in an action."""
@@ -1471,12 +1625,12 @@ type InputStructureUsage {
 }
 
 input InputStructureUsageFilter {
-  ids: [ID!]
-  structure: ID
   AND: InputStructureUsageFilter
   OR: InputStructureUsageFilter
   NOT: InputStructureUsageFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  structure: ID
 }
 
 """The `InstanceID` scalar type represents a unique instance identifier"""
@@ -1500,17 +1654,37 @@ type Interface {
 }
 
 input InterfaceFilter {
-  ids: [ID!]
-  search: String
   AND: InterfaceFilter
   OR: InterfaceFilter
   NOT: InterfaceFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  search: String
 }
 
 """The input for interrupting an assignation."""
 input InterruptInput {
   assignation: ID!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
+type JSONPatch {
+  op: JSONPatchOperation!
+  path: String!
+  value: Args!
+}
+
+enum JSONPatchOperation {
+  add
+  remove
+  replace
+  move
+  copy
+  test
 }
 
 """The input for bouncing an agent."""
@@ -1531,6 +1705,18 @@ enum LogLevel {
   ERROR
   WARN
   CRITICAL
+}
+
+"""The input for logging state patches."""
+input LogPatchesInput {
+  instanceId: String!
+  patches: [PatchInput!]!
+}
+
+"""The input for logging state snapshots."""
+input LogSnapshotInput {
+  instanceId: String!
+  value: AnyDefault!
 }
 
 """The input for creating a blok."""
@@ -1565,6 +1751,57 @@ type MaterializedBlok {
   actionMappings: [ActionMapping!]!
 }
 
+"""Temporary S3 credentials for reading a media object."""
+type MediaAccessGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String
+}
+
+"""
+A type representing a media store reference, which can be either a string ID or a more complex object.
+"""
+scalar MediaLike
+
+type MediaStore {
+  id: ID!
+  path: String!
+  bucket: String!
+  key: String!
+  originalFileName: String
+  contentType: String
+
+  """Get temporary S3 read credentials for the media object."""
+  accessGrant(host: String = null): MediaAccessGrant!
+
+  """Compatibility field returning the canonical S3 object path."""
+  presignedUrl(host: String = null): String!
+}
+
+"""A presigned PUT grant for uploading a media object."""
+type MediaUploadGrant {
+  status: String!
+  accessKey: String!
+  secretKey: String!
+  sessionToken: String!
+  bucket: String!
+  key: String!
+  path: String!
+  expiresIn: Int!
+  store: String!
+  maxBytes: Int!
+  originalFileName: String
+  uploadFileName: String!
+  uploadContentType: String
+  uploadFormField: String!
+}
+
 type MemoryDrawer {
   id: ID!
   resourceId: String!
@@ -1581,14 +1818,14 @@ type MemoryDrawer {
 input MemoryDrawerFilter {
   shelve: ID
   agent: ID
-  implementation: ID
-  identifier: String
-  ids: [ID!]
-  search: String
   AND: MemoryDrawerFilter
   OR: MemoryDrawerFilter
   NOT: MemoryDrawerFilter
   DISTINCT: Boolean
+  implementation: ID
+  identifier: String
+  ids: [ID!]
+  search: String
 }
 
 """A shelve for storing memory-based resources on an agent."""
@@ -1612,11 +1849,11 @@ type MemoryShelve {
 """A way to filter shelved items"""
 input MemoryShelveFilter {
   agent: ID
-  ids: [ID!]
   AND: MemoryShelveFilter
   OR: MemoryShelveFilter
   NOT: MemoryShelveFilter
   DISTINCT: Boolean
+  ids: [ID!]
 }
 
 input MemoryShelveOrder {
@@ -1760,6 +1997,57 @@ type Mutation {
 
   """Delete a resolution by ID."""
   deleteResolution(input: DeleteResolutionInput!): ID!
+
+  """Create a new space."""
+  createSpace(input: CreateSpaceInput!): Space!
+
+  """Create a new space membership for an agent in a space."""
+  createSpaceMembership(input: CreateSpaceMembershipInput!): SpaceMembership!
+
+  """Log state patches"""
+  logPatches(input: LogPatchesInput!): ID!
+
+  """Log a state snapshot """
+  logSnapshot(input: LogSnapshotInput!): ID!
+
+  """Upload media and return a URL for access"""
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant!
+
+  """Finalize a media upload after the client has written the object"""
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore!
+
+  """Request temporary S3 read credentials for a media file"""
+  requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
+
+  """Create a new agent scene with a 3D model."""
+  createAgentScene(input: CreateAgentSceneInput!): AgentScene!
+
+  """Create a new 3D model."""
+  createThreedModel(input: CreateThreeDModelInput!): ThreeDModel!
+
+  """Update an existing 3D model."""
+  updateThreedModel(input: UpdateThreeDModelInput!): ThreeDModel!
+
+  """Delete a 3D model."""
+  deleteThreedModel(input: DeleteThreeDModelInput!): ID!
+
+  """Update an existing agent scene."""
+  updateAgentScene(input: UpdateAgentSceneInput!): AgentScene!
+
+  """Delete an agent scene."""
+  deleteAgentScene(input: DeleteAgentSceneInput!): ID!
+
+  """Update an existing space."""
+  updateSpace(input: UpdateSpaceInput!): Space!
+
+  """Delete a space."""
+  deleteSpace(input: DeleteSpaceInput!): ID!
+
+  """Update an existing space membership."""
+  updateSpaceMembership(input: UpdateSpaceMembershipInput!): SpaceMembership!
+
+  """Delete a space membership."""
+  deleteSpaceMembership(input: DeleteSpaceMembershipInput!): ID!
 }
 
 input OffsetPaginationInput {
@@ -1800,12 +2088,12 @@ type OutputInterfaceUsage {
 }
 
 input OutputInterfaceUsageFilter {
-  ids: [ID!]
-  interface: ID
   AND: OutputInterfaceUsageFilter
   OR: OutputInterfaceUsageFilter
   NOT: OutputInterfaceUsageFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  interface: ID
 }
 
 """Usage of an output structure in an action."""
@@ -1819,17 +2107,46 @@ type OutputStructureUsage {
 }
 
 input OutputStructureUsageFilter {
-  ids: [ID!]
-  structure: ID
   AND: OutputStructureUsageFilter
   OR: OutputStructureUsageFilter
   NOT: OutputStructureUsageFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  structure: ID
 }
 
 input ParamPair {
   key: String!
   value: String!
+}
+
+type Patch {
+  op: String!
+  path: String!
+  value: Args!
+  timestamp: DateTime!
+  currentRevision: Int!
+  futureRevision: Int!
+  globalCurrentRevision: Int!
+  globalFutureRevision: Int!
+  sessionId: String!
+  assignation: Assignation
+  state: State!
+  patch: JSONPatch!
+}
+
+"""The input for updating a state using JSON Patch operations."""
+input PatchInput {
+  op: String!
+  path: String!
+  value: AnyDefault!
+  stateName: String!
+  currentRev: Int!
+  futureRev: Int!
+  sessionId: String!
+  correlationId: String = null
+  globalCurrentRev: Int
+  globalFutureRev: Int
 }
 
 """The input for pausing an assignation."""
@@ -1841,23 +2158,6 @@ input PauseInput {
 input PinInput {
   id: ID!
   pin: Boolean!
-}
-
-type Port {
-  key: String!
-  label: String
-  kind: PortKind!
-  description: String
-  identifier: Identifier
-  nullable: Boolean!
-  effects: [Effect!]
-  default: AnyDefault
-  children: [Port!]
-  choices: [Choice!]
-  assignWidget: AssignWidget
-  returnWidget: ReturnWidget
-  validators: [Validator!]
-  descriptors: [Descriptor!]
 }
 
 """The input for creating a port demand."""
@@ -1906,24 +2206,6 @@ input PortGroupInput {
   ports: [String!] = []
 }
 
-"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
-input PortInput {
-  validators: [ValidatorInput!] = null
-  key: String!
-  label: String = null
-  kind: PortKind!
-  description: String = null
-  identifier: String = null
-  nullable: Boolean! = false
-  effects: [EffectInput!] = null
-  default: AnyDefault = null
-  children: [PortInput!] = null
-  choices: [ChoiceInput!] = null
-  assignWidget: AssignWidgetInput = null
-  returnWidget: ReturnWidgetInput = null
-  descriptors: [DescriptorInput!] = null
-}
-
 """The kind of port."""
 enum PortKind {
   INT
@@ -1948,7 +2230,6 @@ type PortMatch {
   identifier: String
   children: [PortMatch!]
   nullable: Boolean
-  descriptors: [DescriptorMatch!]
 }
 
 """
@@ -1956,6 +2237,10 @@ A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
 """
 input PortMatchInput {
+  """
+  The object of the port to match. This is used for adanved pattern matching based on the exact object descriptors of the object. i.e { x: 1, y: 2} 
+  """
+  object: Arg = null
   at: Int = null
   key: String = null
   kind: PortKind = null
@@ -1977,21 +2262,47 @@ type Protocol {
 }
 
 input ProtocolFilter {
-  search: String
   name: StrFilterLookup
-  ids: [ID!]
   AND: ProtocolFilter
   OR: ProtocolFilter
   NOT: ProtocolFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  search: String
 }
 
 input ProtocolOrder {
   name: Ordering
 }
 
-"""Root query type for fetching entities in the system."""
+type Provides {
+  key: String!
+  operator: ProvidesOperator!
+  value: Arg!
+}
+
+input ProvidesInput {
+  key: String!
+  operator: ProvidesOperator!
+  value: Arg!
+}
+
+"""The operator for matching descriptors."""
+enum ProvidesOperator {
+  EXISTS
+  LTE
+  GTE
+  EQUALS
+  CONTAINS
+  NOT_EQUALS
+  IN
+  NOT_IN
+}
+
 type Query {
+  _entities(representations: [_Any!]!): [_Entity]!
+  _service: _Service!
+
   """List all registered clients."""
   clients(filters: ClientFilter, order: ClientOrder, pagination: OffsetPaginationInput): [Client!]!
 
@@ -2064,11 +2375,44 @@ type Query {
   """All tasks."""
   tasks(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
 
+  """List all spaces."""
+  spaces(filters: SpaceFilter, order: SpaceOrder, pagination: OffsetPaginationInput): [Space!]!
+
+  """List all space memberships."""
+  spaceMemberships(filters: SpaceMembershipFilter, order: SpaceMembershipOrder, pagination: OffsetPaginationInput): [SpaceMembership!]!
+
+  """List all 3D models."""
+  threedModels(filters: ThreeDModelFilter, order: ThreeDModelOrder, pagination: OffsetPaginationInput): [ThreeDModel!]!
+
+  """List all agent scenes."""
+  agentScenes(filters: AgentSceneFilter, order: AgentSceneOrder, pagination: OffsetPaginationInput): [AgentScene!]!
+
   """Statistics about actions and their implementations."""
   actionStats(filters: ActionFilter = null): ActionStats!
 
   """Statistics about assignations and their states."""
   assignationStats(filters: AssignationFilter = null): AssignationStats!
+
+  """Get task boundaries."""
+  taskBoundaries(correlationId: String!, stateId: ID = null): TaskBoundary
+
+  """Get session boundaries."""
+  sessionBoundaries(sessionId: String!, stateId: ID = null): SessionBoundary
+
+  """Get state at global revision."""
+  stateAtGlobalRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]!
+
+  """Get state at local revision."""
+  stateAtLocalRev(revision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]!
+
+  """Get forward events after revision."""
+  forwardEventsAfterRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null, count: Int! = 100): [Patch!]!
+
+  """Get patch events between global revisions."""
+  patchEventsBetweenGlobalRevs(fromGlobalRevision: Int!, toGlobalRevision: Int!, stateIds: [ID!] = null, sessionId: String = null): [Patch!]!
+
+  """Get snapshots around revision."""
+  snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]!
 
   """Fetch a specific action."""
   action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
@@ -2085,8 +2429,23 @@ type Query {
   """Find your implementation at a specific interface."""
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
 
+  """Materialize the latest state for a specific agent"""
+  checkout(state: ID!, globalRevision: Int = null): StateWithValue!
+
   """Fetch resolved dependencies for a resolution."""
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
+
+  """Get a space by ID."""
+  space(id: ID!): Space!
+
+  """Get a 3D model by ID."""
+  threedModel(id: ID!): ThreeDModel!
+
+  """Get an agent scene by ID."""
+  agentScene(id: ID!): AgentScene!
+
+  """Get a space membership by ID."""
+  spaceMembership(id: ID!): SpaceMembership!
 
   """Retrieve state for a specific context."""
   stateFor(agent: ID!, stateHash: String = null, demand: SchemaDemandInput = null): State!
@@ -2186,6 +2545,34 @@ type Release {
   version: String!
 }
 
+input RequestMediaAccessInput {
+  storeId: String!
+}
+
+input RequestMediaUploadInput {
+  originalFileName: String!
+  fileSize: Int = null
+  contentType: String = null
+}
+
+input RequiresInput {
+  key: String!
+  operator: RequiresOperator!
+  value: Arg!
+}
+
+"""The operator for matching descriptors."""
+enum RequiresOperator {
+  EXISTS
+  LTE
+  GTE
+  EQUALS
+  CONTAINS
+  NOT_EQUALS
+  IN
+  NOT_IN
+}
+
 """Reservation for planned assignment of implementations."""
 type Reservation {
   """ID of the reservation."""
@@ -2212,9 +2599,6 @@ type Reservation {
   """Available implementations for the reservation."""
   implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
 
-  """Bind configuration for the reservation."""
-  binds: Binds
-
   """Dependency that triggered the reservation."""
   causingDependency: Dependency
 
@@ -2234,12 +2618,12 @@ type Reservation {
 """A way to filter reservations"""
 input ReservationFilter {
   waiter: WaiterFilter
-  ids: [ID!]
-  status: [ReservationStatus!]
   AND: ReservationFilter
   OR: ReservationFilter
   NOT: ReservationFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  status: [ReservationStatus!]
 }
 
 enum ReservationStatus {
@@ -2263,13 +2647,12 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "15129e68-7fc5-4ca1-ad7e-bfae405a9e34"
+  reference: String = "ee70cd06-4b52-495d-95b4-e6123855e673"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
   title: String = null
   hash: ActionHash = null
-  binds: BindsInput = null
   assignationId: ID = null
 }
 
@@ -2298,11 +2681,11 @@ type Resolution {
 """A way to filter test cases"""
 input ResolutionFilter {
   name: StrFilterLookup
-  ids: [ID!]
   AND: ResolutionFilter
   OR: ResolutionFilter
   NOT: ResolutionFilter
   DISTINCT: Boolean
+  ids: [ID!]
 }
 
 """
@@ -2330,11 +2713,11 @@ type ResolvedDependency {
 
 """A way to filter resolved dependencies"""
 input ResolvedDependencyFilter {
-  ids: [ID!]
   AND: ResolvedDependencyFilter
   OR: ResolvedDependencyFilter
   NOT: ResolvedDependencyFilter
   DISTINCT: Boolean
+  ids: [ID!]
 }
 
 """The input for mapping a dependency to an implementation."""
@@ -2349,6 +2732,38 @@ input ResolvedDependencyInput {
 """The input for resuming an assignation."""
 input ResumeInput {
   assignation: ID!
+}
+
+type ReturnPort {
+  key: String!
+  label: String
+  kind: PortKind!
+  description: String
+  identifier: Identifier
+  nullable: Boolean!
+  effects: [Effect!]
+  default: AnyDefault
+  children: [ReturnPort!]
+  choices: [Choice!]
+  widget: ReturnWidget
+  provides: [Provides!]
+}
+
+"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
+input ReturnPortInput {
+  validators: [ValidatorInput!] = null
+  key: String!
+  label: String = null
+  kind: PortKind!
+  description: String = null
+  identifier: String = null
+  nullable: Boolean! = false
+  effects: [EffectInput!] = null
+  default: AnyDefault = null
+  children: [ReturnPortInput!] = null
+  choices: [ChoiceInput!] = null
+  widget: ReturnWidgetInput = null
+  provides: [ProvidesInput!] = null
 }
 
 interface ReturnWidget {
@@ -2408,7 +2823,7 @@ type SearchAssignWidget implements AssignWidget {
   followValue: String
   query: String!
   ward: String!
-  filters: [Port!]
+  filters: [ArgPort!]
   dependencies: [String!]
 }
 
@@ -2416,6 +2831,14 @@ type SearchAssignWidget implements AssignWidget {
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
 scalar SearchQuery
+
+type SessionBoundary {
+  sessionId: String!
+  startGlobalRevision: Int
+  endGlobalRevision: Int
+  startTime: DateTime
+  endTime: DateTime
+}
 
 """The input for setting a state schema to an agent."""
 input SetAgentStatesInput {
@@ -2425,6 +2848,11 @@ input SetAgentStatesInput {
 
 """The input for setting extension implementations."""
 input SetExtensionImplementationsInput {
+  """
+  The locks to set on the implementations. This is used to identify the locks in the system.
+  """
+  locks: [LockSchemaInput!] = null
+
   """
   The implementations to set. This is used to identify the implementations in the system.
   """
@@ -2501,21 +2929,21 @@ type Shortcut {
   bindNumber: Int
 
   """Input ports for the shortcut's action.dd"""
-  args: [Port!]!
+  args: [ArgPort!]!
 
   """Return ports from the shortcut's action."""
-  returns: [Port!]!
+  returns: [ReturnPort!]!
 }
 
 input ShortcutFilter {
-  search: String
-  ids: [ID!]
-  demands: [PortDemandInput!]
-  toolbox: ID
   AND: ShortcutFilter
   OR: ShortcutFilter
   NOT: ShortcutFilter
   DISTINCT: Boolean
+  search: String
+  ids: [ID!]
+  demands: [PortDemandInput!]
+  toolbox: ID
 }
 
 input ShortcutOrder {
@@ -2528,6 +2956,77 @@ type SliderAssignWidget implements AssignWidget {
   min: Float
   max: Float
   step: Float
+}
+
+type Snapshot {
+  value: Args!
+  timestamp: DateTime!
+  revision: Int!
+  globalRevision: Int!
+  sessionId: String!
+  state: State!
+}
+
+"""A space where agents can interact."""
+type Space {
+  id: ID!
+  name: String!
+  description: String
+  creator: User!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  memberships(filters: SpaceMembershipFilter, order: SpaceMembershipOrder, pagination: OffsetPaginationInput): [SpaceMembership!]!
+}
+
+"""A way to filter spaces"""
+input SpaceFilter {
+  AND: SpaceFilter
+  OR: SpaceFilter
+  NOT: SpaceFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Search by name"""
+  search: String
+}
+
+"""A membership of an agent scene in a space."""
+type SpaceMembership {
+  id: ID!
+  space: Space!
+  agentScene: AgentScene!
+  role: String!
+  affineMatrix: Args
+  model: String
+}
+
+"""A way to filter space memberships"""
+input SpaceMembershipFilter {
+  AND: SpaceMembershipFilter
+  OR: SpaceMembershipFilter
+  NOT: SpaceMembershipFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Filter by space"""
+  space: ID
+
+  """Filter by agent scene"""
+  agentScene: ID
+}
+
+input SpaceMembershipOrder {
+  role: Ordering
+}
+
+input SpaceOrder {
+  createdAt: Ordering
+  updatedAt: Ordering
+  name: Ordering
 }
 
 type State {
@@ -2572,17 +3071,48 @@ type StateMapping {
   updatedAt: DateTime!
 }
 
+"""A plain patch event with no model cross-references."""
+type StatePatchEvent {
+  stateId: ID!
+  agentId: ID!
+  op: String!
+  path: String!
+  value: Args!
+  globalRevision: Int!
+  sessionId: String!
+  timestamp: DateTime!
+}
+
 type StateSchema {
   id: ID!
   hash: String!
   name: String!
-  ports: [Port!]!
+  ports: [ReturnPort!]!
 }
 
 """The input for creating a state schema."""
 input StateSchemaInput {
-  ports: [PortInput!]!
+  ports: [ReturnPortInput!]!
   name: String!
+}
+
+"""A plain snapshot of a state's current value."""
+type StateSnapshotEvent {
+  stateId: ID!
+  agentId: ID!
+  interface: String!
+  value: Args!
+  globalRevision: Int!
+  timestamp: DateTime!
+}
+
+union StateSnapshotEventStatePatchEvent = StateSnapshotEvent | StatePatchEvent
+
+type StateWithValue {
+  value: JSON!
+  schema: StateSchema!
+  globalRevision: Int
+  localRevision: Int
 }
 
 """
@@ -2646,12 +3176,12 @@ type Structure {
 }
 
 input StructureFilter {
-  ids: [ID!]
-  search: String
   AND: StructureFilter
   OR: StructureFilter
   NOT: StructureFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  search: String
 }
 
 """A package of structures."""
@@ -2669,12 +3199,12 @@ type StructurePackage {
 }
 
 input StructurePackageFilter {
-  ids: [ID!]
-  search: String
   AND: StructurePackageFilter
   OR: StructurePackageFilter
   NOT: StructurePackageFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  search: String
 }
 
 """Root subscription type for real-time event streams from the system."""
@@ -2703,8 +3233,25 @@ type Subscription {
   """Subscribe to updates of state values and patches."""
   stateUpdateEvents(stateId: ID!): State!
 
+  """Subscribe to latest patches for specific agents or states."""
+  latestPatches(state: ID = null, agent: ID = null): Patch!
+
+  """Watch a state: yields the current snapshot then streams patches."""
+  watchState(stateId: ID!): StateSnapshotEventStatePatchEvent!
+
+  """Watch an agent: yields snapshots for all states then streams patches."""
+  watchAgent(agentId: ID!): StateSnapshotEventStatePatchEvent!
+
   """Subscribe to child assignation events."""
   childAssignations(id: ID!): ChildAssignationEvent!
+}
+
+type TaskBoundary {
+  correlationId: String!
+  startGlobalRevision: Int
+  endGlobalRevision: Int
+  startTime: DateTime
+  endTime: DateTime
 }
 
 """Defines a test case comparing expected behavior for actions."""
@@ -2734,11 +3281,11 @@ type TestCase {
 """A way to filter test cases"""
 input TestCaseFilter {
   name: StrFilterLookup
-  ids: [ID!]
   AND: TestCaseFilter
   OR: TestCaseFilter
   NOT: TestCaseFilter
   DISTINCT: Boolean
+  ids: [ID!]
 }
 
 """Result from executing a test case with specific implementations."""
@@ -2768,11 +3315,41 @@ type TestResult {
 """A way to filter test results"""
 input TestResultFilter {
   name: StrFilterLookup
-  ids: [ID!]
   AND: TestResultFilter
   OR: TestResultFilter
   NOT: TestResultFilter
   DISTINCT: Boolean
+  ids: [ID!]
+}
+
+"""A 3D model file."""
+type ThreeDModel {
+  id: ID!
+  name: String!
+  description: String
+  file: MediaStore!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""A way to filter 3D models"""
+input ThreeDModelFilter {
+  AND: ThreeDModelFilter
+  OR: ThreeDModelFilter
+  NOT: ThreeDModelFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Search by name"""
+  search: String
+}
+
+input ThreeDModelOrder {
+  createdAt: Ordering
+  updatedAt: Ordering
+  name: Ordering
 }
 
 type TimeBucket {
@@ -2801,13 +3378,13 @@ type Toolbox {
 }
 
 input ToolboxFilter {
-  search: String
   name: StrFilterLookup
-  ids: [ID!]
   AND: ToolboxFilter
   OR: ToolboxFilter
   NOT: ToolboxFilter
   DISTINCT: Boolean
+  ids: [ID!]
+  search: String
 }
 
 input ToolboxOrder {
@@ -2890,11 +3467,33 @@ input UnshelveMemoryDrawerInput {
   id: String!
 }
 
+"""The input for updating an agent scene."""
+input UpdateAgentSceneInput {
+  id: ID!
+  transferFunction: String = null
+  modelId: ID = null
+}
+
 """The input for creating a resolution."""
 input UpdateResolutionInput {
   id: ID!
   name: String!
   resolvedDependencies: [ResolvedDependencyInput!] = null
+}
+
+"""The input for updating a space."""
+input UpdateSpaceInput {
+  id: ID!
+  name: String = null
+  description: String = null
+}
+
+"""The input for updating a space membership."""
+input UpdateSpaceMembershipInput {
+  id: ID!
+  role: String = null
+  affineMatrix: [[Float!]!] = null
+  model: String = null
 }
 
 """The input for updating a state schema."""
@@ -2904,8 +3503,19 @@ input UpdateStateInput {
   patches: [Args!]!
 }
 
+"""The input for updating a 3D model."""
+input UpdateThreeDModelInput {
+  id: ID!
+  name: String = null
+  description: String = null
+  media: ID = null
+}
+
 """Represents an authenticated user."""
 type User {
+  """Unique ID of the user."""
+  id: ID!
+
   """The subject identifier of the user."""
   sub: ID!
 }
@@ -2943,9 +3553,17 @@ type Waiter {
 """A way to filter waiters"""
 input WaiterFilter {
   instanceId: InstanceId!
-  ids: [ID!]
   AND: WaiterFilter
   OR: WaiterFilter
   NOT: WaiterFilter
   DISTINCT: Boolean
+  ids: [ID!]
+}
+
+scalar _Any
+
+union _Entity = MediaStore | User
+
+type _Service {
+  sdl: String!
 }

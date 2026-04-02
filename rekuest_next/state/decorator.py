@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Type, TypeVar, Callable, overload, Any, List
-from rekuest_next.api.schema import PortInput, StateSchemaInput
+from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
 from rekuest_next.state.observable import StateConfig, make_evented
 from rekuest_next.state.publish import get_current_publisher, noop_publisher
 from rekuest_next.structures.registry import StructureRegistry
@@ -11,14 +11,16 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.protocols import AnyState
 from fieldz import fields, Field
 
-T = TypeVar("T", bound=AnyState)
+T = TypeVar("T")
 
 
-def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) -> StateSchemaInput:
+def inspect_state_schema(
+    cls: Type[T], structure_registry: StructureRegistry
+) -> StateSchemaInput:
     """Inspect the state schema of a class."""
-    from rekuest_next.definition.define import convert_object_to_port
+    from rekuest_next.definition.define import convert_object_to_returnport
 
-    ports: list[PortInput] = []
+    ports: list[ReturnPortInput] = []
 
     for field in fields(cls):  # type: ignore
         type_ = field.type or field.annotated_type
@@ -27,7 +29,7 @@ def inspect_state_schema(cls: Type[T], structure_registry: StructureRegistry) ->
                 f"Field {field.name} has no type annotation. Please add a type annotation."
             )
 
-        port = convert_object_to_port(
+        port = convert_object_to_returnport(
             cls=type_,
             key=field.name,
             description=field.description or field.metadata.get("description", None),
@@ -83,8 +85,10 @@ def state(*function: Type[T]) -> Type[T]: ...
 @overload
 def state(
     *,
-    name: Optional[str] = None,
     local_only: bool = False,
+    app: Optional[str] = None,
+    version: Optional[str] = None,
+    name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
     registry: Optional[StateRegistry] = None,
@@ -95,6 +99,8 @@ def state(
 def state(
     *function: Type[T],
     local_only: bool = False,
+    app: Optional[str] = None,
+    version: Optional[str] = None,
     name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
@@ -121,6 +127,9 @@ def state(
                 cls = dataclass(cls)
 
             setattr(cls, "__rekuest_state__", cls.__name__ if name is None else name)
+            print(
+                f"Registering state: {cls.__name__} with name: {getattr(cls, '__rekuest_state__')}"
+            )
 
             # Apply Statify Logic
             cls, state_schema = statify(

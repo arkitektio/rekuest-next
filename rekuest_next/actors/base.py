@@ -1,8 +1,18 @@
 """The base class for all actors."""
 
+from rekuest_next.agents.dependency import dependency_to_protocol
+
+from rath.scalars import ID
+
+from dask.array.core import A
+
+from rekuest_next.declare import DeclaredAgentProtocol, DeclaredAgentAction
+import typing_extensions
+
 import asyncio
 import contextlib
 import logging
+from os import name
 from typing import (
     Any,
     Dict,
@@ -16,12 +26,25 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from rekuest_next.actors.errors import UnknownMessageError
+from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.agents.errors import StateRequirementsNotMet
-from rekuest_next.actors.types import Agent, AssignmentHook
+from rekuest_next.actors.types import Agent, AssignmentHook, PreparedDependencyVariables
 from rekuest_next import messages
-from rekuest_next.definition.define import DefinitionInput
+from rekuest_next.api.schema import (
+    ActionDemandInput,
+    ActionDependencyInput,
+    AgentDependencyInput,
+)
+from rekuest_next.definition.define import (
+    DefinitionInput,
+    dependency_to_dependency_input,
+)
+from rekuest_next.postmans.types import Postman
+from rekuest_next.postmans.vars import get_current_postman
 from rekuest_next.protocols import AnyContext, AnyState
+from rekuest_next.remote import call_dependency
+from rekuest_next.remote import call_dependency
 from rekuest_next.state.publish import direct_publishing
 from rekuest_next.state.utils import PreparedStateReturns, PreparedStateVariables
 from rekuest_next.structures.registry import StructureRegistry
@@ -53,7 +76,9 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
+    id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
+    )
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     locks: Optional[Tuple[str, ...]] = Field(
@@ -65,8 +90,12 @@ class Actor(BaseModel):
         description="The sync group to use for this actor. This is used to synchronize access to the actor.",
     )
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
     _running_assignment_hooks: Dict[str, AssignmentHook] = PrivateAttr(
         default_factory=lambda: {},
     )
@@ -78,7 +107,9 @@ class Actor(BaseModel):
             values["sync"] = SyncGroup()
         return values
 
-    def install_assignment_hook(self, assignation_id: str, hook: AssignmentHook) -> None:
+    def install_assignment_hook(
+        self, assignation_id: str, hook: AssignmentHook
+    ) -> None:
         """Install an assignment hook for the given assignation ID.
 
         Args:
@@ -245,7 +276,9 @@ class Actor(BaseModel):
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
+                logger.info(
+                    f"Task {key} was cancelled through applicaction. Setting Critical"
+                )
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
@@ -275,7 +308,9 @@ class Actor(BaseModel):
             )
             return True
         else:
-            logger.debug(f"Currently no break future for {assignation_id} was found. Wasn't paused")
+            logger.debug(
+                f"Currently no break future for {assignation_id} was found. Wasn't paused"
+            )
             return False
 
     def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:
@@ -322,7 +357,9 @@ class Actor(BaseModel):
         if isinstance(message, messages.Assign):
             if message.step:
                 # We are creating a break future already
-                logger.debug(f"Creating break future for assignation {message.assignation} in step")
+                logger.debug(
+                    f"Creating break future for assignation {message.assignation} in step"
+                )
                 self._break_futures[message.assignation] = asyncio.Future()
 
             task = asyncio.create_task(
@@ -349,15 +386,21 @@ class Actor(BaseModel):
 
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
-                            self,
-                            message=messages.CancelledEvent(assignation=message.assignation),
+                            actor=self,
+                            message=messages.CancelledEvent(
+                                assignation=message.assignation
+                            ),
                         )
 
                 else:
-                    logger.warning("Race Condition: Task was already done before cancellation")
+                    logger.warning(
+                        "Race Condition: Task was already done before cancellation"
+                    )
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(assignation=message.assignation),
+                        message=messages.CancelledEvent(
+                            assignation=message.assignation
+                        ),
                     )
 
             else:
@@ -387,6 +430,56 @@ class Actor(BaseModel):
         await self.agent.apublish_state(state)
 
 
+class AgentMethodProxy:
+    def __init__(
+        self,
+        agent_dependency_key: str,
+        self_key: str,
+        action_protocol: DeclaredAgentAction[Any, Any],
+    ):
+        self.action_protocol = action_protocol
+        self.agent_dependency_key = agent_dependency_key
+        self.self_key = self_key
+
+    def call(self, *args: Any, **kwargs: Any) -> Any:
+        """ "Call the actor's implementation."""
+
+        helper = get_current_assignation_helper()
+
+        return call_dependency(
+            self.action_protocol.definition,
+            ID.validate(self.agent_dependency_key),
+            self.self_key,
+            *args,
+            parent=helper.assignment,
+            **kwargs,
+        )
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """ "Call the wrapped function directly if not within an assignation."""
+        return self.call(*args, **kwargs)
+
+
+class AgentDependencyProxy:
+    def __init__(self, key: str, agent_protocol: DeclaredAgentProtocol[Any]):
+        """Initialize the proxy with the agent protocol and the key of the dependency to call.
+
+        The variable key is used to identify which core dependency to call
+        and the agent protocol is used to call the dependency through the agent.
+
+        """
+        self.agent_protocol = agent_protocol
+        self.key = key
+
+    def __getattr__(self, name: str) -> AgentMethodProxy:
+        """The proxy to get the correct method from the agent protocol and return an AgentMethodProxy that can be called to call the method through the agent."""
+        return AgentMethodProxy(
+            agent_dependency_key=self.key,
+            self_key=name,
+            action_protocol=self.agent_protocol.actions[name],
+        )
+
+
 class SerializingActor(Actor):
     """A serializing actor is an actor that will
     serialize and deserialize the arguments and return values
@@ -397,12 +490,21 @@ class SerializingActor(Actor):
     definition: DefinitionInput = Field(
         description="The definition of the actor, describing what arguents and return values it provides"
     )
-    state_returns: PreparedStateReturns = Field(description="The state returns of the actor")
-    state_variables: PreparedStateVariables = Field(description="The state variables of the actor")
+    state_returns: PreparedStateReturns = Field(
+        description="The state returns of the actor"
+    )
+    state_variables: PreparedStateVariables = Field(
+        description="The state variables of the actor"
+    )
+    dependency_variables: PreparedDependencyVariables = Field(
+        description="The dependency variables of the actor"
+    )
     context_variables: PreparedContextVariables = Field(
         description="The context variables of the actor"
     )
-    context_returns: PreparedContextReturns = Field(description="The context returns of the actor")
+    context_returns: PreparedContextReturns = Field(
+        description="The context returns of the actor"
+    )
 
     structure_registry: StructureRegistry = Field(
         default=get_default_structure_registry(),
@@ -419,11 +521,16 @@ class SerializingActor(Actor):
 
     async def aget_locals(
         self: Self,
-    ) -> Tuple[Mapping[str, AnyContext], Mapping[str, AnyState]]:
+    ) -> Tuple[
+        Mapping[str, AnyContext],
+        Mapping[str, AnyState],
+        Mapping[str, AgentDependencyProxy],
+    ]:
         """A function to for locals"""
 
         state_kwargs: Mapping[str, AnyContext | AnyState] = {}
         context_kwargs: Mapping[str, AnyContext] = {}
+        dependency_kwargs: Mapping[str, AgentDependencyProxy] = {}
 
         for key, interface in self.context_variables.context_variables.items():
             try:
@@ -443,7 +550,21 @@ class SerializingActor(Actor):
             except KeyError as e:
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
-        return context_kwargs, state_kwargs
+        for (
+            key,
+            agent_protocol,
+        ) in self.dependency_variables.dependency_variables.items():
+            try:
+                print(
+                    f"Getting dependency proxy for {key} with protocol {agent_protocol}"
+                )
+                dependency_kwargs[key] = AgentDependencyProxy(
+                    key=key, agent_protocol=dependency_to_protocol(agent_protocol)
+                )
+            except KeyError as e:
+                raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
+
+        return context_kwargs, state_kwargs, dependency_kwargs
 
     async def async_locals(self: Self, state_params: Mapping[str, AnyState]) -> None:
         """A function to again sync the state of the actor with the state params

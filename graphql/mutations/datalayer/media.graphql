@@ -1,0 +1,19 @@
+mutation RequestMediaUpload($input: RequestMediaUploadInput!) {
+  requestMediaUpload(input: $input) {
+    ...MediaUploadGrant
+  }
+}
+
+
+mutation FinishMediaUpload($input: FinishMediaUploadInput!) {
+  finishMediaUpload(input: $input) {
+      ...MediaStore
+  }
+}
+
+
+mutation RequestMediaAccess($input: RequestMediaAccessInput!) {
+  requestMediaAccess(input: $input) {
+     ...MediaAccessGrant
+  }
+}

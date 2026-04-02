@@ -8,7 +8,7 @@ from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.publish import Patch
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import PortGroupInput, ValidatorInput
+from rekuest_next.api.schema import AgentDependencyInput, PortGroupInput, ValidatorInput
 from rekuest_next.definition.define import (
     AssignWidgetMap,
     DefinitionInput,
@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from rekuest_next.agents.registry import ExtensionRegistry
+    from rekuest_next.declare import DeclaredAgentProtocol
 
 
 @dataclass
@@ -51,6 +52,28 @@ class PreparedStateVariables:
         """Get the amount of locks."""
         return len(self.required_state_locks)
 
+    @property
+    def variable_keys(self) -> List[str]:
+        """Get the keys of the state variables."""
+        return list(self.write_state_variables.keys()) + list(
+            self.read_only_variables.keys()
+        )
+
+
+@dataclass
+class PreparedAppContextVariables:
+    app_context_variables: Dict[str, str]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of state variables."""
+        return len(self.app_context_variables)
+
+
+@dataclass
+class PreparedDependencyVariables:
+    dependency_variables: Dict[str, Any]
+
 
 @dataclass
 class PreparedStateReturns:
@@ -63,11 +86,22 @@ class PreparedStateReturns:
 
 
 @dataclass
+class PreparedAppContextReturns:
+    app_context_returns: Dict[int, str]
+
+    @property
+    def count(self) -> int:
+        """Get the amount of app context returns."""
+        return len(self.app_context_returns)
+
+
+@dataclass
 class ImplementationDetails:
     state_variables: PreparedStateVariables
     state_returns: PreparedStateReturns
     context_variables: PreparedContextVariables
     context_returns: PreparedContextReturns
+    dependency_variables: PreparedDependencyVariables
     locks: Optional[List[str]]
 
 
@@ -302,6 +336,9 @@ class Actifier(Protocol):
         locks: Optional[List[str]] = None,
         name: str | None = None,
         sync: Optional[SyncGroup] = None,
+        dependencies: Optional[List["AgentDependencyInput"]] = None,
+        version: Optional[str] = None,
+        key: Optional[str] = None,
     ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
         """A function that will inspect the function and return a definition and
         an actor builder. This method will inspect the function and return a

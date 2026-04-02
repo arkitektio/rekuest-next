@@ -156,13 +156,18 @@ class ThreadedStartupHook(StartupHook):
         self.context_variables, self.context_returns = prepare_context_variables(
             self.func
         )
-
+        print(f"State variables: {self.state_variables}")
+        print(f"State returns: {self.state_returns}")
+        print(f"Context variables: {self.context_variables}")
+        print(f"Context returns: {self.context_returns}")
         assert self.state_variables.count == 0, (
             "Threaded startup hooks cannot have state variables as arguments"
         )
         assert self.context_variables.count == 0, (
             "Threaded startup hooks cannot have context variables as arguments"
         )
+
+        print(f"Return length: {self.return_length}")
 
         assert (
             self.state_returns.count + self.context_returns.count
@@ -195,7 +200,10 @@ class ThreadedStartupHook(StartupHook):
         states: Dict[str, Any] = {}
         contexts: Dict[str, Any] = {}
 
+        print(self.state_returns)
+
         for index, return_value in enumerate(returns):
+            print(f"Return value at index {index}: {return_value}")
             if index in self.state_returns.state_returns:
                 states[self.state_returns.state_returns[index]] = return_value
             elif index in self.context_returns.context_returns:

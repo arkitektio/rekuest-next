@@ -6,6 +6,8 @@ from typing import Any, Callable, TypeAlias
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     EffectInput,
+    ProvidesInput,
+    RequiresInput,
     ReturnWidgetInput,
     OptimisticInput,
     ValidatorInput,
@@ -22,6 +24,8 @@ AnnotationResult: TypeAlias = tuple[
     ReturnWidgetInput | None,
     list[ValidatorInput],
     list[EffectInput],
+    list[RequiresInput] | None,
+    list[ProvidesInput] | None,
 ]
 
 # Registered parsers
@@ -72,6 +76,8 @@ def extract_basic_annotations(
     return_widget: ReturnWidgetInput | None,
     validators: list[ValidatorInput],
     effects: list[EffectInput],
+    requires: list[RequiresInput] | None,
+    provides: list[ProvidesInput] | None,
 ) -> AnnotationResult:
     """Extracts basic Rekuest annotations like widgets, validators, and strings."""
 
@@ -92,6 +98,16 @@ def extract_basic_annotations(
 
             case EffectInput():
                 effects.append(annotation)
+
+            case RequiresInput():
+                if requires is None:
+                    requires = []
+                requires.append(annotation)
+
+            case ProvidesInput():
+                if provides is None:
+                    provides = []
+                provides.append(annotation)
 
             case DescriptionAddin():
                 if description:
@@ -114,6 +130,8 @@ def extract_basic_annotations(
         return_widget,
         validators,
         effects,
+        requires,
+        provides,
     )
 
 
@@ -134,6 +152,8 @@ try:
         return_widget: ReturnWidgetInput | None,
         validators: list[ValidatorInput],
         effects: list[EffectInput],
+        requires: list[RequiresInput] | None,
+        provides: list[ProvidesInput] | None,
     ) -> AnnotationResult:
         """Extracts annotated types from `annotated_types`."""
 
@@ -174,6 +194,8 @@ try:
             return_widget,
             validators,
             effects,
+            requires,
+            provides,
         )
 
     parsers.append(extract_annotated_types)
@@ -191,6 +213,8 @@ def extract_annotations(
     return_widget: ReturnWidgetInput | None = None,
     validators: list[ValidatorInput] | None = None,
     effects: list[EffectInput] | None = None,
+    requires: list[RequiresInput] | None = None,
+    provides: list[ProvidesInput] | None = None,
 ) -> AnnotationResult:
     """Runs all registered parsers to extract semantic Rekuest annotations."""
     validators = validators or []
@@ -205,6 +229,8 @@ def extract_annotations(
             return_widget,
             validators,
             effects,
+            requires,
+            provides,
         ) = parser(
             annotations,
             default,
@@ -214,6 +240,8 @@ def extract_annotations(
             return_widget,
             validators,
             effects,
+            requires,
+            provides,
         )
 
     return (
@@ -224,4 +252,6 @@ def extract_annotations(
         return_widget,
         validators,
         effects,
+        requires,
+        provides,
     )

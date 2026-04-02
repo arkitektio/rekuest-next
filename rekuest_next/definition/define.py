@@ -3,13 +3,19 @@
 import collections
 from enum import Enum
 from typing import Callable, List, Union, get_type_hints
+
+from numpy import require
 from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
 )
 from .utils import extract_annotations, is_local_var
 from rekuest_next.api.schema import (
-    PortInput,
+    AgentDependencyInput,
+    ArgPortInput,
+    ProvidesInput,
+    RequiresInput,
+    ReturnPortInput,
     DefinitionInput,
     ActionKind,
     PortKind,
@@ -139,6 +145,27 @@ def is_float(cls: Any) -> bool:  # noqa: ANN401
     return False
 
 
+def is_dependency_type(cls: Any) -> bool:  # noqa: ANN401
+    """Check if a class is a dependency type"""
+    if hasattr(cls, "__rekuest__dependency__"):
+        dependency = getattr(cls, "__rekuest__dependency__")
+        if getattr(dependency, "to_dependency_input", None) and callable(
+            dependency.to_dependency_input
+        ):
+            return True
+        else:
+            raise DefinitionError(
+                f"Class {cls} has a __rekuest__dependency__ attribute but it does not have a callable to_dependency_input method. Please fix this."
+            )
+    return False
+
+
+def dependency_to_dependency_input(key: str, cls: Any) -> AgentDependencyInput:
+    """Convert a dependency class to a DependencyInput"""
+    dependency = getattr(cls, "__rekuest__dependency__")
+    return dependency.to_dependency_input(key)
+
+
 def is_none_type(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is NoneType"""
 
@@ -181,7 +208,7 @@ def is_datetime(cls: Any) -> bool:  # noqa: ANN401
     return False
 
 
-def convert_object_to_port(
+def convert_object_to_argport(
     cls: Any,  # noqa: ANN401
     key: str,
     registry: StructureRegistry,
@@ -193,7 +220,9 @@ def convert_object_to_port(
     nullable: bool = False,
     validators: Optional[List[ValidatorInput]] = None,
     effects: Optional[List[EffectInput]] = None,
-) -> PortInput:
+    requires: Optional[List[RequiresInput]] = None,
+    provides: Optional[List[ProvidesInput]] = None,
+) -> ArgPortInput:
     """
     Convert a class to an Port
     """
@@ -211,7 +240,7 @@ def convert_object_to_port(
         cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
         # TODO: We might want to handle this better
 
-        return convert_object_to_port(
+        return convert_object_to_argport(
             cls=cls,
             key=key,
             registry=registry,
@@ -232,7 +261,7 @@ def convert_object_to_port(
         registry.register_as_model(cls, inspected_model.identifier)
 
         for arg in inspected_model.args:
-            child = convert_object_to_port(
+            child = convert_object_to_argport(
                 cls=arg.cls,
                 registry=registry,
                 nullable=False,
@@ -244,10 +273,9 @@ def convert_object_to_port(
             )
             children.append(child)
 
-        return PortInput(
+        return ArgPortInput(
             kind=PortKind.MODEL,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=assign_widget,
             key=key,
             children=tuple(children),
             label=label,
@@ -270,6 +298,273 @@ def convert_object_to_port(
             return_widget,
             validators,
             effects,
+            requires,
+            provides,
+        ) = extract_annotations(
+            annotations,
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+            requires,
+            provides,
+        )
+
+        return convert_object_to_argport(
+            real_type,
+            key,
+            registry,
+            assign_widget=assign_widget,
+            default=default,
+            label=label,
+            effects=effects,
+            nullable=nullable,
+            validators=validators,
+            description=description,
+            requires=requires,
+            provides=provides,
+        )
+
+    if is_list(cls):
+        value_cls = get_list_value_cls(cls)
+        child = convert_object_to_argport(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
+        return ArgPortInput(
+            kind=PortKind.LIST,
+            widget=assign_widget,
+            key=key,
+            children=tuple([child]),
+            label=label,
+            default=default if default else None,
+            nullable=nullable,
+            description=description,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_union(cls):
+        variants = get_non_null_variants(cls)
+        children: list[ArgPortInput] = []
+        for index, arg in enumerate(variants):
+            child = convert_object_to_argport(
+                cls=arg, registry=registry, nullable=False, key=str(index)
+            )
+            children.append(child)
+
+        return ArgPortInput(
+            kind=PortKind.UNION,
+            widget=assign_widget,
+            key=key,
+            children=tuple(children),
+            label=label,
+            default=default,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_dict(cls):
+        value_cls = get_dict_value_cls(cls)
+        child = convert_object_to_argport(
+            cls=value_cls, registry=registry, nullable=False, key="..."
+        )
+        return ArgPortInput(
+            kind=PortKind.DICT,
+            widget=assign_widget,
+            children=tuple([child]),
+            label=label,
+            default=default,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_bool(cls) or (default is not None and isinstance(default, bool)):
+        return ArgPortInput(
+            kind=PortKind.BOOL,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )  # catch bool is subclass of int
+
+    if is_int(cls) or (default is not None and isinstance(default, int)):
+        return ArgPortInput(
+            kind=PortKind.INT,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_float(cls) or (default is not None and isinstance(default, float)):
+        return ArgPortInput(
+            kind=PortKind.FLOAT,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
+        return ArgPortInput(
+            kind=PortKind.DATE,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    if is_str(cls) or (default is not None and isinstance(default, str)):
+        return ArgPortInput(
+            kind=PortKind.STRING,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+        )
+
+    return registry.get_argport_for_cls(
+        cls,
+        key,
+        nullable=nullable,
+        description=description,
+        effects=effects,
+        label=label,
+        default=default,
+        validators=validators,
+        assign_widget=assign_widget,
+        requires=tuple(requires) if requires else None,
+    )
+
+
+def convert_object_to_returnport(
+    cls: Any,  # noqa: ANN401
+    key: str,
+    registry: StructureRegistry,
+    assign_widget: AssignWidgetInput | None = None,
+    return_widget: ReturnWidgetInput | None = None,
+    default: Any | None = None,  # noqa: ANN401
+    label: str | None = None,
+    description: str | None = None,
+    nullable: bool = False,
+    validators: Optional[List[ValidatorInput]] = None,
+    effects: Optional[List[EffectInput]] = None,
+    requires: Optional[List[RequiresInput]] = None,
+    provides: Optional[List[ProvidesInput]] = None,
+) -> ReturnPortInput:
+    """
+    Convert a class to an Port
+    """
+    if validators is None:
+        validators = []
+    if effects is None:
+        effects = []
+
+    if is_nullable(cls):
+        # We are dealing with a union type
+        # wee need to get the non-nullable-types
+        # and convert hem to a new union
+
+        non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
+        cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
+        # TODO: We might want to handle this better
+
+        return convert_object_to_returnport(
+            cls=cls,
+            key=key,
+            registry=registry,
+            default=default,
+            nullable=True,
+            assign_widget=assign_widget,
+            label=label,
+            effects=effects,
+            return_widget=return_widget,
+            description=description,
+            validators=validators,
+        )
+
+    if is_model(cls):
+        children = []
+
+        inspected_model = inspect_model_class(cls)
+        registry.register_as_model(cls, inspected_model.identifier)
+
+        for arg in inspected_model.args:
+            child = convert_object_to_returnport(
+                cls=arg.cls,
+                registry=registry,
+                nullable=False,
+                key=arg.key,
+                default=arg.default,
+                description=arg.description,
+                validators=arg.validators or [],
+                label=arg.label,
+            )
+            children.append(child)
+
+        return ReturnPortInput(
+            kind=PortKind.MODEL,
+            widget=return_widget,
+            key=key,
+            children=tuple(children),
+            label=label,
+            default=None,
+            nullable=nullable,
+            description=description or inspected_model.description,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            identifier=inspected_model.identifier,
+            provides=tuple(provides) if provides else None,
+        )
+
+    if is_annotated(cls):
+        real_type, *annotations = get_args(cls)
+
+        (
+            default,
+            label,
+            description,
+            assign_widget,
+            return_widget,
+            validators,
+            effects,
+            requires,
+            provides,
         ) = extract_annotations(
             annotations,
             default,
@@ -281,7 +576,7 @@ def convert_object_to_port(
             effects,
         )
 
-        return convert_object_to_port(
+        return convert_object_to_returnport(
             real_type,
             key,
             registry,
@@ -292,17 +587,18 @@ def convert_object_to_port(
             nullable=nullable,
             validators=validators,
             description=description,
+            requires=requires,
+            provides=provides,
         )
 
     if is_list(cls):
         value_cls = get_list_value_cls(cls)
-        child = convert_object_to_port(
+        child = convert_object_to_returnport(
             cls=value_cls, registry=registry, nullable=False, key="..."
         )
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.LIST,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             children=tuple([child]),
             label=label,
@@ -315,17 +611,16 @@ def convert_object_to_port(
 
     if is_union(cls):
         variants = get_non_null_variants(cls)
-        children: list[PortInput] = []
+        children: list[ReturnPortInput] = []
         for index, arg in enumerate(variants):
-            child = convert_object_to_port(
+            child = convert_object_to_returnport(
                 cls=arg, registry=registry, nullable=False, key=str(index)
             )
             children.append(child)
 
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.UNION,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             children=tuple(children),
             label=label,
@@ -338,13 +633,12 @@ def convert_object_to_port(
 
     if is_dict(cls):
         value_cls = get_dict_value_cls(cls)
-        child = convert_object_to_port(
+        child = convert_object_to_returnport(
             cls=value_cls, registry=registry, nullable=False, key="..."
         )
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.DICT,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             children=tuple([child]),
             label=label,
@@ -356,10 +650,9 @@ def convert_object_to_port(
         )
 
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.BOOL,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             default=default,
             label=label,
@@ -370,10 +663,9 @@ def convert_object_to_port(
         )  # catch bool is subclass of int
 
     if is_int(cls) or (default is not None and isinstance(default, int)):
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.INT,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             default=default,
             label=label,
@@ -384,10 +676,9 @@ def convert_object_to_port(
         )
 
     if is_float(cls) or (default is not None and isinstance(default, float)):
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.FLOAT,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             default=default,
             label=label,
@@ -398,10 +689,9 @@ def convert_object_to_port(
         )
 
     if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.DATE,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             default=default,
             label=label,
@@ -412,10 +702,9 @@ def convert_object_to_port(
         )
 
     if is_str(cls) or (default is not None and isinstance(default, str)):
-        return PortInput(
+        return ReturnPortInput(
             kind=PortKind.STRING,
-            assignWidget=assign_widget,
-            returnWidget=return_widget,
+            widget=return_widget,
             key=key,
             default=default,
             label=label,
@@ -425,7 +714,7 @@ def convert_object_to_port(
             description=description,
         )
 
-    return registry.get_port_for_cls(
+    return registry.get_returnport_for_cls(
         cls,
         key,
         nullable=nullable,
@@ -434,8 +723,8 @@ def convert_object_to_port(
         label=label,
         default=default,
         validators=validators,
-        assign_widget=assign_widget,
         return_widget=return_widget,
+        provides=provides,
     )
 
 
@@ -489,6 +778,8 @@ def prepare_definition(
     return_annotations: Optional[List[Any]] = None,
     allow_dev: bool = True,
     allow_annotations: bool = True,
+    version: Optional[str] = None,
+    key: Optional[str] = None,
 ) -> DefinitionInput:
     """Define
 
@@ -522,11 +813,13 @@ def prepare_definition(
     interfaces = interfaces or []
     collections = collections or []
     # Generate Args and Kwargs from the Annotation
-    args: List[PortInput] = []
-    returns: List[PortInput] = []
+    args: List[ArgPortInput] = []
+    returns: List[ReturnPortInput] = []
 
     # Docstring Parser to help with descriptions
     docstring = parse(function.__doc__ or "")
+
+    definition_key = key or function.__name__
 
     is_dev = False
 
@@ -600,12 +893,15 @@ def prepare_definition(
                 f"Could not find type hint for {key} in {function.__name__}. Please provide a type hint (or default) for this argument."
             )
 
+        if is_dependency_type(cls):
+            continue
+
         if is_local_var(cls):
             continue
 
         try:
             args.append(
-                convert_object_to_port(
+                convert_object_to_argport(
                     cls,
                     key,
                     structure_registry,
@@ -634,7 +930,7 @@ def prepare_definition(
             port_effects = effects.pop(key, None)
 
             returns.append(
-                convert_object_to_port(
+                convert_object_to_returnport(
                     cls,
                     key,
                     structure_registry,
@@ -655,6 +951,11 @@ def prepare_definition(
             if is_generator_type(function_outs_annotation):
                 function_outs_annotation = get_args(function_outs_annotation)[0]
 
+            if is_dependency_type(function_outs_annotation):
+                raise DefinitionError(
+                    f"Function {function.__name__} has a return type that is a dependency. This is not allowed. Please change the return type."
+                )
+
             if is_tuple(function_outs_annotation):
                 for index, cls in enumerate(get_args(function_outs_annotation)):
                     key = f"return{index}"
@@ -663,7 +964,7 @@ def prepare_definition(
                     port_effects = effects.pop(key, [])
 
                     returns.append(
-                        convert_object_to_port(
+                        convert_object_to_returnport(
                             cls,
                             key,
                             structure_registry,
@@ -680,7 +981,7 @@ def prepare_definition(
                 assign_widget = widgets.pop(key, None)
                 port_effects = effects.pop(key, [])
                 returns.append(
-                    convert_object_to_port(
+                    convert_object_to_returnport(
                         function_outs_annotation,
                         "return0",
                         structure_registry,
@@ -725,6 +1026,8 @@ def prepare_definition(
         )
 
     definition = DefinitionInput(
+        key=definition_key,
+        version=version or "1",
         name=action_name,
         description=description,
         collections=tuple(collections),

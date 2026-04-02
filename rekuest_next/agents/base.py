@@ -5,6 +5,8 @@ for managing the lifecycle of the actors that are spawned from it.
 
 """
 
+import random
+
 import asyncio
 import copy
 import logging
@@ -13,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
 from typing import Any, Dict, Generic, List, Optional, Self, Type, TypeVar
-
+import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
 
@@ -39,7 +41,7 @@ from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.api.schema import (
     Agent,
     Implementation,
-    PortInput,
+    PatchInput,
     StateImplementationInput,
     StateSchema,
     StateSchemaInput,
@@ -50,6 +52,8 @@ from rekuest_next.api.schema import (
     aset_extension_implementations,
     ashelve,
     aunshelve,
+    alog_patches,
+    alog_snapshot,
 )
 from rekuest_next.protocols import AnyState
 from rekuest_next.rath import RekuestNextRath
@@ -67,14 +71,23 @@ from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
 
-AppContext = TypeVar("AppContext")
 ContextType = TypeVar("ContextType")
+
+
+class AppContext(asyncio.Protocol):
+    """Protocol for the app context that is passed to the hooks."""
+
+    __rekuest_app_context__: str
+
+
+T = TypeVar("ContextType", bound="AppContext")
 
 
 @dataclass
 class QueuedPatchEvent:
     interface: str
     patch: Patch
+    assignation_id: Optional[str] = None
     event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -86,7 +99,7 @@ class RevisedState:
     data: JSONSerializable
 
 
-class BaseAgent(KoiledModel, Generic[AppContext]):
+class BaseAgent(KoiledModel, Generic[ContextType]):
     """Agent
 
     Agents are the governing entities for every app. They are responsible for
@@ -105,8 +118,8 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
     """
 
-    name: str = Field(
-        default="BaseAgent",
+    name: str | None = Field(
+        default=None,
         description="The name of the agent. This is used to identify the agent in the system.",
     )
     instance_id: str = Field(
@@ -117,7 +130,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
+    extension_registry: ExtensionRegistry = Field(
+        default_factory=get_default_extension_registry
+    )
 
     sink: StateSink = Field(default_factory=lambda: MemorySink())
     retriever: StateRetriever = Field(default_factory=lambda: MemoryRetriever())
@@ -137,7 +152,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     capture_active: bool = Field(default=False)
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
-    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
+    interface_implementation_map: Dict[str, Implementation] = Field(
+        default_factory=dict
+    )
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
 
@@ -172,24 +189,33 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         default_factory=lambda: {}  # typ
     )
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
-    _collected_state_schemas: Dict[str, StateSchemaInput] = PrivateAttr(default_factory=lambda: {})
-    _collected_structure_registries: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _collected_state_schemas: Dict[str, StateSchemaInput] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _collected_structure_registries: Dict[str, Any] = PrivateAttr(
+        default_factory=lambda: {}
+    )
     _collected_startup_hooks: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _collected_background_workers: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _state_class_interface_map: Dict[type, str] = PrivateAttr(default_factory=lambda: {})
+    _collected_background_workers: Dict[str, Any] = PrivateAttr(
+        default_factory=lambda: {}
+    )
+    _state_class_interface_map: Dict[type, str] = PrivateAttr(
+        default_factory=lambda: {}
+    )
 
     # Event based necessities
     current_session: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         description="A unique identifier for the current session. This is used to group patches and snapshots that belong to the same logical session together. By default an agent start a new session when booting up",
     )
-    _state_revisions: Dict[str, int] = PrivateAttr(default_factory=lambda: {})
-    _event_queue: asyncio.Queue[QueuedPatchEvent] | None = PrivateAttr(default=None)
+    _event_queue: janus.Queue[QueuedPatchEvent] | None = PrivateAttr(default=None)
     _patch_processor_task: asyncio.Task[None] | None = PrivateAttr(default=None)
     global_revision: int = 0
     snapshot_interval: int = Field(
-        default=300,
+        default=5,
         description="How many persisted patches should elapse before all current shrunk states are checkpointed.",
     )
     sink_catch_up_timeout: float | None = Field(
@@ -205,7 +231,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def model_post_init(self, __context: Any) -> None:
-        if isinstance(self.sink, MemorySink) and isinstance(self.retriever, MemoryRetriever):
+        if isinstance(self.sink, MemorySink) and isinstance(
+            self.retriever, MemoryRetriever
+        ):
             self.retriever.store = self.sink.store
 
     async def alock(self, key: str, assignation: str) -> None:
@@ -230,30 +258,40 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             raise AgentException("Patch queue is not initialized")
 
         try:
+            print("Starting patch event loop", self._event_queue.async_q)
             while True:
-                queued_patch = await self._event_queue.get()
+                queued_patch = await self._event_queue.async_q.get()
                 try:
                     await self._aprocess_patch_event(queued_patch)
                 finally:
-                    self._event_queue.task_done()
+                    self._event_queue.async_q.task_done()
         except asyncio.CancelledError:
             raise
 
-    def publish_patch(self, interface: str, patch: Patch) -> None:
+    def publish_patch(
+        self, interface: str, patch: Patch, assignation_id: str | None = None
+    ) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
+
         if self._event_queue is None:
             raise AgentException("Patch queue is not initialized")
-        self._event_queue.put_nowait(QueuedPatchEvent(interface=interface, patch=patch))
+        self._event_queue.sync_q.put(
+            QueuedPatchEvent(
+                interface=interface, patch=patch, assignation_id=assignation_id
+            )
+        )
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
+        # TODO: Check if we should do a meaningful check, if we had just published something it might not
+        # be necessary to overwhelm the sink (like if the user is doing a batch of updates, we might
+        # just discard intermediate states and only publish the final state after the batch is done)
+
         interface = queued_patch.interface
         patch = queued_patch.patch
 
         # Check the revisions of the state
-        current_rev = self._state_revisions.get(interface, 0)
         current_global_rev = self.global_revision
-        future_rev = current_rev + 1
         future_global_rev = current_global_rev + 1
 
         # Enforce that patches are applied in order
@@ -267,8 +305,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         shrunk_patch = WritePatchReq(
             state_id=interface,
-            current_rev=current_rev,
-            future_rev=future_rev,
             global_current_rev=current_global_rev,
             global_future_rev=future_global_rev,
             op=patch.op,
@@ -283,28 +319,25 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         self._aapply_patch_to_shrunk_state(interface, patch, shrunk_value)
 
-        self._state_revisions[interface] = future_rev
         self.global_revision = future_global_rev
 
-        await self.apublish_envelope(
-            interface,
-            messages.Envelope(
+        await self.apublish_patch(
+            messages.StatePatchEvent(
+                global_rev=self.global_revision,
                 state_name=interface,
-                rev=future_rev,
-                base_rev=current_rev,
                 ts=queued_patch.event_time.timestamp(),
-                patches=[
-                    messages.EnvelopePatch(
-                        op=patch.op,
-                        path=patch.path,
-                        value=shrunk_value,
-                        old_value=None,
-                    )
-                ],
+                op=patch.op,
+                path=patch.path,
+                value=shrunk_value,
+                old_value=None,
+                correlation_id=patch.correlation_id,
+                session_id=self.current_session,
             ),
         )
 
-    async def _ashrink_patch_value(self, interface: str, patch: Patch) -> JSONSerializable | None:
+    async def _ashrink_patch_value(
+        self, interface: str, patch: Patch
+    ) -> JSONSerializable | None:
         if patch.op not in ("add", "replace"):
             return None
 
@@ -338,7 +371,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             await self.sink.adump_snapshot(
                 WriteSnapshotReq(
                     state_id=interface,
-                    revision=self._state_revisions.get(interface, 0),
                     global_revision=self.global_revision,
                     state_data=copy.deepcopy(shrunk_state),
                     session_id=self.current_session,
@@ -346,22 +378,8 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             )
 
     async def _await_sink_caught_up(self) -> None:
-        if not self._state_revisions:
-            return None
-
-        pending_states = {
-            state_id: revision
-            for state_id, revision in self._state_revisions.items()
-            if revision > 0
-        }
-        if not pending_states:
-            return None
-
         async def _all_caught_up() -> bool:
-            for state_id, revision in pending_states.items():
-                if not await self.sink.is_cought_up_to(state_id, revision):
-                    return False
-            return True
+            return await self.sink.is_cought_up_to(self.global_revision)
 
         poll_interval = max(self.sink_catch_up_poll_interval, 0.0)
 
@@ -448,7 +466,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             if app_registry is not None:
                 state_schemas = extension.get_state_schemas()
                 if interface in state_schemas:
-                    return app_registry.state_registry.get_registry_for_interface(interface)
+                    return app_registry.state_registry.get_registry_for_interface(
+                        interface
+                    )
         raise AgentException(f"No structure registry found for interface {interface}")
 
     def get_interface_for_state_class(self, cls: type) -> str:
@@ -662,7 +682,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                 pass
 
         if self._event_queue is not None:
-            await self._event_queue.join()
+            await self._event_queue.aclose()
 
         await self._await_sink_caught_up()
 
@@ -700,6 +720,11 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         await self.sink.ateardown()
         await self.retriever.ateardown()
 
+    async def aget_hash(self) -> str:
+        """Get the hash of the agent. This is used to identify the agent in the system and to check if the agent has changed."""
+        # TODO: Actually perform the hashing based on the extensions and their implementations, state schemas, and other relevant information. For now, we just return a random hash to force the agent to register all implementations on every start.
+        return random.randbytes(16).hex()
+
     async def aregister_definitions(self, instance_id: str, app_context: Any) -> None:
         """Register all implementations that are handled by extensiosn
 
@@ -716,28 +741,36 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             ],
         )
 
-        for (
-            extension_name,
-            extension,
-        ) in self.extension_registry.agent_extensions.items():
-            to_be_created_implementations = await extension.aget_implementations()
+        if self._agent.hash != await self.aget_hash():
+            for (
+                extension_name,
+                extension,
+            ) in self.extension_registry.agent_extensions.items():
+                to_be_created_implementations = await extension.aget_implementations()
 
-            created_implementations = await aset_extension_implementations(
-                implementations=to_be_created_implementations,
-                run_cleanup=extension.cleanup,
-                instance_id=instance_id,
-                extension=extension_name,
-            )
+                created_implementations = await aset_extension_implementations(
+                    implementations=to_be_created_implementations,
+                    locks=extension.get_lock_schemas().values(),
+                    run_cleanup=extension.cleanup,
+                    instance_id=instance_id,
+                    extension=extension_name,
+                )
 
-            for implementation in created_implementations:
-                self.interface_implementation_map[implementation.interface] = implementation
-                self.implementation_interface_map[implementation.id] = implementation.interface
+                for implementation in created_implementations:
+                    self.interface_implementation_map[implementation.interface] = (
+                        implementation
+                    )
+                    self.implementation_interface_map[implementation.id] = (
+                        implementation.interface
+                    )
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
-        logger.debug(f"Agent forwarding {message.id} from actor {actor.__class__.__name__}")
+        logger.debug(
+            f"Agent forwarding {message.id} from actor {actor.__class__.__name__}"
+        )
         await self.transport.asend(message)
 
     async def aregister_state_schemas(self) -> Dict[str, StateSchema]:
@@ -768,13 +801,17 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         )
         return shrinked_state
 
-    async def apublish_states(self, state_implementation: List[StateImplementationInput]) -> None:
+    async def apublish_states(
+        self, state_implementation: List[StateImplementationInput]
+    ) -> None:
         states = await aset_agent_states(
             instance_id=self.instance_id,
             implementations=state_implementation,
         )
 
-    async def ainit_states(self, hook_return: StartupHookReturns, app_context: Any = None) -> None:  # noqa: ANN401
+    async def ainit_states(
+        self, hook_return: StartupHookReturns, app_context: Any = None
+    ) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
 
         if not self.instance_id:
@@ -798,7 +835,6 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             )
 
             self._current_shrunk_states[interface] = copy.deepcopy(initial_shrunk_state)
-            self._state_revisions[interface] = 0
 
             implementations.append(
                 StateImplementationInput(
@@ -810,37 +846,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         await self.apublish_states(implementations)
 
-    async def asend_state(self, interface: str, value: AnyState) -> None:  # noqa: ANN401
-        """Set the state of the extension. This will be called when the agent starts"""
-        from rekuest_next.api.schema import aset_state
-
-        if interface not in self.states:
-            raise AgentException(f"State {interface} not found in agent {self.name}")
-
-        if interface not in self._current_shrunk_states:
-            raise AgentException(f"Shrunk State {interface} not found in agent {self.name}")
-
-        if interface not in self._interface_stateschema_input_map:
-            raise AgentException(f"State Schema {interface} not found in agent {self.name}")
-
-        if not self.instance_id:
-            raise AgentException("Instance id is not set. The agent is not initialized")
-
-        old_shrunk_state = self._current_shrunk_states[interface]
-        new_shrunk_state = await self.ashrink_state(interface=interface, state=value)
-
-        patch = jsonpatch.make_patch(old_shrunk_state, new_shrunk_state)  # type: ignore
-
-        await aset_state(
-            interface=interface,
-            patches=patch.patch,  # type: ignore
-            instance_id=self.instance_id,
-        )
-
-        self._current_shrunk_states[interface] = new_shrunk_state
-        self.states[interface] = value
-
-    async def apublish_envelope(self, state_name: str, envelope: messages.Envelope) -> None:
+    async def apublish_patch(self, envelope: messages.StatePatchEvent) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
         raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
@@ -858,13 +864,17 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         from rekuest_next.agents.context import get_context_name, is_context
 
         if not self.running:
-            raise AgentException("Agent is not running. Contexts are not available yet.")
+            raise AgentException(
+                "Agent is not running. Contexts are not available yet."
+            )
 
         if is_context(context):
             context_name = get_context_name(context)
             return self.contexts[context_name]
 
-        raise AgentException(f"Context for type {context} not found in agent {self.name}")
+        raise AgentException(
+            f"Context for type {context} not found in agent {self.name}"
+        )
 
     async def aget_app_context(self) -> AppContext:
         """Get the app context from the agent. This is used to get the
@@ -920,7 +930,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             task.cancel()
 
         try:
-            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self._background_tasks.values(), return_exceptions=True
+            )
         except asyncio.CancelledError:
             pass
 
@@ -988,9 +1000,11 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             states=list(self.states.values()),
             implementations=list(self.interface_implementation_map.values()),
         )
+
         self.global_revision = 0
-        self._event_queue = asyncio.Queue()
+        self._event_queue = janus.Queue()
         self._patch_processor_task = asyncio.create_task(self.apatch_event_loop())
+        self._patch_processor_task.add_done_callback(lambda x: print(x))
         await self._adump_all_snapshots()
 
         for extension in self.extension_registry.agent_extensions.values():
@@ -1017,7 +1031,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         """
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
+            raise ProvisionException(
+                f"Extension {assign.extension} not found in agent {self.name}"
+            )
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -1034,7 +1050,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
 
         return await self._errorfuture
 
-    def provide(self, context: Optional[AppContext] = None) -> None:
+    def provide(self, context: Optional[ContextType] = None) -> None:
         """Provides the agent. This starts the agents and
         connected the transport."""
         return unkoil(self.aprovide, context=context)
@@ -1044,6 +1060,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         try:
             self.running = True
             await self.transport.aconnect(self.instance_id)
+
             async for message in self.transport.areceive():
                 await self.process(message)
         except asyncio.CancelledError:
@@ -1056,7 +1073,7 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
             await self.atear_down()
             raise e
 
-    async def aprovide(self, context: Optional[AppContext] = None) -> None:
+    async def aprovide(self, context: Optional[ContextType] = None) -> None:
         """Provides the agent.
 
         This starts the agents and connectes to the transport.
@@ -1068,8 +1085,12 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         self._app_context = context
 
         try:
-            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
-            await self.astart(instance_id=self.instance_id, app_context=self._app_context)
+            logger.info(
+                f"Launching provisioning task. We are running {self.instance_id}"
+            )
+            await self.astart(
+                instance_id=self.instance_id, app_context=self._app_context
+            )
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
@@ -1089,7 +1110,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
         provide_task = None
 
         try:
-            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
+            logger.info(
+                f"Launching provisioning task. We are running {self.instance_id}"
+            )
             await self.astart(instance_id=self.instance_id)
             logger.info("Starting to listen for requests")
 
@@ -1116,7 +1139,9 @@ class BaseAgent(KoiledModel, Generic[AppContext]):
                             raise e
 
                 except Exception as e:
-                    print(f"Testing implementation for interface {key} failed: {str(e)}")
+                    print(
+                        f"Testing implementation for interface {key} failed: {str(e)}"
+                    )
                     raise e
 
             provide_task.cancel()
@@ -1188,26 +1213,18 @@ class RekuestAgent(BaseAgent):
 
     pass
 
-    async def asend_state(self, interface: str, state_patch: jsonpatch.JsonPatch) -> None:
-        """Publish a state to the agent.  Will forward the state to the transport"""
-        from rekuest_next.api.schema import aupdate_state
-
-        # Shrink the value to the schema
-        state = await aupdate_state(
-            interface=interface,
-            patches=state_patch.patch,  # type: ignore
-            instance_id=self.instance_id,  # type: ignore
-        )
-
-        # we discard the state here, as we should never access it directly from the agent
-        # "state is a one way street"
-        return None
-
-    async def ashelve(self, instance_id, identifier, value, label=None, description=None) -> str:
+    async def ashelve(
+        self,
+        instance_id: str,
+        identifier: Identifier,
+        resource_id: str,
+        label: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> str:
         drawer = await ashelve(
-            instance_id=self.instance_id,
+            instance_id=instance_id,
             identifier=identifier,
-            resource_id=uuid.uuid4().hex,
+            resource_id=resource_id,
             label=label,
             description=description,
             rath=self.rath,
@@ -1217,3 +1234,24 @@ class RekuestAgent(BaseAgent):
     async def acollect(self, key: str) -> None:
         del self.shelve[key]
         await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
+
+    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+        await self.transport.asend(patch)
+        print(f"Published patch: {patch}")
+        print(patch.global_rev)
+        print(self.snapshot_interval)
+
+        if patch.global_rev % self.snapshot_interval == 0:
+            print("Snapshot interval reached, publishing snapshot event")
+            snapshot_event = messages.StateSnapshotEvent(
+                session_id=patch.session_id,
+                global_rev=patch.global_rev,
+                snapshots={
+                    interface: copy.deepcopy(shrunk_state)
+                    for interface, shrunk_state in self._current_shrunk_states.items()
+                },
+            )
+            print("Publishing snapshot event: ", snapshot_event)
+            await self.transport.asend(snapshot_event)
+
+        return None

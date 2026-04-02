@@ -1,7 +1,11 @@
 import dataclasses
 from typing import Any, Generic, Iterable, TypeVar, overload, SupportsIndex
 
-from rekuest_next.api.schema import PortInput, StateSchemaInput
+from rekuest_next.actors.vars import (
+    get_current_assignation_helper,
+    get_current_assignation_id_or_none,
+)
+from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
 from rekuest_next.state.lock import get_acquired_locks
 from rekuest_next.state.publish import Patch, get_current_publisher
 from rekuest_next.structures.registry import StructureRegistry
@@ -35,7 +39,9 @@ class StateConfig:
     state_name: str
     state_schema: StateSchemaInput
     structure_registry: StructureRegistry
-    publish_interval: float = 0.1  # Optional: Minimum interval between patches to prevent flooding
+    publish_interval: float = (
+        0.1  # Optional: Minimum interval between patches to prevent flooding
+    )
     required_locks: list[str] = dataclasses.field(default_factory=list)
 
 
@@ -48,9 +54,9 @@ def _publish_patch(config: StateConfig, patch: Patch) -> None:
 
 def _resolve_child_port(
     config: StateConfig,
-    parent_port: PortInput | None,
+    parent_port: ReturnPortInput | None,
     key: str | int,
-) -> PortInput | None:
+) -> ReturnPortInput | None:
     """Resolve the schema port for a direct child without walking a JSON path."""
     if isinstance(key, int):
         if parent_port and parent_port.children:
@@ -58,7 +64,9 @@ def _resolve_child_port(
         return None
 
     search_scope = (
-        config.state_schema.ports if parent_port is None else (parent_port.children or [])
+        config.state_schema.ports
+        if parent_port is None
+        else (parent_port.children or [])
     )
     return next((port for port in search_scope if port.key == key), None)
 
@@ -69,10 +77,19 @@ def _make_patch(
     path: str,
     value: Any,
     old_value: Any,
-    port: PortInput | None,
+    port: ReturnPortInput | None,
 ) -> Patch:
     """Create a patch carrying the already resolved schema port."""
-    return Patch(op=op, path=path, value=value, old_value=old_value, port=port)
+
+    assignation_id = get_current_assignation_id_or_none()
+    return Patch(
+        op=op,
+        path=path,
+        value=value,
+        old_value=old_value,
+        port=port,
+        correlation_id=assignation_id,
+    )
 
 
 # --- JSON Patch Compliant EventedDict (RFC 6902) ---
@@ -95,7 +112,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
         data: dict[K, V],
         config: StateConfig,
         path: str,
-        port: PortInput | None,
+        port: ReturnPortInput | None,
     ):
         super().__init__(data)
         self._config = config
@@ -104,7 +121,9 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
+        missing_locks = [
+            lock for lock in self._config.required_locks if lock not in acquired_locks
+        ]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -126,7 +145,9 @@ class EventedDict(dict[K, V], Generic[K, V]):
         op = "replace" if exists else "add"
         _publish_patch(
             self._config,
-            _make_patch(op=op, path=full_path, value=value, old_value=old_value, port=child_port),
+            _make_patch(
+                op=op, path=full_path, value=value, old_value=old_value, port=child_port
+            ),
         )
 
     def __delitem__(self, key: Any) -> None:
@@ -139,7 +160,11 @@ class EventedDict(dict[K, V], Generic[K, V]):
         _publish_patch(
             self._config,
             _make_patch(
-                op="remove", path=full_path, value=None, old_value=old_value, port=child_port
+                op="remove",
+                path=full_path,
+                value=None,
+                old_value=old_value,
+                port=child_port,
             ),
         )
 
@@ -157,7 +182,11 @@ class EventedDict(dict[K, V], Generic[K, V]):
             _publish_patch(
                 self._config,
                 _make_patch(
-                    op="remove", path=full_path, value=None, old_value=old_value, port=child_port
+                    op="remove",
+                    path=full_path,
+                    value=None,
+                    old_value=old_value,
+                    port=child_port,
                 ),
             )
             return result
@@ -177,7 +206,13 @@ class EventedDict(dict[K, V], Generic[K, V]):
         child_port = _resolve_child_port(self._config, self._port, key)
         _publish_patch(
             self._config,
-            _make_patch(op="remove", path=full_path, value=None, old_value=value, port=child_port),
+            _make_patch(
+                op="remove",
+                path=full_path,
+                value=None,
+                old_value=value,
+                port=child_port,
+            ),
         )
         return key, value
 
@@ -240,7 +275,7 @@ class EventedList(list):
         iterable: Iterable,
         config: StateConfig,
         path: str,
-        port: PortInput | None,
+        port: ReturnPortInput | None,
     ):
         super().__init__(iterable)
         self._config = config
@@ -249,7 +284,9 @@ class EventedList(list):
 
     def __check_if_has_required_locks(self) -> None:
         acquired_locks = get_acquired_locks()
-        missing_locks = [lock for lock in self._config.required_locks if lock not in acquired_locks]
+        missing_locks = [
+            lock for lock in self._config.required_locks if lock not in acquired_locks
+        ]
         if missing_locks:
             raise RuntimeError(
                 f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
@@ -298,7 +335,9 @@ class EventedList(list):
                         v,
                         self._config,
                         _make_path(self._path, indices.start + i),
-                        port=_resolve_child_port(self._config, self._port, indices.start + i),
+                        port=_resolve_child_port(
+                            self._config, self._port, indices.start + i
+                        ),
                     )
                     for i, v in enumerate(new_values)
                 ],
@@ -316,7 +355,11 @@ class EventedList(list):
             _publish_patch(
                 self._config,
                 _make_patch(
-                    op="replace", path=full_path, value=value, old_value=old_value, port=child_port
+                    op="replace",
+                    path=full_path,
+                    value=value,
+                    old_value=old_value,
+                    port=child_port,
                 ),
             )
 
@@ -337,7 +380,11 @@ class EventedList(list):
             _publish_patch(
                 self._config,
                 _make_patch(
-                    op="remove", path=full_path, value=None, old_value=old_value, port=child_port
+                    op="remove",
+                    path=full_path,
+                    value=None,
+                    old_value=old_value,
+                    port=child_port,
                 ),
             )
             # Reindex items after the deleted position
@@ -361,7 +408,9 @@ class EventedList(list):
         super().append(item)
         _publish_patch(
             self._config,
-            _make_patch(op="add", path=append_path, value=item, old_value=None, port=child_port),
+            _make_patch(
+                op="add", path=append_path, value=item, old_value=None, port=child_port
+            ),
         )
 
     def insert(self, index: SupportsIndex, item: Any) -> None:
@@ -383,7 +432,9 @@ class EventedList(list):
         super().insert(idx, item)
         _publish_patch(
             self._config,
-            _make_patch(op="add", path=full_path, value=item, old_value=None, port=child_port),
+            _make_patch(
+                op="add", path=full_path, value=item, old_value=None, port=child_port
+            ),
         )
         # Reindex items after the inserted position
         self._reindex_items(idx + 1)
@@ -417,7 +468,11 @@ class EventedList(list):
         _publish_patch(
             self._config,
             _make_patch(
-                op="remove", path=full_path, value=None, old_value=old_value, port=child_port
+                op="remove",
+                path=full_path,
+                value=None,
+                old_value=old_value,
+                port=child_port,
             ),
         )
         # Reindex items after the removed position
@@ -516,7 +571,7 @@ def make_evented(
     obj: Any,
     config: StateConfig,
     path: str = "",
-    port: PortInput | None = None,
+    port: ReturnPortInput | None = None,
 ) -> Any:
     """
     Recursively converts Dataclasses, Dicts, and Lists into event-emitting objects.
@@ -585,7 +640,9 @@ def make_evented(
                 # Calculate path using JSON Pointer format
                 base = self._event_path
                 current_path = _make_path(base, name)
-                current_port = _resolve_child_port(self._event_config, self._event_port, name)
+                current_port = _resolve_child_port(
+                    self._event_config, self._event_port, name
+                )
 
                 # Wrap the new value immediately!
                 value = make_evented(

@@ -7,6 +7,7 @@ from rath.links.split import SplitLink
 from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
 from fakts_next.contrib.rath.auth import FaktsAuthLink
+from rekuest_next.contrib.arkitekt.datalayer import FaktsDataLayer
 from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
 from rekuest_next.rekuest import RekuestNext
 from graphql import OperationType
@@ -16,7 +17,8 @@ from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
 from rekuest_next.agents.base import RekuestAgent
 from fakts_next import Fakts
 from rekuest_next.postmans.graphql import GraphQLPostman
-
+import upload
+from rekuest_next.links.upload import UploadLink
 from .structures.default import get_default_structure_registry
 from fakts_next.models import Requirement
 from arkitekt_next.service_registry import Params, BaseArkitektService
@@ -50,8 +52,13 @@ class RekuestNextService(BaseArkitektService):
         """Build the service."""
         instance_id = params.get("instance_id", "default")
 
+        datalayer = FaktsDataLayer(fakts_group="s3", fakts=fakts)
+
         rath = RekuestNextRath(
             link=RekuestNextLinkComposition(
+                upload=UploadLink(
+                    datalayer=datalayer,
+                ),
                 auth=FaktsAuthLink(
                     fakts=fakts,
                 ),
@@ -99,7 +106,12 @@ class RekuestNextService(BaseArkitektService):
                 key="rekuest",
                 service="live.arkitekt.rekuest",
                 description="An instance of ArkitektNext Rekuest to assign to actions",
-            )
+            ),
+            Requirement(
+                key="s3",
+                service="live.arkitekt.s3",
+                description="An instance of ArkitektNext Rekuest to assign to actions",
+            ),
         ]
 
     def get_graphql_schema(self) -> str:

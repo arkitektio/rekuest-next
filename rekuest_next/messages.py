@@ -73,6 +73,8 @@ class FromAgentMessageType(str, Enum):
     STATE_PATCH = "STATE_PATCH"
     LOCK = "LOCK"
     UNLOCK = "UNLOCK"
+    STATE_SNAPSHOT = "STATE_SNAPSHOT"
+    SESSION_INIT = "SESSION_INIT"
 
 
 class Message(BaseModel):
@@ -100,7 +102,9 @@ class Assign(Message):
     reservation: Optional[str] = Field(
         default=None, description="The reservation id if assigned through that"
     )
-    step: bool | None = Field(default=None, description="Whether to step the assignation or not")
+    step: bool | None = Field(
+        default=None, description="Whether to step the assignation or not"
+    )
     assignation: str = Field(description="The assignation id")
     root: Optional[str] = Field(
         default=None,
@@ -119,7 +123,9 @@ class Assign(Message):
     reference: Optional[str] = Field(
         default=None, description="A reference that the assinger provided"
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(description="The arguments that was sendend")
+    args: Dict[str, ShallowJSONSerializable] = Field(
+        description="The arguments that was sendend"
+    )
     message: Optional[str] = None
     user: str = Field(..., description="The assinging user")
     org: Optional[str] = Field(
@@ -394,22 +400,26 @@ class HeartbeatEvent(Message):
     heartbeat events, but only reply to them.
     """
 
-    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = FromAgentMessageType.HEARTBEAT_ANSWER
+    type: Literal[FromAgentMessageType.HEARTBEAT_ANSWER] = (
+        FromAgentMessageType.HEARTBEAT_ANSWER
+    )
 
 
-class EnvelopePatch(BaseModel):
-    op: str
-    path: str
-    value: Any
-    old_value: Any
+class SessionInitMessage(Message):
+    """A session init message
 
+    A session init message is sent when the agent starts and wants to
+    initialize the session with the rekuest backend. This is used to
+    send session initialization information from the agent to the rekuest backend
+    """
 
-class Envelope(BaseModel):
-    state_name: str
-    rev: int
-    base_rev: int
-    ts: float
-    patches: List[EnvelopePatch]  # Shrunk patches
+    type: Literal[FromAgentMessageType.SESSION_INIT] = FromAgentMessageType.SESSION_INIT
+    session_id: str = Field(
+        description="The session id of the agent (generated on a restart of the agent)"
+    )
+    states: Dict[str, Any] = Field(
+        description="A dictionary containing the initial state snapshots, where the key is the state name and the value is the state snapshot"
+    )
 
 
 class StatePatchEvent(Message):
@@ -421,7 +431,42 @@ class StatePatchEvent(Message):
     """
 
     type: Literal[FromAgentMessageType.STATE_PATCH] = FromAgentMessageType.STATE_PATCH
-    envelope: Envelope
+    session_id: str = Field(
+        description="The session id of the agent (generated on a restart of the agent)"
+    )
+    global_rev: int = Field(description="The global revision of the state")
+    state_name: str = Field(description="The name of the state that is being patched")
+    ts: float
+    op: str
+    path: str
+    value: Any
+    old_value: Any | None = Field(
+        description="The old value of the patch, which can be used for debugging and tracing purposes"
+    )
+    correlation_id: Optional[str] = Field(
+        default=None,
+        description="An optional correlation id to correlate this patch with a specific action or event in the agent's execution, which can be used for debugging and tracing purposes",
+    )
+
+
+class StateSnapshotEvent(Message):
+    """A state snapshot event
+
+    A state snapshot event is sent when the agent wants to send a state snapshot
+    to the rekuest backend. This is used to
+    send state patches from the agent to the rekuest backend
+    """
+
+    type: Literal[FromAgentMessageType.STATE_SNAPSHOT] = (
+        FromAgentMessageType.STATE_SNAPSHOT
+    )
+    session_id: str = Field(
+        description="The session id of the agent (generated on a restart of the agent)"
+    )
+    global_rev: int = Field(description="The global revision of the state")
+    snapshots: Dict[str, Any] = Field(
+        description="A dictionary containing the state snapshots, where the key is the state name and the value is the state snapshot"
+    )
 
 
 class LockEvent(Message):
@@ -524,6 +569,8 @@ FromAgentMessage = Union[
     CancelledEvent,
     InterruptedEvent,
     StatePatchEvent,
+    StateSnapshotEvent,
     LockEvent,
     UnlockEvent,
+    SessionInitMessage,
 ]

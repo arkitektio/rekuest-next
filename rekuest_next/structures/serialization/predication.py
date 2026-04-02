@@ -3,8 +3,6 @@
 from typing import Any
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
-    ChildPortNestedChildren,
-    PortInput,
     PortKind,
 )
 import datetime as dt
@@ -13,7 +11,7 @@ from rekuest_next.structures.serialization.protocols import SerializablePort
 
 
 def predicate_port_input(
-    port: PortInput,
+    port: SerializablePort,
     value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry,
 ) -> bool:
@@ -105,9 +103,6 @@ def predicate_serializable_port(
         if not isinstance(value, dict):
             return False
 
-        if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
-
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")
 
@@ -125,9 +120,6 @@ def predicate_serializable_port(
         if not isinstance(value, dict):
             return False
 
-        if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
-
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")
 
@@ -142,9 +134,6 @@ def predicate_serializable_port(
             ]
         )
     if port.kind == PortKind.MODEL:
-        if isinstance(port, ChildPortNestedChildren):
-            raise ValueError(f"Maximum recursion depth exceeded for port {port.identifier}")
-
         if not port.children:
             raise ValueError(f"Port {port.identifier} has no children")
 
@@ -192,7 +181,7 @@ def predicate_serializable_port(
 
 
 def predicate_json_with_port(
-    port: PortInput,
+    port: SerializablePort,
     value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry,
 ) -> bool:

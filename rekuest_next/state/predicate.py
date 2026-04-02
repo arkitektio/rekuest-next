@@ -14,6 +14,11 @@ def is_state(cls: Type[T]) -> bool:
     return hasattr(cls, "__rekuest_state__")
 
 
+def is_app_context(cls: Type[T]) -> bool:
+    """Check if a class is an app context."""
+    return hasattr(cls, "__rekuest_app_context__")
+
+
 def is_read_only_state(cls: Type[T]) -> bool:
     """Check if a class is a read-only state."""
     if is_annotated(cls):

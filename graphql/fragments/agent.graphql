@@ -1,5 +1,6 @@
 fragment Agent on Agent {
   id
+  hash
   registry {
     client {
       id

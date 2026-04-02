@@ -7,10 +7,10 @@ fragment Shortcut on Shortcut {
   }
   savedArgs
   args {
-    ...Port
+    ...ArgPort
   }
   returns {
-    ...Port
+    ...ReturnPort
   }
   useReturns
 }
@@ -25,10 +25,10 @@ fragment ListShortcut on Shortcut {
   }
   savedArgs
   args {
-    ...Port
+    ...ArgPort
   }
   returns {
-    ...Port
+    ...ReturnPort
   }
   allowQuick
   useReturns

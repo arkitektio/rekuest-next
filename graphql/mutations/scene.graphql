@@ -1,0 +1,11 @@
+mutation CreateAgentScene($input: CreateAgentSceneInput!) {
+  createAgentScene(input: $input) {
+     model {
+      id
+      name
+      file {
+        ...MediaStore
+      }
+    }
+  }
+}

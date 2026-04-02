@@ -119,7 +119,7 @@ class _BufferedStateEnvelope:
     state_name: str
     base_rev: int
     rev: int
-    patches: list[messages.EnvelopePatch] = dataclass_field(default_factory=list)
+    patches: list[messages.StatePatchEvent] = dataclass_field(default_factory=list)
 
 
 @dataclass
@@ -313,10 +313,10 @@ class FastAPIConnectionManager:
 
     def _squash_state_patches(
         self,
-        patches: list[messages.EnvelopePatch],
-    ) -> list[messages.EnvelopePatch]:
+        patches: list[messages.StatePatchEvent],
+    ) -> list[messages.StatePatchEvent]:
         """Squash repeated operations on the same JSON path within one batch."""
-        latest_by_path: dict[str, tuple[int, messages.EnvelopePatch]] = {}
+        latest_by_path: dict[str, tuple[int, messages.StatePatchEvent]] = {}
         for index, patch in enumerate(patches):
             latest_by_path[patch.path] = (index, patch)
         return [
@@ -780,7 +780,7 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         await self.transport.asend(message)
 
     async def apublish_envelope(
-        self, state_name: str, envelope: messages.Envelope
+        self, state_name: str, envelope: messages.StatePatchEvent
     ) -> None:
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.StatePatchEvent(

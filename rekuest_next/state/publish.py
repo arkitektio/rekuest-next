@@ -3,10 +3,12 @@ from contextvars import ContextVar
 
 from attr import dataclass
 
-from rekuest_next.api.schema import PortInput
+from rekuest_next.api.schema import ReturnPortInput
 from rekuest_next.structures.types import JSONSerializable
 
-publish_context: ContextVar[Optional["Publisher"]] = ContextVar("publish_context", default=None)
+publish_context: ContextVar[Optional["Publisher"]] = ContextVar(
+    "publish_context", default=None
+)
 
 
 @dataclass
@@ -15,7 +17,7 @@ class Patch:
     path: str
     value: Any = None
     old_value: Any = None
-    port: PortInput | None = None
+    port: ReturnPortInput | None = None
     correlation_id: Optional[str] = None
 
     def __str__(self):
@@ -38,7 +40,9 @@ class Patch:
 class StateHolder(Protocol):
     """Protocol for publisher functions"""
 
-    def publish_patch(self, interface: str, patch: Patch) -> None:
+    def publish_patch(
+        self, interface: str, patch: Patch, assignation_id: str | None = None
+    ) -> None:
         """Method to publish a change to a specific field of the state
 
         Args:
@@ -52,7 +56,11 @@ class StateHolder(Protocol):
 class Publisher(Protocol):
     """Protocol for publisher context managers"""
 
-    def publish_patch(self, interface: str, patch: Patch) -> None:
+    def publish_patch(
+        self,
+        interface: str,
+        patch: Patch,
+    ) -> None:
         """Method to publish a change to a specific field of the state
 
         Args:
@@ -118,7 +126,9 @@ class BufferedPublisher(BasePublisher):
 
 
 class NoopPublisher(BasePublisher):
-    def publish_patch(self, interface: str, patch: Patch) -> None:
+    def publish_patch(
+        self, interface: str, patch: Patch, assignation_id: str | None = None
+    ) -> None:
         pass
 
 

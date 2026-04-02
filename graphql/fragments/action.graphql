@@ -1,9 +1,9 @@
 fragment Definition on Action {
   args {
-    ...Port
+    ...ArgPort
   }
   returns {
-    ...Port
+    ...ReturnPort
   }
   kind
   name
@@ -40,10 +40,10 @@ fragment ListAction on Action {
   name
   description
   args {
-    ...Port
+    ...ArgPort
   }
   returns {
-    ...Port
+    ...ReturnPort
   }
   stateful
 }

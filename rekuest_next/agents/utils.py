@@ -1,8 +1,10 @@
 from typing import Optional, List
-from rekuest_next.api.schema import PortInput, StateSchemaInput
+from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
 
 
-def resolve_port_for_path(schema: StateSchemaInput, path: str) -> Optional[PortInput]:
+def resolve_port_for_path(
+    schema: StateSchemaInput, path: str
+) -> Optional[ReturnPortInput]:
     """
     Resolves the specific Port definition for a given JSON path within the State Schema.
 
@@ -29,7 +31,7 @@ def resolve_port_for_path(schema: StateSchemaInput, path: str) -> Optional[PortI
     # 2. Start Search Context
     # We look for top-level ports first
     current_search_scope = schema.ports
-    found_port: Optional[PortInput] = None
+    found_port: Optional[ReturnPortInput] = None
 
     for i, part in enumerate(parts):
         # --- Case A: List Index (Digit or Append '-') ---

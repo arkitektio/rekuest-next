@@ -1,6 +1,6 @@
 {
     "schema_url": "http://jhnnsrs-lab/rekuest/schema",
-    "documents": "graphql/rekuest-next/*/**.graphql",
+    "documents": "graphql/rekuest-next/**/**.graphql",
     "extensions": {
         "turms": {
             "pydantic_version": "v2",
@@ -11,7 +11,7 @@
             "dump_schema": true,
             "schema_name": "schema.graphql",
             "generated_name": "schema.py",
-            "documents": "graphql/rekuest-next/*/**.graphql",
+            "documents": "graphql/rekuest-next/**/**.graphql",
             "verbose": false,
             "exit_on_error": true,
             "allow_introspection": true,
@@ -29,6 +29,7 @@
                 "AnyDefault": "typing.Any",
                 "Args": "rekuest_next.scalars.Args",
                 "ValueMap": "rekuest_next.scalars.ValueMap",
+                "MediaLike": "rekuest_next.scalars.MediaLike",
                 "ID": "rath.scalars.ID",
                 "ActionHash": "rekuest_next.scalars.ActionHash",
                 "Arg": "typing.Any",
@@ -77,12 +78,6 @@
                     "rekuest_next.traits.ports.PortTrait"
                 ],
                 "ChildPortInput": [
-                    "rekuest_next.traits.ports.PortTrait"
-                ],
-                "Port": [
-                    "rekuest_next.traits.ports.PortTrait"
-                ],
-                "ChildPort": [
                     "rekuest_next.traits.ports.PortTrait"
                 ],
                 "AssignWidgetInput": [

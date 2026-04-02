@@ -5,6 +5,7 @@ into an actor.
 """
 
 import inspect
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,6 +22,7 @@ from rekuest_next.agents.context import (
     prepare_context_variables,
 )
 from rekuest_next.api.schema import (
+    AgentDependencyInput,
     DefinitionInput,
     OptimisticInput,
     PortGroupInput,
@@ -37,8 +39,8 @@ from rekuest_next.state.utils import (
     PreparedStateVariables,
     prepare_state_variables,
 )
+from rekuest_next.agents.dependency import prepare_dependency_variables
 from rekuest_next.structures.registry import StructureRegistry
-from dataclasses import dataclass
 
 
 def reactify(
@@ -61,6 +63,8 @@ def reactify(
     name: str | None = None,
     auto_locks: bool = True,
     locks: Optional[List[str]] = None,
+    version: Optional[str] = None,
+    key: Optional[str] = None,
 ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Reactify a function
 
@@ -71,6 +75,7 @@ def reactify(
 
     state_variables, state_returns = prepare_state_variables(function)
     context_variables, context_returns = prepare_context_variables(function)
+    dependency_variables = prepare_dependency_variables(function)
 
     if not locks and auto_locks:
         locks = []
@@ -88,6 +93,7 @@ def reactify(
         state_returns=state_returns,
         context_variables=context_variables,
         context_returns=context_returns,
+        dependency_variables=dependency_variables,
         locks=locks,
     )
 
@@ -106,8 +112,10 @@ def reactify(
         description=description,
         return_widgets=return_widgets,
         logo=logo,
+        key=key,
+        version=version,
     )
-
+    
     is_coroutine = inspect.iscoroutinefunction(function)
     is_asyncgen = inspect.isasyncgenfunction(function)
     is_method = inspect.ismethod(function)
@@ -125,6 +133,7 @@ def reactify(
         "state_returns": state_returns,
         "context_variables": context_variables,
         "context_returns": context_returns,
+        "dependency_variables": dependency_variables,
         "locks": locks,
     }
 

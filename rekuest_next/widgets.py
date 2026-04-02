@@ -4,14 +4,14 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
     ChoiceInput,
-    PortInput,
+    ReturnPortInput,
+    ArgPortInput,
     AssignWidgetKind,
     ReturnWidgetKind,
     ValidatorFunction,
     ValidatorInput,
     EffectInput,
     EffectKind,
-    DescriptorInput,
 )
 from rekuest_next.structures.types import JSONSerializable
 from rekuest_next.definition.utils import DefaultAddin, DescriptionAddin
@@ -39,7 +39,7 @@ def SearchWidget(
     query: SearchQuery | str,
     ward: str,
     dependencies: list[str] | None = None,
-    filters: list[PortInput] | None = None,
+    filters: list[ArgPortInput] | None = None,
 ) -> AssignWidgetInput:
     (
         """Generte a search widget.
@@ -137,7 +137,7 @@ def ChoiceReturnWidget(choices: List[ChoiceInput]) -> ReturnWidgetInput:
     return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=tuple(choices))
 
 
-def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
+def ChoiceWidget(choices: List[str] | str | List[ChoiceInput]) -> AssignWidgetInput:
     """A choice widget.
 
     A choice widget is a widget that renders a list of choices with the
@@ -150,6 +150,23 @@ def ChoiceWidget(choices: List[ChoiceInput]) -> AssignWidgetInput:
         AssignWidgetInput: The widget input
     """
     return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
+
+
+def withStateChoices(state_path: str) -> AssignWidgetInput:
+    """A choice widget with choices from a state path.
+
+    A choice widget is a widget that renders a list of choices with the
+    value of the choice being highlighted. The choices are taken from a state
+    path.
+
+    Args:
+        state_path (str): The state path to take the choices from
+    """
+
+    return AssignWidgetInput(
+        kind=AssignWidgetKind.STATE_CHOICE,
+        choices=str,
+    )
 
 
 def withChoices(*choices: ChoiceInput | JSONSerializable) -> AssignWidgetInput:
@@ -245,15 +262,3 @@ def withEffect(
         dependencies=tuple(dependencies) if dependencies else None,
         message=message,
     )
-
-
-def withDescriptor(key: str, value: JSONSerializable) -> DescriptorInput:
-    """A decorator to add a description to a widget.
-
-    Args:
-        description (str): The description to add
-
-    Returns:
-        DescriptionAddin: The description addin
-    """
-    return DescriptorInput(key=key, value=value)

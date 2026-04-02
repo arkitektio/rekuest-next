@@ -33,3 +33,12 @@ def is_inside_assignation() -> bool:
         return True
     except LookupError:
         return False
+
+
+def get_current_assignation_id_or_none() -> str | None:
+    """Get the current assignation id."""
+    try:
+        helper = current_assignation_helper.get()
+        return helper.assignment.assignation
+    except LookupError as e:
+        return None

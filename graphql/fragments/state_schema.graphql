@@ -2,6 +2,6 @@ fragment StateSchema on StateSchema {
   id
   name
   ports {
-    ...Port
+    ...ReturnPort
   }
 }

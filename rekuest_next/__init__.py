@@ -24,7 +24,7 @@ from .actors.context import (
     apublish,
     install_hook,
 )
-from .declare import declare, protocol
+from .declare import declare, agent_protocol
 from .structures.model import model, model_field
 from .state.decorator import state
 from .app import (
@@ -36,7 +36,8 @@ from .app import (
 
 try:
     from .arkitekt import RekuestNextService
-except ImportError:
+except ImportError as e:
+    raise e
     pass
 
 

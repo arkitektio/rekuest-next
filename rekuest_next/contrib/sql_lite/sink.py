@@ -51,12 +51,11 @@ class SQLLiteSink:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS state_snapshots (
                     state_id TEXT NOT NULL,
-                    revision INTEGER NOT NULL,
                     global_revision INTEGER NOT NULL,
                     event_time INTEGER NOT NULL,
                     session_id TEXT NOT NULL,
                     state_data TEXT NOT NULL,
-                    PRIMARY KEY (state_id, revision, session_id),
+                    PRIMARY KEY (state_id, global_revision, session_id),
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
                 );
             """)
@@ -65,8 +64,6 @@ class SQLLiteSink:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS state_patches (
                     state_id TEXT NOT NULL,
-                    current_rev INTEGER NOT NULL,
-                    future_rev INTEGER NOT NULL,
                     global_current_rev INTEGER NOT NULL,
                     global_future_rev INTEGER NOT NULL,
                     event_time INTEGER NOT NULL,
@@ -75,9 +72,9 @@ class SQLLiteSink:
                     op TEXT NOT NULL,
                     path TEXT NOT NULL,
                     value TEXT,
-                    PRIMARY KEY (state_id, current_rev, session_id),
+                    PRIMARY KEY (state_id, global_current_rev, session_id),
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id),
-                    CHECK (future_rev = current_rev + 1) 
+                    CHECK (global_future_rev = global_current_rev + 1) 
                 );
             """)
 
@@ -174,10 +171,10 @@ class SQLLiteSink:
 
     async def awrite_patch(self, req: WritePatchReq) -> None:
         """Writes a patch to the store. The sink should enforce that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity. The correlation_id can be used to group patches that belong to the same logical task or operation, which can be useful for retrieval and debugging."""
-        if req.future_rev != req.current_rev + 1:
+        if req.global_future_rev != req.global_current_rev + 1:
             raise ValueError(
-                f"Integrity Error: future_rev ({req.future_rev}) must be exactly "
-                f"current_rev ({req.current_rev}) + 1."
+                f"Integrity Error: global_future_rev ({req.global_future_rev}) must be exactly "
+                f"global_current_rev ({req.global_current_rev}) + 1."
             )
 
         target_session = req.session_id or self.current_session_id
@@ -192,15 +189,13 @@ class SQLLiteSink:
                     await db.execute(
                         """
                         INSERT INTO state_patches (
-                            state_id, current_rev, future_rev, global_current_rev, global_future_rev, event_time, 
+                            state_id, global_current_rev, global_future_rev, event_time, 
                             correlation_id, session_id, op, path, value
                         ) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
                             req.state_id,
-                            req.current_rev,
-                            req.future_rev,
                             req.global_current_rev,
                             req.global_future_rev,
                             epoch_ms,
@@ -214,21 +209,20 @@ class SQLLiteSink:
                     await db.commit()
                 except aiosqlite.IntegrityError as e:
                     raise RuntimeError(
-                        f"Database Integrity Violation on patch {req.current_rev}->{req.future_rev}: {e}"
+                        f"Database Integrity Violation on patch {req.global_current_rev}->{req.global_future_rev}: {e}"
                     )
 
     async def ateardown(self):
         """Cleans up resources, such as the background processing task."""
         return None
 
-    async def is_cought_up_to(self, state_id: str, revision: int) -> bool:
+    async def is_cought_up_to(self, revision: int) -> bool:
         """Returns True if the sink has received patches/snapshots up to at least the given revision for the specified state_id."""
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 """
-                SELECT MAX(future_rev) FROM state_patches WHERE state_id = ?
-                """,
-                (state_id,),
+                SELECT MAX(global_future_rev) FROM state_patches
+                """
             ) as cursor:
                 row = await cursor.fetchone()
                 max_future_rev = row[0] if row and row[0] is not None else 0

@@ -1,5 +1,7 @@
 """This module mirros exactly the scalars used in the  rekuest_next library."""
 
+import io
+
 from graphql import (
     DocumentNode,
     FieldNode,
@@ -10,7 +12,7 @@ from graphql import (
     print_source_location,
     GraphQLSyntaxError,
 )
-from typing import Callable, Dict, Any, Union
+from typing import IO, Callable, Dict, Any, Union
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -25,7 +27,7 @@ ValueMap = Dict[str, Any]
 
 ValidatorFunctionCoercible = str
 SearchQueryCoercible = str | DocumentNode
-
+MediaLikeCoercible = str | IO[bytes]
 Args = Dict[str, Any]
 
 
@@ -267,3 +269,46 @@ class SearchQuery(str):
             )
 
         return SearchQuery(print_ast(v))
+
+
+class MediaLike:
+    """A custom scalar for wrapping of every supported array like structure on
+    the mikro platform. This scalar enables validation of various array formats
+    into a mikro api compliant xr.DataArray.."""
+
+    def __init__(self, value: IO[bytes]) -> None:
+        """Initialize the MediaLike scalar with a file-like object."""
+        self.value = value
+        self.key = str(value.name)
+        self.file_name = str(value.name)
+
+    def __get__(self, instance, owner) -> "MediaLike": ...  # noqa: ANN001, D105 # type: ignore
+
+    def __set__(self, instance, value: MediaLikeCoercible) -> None: ...  # noqa: ANN001, D105 # type: ignore
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the validator function"""
+        return core_schema.no_info_after_validator_function(
+            cls.validate, handler(object)
+        )
+
+    @classmethod
+    def validate(cls, v: MediaLikeCoercible) -> "MediaLike":
+        """Validate the input array and convert it to a xr.DataArray."""
+
+        if isinstance(v, str):
+            v = open(v, "rb")
+
+        if not isinstance(v, io.IOBase):
+            raise ValueError("This needs to be a instance of a file")
+
+        return cls(v)
+
+    def __repr__(self) -> str:
+        """Return a string representation of the MediaLike scalar."""
+        return f"MediaLike({self.value})"

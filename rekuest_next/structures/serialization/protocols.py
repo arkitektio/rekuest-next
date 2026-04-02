@@ -2,11 +2,19 @@
 
 from typing import Union
 from rekuest_next.api.schema import (
-    Port,
-    ChildPort,
-    ChildPortNested,
-    ChildPortNestedChildren,
-    PortInput,
+    ArgPort,
+    ReturnPort,
+    ArgChildPort,
+    ReturnChildPort,
+    ArgChildPortNested,
+    ReturnChildPortNested,
 )
 
-SerializablePort = Union[Port, ChildPort, ChildPortNested, ChildPortNestedChildren, PortInput]
+SerializablePort = Union[
+    ArgPort,
+    ReturnPort,
+    ArgChildPort,
+    ReturnChildPort,
+    ArgChildPortNested,
+    ReturnChildPortNested,
+]

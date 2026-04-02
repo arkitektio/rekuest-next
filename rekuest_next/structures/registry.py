@@ -1,5 +1,6 @@
 """The structure registry is a registry for all structures that are used in the system."""
 
+import re
 from typing import (
     Any,
     Callable,
@@ -13,13 +14,16 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from fluss.api.schema import ReturnWidgetInput
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ChoiceInput,
     EffectInput,
-    PortInput,
+    ArgPortInput,
+    ProvidesInput,
+    RequiresInput,
+    ReturnPortInput,
     PortKind,
-    ReturnWidgetInput,
     ValidatorInput,
 )
 from rekuest_next.structures.hooks.enum import enum_converter
@@ -312,7 +316,7 @@ class StructureRegistry(BaseModel):
             f" or a FullFilledEnum or a FullFilledMemoryStructure"
         )
 
-    def get_port_for_cls(
+    def get_argport_for_cls(
         self,
         cls: Type[Any],
         key: str,
@@ -323,8 +327,8 @@ class StructureRegistry(BaseModel):
         validators: Optional[List[ValidatorInput]] = None,
         default: Any = None,  # noqa: ANN401
         assign_widget: Optional[AssignWidgetInput] = None,
-        return_widget: Optional[ReturnWidgetInput] = None,
-    ) -> PortInput:
+        requires: Optional[List[RequiresInput]] = None,
+    ) -> ArgPortInput:
         """Create a port for a given class
 
         This will use the structure registry to find the correct
@@ -336,11 +340,10 @@ class StructureRegistry(BaseModel):
         fullfilled_type = self.get_fullfilled_type_for_cls(cls)
 
         if isinstance(fullfilled_type, FullFilledModel):
-            return PortInput(
+            return ArgPortInput(
                 kind=PortKind.MODEL,
                 identifier=fullfilled_type.identifier,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
+                widget=assign_widget,
                 key=key,
                 label=label,
                 default=None,
@@ -348,14 +351,14 @@ class StructureRegistry(BaseModel):
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,
                 validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
             )
 
         elif isinstance(fullfilled_type, FullFilledEnum):
-            return PortInput(
+            return ArgPortInput(
                 kind=PortKind.ENUM,
                 identifier=fullfilled_type.identifier,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
+                widget=assign_widget,
                 choices=tuple(fullfilled_type.choices),
                 key=key,
                 label=label,
@@ -366,14 +369,14 @@ class StructureRegistry(BaseModel):
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,
                 validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
             )
 
         elif isinstance(fullfilled_type, FullFilledMemoryStructure):
-            return PortInput(
+            return ArgPortInput(
                 kind=PortKind.MEMORY_STRUCTURE,
                 identifier=fullfilled_type.identifier,
-                assignWidget=assign_widget,
-                returnWidget=return_widget,
+                widget=assign_widget,
                 key=key,
                 label=label,
                 default=None,
@@ -381,14 +384,14 @@ class StructureRegistry(BaseModel):
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,
                 validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
             )
 
         elif isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
-            return PortInput(
+            return ArgPortInput(
                 kind=PortKind.STRUCTURE,
                 identifier=fullfilled_type.identifier,
-                assignWidget=assign_widget or fullfilled_type.default_widget,
-                returnWidget=return_widget or fullfilled_type.default_returnwidget,
+                widget=assign_widget or fullfilled_type.default_widget,
                 key=key,
                 label=label,
                 default=None,
@@ -396,6 +399,99 @@ class StructureRegistry(BaseModel):
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,
                 validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
+            )
+
+        else:
+            raise StructureRegistryError(
+                f"Could not create port for {cls} as it is not a FullFilledStructure"
+                f" or a FullFilledEnum or a FullFilledMemoryStructure"
+            )
+
+    def get_returnport_for_cls(
+        self,
+        cls: Type[Any],
+        key: str,
+        nullable: bool = False,
+        description: Optional[str] = None,
+        effects: Optional[list[EffectInput]] = None,
+        label: Optional[str] = None,
+        validators: Optional[List[ValidatorInput]] = None,
+        default: Any = None,  # noqa: ANN401
+        return_widget: Optional[ReturnWidgetInput] = None,
+        provides: Optional[List[ProvidesInput]] = None,
+    ) -> ReturnPortInput:
+        """Create a port for a given class
+
+        This will use the structure registry to find the correct
+        structure for the given class. It will then create a port
+        for this class. You can pass overwrites if the port
+        should not be created with the default values.
+        """
+
+        fullfilled_type = self.get_fullfilled_type_for_cls(cls)
+
+        if isinstance(fullfilled_type, FullFilledModel):
+            return ReturnPortInput(
+                kind=PortKind.MODEL,
+                identifier=fullfilled_type.identifier,
+                widget=return_widget,
+                key=key,
+                label=label,
+                default=None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                provides=tuple(provides) if provides else None,
+            )
+
+        elif isinstance(fullfilled_type, FullFilledEnum):
+            return ReturnPortInput(
+                kind=PortKind.ENUM,
+                identifier=fullfilled_type.identifier,
+                widget=return_widget,
+                choices=tuple(fullfilled_type.choices),
+                key=key,
+                label=label,
+                default=fullfilled_type.convert_default(default)
+                if default is not None
+                else None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                provides=tuple(provides) if provides else None,
+            )
+
+        elif isinstance(fullfilled_type, FullFilledMemoryStructure):
+            return ReturnPortInput(
+                kind=PortKind.MEMORY_STRUCTURE,
+                identifier=fullfilled_type.identifier,
+                widget=return_widget,
+                key=key,
+                label=label,
+                default=None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                provides=tuple(provides) if provides else None,
+            )
+
+        elif isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
+            return ReturnPortInput(
+                kind=PortKind.STRUCTURE,
+                identifier=fullfilled_type.identifier,
+                widget=return_widget,
+                key=key,
+                label=label,
+                default=None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                provides=tuple(provides) if provides else None,
             )
 
         else:
