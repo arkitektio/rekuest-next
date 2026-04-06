@@ -3,8 +3,6 @@
 from typing import TYPE_CHECKING
 
 from rekuest_next.scalars import MediaLike
-from aiobotocore.session import get_session  # type: ignore
-import botocore  # type: ignore
 from .errors import PermissionsError, UploadError
 
 from rekuest_next.datalayer import DataLayer
@@ -21,6 +19,10 @@ async def astore_media_file(
 ) -> str:
     """Store a media file using a presigned PUT URL built from datalayer endpoint and credentials."""
     """Store a DataFrame in the DataLayer"""
+
+    from aiobotocore.session import get_session  # type: ignore
+    import botocore  # type: ignore
+
     session = get_session()
 
     endpoint_url = await datalayer.get_endpoint_url()
@@ -35,14 +37,10 @@ async def astore_media_file(
     ) as client:
         try:
             print(credentials, file.value)
-            await client.put_object(
-                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
-            )  # type: ignore
+            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError(
-                    "Access Key is invalid, trying to get new credentials"
-                )  # type: ignore
+                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
 
             raise e
 

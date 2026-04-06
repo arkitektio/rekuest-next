@@ -3,8 +3,6 @@
 import collections
 from enum import Enum
 from typing import Callable, List, Union, get_type_hints
-
-from numpy import require
 from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
@@ -797,9 +795,7 @@ def prepare_definition(
 
     assert structure_registry is not None, "You need to pass a StructureRegistry"
 
-    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(
-        function
-    )
+    is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
 
     sig = inspect.signature(function)
     widgets = widgets or {}
@@ -841,9 +837,7 @@ def prepare_definition(
 
     function_ins_annotation = sig.parameters
 
-    doc_param_description_map = {
-        param.arg_name: param.description for param in docstring.params
-    }
+    doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
     doc_param_label_map: Dict[str, str] = {
         param.arg_name: param.arg_name for param in docstring.params
     }
@@ -863,9 +857,7 @@ def prepare_definition(
         )
     elif docstring.returns:
         doc_param_description_map.update({"return0": docstring.returns.description})
-        doc_param_label_map.update(
-            {"return0": docstring.returns.return_name or "return0"}
-        )
+        doc_param_label_map.update({"return0": docstring.returns.return_name or "return0"})
 
     if port_label_map:
         doc_param_label_map.update(port_label_map)
@@ -999,9 +991,7 @@ def prepare_definition(
         action_name = name
 
     elif docstring.long_description:
-        action_name = docstring.short_description or snake_to_title_case(
-            function.__name__
-        )
+        action_name = docstring.short_description or snake_to_title_case(function.__name__)
         description = description or docstring.long_description
 
     else:

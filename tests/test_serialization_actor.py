@@ -14,10 +14,11 @@ from .funcs import (
 from .structures import SecondObject, SerializableObject
 from rekuest_next.structures.errors import ShrinkingError, ExpandingError
 from rekuest_next.api.schema import (
-    DefinitionInput,
-    PortInput,
-    PortKind,
     ActionKind,
+    DefinitionInput,
+    ArgPortInput,
+    PortKind,
+    ReturnPortInput,
 )
 from typing import Any
 
@@ -176,12 +177,14 @@ async def test_expand_custom_definition(
 
     # Create a custom definition
     definition = DefinitionInput(
+        key="custom_func",
+        version="v1",
         name="custom_func",
         description="A custom function",
         args=(
-            PortInput(key="arg1", kind=PortKind.STRING, nullable=False),
-            PortInput(key="arg2", kind=PortKind.INT, nullable=True),
-            PortInput(key="arg3", kind=PortKind.BOOL, nullable=False),
+            ArgPortInput(key="arg1", kind=PortKind.STRING, nullable=False),
+            ArgPortInput(key="arg2", kind=PortKind.INT, nullable=True),
+            ArgPortInput(key="arg3", kind=PortKind.BOOL, nullable=False),
         ),
         returns=(),
         kind=ActionKind.FUNCTION,
@@ -222,12 +225,14 @@ async def test_shrink_custom_definition(
 
     # Create a custom definition
     definition = DefinitionInput(
+        key="custom_func_out",
+        version="v1",
         name="custom_func_out",
         description="A custom function output",
         args=(),
         returns=(
-            PortInput(key="ret1", kind=PortKind.STRING, nullable=False),
-            PortInput(key="ret2", kind=PortKind.FLOAT, nullable=False),
+            ReturnPortInput(key="ret1", kind=PortKind.STRING, nullable=False),
+            ReturnPortInput(key="ret2", kind=PortKind.FLOAT, nullable=False),
         ),
         kind=ActionKind.FUNCTION,
         collections=(),
@@ -256,19 +261,21 @@ async def test_expand_custom_list_dict(
     """Test expanding list and dict inputs with a manually created definition."""
 
     definition = DefinitionInput(
+        key="custom_complex",
+        version="v1",
         name="custom_complex",
         description="Complex inputs",
         args=(
-            PortInput(
+            ArgPortInput(
                 key="list_arg",
                 kind=PortKind.LIST,
-                children=(PortInput(key="item", kind=PortKind.INT, nullable=False),),
+                children=(ArgPortInput(key="item", kind=PortKind.INT, nullable=False),),
                 nullable=False,
             ),
-            PortInput(
+            ArgPortInput(
                 key="dict_arg",
                 kind=PortKind.DICT,
-                children=(PortInput(key="val", kind=PortKind.STRING, nullable=False),),
+                children=(ArgPortInput(key="val", kind=PortKind.STRING, nullable=False),),
                 nullable=False,
             ),
         ),

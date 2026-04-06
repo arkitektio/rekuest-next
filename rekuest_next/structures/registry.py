@@ -1,6 +1,5 @@
 """The structure registry is a registry for all structures that are used in the system."""
 
-import re
 from typing import (
     Any,
     Callable,
@@ -14,7 +13,6 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from fluss.api.schema import ReturnWidgetInput
 from rekuest_next.api.schema import (
     AssignWidgetInput,
     ChoiceInput,
@@ -23,6 +21,7 @@ from rekuest_next.api.schema import (
     ProvidesInput,
     RequiresInput,
     ReturnPortInput,
+    ReturnWidgetInput,
     PortKind,
     ValidatorInput,
 )
@@ -78,15 +77,11 @@ class StructureRegistry(BaseModel):
     identifier_structure_map: Dict[str, FullFilledStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_enum_map: Dict[str, FullFilledEnum] = Field(
-        default_factory=dict, exclude=True
-    )
+    identifier_enum_map: Dict[str, FullFilledEnum] = Field(default_factory=dict, exclude=True)
     identifier_memory_structure_map: Dict[str, FullFilledMemoryStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_model_map: Dict[str, FullFilledModel] = Field(
-        default_factory=dict, exclude=True
-    )
+    identifier_model_map: Dict[str, FullFilledModel] = Field(default_factory=dict, exclude=True)
     cls_fullfilled_type_map: Dict[Type[Any], FullFilledType] = Field(
         default_factory=lambda: {}, exclude=True
     )  # Map from class to fullfilled type
@@ -105,9 +100,7 @@ class StructureRegistry(BaseModel):
         """Get the fullfilled model for a given identifier."""
         return self.identifier_model_map[identifier]
 
-    def get_fullfilled_memory_structure(
-        self, identifier: str
-    ) -> FullFilledMemoryStructure:
+    def get_fullfilled_memory_structure(self, identifier: str) -> FullFilledMemoryStructure:
         """Get the fullfilled memory structure for a given identifier."""
         return self.identifier_memory_structure_map[identifier]
 
@@ -163,9 +156,7 @@ class StructureRegistry(BaseModel):
         try:
             return self.cls_fullfilled_type_map[cls].identifier
         except KeyError as e:
-            raise StructureRegistryError(
-                f"Identifier for {cls} is not registered"
-            ) from e
+            raise StructureRegistryError(f"Identifier for {cls} is not registered") from e
 
     def register_as_model(
         self,
@@ -302,9 +293,7 @@ class StructureRegistry(BaseModel):
             return
 
         if isinstance(fullfilled_type, FullFilledMemoryStructure):
-            self.identifier_memory_structure_map[fullfilled_type.identifier] = (
-                fullfilled_type
-            )
+            self.identifier_memory_structure_map[fullfilled_type.identifier] = fullfilled_type
             return
 
         if isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
@@ -362,9 +351,7 @@ class StructureRegistry(BaseModel):
                 choices=tuple(fullfilled_type.choices),
                 key=key,
                 label=label,
-                default=fullfilled_type.convert_default(default)
-                if default is not None
-                else None,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
                 nullable=nullable,
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,
@@ -454,9 +441,7 @@ class StructureRegistry(BaseModel):
                 choices=tuple(fullfilled_type.choices),
                 key=key,
                 label=label,
-                default=fullfilled_type.convert_default(default)
-                if default is not None
-                else None,
+                default=fullfilled_type.convert_default(default) if default is not None else None,
                 nullable=nullable,
                 effects=tuple(effects or []),
                 description=description or fullfilled_type.description,

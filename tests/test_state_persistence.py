@@ -21,9 +21,9 @@ class QueuedCounterState:
 
 
 class DummyAgent(BaseAgent[None]):
-    _published_envelopes: list[messages.Envelope] = PrivateAttr(default_factory=list)
+    _published_envelopes: list[messages.StatePatchEvent] = PrivateAttr(default_factory=list)
 
-    async def apublish_envelope(self, interface: str, envelope: messages.Envelope) -> None:
+    async def apublish_envelope(self, interface: str, envelope: messages.StatePatchEvent) -> None:
         self._published_envelopes.append(envelope)
 
     async def apublish_states(self, state_implementation):

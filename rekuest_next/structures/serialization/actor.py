@@ -955,11 +955,6 @@ async def ashrink_actor_arg(
                 )
 
         if port.kind == PortKind.DICT:
-            if isinstance(port, ChildPortNestedChildren):
-                raise ShrinkingError(
-                    f"Maximum nesting level reached for {port} with value {value}"
-                )
-
             if not isinstance(value, dict):
                 raise ShrinkingError(
                     f"Expected value to be a dict, but got {type(value)}"
@@ -992,11 +987,6 @@ async def ashrink_actor_arg(
             }
 
         if port.kind == PortKind.LIST:
-            if isinstance(port, ChildPortNestedChildren):
-                raise ShrinkingError(
-                    f"Maximum nesting level reached for {port} with value {value}"
-                )
-
             if not isinstance(value, list):
                 raise ShrinkingError(
                     f"Expected value to be a list, but got {type(value)}"
@@ -1032,11 +1022,6 @@ async def ashrink_actor_arg(
             return int(value) if value is not None else None
 
         if port.kind == PortKind.UNION:
-            if isinstance(port, ChildPortNestedChildren):
-                raise ShrinkingError(
-                    f"Maximum nesting level reached for {port} with value {value}"
-                )
-
             if not port.children:
                 raise ShrinkingError(
                     f"Port {port} has no children, but value is a dict"
@@ -1046,12 +1031,9 @@ async def ashrink_actor_arg(
                 if predicate_serializable_port(
                     possible_port, value, structure_registry
                 ):
-                    return {
-                        "use": index,
-                        "value": await ashrink_actor_arg(
-                            possible_port, value, structure_registry
-                        ),
-                    }
+                    return await ashrink_actor_arg(
+                        possible_port, value, structure_registry
+                    )
 
             raise ShrinkingError(
                 f"Port is union butn none of the predicated for this port held true {port.children}"
@@ -1061,11 +1043,6 @@ async def ashrink_actor_arg(
             return value.isoformat() if value is not None else None
 
         if port.kind == PortKind.ENUM:
-            if isinstance(port, ChildPortNestedChildren):
-                raise ShrinkingError(
-                    f"Maximum nesting level reached for {port} with value {value}"
-                )
-
             if port.identifier is None:
                 raise ShrinkingError(f"Port {port} is an enum but has no identifier")
 
@@ -1115,7 +1092,7 @@ async def ashrink_actor_arg(
 
             try:
                 shrink = await fenum.ashrink(value)
-                return str(shrink)
+                return {"__identifier": port.identifier, "object": str(shrink)}
             except Exception:
                 raise StructureShrinkingError(
                     f"Error shrinking {repr(value)} with Structure {port.identifier}"
@@ -1128,11 +1105,6 @@ async def ashrink_actor_arg(
             return str(value) if value is not None else None
 
         if port.kind == PortKind.MODEL:
-            if isinstance(port, ChildPortNestedChildren):
-                raise ShrinkingError(
-                    f"Maximum nesting level reached for {port} with value {value}"
-                )
-
             if not port.identifier:
                 raise ShrinkingError(f"Port {port} is a model but has no identifier")
 
@@ -1158,6 +1130,9 @@ async def ashrink_actor_arg(
                     port.key: val for port, val in zip(port.children, shrinked_args)
                 }
 
+                # Add shrinked identifier
+                shrinked_params["__identifier"] = port.identifier
+
                 return shrinked_params
 
             except Exception as e:
@@ -1178,6 +1153,8 @@ async def ashrink_actor_args(
     args: Sequence[Any],
     kwargs: Dict[str, Any],
     structure_registry: StructureRegistry,
+    path: Sequence[str] | None = None,
+    depth: int = 0,
 ) -> Dict[str, JSONSerializable]:
     """Shrinks args and kwargs
 
@@ -1232,6 +1209,8 @@ async def aexpand_actor_return(
     port: ReturnPortInput,
     value: JSONSerializable,  # noqa: ANN401
     structure_registry: StructureRegistry,
+    path: Sequence[str] | None = None,
+    depth: int = 0,
 ) -> Any:  # noqa: ANN401
     """Expand a value through a port
 
@@ -1303,21 +1282,13 @@ async def aexpand_actor_return(
                 f"Port {port.identifier} has not more than one child"
             )
 
-        assert isinstance(value, dict), "Union value needs to be a dict"
-        assert "use" in value, "No use in vaalue"
-        index = value["use"]
-        true_value = value["value"]
-
-        if not isinstance(index, int):
-            raise PortExpandingError(
-                f"Expected index to be an int, but got {type(index)}"
-            )
-
-        return await aexpand_actor_return(
-            port.children[index],
-            true_value,
-            structure_registry=structure_registry,
-        )
+        for index, possible_port in enumerate(port.children):
+            if predicate_serializable_port(possible_port, value, structure_registry):
+                return await aexpand_actor_return(
+                    port.children[index],
+                    value,
+                    structure_registry=structure_registry,
+                )
 
     if port.kind == PortKind.INT:
         if not isinstance(value, (int, str)):
@@ -1349,14 +1320,41 @@ async def aexpand_actor_return(
         return value
 
     if port.kind == PortKind.STRUCTURE:
-        if not port.identifier:
-            raise PortExpandingError(
-                f"Port {port} is a structure but has no identifier"
-            )
-        if not (isinstance(value, str) or isinstance(value, int)):
-            raise PortExpandingError(
-                f"Expected value to be a string or int, but got {type(value)}"
-            )
+        if not isinstance(value, (dict)):
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept dicts for structures",
+            ) from None
+
+        if "__identifier" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing __identifier key in dict",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if value["__identifier"] != port.identifier:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Identifier mismatch: expected {port.identifier}, got {value['__identifier']}",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if "object" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing object key in dict",
+                path=path,
+                depth=depth,
+            ) from None
+
+        object = value["object"]
 
         try:
             fstruc = structure_registry.get_fullfilled_structure(port.identifier)
@@ -1366,7 +1364,7 @@ async def aexpand_actor_return(
             ) from e
 
         try:
-            return await fstruc.aexpand(ID.validate(value))
+            return await fstruc.aexpand(ID.validate(object))
         except Exception:
             raise StructureExpandingError(
                 f"Error expanding {repr(value)} with Structure {port.identifier}"
@@ -1419,6 +1417,8 @@ async def aexpand_actor_returns(
                     port,
                     returns[port.key],
                     structure_registry=structure_registry,
+                    path=[port.key],
+                    depth=0,
                 )
             except Exception as e:
                 raise ExpandingError(

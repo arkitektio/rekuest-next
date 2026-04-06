@@ -17,7 +17,6 @@ from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
 from rekuest_next.agents.base import RekuestAgent
 from fakts_next import Fakts
 from rekuest_next.postmans.graphql import GraphQLPostman
-import upload
 from rekuest_next.links.upload import UploadLink
 from .structures.default import get_default_structure_registry
 from fakts_next.models import Requirement

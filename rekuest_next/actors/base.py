@@ -3,9 +3,6 @@
 from rekuest_next.agents.dependency import dependency_to_protocol
 
 from rath.scalars import ID
-
-from dask.array.core import A
-
 from rekuest_next.declare import DeclaredAgentProtocol, DeclaredAgentAction
 import typing_extensions
 
@@ -76,9 +73,7 @@ class Actor(BaseModel):
     agent: Agent = Field(
         description="The agent that is managing the actor. This is used to send messages to the agent"
     )
-    id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
-    )
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="The id of the actor")
     model_config = ConfigDict(arbitrary_types_allowed=True)
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     locks: Optional[Tuple[str, ...]] = Field(
@@ -90,12 +85,8 @@ class Actor(BaseModel):
         description="The sync group to use for this actor. This is used to synchronize access to the actor.",
     )
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
+    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
+    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(default_factory=lambda: {})
     _running_assignment_hooks: Dict[str, AssignmentHook] = PrivateAttr(
         default_factory=lambda: {},
     )
@@ -107,9 +98,7 @@ class Actor(BaseModel):
             values["sync"] = SyncGroup()
         return values
 
-    def install_assignment_hook(
-        self, assignation_id: str, hook: AssignmentHook
-    ) -> None:
+    def install_assignment_hook(self, assignation_id: str, hook: AssignmentHook) -> None:
         """Install an assignment hook for the given assignation ID.
 
         Args:
@@ -276,9 +265,7 @@ class Actor(BaseModel):
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(
-                    f"Task {key} was cancelled through applicaction. Setting Critical"
-                )
+                logger.info(f"Task {key} was cancelled through applicaction. Setting Critical")
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
@@ -308,9 +295,7 @@ class Actor(BaseModel):
             )
             return True
         else:
-            logger.debug(
-                f"Currently no break future for {assignation_id} was found. Wasn't paused"
-            )
+            logger.debug(f"Currently no break future for {assignation_id} was found. Wasn't paused")
             return False
 
     def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:
@@ -357,9 +342,7 @@ class Actor(BaseModel):
         if isinstance(message, messages.Assign):
             if message.step:
                 # We are creating a break future already
-                logger.debug(
-                    f"Creating break future for assignation {message.assignation} in step"
-                )
+                logger.debug(f"Creating break future for assignation {message.assignation} in step")
                 self._break_futures[message.assignation] = asyncio.Future()
 
             task = asyncio.create_task(
@@ -387,20 +370,14 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.assignation]
                         await self.agent.asend(
                             actor=self,
-                            message=messages.CancelledEvent(
-                                assignation=message.assignation
-                            ),
+                            message=messages.CancelledEvent(assignation=message.assignation),
                         )
 
                 else:
-                    logger.warning(
-                        "Race Condition: Task was already done before cancellation"
-                    )
+                    logger.warning("Race Condition: Task was already done before cancellation")
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(
-                            assignation=message.assignation
-                        ),
+                        message=messages.CancelledEvent(assignation=message.assignation),
                     )
 
             else:
@@ -490,21 +467,15 @@ class SerializingActor(Actor):
     definition: DefinitionInput = Field(
         description="The definition of the actor, describing what arguents and return values it provides"
     )
-    state_returns: PreparedStateReturns = Field(
-        description="The state returns of the actor"
-    )
-    state_variables: PreparedStateVariables = Field(
-        description="The state variables of the actor"
-    )
+    state_returns: PreparedStateReturns = Field(description="The state returns of the actor")
+    state_variables: PreparedStateVariables = Field(description="The state variables of the actor")
     dependency_variables: PreparedDependencyVariables = Field(
         description="The dependency variables of the actor"
     )
     context_variables: PreparedContextVariables = Field(
         description="The context variables of the actor"
     )
-    context_returns: PreparedContextReturns = Field(
-        description="The context returns of the actor"
-    )
+    context_returns: PreparedContextReturns = Field(description="The context returns of the actor")
 
     structure_registry: StructureRegistry = Field(
         default=get_default_structure_registry(),
@@ -555,9 +526,7 @@ class SerializingActor(Actor):
             agent_protocol,
         ) in self.dependency_variables.dependency_variables.items():
             try:
-                print(
-                    f"Getting dependency proxy for {key} with protocol {agent_protocol}"
-                )
+                print(f"Getting dependency proxy for {key} with protocol {agent_protocol}")
                 dependency_kwargs[key] = AgentDependencyProxy(
                     key=key, agent_protocol=dependency_to_protocol(agent_protocol)
                 )
