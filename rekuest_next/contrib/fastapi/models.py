@@ -37,8 +37,7 @@ class RetrieverSnapshotResponse(BaseModel):
 
     timepoint: datetime
     data: Any
-    revision: int
-    global_revision: int | None
+    global_revision: int
     session_id: str
 
 
@@ -47,8 +46,6 @@ class RetrieverPatchEventResponse(BaseModel):
 
     timepoint: datetime
     state_id: str
-    current_rev: int
-    future_rev: int
     global_current_rev: int
     global_future_rev: int
     correlation_id: str
@@ -91,7 +88,6 @@ class StateView(BaseModel):
     interface: str
     name: str
     initialized: bool
-    local_revision: int
     value: Any | None = None
 
 

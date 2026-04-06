@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import asyncio
+import janus
 import pytest
 from pydantic import PrivateAttr
 
@@ -23,7 +24,7 @@ class QueuedCounterState:
 class DummyAgent(BaseAgent[None]):
     _published_envelopes: list[messages.StatePatchEvent] = PrivateAttr(default_factory=list)
 
-    async def apublish_envelope(self, interface: str, envelope: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, envelope: messages.StatePatchEvent) -> None:
         self._published_envelopes.append(envelope)
 
     async def apublish_states(self, state_implementation):
@@ -40,19 +41,19 @@ class DelayedCatchupSink(MemorySink):
     def __init__(self, delay: float) -> None:
         super().__init__()
         self.delay = delay
-        self._caught_up_revisions: dict[str, int] = {}
+        self._caught_up_revision: int = 0
         self._tasks: list[asyncio.Task[None]] = []
 
     async def awrite_patch(self, req: WritePatchReq):
         async def _persist_later() -> None:
             await asyncio.sleep(self.delay)
             self.store.patches.append(req)
-            self._caught_up_revisions[req.state_id] = req.future_rev
+            self._caught_up_revision = req.global_future_rev
 
         self._tasks.append(asyncio.create_task(_persist_later()))
 
-    async def is_cought_up_to(self, state_id: str, revision: int) -> bool:
-        return self._caught_up_revisions.get(state_id, 0) >= revision
+    async def is_cought_up_to(self, revision: int) -> bool:
+        return self._caught_up_revision >= revision
 
     async def ateardown(self):
         if self._tasks:
@@ -79,8 +80,7 @@ async def test_agent_queues_patches_and_publishes_envelopes() -> None:
         state_instance.__rekuest_state_config__.state_schema
     )
     agent._current_shrunk_states[interface] = {"value": 0}
-    agent._state_revisions[interface] = 0
-    agent._event_queue = asyncio.Queue()
+    agent._event_queue = janus.Queue()
     agent._patch_processor_task = asyncio.create_task(agent.apatch_event_loop())
 
     agent.publish_patch(
@@ -92,15 +92,14 @@ async def test_agent_queues_patches_and_publishes_envelopes() -> None:
         Patch(op="replace", path="/value", value=2, port=value_port, correlation_id="corr-1"),
     )
 
-    await asyncio.wait_for(agent._event_queue.join(), timeout=1)
+    await asyncio.wait_for(agent._event_queue.async_q.join(), timeout=1)
 
     assert [patch.value for patch in sink.store.patches] == [1, 2]
     assert agent._current_shrunk_states[interface]["value"] == 2
-    assert agent._state_revisions[interface] == 2
     assert agent.global_revision == 2
     assert sink.store.snapshots == []
     assert len(agent._published_envelopes) == 2
-    assert [envelope.patches[0].value for envelope in agent._published_envelopes] == [1, 2]
+    assert [envelope.value for envelope in agent._published_envelopes] == [1, 2]
 
     await agent.atear_down()
 
@@ -115,7 +114,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     await sink.adump_snapshot(
         WriteSnapshotReq(
             state_id="QueuedCounterState",
-            revision=0,
             global_revision=0,
             state_data={"value": 0},
             session_id=session_id,
@@ -124,8 +122,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     await sink.awrite_patch(
         WritePatchReq(
             state_id="QueuedCounterState",
-            current_rev=0,
-            future_rev=1,
             global_current_rev=0,
             global_future_rev=1,
             op="replace",
@@ -138,7 +134,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     await sink.adump_snapshot(
         WriteSnapshotReq(
             state_id="SecondaryState",
-            revision=0,
             global_revision=1,
             state_data={"value": 10},
             session_id=session_id,
@@ -147,8 +142,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     await sink.awrite_patch(
         WritePatchReq(
             state_id="SecondaryState",
-            current_rev=0,
-            future_rev=1,
             global_current_rev=1,
             global_future_rev=2,
             op="replace",
@@ -180,7 +173,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
         session_id=session_id,
     )
     assert state_at_local is not None
-    assert state_at_local.revision == 1
     assert state_at_local.global_revision == 1
     assert state_at_local.data["value"] == 1
 
@@ -190,7 +182,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
         session_id=session_id,
     )
     assert state_at_global is not None
-    assert state_at_global.revision == 1
     assert state_at_global.global_revision == 1
 
     forward_events = await retriever.aget_forward_events_after_rev(
@@ -200,7 +191,6 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
         count=10,
     )
     assert len(forward_events) == 1
-    assert forward_events[0].future_rev == 1
     assert forward_events[0].global_future_rev == 1
 
     snapshots = await retriever.aget_snapshots_around_rev(
@@ -211,7 +201,7 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
         after=1,
     )
     assert len(snapshots) == 1
-    assert snapshots[0].revision == 0
+    assert snapshots[0].global_revision == 0
 
     all_state_at_local = await retriever.aget_state_at_local_rev(
         revision=1,
@@ -219,7 +209,7 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     )
     assert all_state_at_local is not None
     assert len(all_state_at_local) == 2
-    assert sorted(snapshot.data["value"] for snapshot in all_state_at_local) == [1, 11]
+    assert sorted(snapshot.data["value"] for snapshot in all_state_at_local) == [1, 10]
 
     all_state_at_global = await retriever.aget_state_at_global_rev(
         global_revision=2,
@@ -267,8 +257,7 @@ async def test_agent_teardown_waits_for_sink_catch_up() -> None:
         state_instance.__rekuest_state_config__.state_schema
     )
     agent._current_shrunk_states[interface] = {"value": 0}
-    agent._state_revisions[interface] = 0
-    agent._event_queue = asyncio.Queue()
+    agent._event_queue = janus.Queue()
     agent._patch_processor_task = asyncio.create_task(agent.apatch_event_loop())
 
     agent.publish_patch(
@@ -279,4 +268,4 @@ async def test_agent_teardown_waits_for_sink_catch_up() -> None:
     await agent.atear_down()
 
     assert [patch.value for patch in sink.store.patches] == [1]
-    assert await sink.is_cought_up_to(interface, 1)
+    assert await sink.is_cought_up_to(1)

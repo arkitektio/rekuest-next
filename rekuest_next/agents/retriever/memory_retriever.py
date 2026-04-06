@@ -77,7 +77,6 @@ class MemoryRetriever:
             target_revision=global_revision,
             state_id=state_id,
             session_id=session_id,
-            use_global_revision=True,
         )
 
     async def aget_state_at_local_rev(
@@ -90,7 +89,6 @@ class MemoryRetriever:
             target_revision=revision,
             state_id=state_id,
             session_id=session_id,
-            use_global_revision=False,
         )
 
     async def aget_forward_events_after_rev(
@@ -111,7 +109,7 @@ class MemoryRetriever:
             self._to_patch_event(patch)
             for patch in sorted(
                 patches,
-                key=lambda item: (item.global_current_rev, item.state_id, item.current_rev),
+                key=lambda item: (item.global_current_rev, item.state_id),
             )[:count]
         ]
 
@@ -134,7 +132,7 @@ class MemoryRetriever:
             self._to_patch_event(patch)
             for patch in sorted(
                 patches,
-                key=lambda item: (item.global_current_rev, item.state_id, item.current_rev),
+                key=lambda item: (item.global_current_rev, item.state_id),
             )
         ]
 
@@ -157,12 +155,12 @@ class MemoryRetriever:
                 and (session_id is None or snapshot.session_id == session_id)
             ]
             before_snapshots = sorted(
-                (snapshot for snapshot in snapshots if snapshot.revision <= revision),
-                key=lambda item: item.revision,
+                (snapshot for snapshot in snapshots if snapshot.global_revision <= revision),
+                key=lambda item: item.global_revision,
             )[-before:]
             after_snapshots = sorted(
-                (snapshot for snapshot in snapshots if snapshot.revision > revision),
-                key=lambda item: item.revision,
+                (snapshot for snapshot in snapshots if snapshot.global_revision > revision),
+                key=lambda item: item.global_revision,
             )[:after]
             collected.extend(self._to_snapshot(snapshot) for snapshot in before_snapshots)
             collected.extend(self._to_snapshot(snapshot) for snapshot in after_snapshots)
@@ -174,7 +172,6 @@ class MemoryRetriever:
         target_revision: int,
         state_id: Optional[str],
         session_id: Optional[str],
-        use_global_revision: bool,
     ) -> Snapshot | list[Snapshot] | None:
         state_ids = [state_id] if state_id is not None else self._get_state_ids(session_id)
         snapshots = [
@@ -184,7 +181,6 @@ class MemoryRetriever:
                     candidate_state_id,
                     target_revision=target_revision,
                     session_id=session_id,
-                    use_global_revision=use_global_revision,
                 )
                 for candidate_state_id in state_ids
             )
@@ -199,12 +195,7 @@ class MemoryRetriever:
         state_id: str,
         target_revision: int,
         session_id: Optional[str],
-        use_global_revision: bool,
     ) -> Optional[Snapshot]:
-        revision_attr = "global_revision" if use_global_revision else "revision"
-        patch_current_attr = "global_current_rev" if use_global_revision else "current_rev"
-        patch_future_attr = "global_future_rev" if use_global_revision else "future_rev"
-
         snapshots = [
             snapshot
             for snapshot in self._get_snapshots()
@@ -215,30 +206,25 @@ class MemoryRetriever:
             return None
 
         anchor = max(
-            (
-                snapshot
-                for snapshot in snapshots
-                if getattr(snapshot, revision_attr) <= target_revision
-            ),
-            key=lambda snapshot: getattr(snapshot, revision_attr),
+            (snapshot for snapshot in snapshots if snapshot.global_revision <= target_revision),
+            key=lambda snapshot: snapshot.global_revision,
             default=None,
         )
         if anchor is None:
             return None
 
         current_state = cast(JSONSerializable, copy.deepcopy(anchor.state_data))
-        anchor_revision = getattr(anchor, revision_attr)
+        anchor_revision = anchor.global_revision
         patches = [
             patch
             for patch in self._get_patches()
             if patch.state_id == state_id
-            and getattr(patch, patch_current_attr) >= anchor_revision
-            and getattr(patch, patch_future_attr) <= target_revision
+            and patch.global_current_rev >= anchor_revision
+            and patch.global_future_rev <= target_revision
             and (session_id is None or patch.session_id == session_id)
         ]
-        patches = sorted(patches, key=lambda item: getattr(item, patch_current_attr))
+        patches = sorted(patches, key=lambda item: item.global_current_rev)
 
-        last_revision = anchor.revision
         last_global_revision = anchor.global_revision
         last_timepoint = anchor.event_time
 
@@ -248,14 +234,12 @@ class MemoryRetriever:
                 JSONSerializable,
                 jsonpatch.apply_patch(current_state, [patch_document], in_place=False),
             )
-            last_revision = patch.future_rev
             last_global_revision = patch.global_future_rev
             last_timepoint = patch.event_time
 
         return Snapshot(
             timepoint=last_timepoint,
             data=copy.deepcopy(current_state),
-            revision=last_revision,
             global_revision=last_global_revision,
             session_id=anchor.session_id or "",
         )
@@ -264,8 +248,6 @@ class MemoryRetriever:
         return PatchEvent(
             timepoint=patch.event_time,
             state_id=patch.state_id,
-            current_rev=patch.current_rev,
-            future_rev=patch.future_rev,
             global_current_rev=patch.global_current_rev,
             global_future_rev=patch.global_future_rev,
             correlation_id=patch.correlation_id or "",
@@ -277,7 +259,6 @@ class MemoryRetriever:
         return Snapshot(
             timepoint=snapshot.event_time,
             data=copy.deepcopy(snapshot.state_data),
-            revision=snapshot.revision,
             global_revision=snapshot.global_revision,
             session_id=snapshot.session_id or "",
         )

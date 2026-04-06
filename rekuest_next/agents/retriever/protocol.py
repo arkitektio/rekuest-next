@@ -18,8 +18,7 @@ class SessionInfo:
 class Snapshot:
     timepoint: datetime
     data: JSONSerializable
-    revision: int
-    global_revision: Optional[int]
+    global_revision: int
     session_id: str
 
 
@@ -27,8 +26,6 @@ class Snapshot:
 class PatchEvent:
     timepoint: datetime
     state_id: str
-    current_rev: int
-    future_rev: int
     global_current_rev: int
     global_future_rev: int
     correlation_id: str

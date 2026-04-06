@@ -43,7 +43,6 @@ def _to_snapshot_response(snapshot: RetrieverSnapshot) -> RetrieverSnapshotRespo
     return RetrieverSnapshotResponse(
         timepoint=snapshot.timepoint,
         data=snapshot.data,
-        revision=snapshot.revision,
         global_revision=snapshot.global_revision,
         session_id=snapshot.session_id,
     )
@@ -53,8 +52,6 @@ def _to_patch_event_response(event: RetrieverPatchEvent) -> RetrieverPatchEventR
     return RetrieverPatchEventResponse(
         timepoint=event.timepoint,
         state_id=event.state_id,
-        current_rev=event.current_rev,
-        future_rev=event.future_rev,
         global_current_rev=event.global_current_rev,
         global_future_rev=event.global_future_rev,
         correlation_id=event.correlation_id,

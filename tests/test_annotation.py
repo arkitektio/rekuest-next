@@ -61,8 +61,11 @@ def test_annotation_good(simple_registry: StructureRegistry) -> None:
 
     functional_definition = prepare_definition(func, structure_registry=simple_registry)
 
-    assert functional_definition.args[0].assign_widget.choices[0].value == Service.KABINET
-    assert functional_definition.args[0].assign_widget.choices[1].value == Service.ELEKTRO
+    assign_widget = functional_definition.args[0].widget
+    assert assign_widget is not None, "Widget should be attached to the argument"
+    assert assign_widget.choices is not None, "Widget should have choices"
+    assert assign_widget.choices[0].value == Service.KABINET
+    assert assign_widget.choices[1].value == Service.ELEKTRO
     assert (
         functional_definition.args[0].validators[0].function == "(services) => services.length > 0"
     )
