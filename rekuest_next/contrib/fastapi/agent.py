@@ -28,8 +28,12 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
 
 from rekuest_next import messages
-from rekuest_next.agents.base import BaseAgent
+from rekuest_next.agents.base import BaseAgent, RevisedState
 from rekuest_next.agents.transport.base import AgentTransport
+from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetriever
+from rekuest_next.contrib.fastapi.retriever.protocol import StateRetriever
+from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink
+from rekuest_next.contrib.fastapi.sink.protocol import StateSink
 from rekuest_next.api.schema import StateImplementationInput, StateSchemaInput
 from rekuest_next.contrib.fastapi.models import (
     LockView,
@@ -528,6 +532,17 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         default_factory=FastApiTransport,
         description="The FastAPI transport for this agent.",
     )
+    sink: StateSink = Field(default_factory=lambda: MemorySink())
+    retriever: StateRetriever = Field(default_factory=lambda: MemoryRetriever())
+
+    sink_catch_up_timeout: float | None = Field(
+        default=5.0,
+        description="Maximum number of seconds to wait for the sink to report that it has caught up during shutdown. Use `None` to wait indefinitely.",
+    )
+    sink_catch_up_poll_interval: float = Field(
+        default=0.05,
+        description="Polling interval in seconds used while waiting for the sink to catch up during shutdown.",
+    )
 
     def model_post_init(self, __context: Any) -> None:
         """Wire task routing so websocket subscriptions use action keys."""
@@ -535,6 +550,8 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         self.transport.connection_manager.task_routing_key_resolver = (
             self.get_task_action_key_for_message
         )
+        if isinstance(self.sink, MemorySink) and isinstance(self.retriever, MemoryRetriever):
+            self.retriever.store = self.sink.store
 
     async def abuild_websocket_init_message(
         self,
@@ -730,5 +747,78 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         await self.transport.asend(message)
 
     async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
-        """Publish a state patch event to all connected websocket clients."""
+        """Publish a state patch event: broadcast to websocket clients and persist to sink."""
         await self.transport.asend(patch)
+        await self.sink.awrite_patch(patch)
+
+        if patch.global_rev % self.snapshot_interval == 0:
+            snapshot = messages.StateSnapshotEvent(
+                session_id=patch.session_id,
+                global_rev=patch.global_rev,
+                snapshots={
+                    interface: copy.deepcopy(shrunk_state)
+                    for interface, shrunk_state in self._current_shrunk_states.items()
+                },
+            )
+            await self.sink.adump_snapshot(snapshot)
+
+    async def aget_revised_state(self, interface: str) -> RevisedState:
+        """Get the current agent-owned shrunk state and revision for an interface."""
+        from rekuest_next.agents.errors import AgentException
+
+        if interface not in self._current_shrunk_states:
+            raise AgentException(f"No shrunk state found for interface {interface}")
+
+        return RevisedState(
+            revision=self.global_revision,
+            data=copy.deepcopy(self._current_shrunk_states[interface]),
+        )
+
+    async def _acreate_session(self) -> str:
+        return await self.sink.acreate_session(
+            states=list(self.states.values()),
+            implementations=list(self.interface_implementation_map.values()),
+        )
+
+    async def _await_persistence_caught_up(self) -> None:
+        poll_interval = max(self.sink_catch_up_poll_interval, 0.0)
+
+        async def _wait() -> None:
+            while not await self.sink.is_cought_up_to(self.global_revision):
+                await asyncio.sleep(poll_interval)
+
+        if self.sink_catch_up_timeout is None:
+            await _wait()
+            return None
+
+        try:
+            await asyncio.wait_for(_wait(), timeout=self.sink_catch_up_timeout)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timed out waiting for persistence to catch up during shutdown after %.2fs",
+                self.sink_catch_up_timeout,
+            )
+
+    async def astart(self, instance_id: str, app_context: Any) -> None:
+        """Start the agent and initialize the sink and retriever."""
+        await self.sink.ainitialize()
+        await self.retriever.ainitialize()
+        await super().astart(instance_id=instance_id, app_context=app_context)
+        # Dump initial snapshots after states are initialized
+        if self._current_shrunk_states:
+            snapshot = messages.StateSnapshotEvent(
+                session_id=self.current_session,
+                global_rev=self.global_revision,
+                snapshots={
+                    interface: copy.deepcopy(shrunk_state)
+                    for interface, shrunk_state in self._current_shrunk_states.items()
+                },
+            )
+            await self.sink.adump_snapshot(snapshot)
+
+    async def atear_down(self) -> None:
+        """Tear down the agent and clean up the sink and retriever."""
+        await super().atear_down()
+        await self._await_persistence_caught_up()
+        await self.sink.ateardown()
+        await self.retriever.ateardown()

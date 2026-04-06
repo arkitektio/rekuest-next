@@ -374,6 +374,7 @@ def convert_object_to_argport(
             cls=value_cls, registry=registry, nullable=False, key="..."
         )
         return ArgPortInput(
+            key=key,
             kind=PortKind.DICT,
             widget=assign_widget,
             children=tuple([child]),
@@ -815,7 +816,11 @@ def prepare_definition(
     # Docstring Parser to help with descriptions
     docstring = parse(function.__doc__ or "")
 
-    definition_key = key or function.__name__
+    function_name = (
+        getattr(function, "__name__", None) or function.__class__.__name__ or "unknown_function"
+    )
+
+    definition_key = key or function_name
 
     is_dev = False
 
@@ -823,14 +828,14 @@ def prepare_definition(
         is_dev = True
         if not allow_dev:
             raise NonSufficientDocumentation(
-                f"We are not in dev mode. Please provide a name or better document  {function.__name__}. Try docstring :)"
+                f"We are not in dev mode. Please provide a name or better document  {function_name}. Try docstring :)"
             )
 
     if not docstring.long_description and description is None and not allow_empty_doc:
         is_dev = True
         if not allow_dev:
             raise NonSufficientDocumentation(
-                f"We are not in dev mode. Please provide a description or better document  {function.__name__}. Try docstring :)"
+                f"We are not in dev mode. Please provide a description or better document  {function_name}. Try docstring :)"
             )
 
     type_hints = get_type_hints(function, include_extras=allow_annotations)
@@ -882,7 +887,7 @@ def prepare_definition(
 
         if cls is None:
             raise DefinitionError(
-                f"Could not find type hint for {key} in {function.__name__}. Please provide a type hint (or default) for this argument."
+                f"Could not find type hint for {key} in {function_name}. Please provide a type hint (or default) for this argument."
             )
 
         if is_dependency_type(cls):
@@ -909,7 +914,7 @@ def prepare_definition(
             )
         except Exception as e:
             raise DefinitionError(
-                f"Could not convert Argument of function {function.__name__} to ArgPort: {value}"
+                f"Could not convert Argument of function {function_name} to ArgPort: {value}"
             ) from e
 
     function_outs_annotation = type_hints.get("return", None)
@@ -945,7 +950,7 @@ def prepare_definition(
 
             if is_dependency_type(function_outs_annotation):
                 raise DefinitionError(
-                    f"Function {function.__name__} has a return type that is a dependency. This is not allowed. Please change the return type."
+                    f"Function {function_name} has a return type that is a dependency. This is not allowed. Please change the return type."
                 )
 
             if is_tuple(function_outs_annotation):
@@ -995,24 +1000,24 @@ def prepare_definition(
         description = description or docstring.long_description
 
     else:
-        action_name = name or snake_to_title_case(function.__name__)
+        action_name = name or snake_to_title_case(function_name)
         description = description or docstring.short_description or "No Description"
 
     if widgets:
         raise DefinitionError(
-            f"Could not find the following ports for the widgets in the function {function.__name__}: {','.join(widgets.keys())}. Did you forget the type hint?"
+            f"Could not find the following ports for the widgets in the function {function_name}: {','.join(widgets.keys())}. Did you forget the type hint?"
         )
     if return_widgets:
         raise DefinitionError(
-            f"Could not find the following ports for the return widgets in the function {function.__name__}: {','.join(return_widgets.keys())}. Did you forget the type hint?"
+            f"Could not find the following ports for the return widgets in the function {function_name}: {','.join(return_widgets.keys())}. Did you forget the type hint?"
         )
     if port_label_map:
         raise DefinitionError(
-            f"Could not find the following ports for the labels in the function {function.__name__}: {','.join(port_label_map.keys())}. Did you forget the type hint?"
+            f"Could not find the following ports for the labels in the function {function_name}: {','.join(port_label_map.keys())}. Did you forget the type hint?"
         )
     if port_description_map:
         raise DefinitionError(
-            f"Could not find the following ports for the descriptions in the function {function.__name__}: {','.join(port_description_map.keys())}. Did you forget the type hint?"
+            f"Could not find the following ports for the descriptions in the function {function_name}: {','.join(port_description_map.keys())}. Did you forget the type hint?"
         )
 
     definition = DefinitionInput(

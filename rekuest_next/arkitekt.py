@@ -8,7 +8,7 @@ from fakts_next.contrib.rath.aiohttp import FaktsAIOHttpLink
 from fakts_next.contrib.rath.graphql_ws import FaktsGraphQLWSLink
 from fakts_next.contrib.rath.auth import FaktsAuthLink
 from rekuest_next.contrib.arkitekt.datalayer import FaktsDataLayer
-from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
+from rekuest_next.rath import RekuestNextRath
 from rekuest_next.rekuest import RekuestNext
 from graphql import OperationType
 from rekuest_next.contrib.arkitekt.websocket_agent_transport import (
@@ -21,7 +21,7 @@ from rekuest_next.links.upload import UploadLink
 from .structures.default import get_default_structure_registry
 from fakts_next.models import Requirement
 from arkitekt_next.service_registry import Params, BaseArkitektService
-
+from rath.links.compose import compose
 from arkitekt_next.service_registry import (
     get_default_service_registry,
 )
@@ -54,14 +54,14 @@ class RekuestNextService(BaseArkitektService):
         datalayer = FaktsDataLayer(fakts_group="s3", fakts=fakts)
 
         rath = RekuestNextRath(
-            link=RekuestNextLinkComposition(
-                upload=UploadLink(
+            link=compose(
+                UploadLink(
                     datalayer=datalayer,
                 ),
-                auth=FaktsAuthLink(
+                FaktsAuthLink(
                     fakts=fakts,
                 ),
-                split=SplitLink(
+                SplitLink(
                     left=FaktsAIOHttpLink(
                         fakts_group="rekuest",
                         fakts=fakts,

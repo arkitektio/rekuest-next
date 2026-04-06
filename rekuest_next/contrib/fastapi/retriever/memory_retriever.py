@@ -1,21 +1,22 @@
 import copy
+from datetime import datetime, timezone
 from typing import Optional, cast
 
 import jsonpatch  # type: ignore[import-untyped]
 
-from rekuest_next.agents.retriever.protocol import (
+from rekuest_next import messages
+from rekuest_next.contrib.fastapi.retriever.protocol import (
     PatchEvent,
     SessionBoundary,
     Snapshot,
     TaskBoundary,
 )
-from rekuest_next.agents.sink.memory_sink import MemoryStore
-from rekuest_next.agents.sink.protocol import WritePatchReq, WriteSnapshotReq
+from rekuest_next.contrib.fastapi.sink.memory_sink import MemoryStore
 from rekuest_next.messages import JSONSerializable
 
 
 class MemoryRetriever:
-    """In-memory retriever for persisted state history."""
+    """In-memory retriever for persisted state history stored as transport messages."""
 
     def __init__(self, store: Optional[MemoryStore] = None) -> None:
         self.store = store
@@ -35,17 +36,17 @@ class MemoryRetriever:
             patch
             for patch in self._get_patches()
             if patch.correlation_id == correlation_id
-            and (state_id is None or patch.state_id == state_id)
+            and (state_id is None or patch.state_name == state_id)
         ]
         if not patches:
             return None
 
         return TaskBoundary(
             correlation_id=correlation_id,
-            start_global_revision=min(patch.global_current_rev for patch in patches),
-            end_global_revision=max(patch.global_future_rev for patch in patches),
-            start_time=min(patch.event_time for patch in patches),
-            end_time=max(patch.event_time for patch in patches),
+            start_global_revision=min(patch.global_rev - 1 for patch in patches),
+            end_global_revision=max(patch.global_rev for patch in patches),
+            start_time=min(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
+            end_time=max(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
         )
 
     async def aget_session_boundaries(
@@ -54,17 +55,17 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.session_id == session_id and (state_id is None or patch.state_id == state_id)
+            if patch.session_id == session_id and (state_id is None or patch.state_name == state_id)
         ]
         if not patches:
             return None
 
         return SessionBoundary(
             session_id=session_id,
-            start_global_revision=min(patch.global_current_rev for patch in patches),
-            end_global_revision=max(patch.global_future_rev for patch in patches),
-            start_time=min(patch.event_time for patch in patches),
-            end_time=max(patch.event_time for patch in patches),
+            start_global_revision=min(patch.global_rev - 1 for patch in patches),
+            end_global_revision=max(patch.global_rev for patch in patches),
+            start_time=min(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
+            end_time=max(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
         )
 
     async def aget_state_at_global_rev(
@@ -101,15 +102,15 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.global_current_rev >= global_revision
-            and (state_id is None or patch.state_id == state_id)
+            if (patch.global_rev - 1) >= global_revision
+            and (state_id is None or patch.state_name == state_id)
             and (session_id is None or patch.session_id == session_id)
         ]
         return [
             self._to_patch_event(patch)
             for patch in sorted(
                 patches,
-                key=lambda item: (item.global_current_rev, item.state_id),
+                key=lambda item: (item.global_rev - 1, item.state_name),
             )[:count]
         ]
 
@@ -123,16 +124,16 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.global_current_rev >= from_global_revision
-            and patch.global_future_rev <= to_global_revision
-            and (state_ids is None or patch.state_id in state_ids)
+            if (patch.global_rev - 1) >= from_global_revision
+            and patch.global_rev <= to_global_revision
+            and (state_ids is None or patch.state_name in state_ids)
             and (session_id is None or patch.session_id == session_id)
         ]
         return [
             self._to_patch_event(patch)
             for patch in sorted(
                 patches,
-                key=lambda item: (item.global_current_rev, item.state_id),
+                key=lambda item: (item.global_rev - 1, item.state_name),
             )
         ]
 
@@ -148,24 +149,50 @@ class MemoryRetriever:
         collected: list[Snapshot] = []
 
         for candidate_state_id in state_ids:
-            snapshots = [
-                snapshot
-                for snapshot in self._get_snapshots()
-                if snapshot.state_id == candidate_state_id
-                and (session_id is None or snapshot.session_id == session_id)
-            ]
+            # Build per-state snapshot list from StateSnapshotEvent messages
+            state_snapshots = self._extract_state_snapshots(candidate_state_id, session_id)
             before_snapshots = sorted(
-                (snapshot for snapshot in snapshots if snapshot.global_revision <= revision),
-                key=lambda item: item.global_revision,
+                (s for s in state_snapshots if s[0] <= revision),
+                key=lambda item: item[0],
             )[-before:]
             after_snapshots = sorted(
-                (snapshot for snapshot in snapshots if snapshot.global_revision > revision),
-                key=lambda item: item.global_revision,
+                (s for s in state_snapshots if s[0] > revision),
+                key=lambda item: item[0],
             )[:after]
-            collected.extend(self._to_snapshot(snapshot) for snapshot in before_snapshots)
-            collected.extend(self._to_snapshot(snapshot) for snapshot in after_snapshots)
+            for rev, data, sess_id in before_snapshots:
+                collected.append(
+                    Snapshot(
+                        timepoint=datetime.now(timezone.utc),
+                        data=copy.deepcopy(data),
+                        global_revision=rev,
+                        session_id=sess_id,
+                    )
+                )
+            for rev, data, sess_id in after_snapshots:
+                collected.append(
+                    Snapshot(
+                        timepoint=datetime.now(timezone.utc),
+                        data=copy.deepcopy(data),
+                        global_revision=rev,
+                        session_id=sess_id,
+                    )
+                )
 
         return collected
+
+    def _extract_state_snapshots(
+        self,
+        state_id: str,
+        session_id: Optional[str],
+    ) -> list[tuple[int, JSONSerializable, str]]:
+        """Extract per-state (global_rev, data, session_id) tuples from stored snapshot events."""
+        result: list[tuple[int, JSONSerializable, str]] = []
+        for event in self._get_snapshots():
+            if session_id is not None and event.session_id != session_id:
+                continue
+            if state_id in event.snapshots:
+                result.append((event.global_rev, event.snapshots[state_id], event.session_id))
+        return result
 
     def _aget_state_at_revision(
         self,
@@ -196,37 +223,34 @@ class MemoryRetriever:
         target_revision: int,
         session_id: Optional[str],
     ) -> Optional[Snapshot]:
-        snapshots = [
-            snapshot
-            for snapshot in self._get_snapshots()
-            if snapshot.state_id == state_id
-            and (session_id is None or snapshot.session_id == session_id)
-        ]
-        if not snapshots:
+        # Find best anchor from snapshot events
+        state_snapshots = self._extract_state_snapshots(state_id, session_id)
+        if not state_snapshots:
             return None
 
         anchor = max(
-            (snapshot for snapshot in snapshots if snapshot.global_revision <= target_revision),
-            key=lambda snapshot: snapshot.global_revision,
+            (s for s in state_snapshots if s[0] <= target_revision),
+            key=lambda s: s[0],
             default=None,
         )
         if anchor is None:
             return None
 
-        current_state = cast(JSONSerializable, copy.deepcopy(anchor.state_data))
-        anchor_revision = anchor.global_revision
+        anchor_revision, anchor_data, anchor_session = anchor
+        current_state = cast(JSONSerializable, copy.deepcopy(anchor_data))
+
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.state_id == state_id
-            and patch.global_current_rev >= anchor_revision
-            and patch.global_future_rev <= target_revision
+            if patch.state_name == state_id
+            and (patch.global_rev - 1) >= anchor_revision
+            and patch.global_rev <= target_revision
             and (session_id is None or patch.session_id == session_id)
         ]
-        patches = sorted(patches, key=lambda item: item.global_current_rev)
+        patches = sorted(patches, key=lambda item: item.global_rev - 1)
 
-        last_global_revision = anchor.global_revision
-        last_timepoint = anchor.event_time
+        last_global_revision = anchor_revision
+        last_timepoint = datetime.now(timezone.utc)
 
         for patch in patches:
             patch_document = self._to_patch_document(patch.op, patch.path, patch.value)
@@ -234,33 +258,25 @@ class MemoryRetriever:
                 JSONSerializable,
                 jsonpatch.apply_patch(current_state, [patch_document], in_place=False),
             )
-            last_global_revision = patch.global_future_rev
-            last_timepoint = patch.event_time
+            last_global_revision = patch.global_rev
+            last_timepoint = datetime.fromtimestamp(patch.ts, tz=timezone.utc)
 
         return Snapshot(
             timepoint=last_timepoint,
             data=copy.deepcopy(current_state),
             global_revision=last_global_revision,
-            session_id=anchor.session_id or "",
+            session_id=anchor_session,
         )
 
-    def _to_patch_event(self, patch: WritePatchReq) -> PatchEvent:
+    def _to_patch_event(self, patch: messages.StatePatchEvent) -> PatchEvent:
         return PatchEvent(
-            timepoint=patch.event_time,
-            state_id=patch.state_id,
-            global_current_rev=patch.global_current_rev,
-            global_future_rev=patch.global_future_rev,
+            timepoint=datetime.fromtimestamp(patch.ts, tz=timezone.utc),
+            state_id=patch.state_name,
+            global_current_rev=patch.global_rev - 1,
+            global_future_rev=patch.global_rev,
             correlation_id=patch.correlation_id or "",
             session_id=patch.session_id or "",
             patch=self._to_patch_document(patch.op, patch.path, patch.value),
-        )
-
-    def _to_snapshot(self, snapshot: WriteSnapshotReq) -> Snapshot:
-        return Snapshot(
-            timepoint=snapshot.event_time,
-            data=copy.deepcopy(snapshot.state_data),
-            global_revision=snapshot.global_revision,
-            session_id=snapshot.session_id or "",
         )
 
     def _to_patch_document(
@@ -271,25 +287,22 @@ class MemoryRetriever:
             patch_document["value"] = value
         return patch_document
 
-    def _get_patches(self) -> list[WritePatchReq]:
+    def _get_patches(self) -> list[messages.StatePatchEvent]:
         if self.store is None:
             return []
         return list(self.store.patches)
 
-    def _get_snapshots(self) -> list[WriteSnapshotReq]:
+    def _get_snapshots(self) -> list[messages.StateSnapshotEvent]:
         if self.store is None:
             return []
         return list(self.store.snapshots)
 
     def _get_state_ids(self, session_id: Optional[str]) -> list[str]:
-        state_ids = {
-            snapshot.state_id
-            for snapshot in self._get_snapshots()
-            if session_id is None or snapshot.session_id == session_id
-        }
-        state_ids.update(
-            patch.state_id
-            for patch in self._get_patches()
-            if session_id is None or patch.session_id == session_id
-        )
+        state_ids: set[str] = set()
+        for event in self._get_snapshots():
+            if session_id is None or event.session_id == session_id:
+                state_ids.update(event.snapshots.keys())
+        for patch in self._get_patches():
+            if session_id is None or patch.session_id == session_id:
+                state_ids.add(patch.state_name)
         return sorted(state_ids)

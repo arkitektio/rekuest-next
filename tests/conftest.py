@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Generator
 import pytest
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.rekuest import RekuestNext, RekuestNextRath
-from rekuest_next.rath import RekuestNextLinkComposition, RekuestNextRath
+from rekuest_next.rath import RekuestNextRath
 from rath.links.testing.direct_succeeding_link import DirectSucceedingLink
 from rekuest_next.agents.base import RekuestAgent
 from rekuest_next.postmans.graphql import GraphQLPostman
@@ -19,6 +19,7 @@ from rath.links.graphql_ws import GraphQLWSLink
 from rath.links.split import SplitLink
 from graphql import OperationType
 import pytest_asyncio
+from rath.links.compose import compose
 
 
 class MockShelver:
@@ -175,9 +176,9 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
         mikro_ws_url = f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
 
         rath = RekuestNextRath(
-            link=RekuestNextLinkComposition(
-                auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
-                split=SplitLink(
+            link=compose(
+                ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+                SplitLink(
                     left=AIOHttpLink(endpoint_url=mikro_http_url),
                     right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
@@ -259,9 +260,9 @@ async def async_deployed_app() -> AsyncGenerator[DeployedRekuest, None]:
         mikro_ws_url = f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
 
         rath = RekuestNextRath(
-            link=RekuestNextLinkComposition(
-                auth=ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
-                split=SplitLink(
+            link=compose(
+                ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+                SplitLink(
                     left=AIOHttpLink(endpoint_url=mikro_http_url),
                     right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
                     split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,

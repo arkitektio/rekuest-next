@@ -158,8 +158,11 @@ async def test_shrinking_nested_structure(
         structure_registry=simple_registry,
     )
 
+    assert args, "Args should not be None"
+    assert "name" in args, f"Args should have a 'name' key got: {args}"
+
     assert isinstance(args["name"]["hallo"], dict), (
-        "Should be a dict with __identifier and object keys"
+        "Should be a dict with __identifier and object keys {args}"
     )
     assert isinstance(args["rep"][0], dict), "Should be a dict with __identifier and object keys"
 

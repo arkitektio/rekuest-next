@@ -6,12 +6,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from rekuest_next.agents.retriever.protocol import PatchEvent as RetrieverPatchEvent
-from rekuest_next.agents.retriever.protocol import (
+from rekuest_next.contrib.fastapi.retriever.protocol import PatchEvent as RetrieverPatchEvent
+from rekuest_next.contrib.fastapi.retriever.protocol import (
     SessionBoundary as RetrieverSessionBoundary,
 )
-from rekuest_next.agents.retriever.protocol import Snapshot as RetrieverSnapshot
-from rekuest_next.agents.retriever.protocol import TaskBoundary as RetrieverTaskBoundary
+from rekuest_next.contrib.fastapi.retriever.protocol import Snapshot as RetrieverSnapshot
+from rekuest_next.contrib.fastapi.retriever.protocol import TaskBoundary as RetrieverTaskBoundary
 from rekuest_next.api.schema import StateSchemaInput
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.models import (

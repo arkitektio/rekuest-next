@@ -5,11 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from rekuest_next.api.schema import ImplementationInput
-from rekuest_next.agents.sink.protocol import (
-    WriteSnapshotReq,
-    WritePatchReq,
-)
+from rekuest_next import messages
 from rekuest_next.protocols import AnyState
 
 
@@ -127,9 +123,7 @@ class SQLLiteSink:
                 f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
             )
 
-    async def acreate_session(
-        self, states: List[AnyState], implementations: List[ImplementationInput]
-    ) -> str:
+    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
         """Create a new session and return its ID. Should be called at the start of a new logical session. By default this will be called automatically on each agent startup, but can also be called manually if the agent wants to manage sessions itself (e.g., create a new session for each user interaction)."""
         new_session = str(uuid.uuid4())
         created_at_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
@@ -145,43 +139,41 @@ class SQLLiteSink:
         return new_session
 
     # --- WRITE METHODS ---
-    async def adump_snapshot(self, req: WriteSnapshotReq) -> None:
-        """Will store a full snapshot of the state at a given revision. This is intended to be used for periodic checkpointing to optimize retrieval, but can also be used by agents to manually create snapshots at important milestones (e.g., end of a user interaction)."""
-        target_session = req.session_id or self.current_session_id
-        epoch_ms = dt_to_epoch_ms(req.event_time)
+    async def adump_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+        """Store a full snapshot of all states at a given revision."""
+        target_session = snapshot.session_id or self.current_session_id
+        epoch_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
         async with self._write_lock:
             async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(
-                    """
-                    INSERT OR IGNORE INTO state_snapshots (
-                        state_id, revision, global_revision, event_time, session_id, state_data
-                    ) 
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                    (
-                        req.state_id,
-                        req.revision,
-                        req.global_revision,
-                        epoch_ms,
-                        target_session,
-                        json.dumps(req.state_data),
-                    ),
-                )
+                for state_id, state_data in snapshot.snapshots.items():
+                    await db.execute(
+                        """
+                        INSERT OR IGNORE INTO state_snapshots (
+                            state_id, revision, global_revision, event_time, session_id, state_data
+                        ) 
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            state_id,
+                            snapshot.global_rev,
+                            snapshot.global_rev,
+                            epoch_ms,
+                            target_session,
+                            json.dumps(state_data),
+                        ),
+                    )
                 await db.commit()
 
-    async def awrite_patch(self, req: WritePatchReq) -> None:
-        """Writes a patch to the store. The sink should enforce that patches are written in order (i.e., future_rev must be exactly current_rev + 1) to maintain integrity. The correlation_id can be used to group patches that belong to the same logical task or operation, which can be useful for retrieval and debugging."""
-        if req.global_future_rev != req.global_current_rev + 1:
-            raise ValueError(
-                f"Integrity Error: global_future_rev ({req.global_future_rev}) must be exactly "
-                f"global_current_rev ({req.global_current_rev}) + 1."
-            )
+    async def awrite_patch(self, patch: messages.StatePatchEvent) -> None:
+        """Write a single patch event to the store."""
+        global_current_rev = patch.global_rev - 1
+        global_future_rev = patch.global_rev
 
-        target_session = req.session_id or self.current_session_id
-        epoch_ms = dt_to_epoch_ms(req.event_time)
+        target_session = patch.session_id or self.current_session_id
+        epoch_ms = dt_to_epoch_ms(datetime.fromtimestamp(patch.ts, tz=timezone.utc))
 
         # We dump the value to a JSON string. If the op is "remove", value might be None.
-        value_as_json = json.dumps(req.value) if req.value is not None else None
+        value_as_json = json.dumps(patch.value) if patch.value is not None else None
 
         async with self._write_lock:
             async with aiosqlite.connect(self.db_path) as db:
@@ -195,21 +187,21 @@ class SQLLiteSink:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                         (
-                            req.state_id,
-                            req.global_current_rev,
-                            req.global_future_rev,
+                            patch.state_name,
+                            global_current_rev,
+                            global_future_rev,
                             epoch_ms,
-                            req.correlation_id,
+                            patch.correlation_id,
                             target_session,
-                            req.op,
-                            req.path,
+                            patch.op,
+                            patch.path,
                             value_as_json,
                         ),
                     )
                     await db.commit()
                 except aiosqlite.IntegrityError as e:
                     raise RuntimeError(
-                        f"Database Integrity Violation on patch {req.global_current_rev}->{req.global_future_rev}: {e}"
+                        f"Database Integrity Violation on patch {global_current_rev}->{global_future_rev}: {e}"
                     )
 
     async def ateardown(self):

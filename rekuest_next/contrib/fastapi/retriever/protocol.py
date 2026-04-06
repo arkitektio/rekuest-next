@@ -5,9 +5,6 @@ from typing import List, Optional, Protocol, runtime_checkable
 from rekuest_next.messages import JSONSerializable
 
 
-# ==========================================
-# 1. Data Models (Now using native datetime)
-# ==========================================
 @dataclass
 class SessionInfo:
     session_id: str
@@ -53,27 +50,17 @@ class SessionBoundary:
 
 @runtime_checkable
 class StateRetriever(Protocol):
-    # --- READ / RETRIEVE METHODS ---
+    async def ainitialize(self) -> None: ...
 
-    async def ainitialize(self) -> None:
-        """Should be called once to set up the sink (e.g., create tables, indexes)."""
-        ...
-
-    async def ateardown(self) -> None:
-        """Cleans up resources, such as database connections."""
-        ...
+    async def ateardown(self) -> None: ...
 
     async def aget_task_boundaries(
         self, correlation_id: str, state_id: Optional[str] = None
-    ) -> Optional[TaskBoundary]:
-        """Return the global revision boundaries and timestamps for a task."""
-        ...
+    ) -> Optional[TaskBoundary]: ...
 
     async def aget_session_boundaries(
         self, session_id: str, state_id: Optional[str] = None
-    ) -> Optional[SessionBoundary]:
-        """Return the global revision boundaries and timestamps for a session."""
-        ...
+    ) -> Optional[SessionBoundary]: ...
 
     async def aget_state_at_global_rev(
         self,
@@ -95,23 +82,4 @@ class StateRetriever(Protocol):
         state_id: Optional[str] = None,
         session_id: Optional[str] = None,
         count: int = 100,
-    ) -> List[PatchEvent]:
-        """Return patch events whose global revision range starts at or after `global_revision`."""
-        ...
-
-    async def aget_patch_events_between_global_revs(
-        self,
-        from_global_revision: int,
-        to_global_revision: int,
-        state_ids: Optional[List[str]] = None,
-        session_id: Optional[str] = None,
     ) -> List[PatchEvent]: ...
-
-    async def aget_snapshots_around_rev(
-        self,
-        revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        before: int = 1,
-        after: int = 1,
-    ) -> List[Snapshot]: ...

@@ -3,13 +3,14 @@ from dataclasses import dataclass
 import asyncio
 import janus
 import pytest
-from pydantic import PrivateAttr
+from datetime import datetime, timezone
+from pydantic import Field, PrivateAttr
 
 from rekuest_next import messages
 from rekuest_next.agents.base import BaseAgent
-from rekuest_next.agents.retriever.memory_retriever import MemoryRetriever
-from rekuest_next.agents.sink.memory_sink import MemorySink, MemoryStore
-from rekuest_next.agents.sink.protocol import WritePatchReq, WriteSnapshotReq
+from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetriever
+from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink, MemoryStore
+from rekuest_next.contrib.fastapi.sink.protocol import StateSink
 from rekuest_next.agents.transport.test_transport import TestAgentTransport
 from rekuest_next.state.decorator import state
 from rekuest_next.state.publish import Patch
@@ -22,10 +23,37 @@ class QueuedCounterState:
 
 
 class DummyAgent(BaseAgent[None]):
+    sink: StateSink = Field(default_factory=lambda: MemorySink())
+    sink_catch_up_timeout: float | None = Field(default=5.0)
+    sink_catch_up_poll_interval: float = Field(default=0.05)
     _published_envelopes: list[messages.StatePatchEvent] = PrivateAttr(default_factory=list)
 
     async def apublish_patch(self, envelope: messages.StatePatchEvent) -> None:
         self._published_envelopes.append(envelope)
+        await self.sink.awrite_patch(envelope)
+
+    async def _acreate_session(self) -> str:
+        return await self.sink.acreate_session(states=[], implementations=[])
+
+    async def _await_persistence_caught_up(self) -> None:
+        poll_interval = max(self.sink_catch_up_poll_interval, 0.0)
+
+        async def _wait() -> None:
+            while not await self.sink.is_cought_up_to(self.global_revision):
+                await asyncio.sleep(poll_interval)
+
+        if self.sink_catch_up_timeout is None:
+            await _wait()
+            return
+        try:
+            await asyncio.wait_for(_wait(), timeout=self.sink_catch_up_timeout)
+        except asyncio.TimeoutError:
+            pass
+
+    async def atear_down(self) -> None:
+        await super().atear_down()
+        await self._await_persistence_caught_up()
+        await self.sink.ateardown()
 
     async def apublish_states(self, state_implementation):
         return None
@@ -44,11 +72,11 @@ class DelayedCatchupSink(MemorySink):
         self._caught_up_revision: int = 0
         self._tasks: list[asyncio.Task[None]] = []
 
-    async def awrite_patch(self, req: WritePatchReq):
+    async def awrite_patch(self, patch: messages.StatePatchEvent):
         async def _persist_later() -> None:
             await asyncio.sleep(self.delay)
-            self.store.patches.append(req)
-            self._caught_up_revision = req.global_future_rev
+            self.store.patches.append(patch)
+            self._caught_up_revision = patch.global_rev
 
         self._tasks.append(asyncio.create_task(_persist_later()))
 
@@ -71,7 +99,6 @@ async def test_agent_queues_patches_and_publishes_envelopes() -> None:
     agent = DummyAgent(
         transport=TestAgentTransport(),
         sink=sink,
-        retriever=MemoryRetriever(),
         snapshot_interval=2,
     )
     agent.states[interface] = state_instance
@@ -112,41 +139,41 @@ async def test_memory_retriever_reads_async_sink_history() -> None:
     session_id = await sink.acreate_session(states=[], implementations=[])
 
     await sink.adump_snapshot(
-        WriteSnapshotReq(
-            state_id="QueuedCounterState",
-            global_revision=0,
-            state_data={"value": 0},
+        messages.StateSnapshotEvent(
             session_id=session_id,
+            global_rev=0,
+            snapshots={"QueuedCounterState": {"value": 0}},
         )
     )
     await sink.awrite_patch(
-        WritePatchReq(
-            state_id="QueuedCounterState",
-            global_current_rev=0,
-            global_future_rev=1,
+        messages.StatePatchEvent(
+            state_name="QueuedCounterState",
+            global_rev=1,
+            ts=datetime.now(timezone.utc).timestamp(),
             op="replace",
             path="/value",
             value=1,
+            old_value=None,
             correlation_id="corr-2",
             session_id=session_id,
         )
     )
     await sink.adump_snapshot(
-        WriteSnapshotReq(
-            state_id="SecondaryState",
-            global_revision=1,
-            state_data={"value": 10},
+        messages.StateSnapshotEvent(
             session_id=session_id,
+            global_rev=1,
+            snapshots={"SecondaryState": {"value": 10}},
         )
     )
     await sink.awrite_patch(
-        WritePatchReq(
-            state_id="SecondaryState",
-            global_current_rev=1,
-            global_future_rev=2,
+        messages.StatePatchEvent(
+            state_name="SecondaryState",
+            global_rev=2,
+            ts=datetime.now(timezone.utc).timestamp(),
             op="replace",
             path="/value",
             value=11,
+            old_value=None,
             correlation_id="corr-3",
             session_id=session_id,
         )
@@ -247,7 +274,6 @@ async def test_agent_teardown_waits_for_sink_catch_up() -> None:
     agent = DummyAgent(
         transport=TestAgentTransport(),
         sink=sink,
-        retriever=MemoryRetriever(),
         sink_catch_up_timeout=1.0,
         sink_catch_up_poll_interval=0.01,
     )

@@ -32,16 +32,11 @@ from rekuest_next.agents.registry import (
     ExtensionRegistry,
     get_default_extension_registry,
 )
-from rekuest_next.agents.retriever.memory_retriever import MemoryRetriever
-from rekuest_next.agents.retriever.protocol import StateRetriever
-from rekuest_next.agents.sink.memory_sink import MemorySink
-from rekuest_next.agents.sink.protocol import StateSink, WritePatchReq, WriteSnapshotReq
 from rekuest_next.agents.transport.types import AgentTransport
 from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.api.schema import (
     Agent,
     Implementation,
-    PatchInput,
     StateImplementationInput,
     StateSchema,
     StateSchemaInput,
@@ -52,21 +47,15 @@ from rekuest_next.api.schema import (
     aset_extension_implementations,
     ashelve,
     aunshelve,
-    alog_patches,
-    alog_snapshot,
 )
 from rekuest_next.protocols import AnyState
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.lock import acquired_locks
-from rekuest_next.state.observable import StateConfig, make_evented
-from rekuest_next.state.predicate import get_state_name
 from rekuest_next.state.publish import Patch
 from rekuest_next.state.shrink import ashrink_state
-from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.serialization.actor import ashrink_return
-from rekuest_next.structures.serialization.postman import ashrink_arg
 from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
@@ -131,9 +120,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
     extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
-
-    sink: StateSink = Field(default_factory=lambda: MemorySink())
-    retriever: StateRetriever = Field(default_factory=lambda: MemoryRetriever())
 
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
@@ -204,21 +190,12 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         default=5,
         description="How many persisted patches should elapse before all current shrunk states are checkpointed.",
     )
-    sink_catch_up_timeout: float | None = Field(
-        default=5.0,
-        description="Maximum number of seconds to wait for the sink to report that it has caught up during shutdown. Use `None` to wait indefinitely.",
-    )
-    sink_catch_up_poll_interval: float = Field(
-        default=0.05,
-        description="Polling interval in seconds used while waiting for the sink to catch up during shutdown.",
-    )
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def model_post_init(self, __context: Any) -> None:
-        if isinstance(self.sink, MemorySink) and isinstance(self.retriever, MemoryRetriever):
-            self.retriever.store = self.sink.store
+        pass
 
     async def alock(self, key: str, assignation: str) -> None:
         """Signal that an assignation has acquired a lock."""
@@ -265,16 +242,11 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         )
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
-        # TODO: Check if we should do a meaningful check, if we had just published something it might not
-        # be necessary to overwhelm the sink (like if the user is doing a batch of updates, we might
-        # just discard intermediate states and only publish the final state after the batch is done)
-
         interface = queued_patch.interface
         patch = queued_patch.patch
 
         # Check the revisions of the state
-        current_global_rev = self.global_revision
-        future_global_rev = current_global_rev + 1
+        future_global_rev = self.global_revision + 1
 
         # Enforce that patches are applied in order
         if interface not in self._current_shrunk_states:
@@ -284,20 +256,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             )
 
         shrunk_value = await self._ashrink_patch_value(interface, patch)
-
-        shrunk_patch = WritePatchReq(
-            state_id=interface,
-            global_current_rev=current_global_rev,
-            global_future_rev=future_global_rev,
-            op=patch.op,
-            path=patch.path,
-            value=shrunk_value,
-            correlation_id=patch.correlation_id,
-            event_time=queued_patch.event_time,
-            session_id=self.current_session,
-        )
-
-        await self.sink.awrite_patch(shrunk_patch)
 
         self._aapply_patch_to_shrunk_state(interface, patch, shrunk_value)
 
@@ -346,38 +304,12 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             in_place=True,
         )
 
-    async def _adump_all_snapshots(self) -> None:
-        for interface, shrunk_state in self._current_shrunk_states.items():
-            await self.sink.adump_snapshot(
-                WriteSnapshotReq(
-                    state_id=interface,
-                    global_revision=self.global_revision,
-                    state_data=copy.deepcopy(shrunk_state),
-                    session_id=self.current_session,
-                )
-            )
+    async def acollect(self, key: str) -> None:
+        raise NotImplementedError("Collect method is not implemented in BaseAgent")
 
-    async def _await_sink_caught_up(self) -> None:
-        async def _all_caught_up() -> bool:
-            return await self.sink.is_cought_up_to(self.global_revision)
-
-        poll_interval = max(self.sink_catch_up_poll_interval, 0.0)
-
-        async def _wait() -> None:
-            while not await _all_caught_up():
-                await asyncio.sleep(poll_interval)
-
-        if self.sink_catch_up_timeout is None:
-            await _wait()
-            return None
-
-        try:
-            await asyncio.wait_for(_wait(), timeout=self.sink_catch_up_timeout)
-        except asyncio.TimeoutError:
-            logger.warning(
-                "Timed out waiting for sink to catch up during shutdown after %.2fs",
-                self.sink_catch_up_timeout,
-            )
+    async def _acreate_session(self) -> str:
+        """Create a new session identifier. Returns a UUID by default; override in subclasses."""
+        return str(uuid.uuid4())
 
     def get_locks_for_keys(self, keys: List[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
@@ -476,16 +408,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         description: Optional[str] = None,
     ) -> str:
         raise NotImplementedError("ashelve not implemented in BaseAgent")
-
-    async def aget_revised_state(self, interface: str) -> RevisedState:
-        """Get the current agent-owned shrunk state and revision for an interface."""
-        if interface not in self._current_shrunk_states:
-            raise AgentException(f"No shrunk state found for interface {interface}")
-
-        return RevisedState(
-            revision=self.global_revision,
-            data=copy.deepcopy(self._current_shrunk_states[interface]),
-        )
 
     async def aput_on_shelve(
         self,
@@ -670,8 +592,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                 pass
             self._event_queue = None
 
-        await self._await_sink_caught_up()
-
         if self._patch_processor_task is not None:
             self._patch_processor_task.cancel()
             try:
@@ -701,10 +621,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         await self.astop_background()
         await self.transport.adisconnect()
-
-        # Initialize the sink and retriever
-        await self.sink.ateardown()
-        await self.retriever.ateardown()
 
     async def aget_hash(self) -> str:
         """Get the hash of the agent. This is used to identify the agent in the system and to check if the agent has changed."""
@@ -822,7 +738,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         await self.apublish_states(implementations)
 
-    async def apublish_patch(self, envelope: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
         raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
@@ -953,10 +869,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         # Run startup hooks from extensions
 
-        # Initialize the sink and retriever
-        await self.sink.ainitialize()
-        await self.retriever.ainitialize()
-
         # Inspect all locks
         locks = [lock.lock_schema.key for lock in self.locks.values()]
 
@@ -966,16 +878,12 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             )
             await self.ainit_states(hook_return=hook_return, app_context=app_context)
 
-        self.current_session = await self.sink.acreate_session(
-            states=list(self.states.values()),
-            implementations=list(self.interface_implementation_map.values()),
-        )
+        self.current_session = await self._acreate_session()
 
         self.global_revision = 0
         self._event_queue = janus.Queue()
         self._patch_processor_task = asyncio.create_task(self.apatch_event_loop())
         self._patch_processor_task.add_done_callback(lambda x: print(x))
-        await self._adump_all_snapshots()
 
         for extension in self.extension_registry.agent_extensions.values():
             await extension.astart(instance_id=instance_id, app_context=app_context)
@@ -1158,7 +1066,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
 
-class RekuestAgent(BaseAgent):
+class RekuestAgent(BaseAgent[ContextType]):
     """The Rekuest Agent
 
     This is the default agent that is used by rekuest. It provides the basic

@@ -74,10 +74,10 @@
                 "AnnotationInput": [
                     "rekuest_next.traits.ports.AnnotationInputTrait"
                 ],
-                "PortInput": [
+                "ArgPortInput": [
                     "rekuest_next.traits.ports.PortTrait"
                 ],
-                "ChildPortInput": [
+                "ReturnPortInput": [
                     "rekuest_next.traits.ports.PortTrait"
                 ],
                 "AssignWidgetInput": [

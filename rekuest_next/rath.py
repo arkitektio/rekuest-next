@@ -2,39 +2,12 @@
 
 from types import TracebackType
 from typing import Optional
-from pydantic import Field
 from rath import rath
 import contextvars
-from rath.links.auth import AuthTokenLink
-
-from rath.links.compose import TypedComposedLink
-from rath.links.dictinglink import DictingLink
-from rath.links.shrink import ShrinkingLink
-from rath.links.split import SplitLink
-from rath.links.retry import RetryLink
-from rekuest_next.links.upload import UploadLink
 
 current_rekuest_next_rath: contextvars.ContextVar[Optional["RekuestNextRath"]] = (
     contextvars.ContextVar("current_rekuest_next_rath", default=None)
 )
-
-
-class RekuestNextLinkComposition(TypedComposedLink):
-    """A composition of links for Rekuest Next."""
-
-    shrink: ShrinkingLink = Field(
-        default_factory=ShrinkingLink,
-        description="Shrinks potential structures in the request.",
-    )
-    dicting: DictingLink = Field(
-        default_factory=DictingLink, description="Dicts the request and response."
-    )
-    upload: UploadLink
-    auth: AuthTokenLink
-    retry: RetryLink = Field(
-        default_factory=RetryLink, description="Retries the request if it fails."
-    )
-    split: SplitLink
 
 
 class RekuestNextRath(rath.Rath):

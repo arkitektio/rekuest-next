@@ -1,5 +1,7 @@
 """General Tests for defininin actions"""
 
+from typing import Protocol
+
 import asyncio
 from rekuest_next.api.schema import (
     amy_implementation_at,
@@ -11,13 +13,17 @@ from rekuest_next.remote import acall
 from rekuest_next.declare import agent_protocol
 
 
-@agent_protocol
-class NecessaryProtocol:
-    def necessary_protocol(number: int) -> int: ...
+@agent_protocol(app="test")
+class NecessaryProtocol(Protocol):
+    """A protocol that defines a necessary method for the agent to implement."""
+
+    def necessary_protocol(self, number: int) -> int:
+        """A necessary method that takes an integer and returns an integer. The agent must implement this method for the test to work."""
+        ...
 
 
-def a_function(a: int) -> int:
-    return necessary_protocol(a) + 1
+def a_function(test: NecessaryProtocol, a: int) -> int:
+    return test.necessary_protocol(a) + 1
 
 
 @pytest.mark.integration
@@ -27,7 +33,7 @@ async def test_run_and_cancel_app(
 ) -> None:
     """Test if the hases of to equal definitions are the same."""
     """Test if the hases of to equal definitions are the same."""
-    async_deployed_app.rekuest.register(a_function, dependencies=[NecessaryProtocol])
+    async_deployed_app.rekuest.register(a_function)
 
     task = asyncio.create_task(async_deployed_app.rekuest.arun())
 

@@ -324,6 +324,12 @@ type Agent {
   """The release this agent belongs to."""
   release: Release!
 
+  """Scenes associated with this agent."""
+  scenes(filters: AgentSceneFilter, order: AgentSceneOrder, pagination: OffsetPaginationInput): [AgentScene!]!
+
+  """Sessions associated with this agent."""
+  sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
+
   """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
 
@@ -515,7 +521,6 @@ input ArchiveStateInput {
 scalar Arg
 
 type ArgPort {
-  provides: [Provides!]
   key: String!
   label: String
   kind: PortKind!
@@ -528,6 +533,7 @@ type ArgPort {
   choices: [Choice!]
   validators: [Validator!]
   widget: AssignWidget
+  requires: [Requires!]
 }
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
@@ -1757,6 +1763,7 @@ type MediaAccessGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
@@ -1790,6 +1797,7 @@ type MediaUploadGrant {
   accessKey: String!
   secretKey: String!
   sessionToken: String!
+  region: String!
   bucket: String!
   key: String!
   path: String!
@@ -2121,6 +2129,7 @@ input ParamPair {
 }
 
 type Patch {
+  id: ID!
   op: String!
   path: String!
   value: Args!
@@ -2387,6 +2396,12 @@ type Query {
   """List all agent scenes."""
   agentScenes(filters: AgentSceneFilter, order: AgentSceneOrder, pagination: OffsetPaginationInput): [AgentScene!]!
 
+  """List all sessions."""
+  sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
+
+  """Fetch a specific session by ID."""
+  session(id: ID!): Session!
+
   """Statistics about actions and their implementations."""
   actionStats(filters: ActionFilter = null): ActionStats!
 
@@ -2397,7 +2412,7 @@ type Query {
   taskBoundaries(correlationId: String!, stateId: ID = null): TaskBoundary
 
   """Get session boundaries."""
-  sessionBoundaries(sessionId: String!, stateId: ID = null): SessionBoundary
+  sessionBoundaries(sessionId: ID!, stateId: ID = null): SessionBoundary
 
   """Get state at global revision."""
   stateAtGlobalRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]!
@@ -2430,7 +2445,7 @@ type Query {
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
 
   """Materialize the latest state for a specific agent"""
-  checkout(state: ID!, globalRevision: Int = null): StateWithValue!
+  checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null): StateWithValue!
 
   """Fetch resolved dependencies for a resolution."""
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
@@ -2555,6 +2570,12 @@ input RequestMediaUploadInput {
   contentType: String = null
 }
 
+type Requires {
+  key: String!
+  operator: RequiresOperator!
+  value: Arg!
+}
+
 input RequiresInput {
   key: String!
   operator: RequiresOperator!
@@ -2647,7 +2668,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "ee70cd06-4b52-495d-95b4-e6123855e673"
+  reference: String = "8dccb7a2-87ed-444f-a2be-7319a2e2db9a"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2832,12 +2853,43 @@ The `ArrayLike` scalar type represents a reference to a store previously created
 """
 scalar SearchQuery
 
+"""
+A session representing a continuous interaction of an agent with the system.
+"""
+type Session {
+  id: ID!
+  agent: Agent!
+  startedAt: DateTime!
+  endedAt: DateTime
+  snapshots: [Snapshot!]!
+  patches: [Patch!]!
+}
+
 type SessionBoundary {
   sessionId: String!
   startGlobalRevision: Int
   endGlobalRevision: Int
   startTime: DateTime
   endTime: DateTime
+}
+
+"""A way to filter sessions"""
+input SessionFilter {
+  AND: SessionFilter
+  OR: SessionFilter
+  NOT: SessionFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Filter by space"""
+  agent: ID
+}
+
+input SessionOrder {
+  startedAt: Ordering
+  endedAt: Ordering
 }
 
 """The input for setting a state schema to an agent."""
@@ -2959,6 +3011,7 @@ type SliderAssignWidget implements AssignWidget {
 }
 
 type Snapshot {
+  id: ID!
   value: Args!
   timestamp: DateTime!
   revision: Int!
@@ -3103,6 +3156,7 @@ type StateSnapshotEvent {
   interface: String!
   value: Args!
   globalRevision: Int!
+  sessionId: String!
   timestamp: DateTime!
 }
 
@@ -3562,7 +3616,7 @@ input WaiterFilter {
 
 scalar _Any
 
-union _Entity = MediaStore | User
+union _Entity = MediaStore | Session | User
 
 type _Service {
   sdl: String!

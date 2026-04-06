@@ -191,3 +191,8 @@ def pausepoint() -> None:
             "You attempted to await a breakpoint outside of an assignation. This breakpoint will not be awaited."
         )
         pass
+
+
+# Backwards-compatible aliases for arkitekt_next
+abreakpoint = apausepoint
+breakpoint = pausepoint

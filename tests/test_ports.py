@@ -21,11 +21,11 @@ def test_argport_input_errors() -> None:
 
     with pytest.raises(ValidationError):
         # identifier is required for STRUCTURE
-        ArgPortInput(kind=PortKind.STRUCTURE, key="search", nullable=False)
+        ArgPortInput(kind=PortKind.STRUCTURE, key="search")
 
     with pytest.raises(ValidationError):
         # child is required for List
-        ArgPortInput(kind=PortKind.LIST, key="search", nullable=False)
+        ArgPortInput(kind=PortKind.LIST, key="search")
 
 
 def test_argport() -> None:

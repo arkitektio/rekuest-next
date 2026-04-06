@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional, cast
 
-from rekuest_next.agents.retriever.protocol import (
+from rekuest_next.contrib.fastapi.retriever.protocol import (
     PatchEvent,
     SessionBoundary,
     Snapshot,
