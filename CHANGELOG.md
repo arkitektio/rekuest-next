@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v1.1.0 (2026-04-06)
+
+### Bug Fixes
+
+- A bit more tests
+  ([`adee9b8`](https://github.com/arkitektio/rekuest-next/commit/adee9b80bf871ed7fc8ea1d49c822749f33e0134))
+
+- Test
+  ([`a553d57`](https://github.com/arkitektio/rekuest-next/commit/a553d572f05e9fedbaab1b9123020d73d51cff64))
+
+### Features
+
+- Fix tests
+  ([`686c863`](https://github.com/arkitektio/rekuest-next/commit/686c863c062314b4328a5b3c8e2adc6ffeeaa23c))
+
+- New args schema
+  ([`4d6221d`](https://github.com/arkitektio/rekuest-next/commit/4d6221d27928c196d12da7e30db76abdcd3d5ad2))
+
+
 ## v1.0.1 (2026-03-09)
 
 ### Bug Fixes
