@@ -1,6 +1,7 @@
 """FastAPI route orchestration for rekuest_next agents."""
 
 from __future__ import annotations
+from rekuest_next.api.schema import StateImplementationInput
 
 import asyncio
 import contextlib
@@ -137,10 +138,10 @@ def add_state_detail_routes(
     app: FastAPI,
     agent: FastApiAgent,
     states_path: str = "/states",
-    state_schemas: dict[str, object] | None = None,
+    state_schemas: dict[str, StateImplementationInput] | None = None,
 ) -> None:
     """Include conditional state detail and retriever routes."""
-    state_schemas = state_schemas or agent.get_state_schemas()
+    state_schemas = state_schemas or agent.get_states()
     _include_router(app, build_state_detail_router(agent, state_schemas, states_path=states_path))
 
 
@@ -232,7 +233,7 @@ def configure_fastapi(
                 fastapi_app,
                 agent,
                 states_path=states_path,
-                state_schemas=await agent.aget_state_schemas(),
+                state_schemas=agent.get_states(),
             )
         if add_locks:
             add_lock_routes(fastapi_app, agent, locks_path=locks_path)

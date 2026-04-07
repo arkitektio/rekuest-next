@@ -688,14 +688,6 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             states=states,
         )
 
-    def get_states(self) -> dict[str, StateImplementationInput]:
-        """Return all collected state schema inputs."""
-        return dict(self._collected_state_schemas)
-
-    async def aget_state_schemas(self) -> dict[str, StateImplementationInput]:
-        """Return all collected state schema inputs."""
-        return self.get_states()
-
     async def aget_lock_views(
         self,
         lock_keys: list[str] | None = None,
@@ -708,13 +700,13 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             if (
                 selected_keys is not None
                 and interface not in selected_keys
-                and lock.lock_schema.key not in selected_keys
+                and lock.definition.key not in selected_keys
             ):
                 continue
             locking_task = lock.locking_task
             locks[interface] = LockView(
                 interface=interface,
-                key=lock.lock_schema.key,
+                key=lock.definition.key,
                 task_id=str(locking_task) if locking_task else None,
             )
 

@@ -2004,7 +2004,7 @@ input OptimisticInput {
 }
 
 enum OptionKey {
-  KEY
+  LABEL
   DESCRIPTION
   LOGO
   VALUE
@@ -2650,7 +2650,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "a437f4eb-842d-4c99-9bda-954d889bc400"
+  reference: String = "bc913003-64a5-4f79-b15f-e4d38a2b1ee1"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

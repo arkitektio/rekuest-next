@@ -303,8 +303,8 @@ def build_state_detail_router(
             f"{states_path}/{interface}",
             _build_current_state_endpoint(interface),
             methods=["GET"],
-            summary=f"Get {state_schema.name} state",
-            description=f"Get the current value of the {state_schema.name} state",
+            summary=f"Get {state_schema.definition.name} state",
+            description=f"Get the current value of the {state_schema.definition.name} state",
             tags=["States", "State Details"],
             response_class=JSONResponse,
         )
