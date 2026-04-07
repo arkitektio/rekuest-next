@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.2.0 (2026-04-07)
+
+### Features
+
+- Fix new api
+  ([`55a747b`](https://github.com/arkitektio/rekuest-next/commit/55a747bce569e01e85e44b23b782c8b72c75ffac))
+
+- Simpliy agent
+  ([`dfb3f0f`](https://github.com/arkitektio/rekuest-next/commit/dfb3f0f91c67b3997f650f317fb2268f3be7a4f0))
+
+
 ## v1.1.0 (2026-04-06)
 
 ### Bug Fixes
