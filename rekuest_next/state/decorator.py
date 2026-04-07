@@ -2,7 +2,11 @@
 
 from dataclasses import dataclass, is_dataclass
 from typing import Optional, Type, TypeVar, Callable, overload, Any, List
-from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
+from rekuest_next.api.schema import (
+    ReturnPortInput,
+    StateImplementationInput,
+    StateDefinitionInput,
+)
 from rekuest_next.state.observable import StateConfig, make_evented
 from rekuest_next.state.publish import get_current_publisher, noop_publisher
 from rekuest_next.structures.registry import StructureRegistry
@@ -14,9 +18,9 @@ from fieldz import fields, Field
 T = TypeVar("T")
 
 
-def inspect_state_schema(
+def inspect_state(
     cls: Type[T], structure_registry: StructureRegistry
-) -> StateSchemaInput:
+) -> StateImplementationInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_returnport
 
@@ -40,7 +44,12 @@ def inspect_state_schema(
         )
         ports.append(port)
 
-    return StateSchemaInput(ports=tuple(ports), name=getattr(cls, "__rekuest_state__"))
+    return StateImplementationInput(
+        interface=getattr(cls, "__rekuest_state__", cls.__name__),
+        definition=StateDefinitionInput(
+            ports=tuple(ports), name=getattr(cls, "__rekuest_state__")
+        ),
+    )
 
 
 def statify(
@@ -48,14 +57,14 @@ def statify(
     required_locks: Optional[list[str]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     publish_interval: float = 0.1,
-) -> tuple[Type[T], StateSchemaInput]:
+) -> tuple[Type[T], StateImplementationInput]:
     if structure_registry is None:
         structure_registry = get_default_structure_registry()
 
-    state_schema = inspect_state_schema(cls, structure_registry)
+    state_schema = inspect_state(cls, structure_registry)
 
     config = StateConfig(
-        state_schema=state_schema,
+        definition=state_schema.definition,
         state_name=getattr(cls, "__rekuest_state__", cls.__name__),
         publish_interval=publish_interval,
         required_locks=required_locks or [],
@@ -139,9 +148,7 @@ def state(
                 publish_interval=publish_interval,
             )
 
-            registry.register_at_interface(
-                name or cls.__name__, cls, state_schema, structure_registry
-            )
+            registry.register(cls, state_schema, structure_registry)
             return cls
 
         return wrapper

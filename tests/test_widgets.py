@@ -2,7 +2,6 @@
 
 from rekuest_next.widgets import SearchWidget, SliderWidget
 from pydantic import ValidationError
-import pytest
 
 
 def test_search_widget_error_on_wrong_graphql() -> None:

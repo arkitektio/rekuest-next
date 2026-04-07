@@ -1,6 +1,0 @@
-mutation CreateStateSchema($input: CreateStateSchemaInput!) {
-  createStateSchema(input: $input) {
-    ...StateSchema
-  }
-}
-

@@ -5,6 +5,8 @@ from rekuest_next.actors.types import Actor
 from typing import TYPE_CHECKING, Any
 from abc import ABC, abstractmethod
 
+from rekuest_next.api.schema import StateImplementationInput
+
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
     from rekuest_next.api.schema import (
@@ -41,7 +43,7 @@ class AgentExtension(Protocol):
         """
         ...
 
-    def get_state_schemas(self) -> Dict[str, "StateSchemaInput"]:
+    def get_states(self) -> Dict[str, "StateImplementationInput"]:
         """Get the state schemas for this extension.
 
         Returns:
@@ -75,7 +77,7 @@ class AgentExtension(Protocol):
         """
         ...
 
-    def get_lock_schemas(self) -> Dict[str, "LockSchemaInput"]:
+    def get_lock_schemas(self) -> Dict[str, "LockImplementationInput"]:
         """Get the lock schemas for this extension.
 
         Returns:

@@ -3,3 +3,10 @@ mutation EnsureAgent($input: AgentInput!) {
     ...Agent
   }
 }
+
+
+mutation ImplementAgent($input: ImplementAgentInput!) {
+  implementAgent(input: $input) {
+    ...Agent
+  }
+}

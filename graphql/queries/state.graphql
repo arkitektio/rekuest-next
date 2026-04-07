@@ -1,0 +1,6 @@
+query GetState($id: ID!) {
+  state(id: $id) {
+    ...State
+  }
+}
+

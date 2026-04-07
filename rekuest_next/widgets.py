@@ -8,6 +8,7 @@ from rekuest_next.api.schema import (
     ArgPortInput,
     AssignWidgetKind,
     ReturnWidgetKind,
+    StateAccessorInput,
     ValidatorFunction,
     ValidatorInput,
     EffectInput,
@@ -152,7 +153,11 @@ def ChoiceWidget(choices: List[str] | str | List[ChoiceInput]) -> AssignWidgetIn
     return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
 
 
-def withStateChoices(state_path: str) -> AssignWidgetInput:
+def withStateChoices(
+    state_path: str,
+    dependency: str | None = None,
+    accessors: list[StateAccessorInput] | None = None,
+) -> AssignWidgetInput:
     """A choice widget with choices from a state path.
 
     A choice widget is a widget that renders a list of choices with the
@@ -161,11 +166,15 @@ def withStateChoices(state_path: str) -> AssignWidgetInput:
 
     Args:
         state_path (str): The state path to take the choices from
+        dependency (str | None): The dependency for the widget
+        accessors (list[StateAccessorInput] | None): The state accessor inputs (if not provided, it will be assumed that the state is a list of choices with only a value, or an array with {key: key, value: value, description?: description} structure)
     """
 
     return AssignWidgetInput(
         kind=AssignWidgetKind.STATE_CHOICE,
-        choices=str,
+        statePath=state_path,
+        dependency=dependency,
+        stateAccessors=accessors if accessors else None,
     )
 
 

@@ -1,7 +1,8 @@
 """A registry for the states of the actors."""
 
 from rekuest_next.api.schema import (
-    StateSchemaInput,
+    StateImplementationInput,
+    StateDefinitionInput,
 )
 from typing import Any, Dict, Type
 from pydantic import Field
@@ -19,28 +20,33 @@ GLOBAL_STATE_REGISTRY = None
 class StateRegistry(KoiledModel):
     """The state registry is used to register the states of the actors."""
 
-    state_schemas: Dict[str, StateSchemaInput] = Field(default_factory=dict, exclude=True)
-    registry_schemas: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
+    states: Dict[str, StateImplementationInput] = Field(
+        default_factory=dict, exclude=True
+    )
+    registry_schemas: Dict[str, StructureRegistry] = Field(
+        default_factory=dict, exclude=True
+    )
     interface_classes: Dict[str, AnyState] = Field(default_factory=dict, exclude=True)
-    classes_interfaces: Dict[Type[AnyState], str] = Field(default_factory=lambda: {}, exclude=True)
+    classes_interfaces: Dict[Type[AnyState], str] = Field(
+        default_factory=lambda: {}, exclude=True
+    )
 
-    def register_at_interface(
+    def register(
         self,
-        interface: str,
         cls: Type[AnyState],
-        state_schema: StateSchemaInput,
+        state: StateImplementationInput,
         registry: StructureRegistry,
     ) -> None:
         """Register a state schema at a name."""
-        self.state_schemas[interface] = state_schema
-        self.registry_schemas[interface] = registry
-        self.classes_interfaces[cls] = interface
-        self.interface_classes[interface] = cls
+        self.states[state.interface] = state
+        self.registry_schemas[state.interface] = registry
+        self.classes_interfaces[cls] = state.interface
+        self.interface_classes[state.interface] = cls
 
-    def get_schema_for_interface(self, interface: str) -> StateSchemaInput:
+    def get_schema_for_interface(self, interface: str) -> StateDefinitionInput:
         """Get the schema for a name."""
-        assert interface in self.state_schemas, "No definition for interface"
-        return self.state_schemas[interface]
+        assert interface in self.states, "No definition for interface"
+        return self.states[interface]
 
     def get_registry_for_interface(self, interface: str) -> StructureRegistry:
         """Get the registry for a name."""
@@ -76,7 +82,9 @@ class StateRegistry(KoiledModel):
 
     def hash(self) -> str:
         """A hash of the state registry, used to check if the state registry has changed"""
-        return hashlib.sha256(json.dumps(self.dump(), sort_keys=True).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(self.dump(), sort_keys=True).encode()
+        ).hexdigest()
 
 
 def get_default_state_registry() -> "StateRegistry":

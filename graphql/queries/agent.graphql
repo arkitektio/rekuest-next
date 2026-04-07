@@ -10,3 +10,10 @@ query ListAgents($filters: AgentFilter, $pagination: OffsetPaginationInput) {
     ...Agent
   }
 }
+
+
+query GetAgentByIdentifiers($app: String!, $version: String, $deviceId: String, $instanceId: String) {
+  agent(app: $app, version: $version, deviceId: $deviceId, instanceId: $instanceId) {
+    ...Agent
+  }
+}

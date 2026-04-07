@@ -1,9 +1,9 @@
 from typing import Optional, List
-from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
+from rekuest_next.api.schema import ReturnPortInput, StateDefinitionInput
 
 
 def resolve_port_for_path(
-    schema: StateSchemaInput, path: str
+    schema: StateDefinitionInput, path: str
 ) -> Optional[ReturnPortInput]:
     """
     Resolves the specific Port definition for a given JSON path within the State Schema.

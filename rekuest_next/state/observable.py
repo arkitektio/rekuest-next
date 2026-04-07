@@ -5,7 +5,7 @@ from rekuest_next.actors.vars import (
     get_current_assignation_helper,
     get_current_assignation_id_or_none,
 )
-from rekuest_next.api.schema import ReturnPortInput, StateSchemaInput
+from rekuest_next.api.schema import ReturnPortInput, StateDefinitionInput
 from rekuest_next.state.lock import get_acquired_locks
 from rekuest_next.state.publish import Patch, get_current_publisher
 from rekuest_next.structures.registry import StructureRegistry
@@ -37,7 +37,7 @@ class StateConfig:
     """Configuration for evented objects, storing the state interface name and schema."""
 
     state_name: str
-    state_schema: StateSchemaInput
+    definition: StateDefinitionInput
     structure_registry: StructureRegistry
     publish_interval: float = (
         0.1  # Optional: Minimum interval between patches to prevent flooding
@@ -64,9 +64,7 @@ def _resolve_child_port(
         return None
 
     search_scope = (
-        config.state_schema.ports
-        if parent_port is None
-        else (parent_port.children or [])
+        config.definition.ports if parent_port is None else (parent_port.children or [])
     )
     return next((port for port in search_scope if port.key == key), None)
 

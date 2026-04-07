@@ -1,20 +1,3 @@
-mutation SetState($input: SetStateInput!) {
-  setState(input: $input) {
-    ...State
-  }
-}
-
-mutation UpdateState($input: UpdateStateInput!) {
-  updateState(input: $input) {
-    ...State
-  }
-}
-
-mutation SetAgentStates($input: SetAgentStatesInput!) {
-  setAgentStates(input: $input) {
-    ...State
-  }
-}
 
 
 mutation LogPatches($input: LogPatchesInput!) {

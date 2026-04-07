@@ -1,4 +1,4 @@
-fragment StateSchema on StateSchema {
+fragment StateDefinition on StateDefinition {
   id
   name
   ports {

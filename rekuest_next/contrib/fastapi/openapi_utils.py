@@ -6,13 +6,13 @@ from fastapi import FastAPI
 from fastapi import APIRouter
 from fastapi.openapi.utils import get_openapi
 
-from rekuest_next.api.schema import ArgPortInput, PortKind
+from rekuest_next.api.schema import ArgPortInput, PortKind, ReturnPortInput
 
 
 CUSTOM_SCHEMAS_STATE_KEY = "rekuest_custom_schemas"
 
 
-def port_to_json_schema(port: ArgPortInput) -> dict[str, Any]:
+def port_to_json_schema(port: ArgPortInput | ReturnPortInput) -> dict[str, Any]:
     """Convert a port definition to JSON schema."""
     schema: dict[str, Any] = {}
 
@@ -38,9 +38,7 @@ def port_to_json_schema(port: ArgPortInput) -> dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key
-                for child in port.children
-                if not child.nullable and child.default is None
+                child.key for child in port.children if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required
@@ -62,7 +60,7 @@ def port_to_json_schema(port: ArgPortInput) -> dict[str, Any]:
 
 
 def create_json_schema_from_ports(
-    ports: tuple[ArgPortInput, ...],
+    ports: tuple[ReturnPortInput, ...],
     schema_title: str,
 ) -> dict[str, Any]:
     """Create a JSON schema document for a tuple of ports."""

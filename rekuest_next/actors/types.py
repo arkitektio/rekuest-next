@@ -205,10 +205,6 @@ class Agent(Protocol):
         """
         ...
 
-    async def atest(self, context: Any) -> None:
-        """Run the tests. This method will run the tests and return None."""
-        ...
-
     def publish_patch(self, instance: AnyState, patch: Patch) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""

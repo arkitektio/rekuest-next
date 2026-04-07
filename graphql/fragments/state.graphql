@@ -1,8 +1,8 @@
 fragment State on State {
   id
   value
-  stateSchema {
-    ...StateSchema
+  definition {
+    ...StateDefinition
   }
   agent {
     id

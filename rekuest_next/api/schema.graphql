@@ -155,16 +155,13 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input ActionDependencyInput {
   """
-  The hash of the action. This is used to identify the action in the system.
-  """
-  hash: ActionHash = null
-
-  """
   The name of the action. This is used to identify the action in the system.
   """
   name: String = null
   key: String!
   description: String = null
+  actionKey: String = null
+  app: String = null
   argMatches: [PortMatchInput!] = null
   returnMatches: [PortMatchInput!] = null
   protocols: [ID!] = null
@@ -324,8 +321,8 @@ type Agent {
   """The release this agent belongs to."""
   release: Release!
 
-  """Scenes associated with this agent."""
-  scenes(filters: AgentSceneFilter, order: AgentSceneOrder, pagination: OffsetPaginationInput): [AgentScene!]!
+  """Placements associated with this agent."""
+  placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
 
   """Sessions associated with this agent."""
   sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
@@ -379,6 +376,7 @@ input AgentDependencyInput {
   description: String = null
   optional: Boolean! = false
   actionDemands: [ActionDependencyInput!] = null
+  stateDemands: [StateDependencyInput!] = null
   autoResolvable: Boolean! = false
   minViableInstances: Int = null
   preferedInstances: Int = null
@@ -418,6 +416,7 @@ input AgentFilter {
   """Filter by name of the agents"""
   search: String
   dependency: ID
+  threeDModel: ID
   distinct: Boolean
   actionDemands: [ActionDemandInput!]
   stateDemands: [SchemaDemandInput!]
@@ -445,16 +444,6 @@ input AgentInput {
   The name of the agent. This is used to identify the agent in the system.
   """
   name: String = null
-
-  """
-  The extensions of the agent. This is used to identify the agent in the system.
-  """
-  extensions: [String!] = null
-
-  """
-  The locks of the agent. This is used to specify which resources the agent needs to run
-  """
-  locks: [LockSchemaInput!] = null
 }
 
 enum AgentKind {
@@ -464,38 +453,6 @@ enum AgentKind {
 
 input AgentOrder {
   lastSeen: Ordering
-}
-
-"""A scene linking an agent to a 3D model."""
-type AgentScene {
-  id: ID!
-  transferFunction: String!
-  model: ThreeDModel!
-  agent: Agent!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-}
-
-"""A way to filter agent scenes"""
-input AgentSceneFilter {
-  AND: AgentSceneFilter
-  OR: AgentSceneFilter
-  NOT: AgentSceneFilter
-  DISTINCT: Boolean
-
-  """Filter by IDs"""
-  ids: [ID!]
-
-  """Filter by agent"""
-  agent: ID
-
-  """Filter by 3D model"""
-  model: ID
-}
-
-input AgentSceneOrder {
-  createdAt: Ordering
-  updatedAt: Ordering
 }
 
 """
@@ -510,11 +467,6 @@ type App {
 
   """Name of the app."""
   identifier: String!
-}
-
-"""The input for archiving a state schema."""
-input ArchiveStateInput {
-  stateSchema: ID!
 }
 
 """The `Arg` scalar type represents a an Argument in a Action assignment"""
@@ -614,6 +566,9 @@ input AssignWidgetInput {
   fallback: AssignWidgetInput = null
   filters: [ArgPortInput!] = null
   dependencies: [String!] = []
+  dependency: String = null
+  statePath: String = null
+  stateAccessors: [StateAccessorInput!] = null
 }
 
 """The kind of assign widget."""
@@ -1007,13 +962,6 @@ type Collection {
   actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
 }
 
-"""The input for creating an agent scene."""
-input CreateAgentSceneInput {
-  modelId: ID!
-  agentId: ID!
-  transferFunction: String!
-}
-
 """The input for creating a blok."""
 input CreateBlokInput {
   name: String!
@@ -1063,6 +1011,15 @@ input CreateImplementationInput {
   extension: String!
 }
 
+"""The input for creating a placement."""
+input CreatePlacementInput {
+  role: String = null
+  affineMatrix: [[Float!]!] = null
+  model: ID = null
+  agent: ID = null
+  space: String!
+}
+
 """The input for creating a resolution."""
 input CreateResolutionInput {
   """
@@ -1092,19 +1049,8 @@ input CreateShortcutInput {
 
 """The input for creating a space."""
 input CreateSpaceInput {
-  key: String!
   name: String!
-}
-
-"""The input for creating a space membership."""
-input CreateSpaceMembershipInput {
-  spaceId: String!
-  agentId: String!
-}
-
-"""The input for creating a state schema."""
-input CreateStateSchemaInput {
-  stateSchema: StateSchemaInput!
+  placements: [PlacementInput!] = null
 }
 
 input CreateTestCaseInput {
@@ -1127,6 +1073,8 @@ input CreateThreeDModelInput {
   name: String!
   description: String = null
   media: MediaLike!
+  transferFunction: String = null
+  dependency: AgentDependencyInput = null
 }
 
 """The input for creating a toolbox."""
@@ -1248,14 +1196,14 @@ input DeleteAgentInput {
   id: ID!
 }
 
-"""The input for deleting an agent scene."""
-input DeleteAgentSceneInput {
-  id: ID!
-}
-
 """The input for deleting a implementation."""
 input DeleteImplementationInput {
   implementation: ID!
+}
+
+"""The input for deleting a placement."""
+input DeletePlacementInput {
+  id: ID!
 }
 
 """The input for deleting a resolution."""
@@ -1270,11 +1218,6 @@ input DeleteShortcutInput {
 
 """The input for deleting a space."""
 input DeleteSpaceInput {
-  id: ID!
-}
-
-"""The input for deleting a space membership."""
-input DeleteSpaceMembershipInput {
   id: ID!
 }
 
@@ -1464,13 +1407,6 @@ type HideEffect implements Effect {
   fade: Boolean!
 }
 
-type HistoricalState {
-  id: ID!
-  state: State!
-  value: Args!
-  archivedAt: DateTime!
-}
-
 """
 A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value.
 """
@@ -1488,6 +1424,18 @@ enum HookKind {
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
 scalar Identifier
+
+"""
+Implement an agent with the given implementations, states and locks. This will create the agent if it doesn't exist and update it if it does exist.
+"""
+input ImplementAgentInput {
+  instanceId: InstanceId!
+  name: String = null
+  extensions: [String!] = null
+  states: [StateImplementationInput!] = null
+  implementations: [ImplementationInput!] = null
+  locks: [LockImplementationInput!] = null
+}
 
 """Represents a concrete implementation of an action."""
 type Implementation {
@@ -1586,6 +1534,7 @@ input ImplementationInput {
   dynamic: Boolean! = false
   logo: String = null
   locks: [String!] = null
+  extension: String = null
 }
 
 input ImplementationOrder {
@@ -1700,9 +1649,15 @@ input KickInput {
 }
 
 """Which locks does the agent provide in general"""
-input LockSchemaInput {
+input LockDefinitionInput {
   key: String!
   description: String = null
+}
+
+"""Which locks does the agent provide in general"""
+input LockImplementationInput {
+  key: String!
+  definition: LockDefinitionInput!
 }
 
 enum LogLevel {
@@ -1883,9 +1838,6 @@ type Mutation {
   """Register an external implementation."""
   createForeignImplementation(input: CreateForeignImplementationInput!): Implementation!
 
-  """Set implementations provided by an extension."""
-  setExtensionImplementations(input: SetExtensionImplementationsInput!): [Implementation!]!
-
   """Acknowledge an assignation."""
   ack(input: AckInput!): Assignation!
 
@@ -1952,23 +1904,11 @@ type Mutation {
   """Create a dashboard layout."""
   createDashboard(input: CreateDashboardInput!): Dashboard!
 
-  """Define a new state schema."""
-  createStateSchema(input: CreateStateSchemaInput!): StateSchema!
-
   """Create a user interface panel."""
   createBlok(input: CreateBlokInput!): Blok!
 
-  """Set the value of a state object."""
-  setState(input: SetStateInput!): State!
-
   """Materialize a UI blok into a concrete instance on a dashboard."""
   materializeBlok(input: MaterializeBlokInput!): MaterializedBlok!
-
-  """Update fields in a state object."""
-  updateState(input: UpdateStateInput!): State!
-
-  """Archive a state schema."""
-  archiveState(input: ArchiveStateInput!): State!
 
   """Pin an agent to the user."""
   pinAgent(input: PinInput!): Agent!
@@ -1988,9 +1928,6 @@ type Mutation {
   """Create a new toolbox with shortcuts."""
   createToolbox(input: CreateToolboxInput!): Toolbox!
 
-  """Set states for an agent."""
-  setAgentStates(input: SetAgentStatesInput!): [State!]!
-
   """Delete unreferenced actions from the system."""
   cleanupActions(actionIds: [ID!] = null): Int!
 
@@ -2005,12 +1942,6 @@ type Mutation {
 
   """Delete a resolution by ID."""
   deleteResolution(input: DeleteResolutionInput!): ID!
-
-  """Create a new space."""
-  createSpace(input: CreateSpaceInput!): Space!
-
-  """Create a new space membership for an agent in a space."""
-  createSpaceMembership(input: CreateSpaceMembershipInput!): SpaceMembership!
 
   """Log state patches"""
   logPatches(input: LogPatchesInput!): ID!
@@ -2027,8 +1958,10 @@ type Mutation {
   """Request temporary S3 read credentials for a media file"""
   requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
 
-  """Create a new agent scene with a 3D model."""
-  createAgentScene(input: CreateAgentSceneInput!): AgentScene!
+  """
+  Implement an agent with given states and implementations. This is used to set up an agent with its initial configuration and capabilities.
+  """
+  implementAgent(input: ImplementAgentInput!): Agent!
 
   """Create a new 3D model."""
   createThreedModel(input: CreateThreeDModelInput!): ThreeDModel!
@@ -2039,11 +1972,8 @@ type Mutation {
   """Delete a 3D model."""
   deleteThreedModel(input: DeleteThreeDModelInput!): ID!
 
-  """Update an existing agent scene."""
-  updateAgentScene(input: UpdateAgentSceneInput!): AgentScene!
-
-  """Delete an agent scene."""
-  deleteAgentScene(input: DeleteAgentSceneInput!): ID!
+  """Create a new space."""
+  createSpace(input: CreateSpaceInput!): Space!
 
   """Update an existing space."""
   updateSpace(input: UpdateSpaceInput!): Space!
@@ -2051,11 +1981,14 @@ type Mutation {
   """Delete a space."""
   deleteSpace(input: DeleteSpaceInput!): ID!
 
-  """Update an existing space membership."""
-  updateSpaceMembership(input: UpdateSpaceMembershipInput!): SpaceMembership!
+  """Create a new placement for an agent in a space."""
+  createPlacement(input: CreatePlacementInput!): Placement!
 
-  """Delete a space membership."""
-  deleteSpaceMembership(input: DeleteSpaceMembershipInput!): ID!
+  """Update an existing placement."""
+  updatePlacement(input: UpdatePlacementInput!): Placement!
+
+  """Delete a placement."""
+  deletePlacement(input: DeletePlacementInput!): ID!
 }
 
 input OffsetPaginationInput {
@@ -2068,6 +2001,13 @@ input OptimisticInput {
   state: String!
   path: String!
   accessor: String = null
+}
+
+enum OptionKey {
+  KEY
+  DESCRIPTION
+  LOGO
+  VALUE
 }
 
 enum Ordering {
@@ -2167,6 +2107,52 @@ input PauseInput {
 input PinInput {
   id: ID!
   pin: Boolean!
+}
+
+"""A placement of an agent in a space."""
+type Placement {
+  id: ID!
+  space: Space!
+  agent: Agent!
+  role: String!
+  affineMatrix: Args
+  model: ThreeDModel
+
+  """Get the agent associated with this placement."""
+  name: String!
+}
+
+"""A way to filter placements (space memberships)"""
+input PlacementFilter {
+  AND: PlacementFilter
+  OR: PlacementFilter
+  NOT: PlacementFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Filter by space"""
+  space: ID
+
+  """Filter by agent"""
+  agent: ID
+
+  """Search by name"""
+  search: String
+}
+
+"""The input for creating or updating a placement."""
+input PlacementInput {
+  role: String = null
+  affineMatrix: [[Float!]!] = null
+  model: ID = null
+  agent: ID = null
+}
+
+input PlacementOrder @oneOf {
+  role: Ordering
+  createdAt: Ordering
 }
 
 """The input for creating a port demand."""
@@ -2364,7 +2350,7 @@ type Query {
   materializedBloks: [MaterializedBlok!]!
 
   """Available state schemas."""
-  stateSchemas: [StateSchema!]!
+  stateDefinitions: [StateDefinition!]!
 
   """All memory shelves."""
   memoryShelves(filters: MemoryShelveFilter, order: MemoryShelveOrder, pagination: OffsetPaginationInput): [MemoryShelve!]!
@@ -2384,17 +2370,28 @@ type Query {
   """All tasks."""
   tasks(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
 
+  """
+  Fetch a specific agent by ID or by app, version, device_id and instance_id.
+  """
+  agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null, instanceId: String = null): Agent!
+
   """List all spaces."""
   spaces(filters: SpaceFilter, order: SpaceOrder, pagination: OffsetPaginationInput): [Space!]!
 
-  """List all space memberships."""
-  spaceMemberships(filters: SpaceMembershipFilter, order: SpaceMembershipOrder, pagination: OffsetPaginationInput): [SpaceMembership!]!
+  """Fetch a specific space by ID."""
+  space(id: ID!): Space!
+
+  """List all placements."""
+  placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
+
+  """Fetch a specific placement by ID."""
+  placement(id: ID!): Placement!
 
   """List all 3D models."""
   threedModels(filters: ThreeDModelFilter, order: ThreeDModelOrder, pagination: OffsetPaginationInput): [ThreeDModel!]!
 
-  """List all agent scenes."""
-  agentScenes(filters: AgentSceneFilter, order: AgentSceneOrder, pagination: OffsetPaginationInput): [AgentScene!]!
+  """Fetch a specific 3D model by ID."""
+  threedModel(id: ID!): ThreeDModel!
 
   """List all sessions."""
   sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
@@ -2450,18 +2447,6 @@ type Query {
   """Fetch resolved dependencies for a resolution."""
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
 
-  """Get a space by ID."""
-  space(id: ID!): Space!
-
-  """Get a 3D model by ID."""
-  threedModel(id: ID!): ThreeDModel!
-
-  """Get an agent scene by ID."""
-  agentScene(id: ID!): AgentScene!
-
-  """Get a space membership by ID."""
-  spaceMembership(id: ID!): SpaceMembership!
-
   """Retrieve state for a specific context."""
   stateFor(agent: ID!, stateHash: String = null, demand: SchemaDemandInput = null): State!
 
@@ -2489,8 +2474,8 @@ type Query {
   """Get a materialized blok by ID."""
   materializedBlok(id: ID!): MaterializedBlok!
 
-  """Retrieve a state schema by ID."""
-  stateSchema(id: ID!): StateSchema!
+  """Retrieve a state definition by ID."""
+  stateDefinition(id: ID!): StateDefinition!
 
   """Get toolbox by ID."""
   toolbox(id: ID!): Toolbox!
@@ -2500,9 +2485,6 @@ type Query {
 
   """Get hardware record by ID."""
   hardwareRecord(id: ID!): HardwareRecord!
-
-  """Retrieve an agent by ID."""
-  agent(id: ID!): Agent!
 
   """Get dashboard by ID."""
   dashboard(id: ID!): Dashboard!
@@ -2668,7 +2650,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "8dccb7a2-87ed-444f-a2be-7319a2e2db9a"
+  reference: String = "a437f4eb-842d-4c99-9bda-954d889bc400"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2892,35 +2874,6 @@ input SessionOrder {
   endedAt: Ordering
 }
 
-"""The input for setting a state schema to an agent."""
-input SetAgentStatesInput {
-  implementations: [StateImplementationInput!]!
-  instanceId: InstanceId!
-}
-
-"""The input for setting extension implementations."""
-input SetExtensionImplementationsInput {
-  """
-  The locks to set on the implementations. This is used to identify the locks in the system.
-  """
-  locks: [LockSchemaInput!] = null
-
-  """
-  The implementations to set. This is used to identify the implementations in the system.
-  """
-  implementations: [ImplementationInput!]!
-  instanceId: InstanceId!
-  extension: String!
-  runCleanup: Boolean! = false
-}
-
-"""The input for setting a state schema."""
-input SetStateInput {
-  interface: String!
-  instanceId: InstanceId!
-  value: Args!
-}
-
 input ShelveInMemoryDrawerInput {
   """
   The instance ID of the agent. This is used to identify the agent in the system.
@@ -3028,7 +2981,7 @@ type Space {
   creator: User!
   createdAt: DateTime!
   updatedAt: DateTime!
-  memberships(filters: SpaceMembershipFilter, order: SpaceMembershipOrder, pagination: OffsetPaginationInput): [SpaceMembership!]!
+  placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
 }
 
 """A way to filter spaces"""
@@ -3045,37 +2998,6 @@ input SpaceFilter {
   search: String
 }
 
-"""A membership of an agent scene in a space."""
-type SpaceMembership {
-  id: ID!
-  space: Space!
-  agentScene: AgentScene!
-  role: String!
-  affineMatrix: Args
-  model: String
-}
-
-"""A way to filter space memberships"""
-input SpaceMembershipFilter {
-  AND: SpaceMembershipFilter
-  OR: SpaceMembershipFilter
-  NOT: SpaceMembershipFilter
-  DISTINCT: Boolean
-
-  """Filter by IDs"""
-  ids: [ID!]
-
-  """Filter by space"""
-  space: ID
-
-  """Filter by agent scene"""
-  agentScene: ID
-}
-
-input SpaceMembershipOrder {
-  role: Ordering
-}
-
 input SpaceOrder {
   createdAt: Ordering
   updatedAt: Ordering
@@ -3084,20 +3006,45 @@ input SpaceOrder {
 
 type State {
   id: ID!
-  stateSchema: StateSchema! @deprecated(reason: "Use schema instead")
+  definition: StateDefinition! @deprecated(reason: "Use schema instead")
   value: Args!
   agent: Agent!
   interface: String!
   createdAt: DateTime!
   updatedAt: DateTime!
-  historicalStates: [HistoricalState!]!
-  schema: StateSchema! @deprecated(reason: "Use schema instead")
+}
+
+type StateAccessor {
+  optionKey: OptionKey!
+  subPath: String
+}
+
+input StateAccessorInput {
+  optionKey: OptionKey!
+  subPath: String = null
 }
 
 type StateChoiceAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
-  stateChoices: String!
+  statePath: String!
+  dependency: String
+  stateAccessors: [StateAccessor!]
+}
+
+type StateDefinition {
+  id: ID!
+  hash: String!
+  name: String!
+  ports: [ReturnPort!]!
+}
+
+"""
+A state schema is a blueprint for a state. It is composed of a definition, a list of dependencies, and a list of params.
+"""
+input StateDefinitionInput {
+  ports: [ReturnPortInput!]!
+  name: String!
 }
 
 """The input for creating a action demand."""
@@ -3108,11 +3055,35 @@ type StateDemand {
   protocols: [ID!]
 }
 
-"""The input for initializing a state schema."""
+"""
+A dependency for a implementation. By defining dependencies, you can
+    create a dependency graph for your implementations and actions
+"""
+input StateDependencyInput {
+  """
+  The name of the state. This is used to identify the action in the system.
+  """
+  name: String = null
+
+  """
+  The protocols that the action is implementing or relying on. This is used to identify the demand in the system, and can be used to match actions that are implementing the same protocol together.
+  """
+  protocols: [ID!] = null
+  key: String!
+  description: String = null
+  stateKey: String = null
+  app: String = null
+  portMatches: [PortMatchInput!] = null
+  optional: Boolean! = false
+  allowInactive: Boolean = true
+}
+
+"""
+A state implementation is a blueprint for a state. It is composed of a definition, a list of dependencies, and a list of params.
+"""
 input StateImplementationInput {
   interface: String!
-  stateSchema: StateSchemaInput!
-  initial: Args!
+  definition: StateDefinitionInput!
 }
 
 type StateMapping {
@@ -3136,19 +3107,6 @@ type StatePatchEvent {
   timestamp: DateTime!
 }
 
-type StateSchema {
-  id: ID!
-  hash: String!
-  name: String!
-  ports: [ReturnPort!]!
-}
-
-"""The input for creating a state schema."""
-input StateSchemaInput {
-  ports: [ReturnPortInput!]!
-  name: String!
-}
-
 """A plain snapshot of a state's current value."""
 type StateSnapshotEvent {
   stateId: ID!
@@ -3164,7 +3122,7 @@ union StateSnapshotEventStatePatchEvent = StateSnapshotEvent | StatePatchEvent
 
 type StateWithValue {
   value: JSON!
-  schema: StateSchema!
+  definition: StateDefinition!
   globalRevision: Int
   localRevision: Int
 }
@@ -3291,7 +3249,7 @@ type Subscription {
   latestPatches(state: ID = null, agent: ID = null): Patch!
 
   """Watch a state: yields the current snapshot then streams patches."""
-  watchState(stateId: ID!): StateSnapshotEventStatePatchEvent!
+  watchState(stateId: ID = null, agentId: ID = null, interface: String = null): StateSnapshotEventStatePatchEvent!
 
   """Watch an agent: yields snapshots for all states then streams patches."""
   watchAgent(agentId: ID!): StateSnapshotEventStatePatchEvent!
@@ -3381,6 +3339,8 @@ type ThreeDModel {
   id: ID!
   name: String!
   description: String
+  transferFunction: String
+  dependency: Agent!
   file: MediaStore!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -3521,11 +3481,13 @@ input UnshelveMemoryDrawerInput {
   id: String!
 }
 
-"""The input for updating an agent scene."""
-input UpdateAgentSceneInput {
+"""The input for updating a placement."""
+input UpdatePlacementInput {
+  role: String = null
+  affineMatrix: [[Float!]!] = null
+  model: ID = null
+  agent: ID = null
   id: ID!
-  transferFunction: String = null
-  modelId: ID = null
 }
 
 """The input for creating a resolution."""
@@ -3540,21 +3502,6 @@ input UpdateSpaceInput {
   id: ID!
   name: String = null
   description: String = null
-}
-
-"""The input for updating a space membership."""
-input UpdateSpaceMembershipInput {
-  id: ID!
-  role: String = null
-  affineMatrix: [[Float!]!] = null
-  model: String = null
-}
-
-"""The input for updating a state schema."""
-input UpdateStateInput {
-  interface: String!
-  instanceId: InstanceId!
-  patches: [Args!]!
 }
 
 """The input for updating a 3D model."""

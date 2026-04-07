@@ -1,8 +1,6 @@
 from typing import Any, Awaitable, Protocol, Union, runtime_checkable, Tuple
 
-from rekuest_next.api.schema import StateSchemaInput
 from rekuest_next.state.observable import StateConfig
-from rekuest_next.structures.registry import StructureRegistry
 
 
 @runtime_checkable
@@ -112,6 +110,26 @@ class StartupFunction(Protocol):
     """
 
     def __call__(self, app_context: Any) -> Awaitable[StartupTypes] | StartupTypes:
+        """Create the actor and return it. This method will create the actor and
+        return it.
+        """
+        ...
+
+    @property
+    def __name__(self) -> str:
+        """Get the name of the function. This method will return the name of the
+        function.
+        """
+        ...
+
+
+@runtime_checkable
+class ContextLessStartupFunction(Protocol):
+    """A function that takes a passport and a transport and returns an actor.
+    This method will create the actor and return it.
+    """
+
+    def __call__(self) -> Awaitable[StartupTypes] | StartupTypes:
         """Create the actor and return it. This method will create the actor and
         return it.
         """

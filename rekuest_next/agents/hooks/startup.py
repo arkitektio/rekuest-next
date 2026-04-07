@@ -8,6 +8,7 @@ from typing import (
     Dict,
     Optional,
     TypeVar,
+    Union,
     cast,
     overload,
 )
@@ -27,6 +28,7 @@ from rekuest_next.agents.hooks.registry import (
 )
 from rekuest_next.protocols import (
     AsyncStartupFunction,
+    ContextLessStartupFunction,
     ThreadedStartupFunction,
     StartupFunction,
 )
@@ -147,8 +149,11 @@ class ThreadedStartupHook(StartupHook):
             raise StartupHookError(
                 "Startup hook must have exactly one argument (app_context) or no arguments"
             )
+
         if len(arguments) == 1:
             self.pass_app_context = True
+        else:
+            self.pass_app_context = False
 
         self.return_length = get_return_length(self.signature)
 
@@ -216,7 +221,7 @@ class ThreadedStartupHook(StartupHook):
         return StartupHookReturns(states=states, contexts=contexts)
 
 
-TStartup = TypeVar("TStartup", bound=StartupFunction)
+TStartup = TypeVar("TStartup", bound=Union[StartupFunction, ContextLessStartupFunction])
 
 
 @overload

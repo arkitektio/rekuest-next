@@ -3,8 +3,8 @@
 from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.api.schema import (
     ImplementationInput,
-    LockSchemaInput,
-    StateSchemaInput,
+    LockImplementationInput,
+    StateImplementationInput,
 )
 from rekuest_next.app import AppRegistry, get_default_app_registry
 
@@ -72,22 +72,22 @@ class DefaultExtension(BaseModel):
         """
         return list(self.app_registry.implementation_registry.implementations.values())
 
-    def get_state_schemas(self) -> Dict[str, StateSchemaInput]:
+    def get_states(self) -> Dict[str, StateImplementationInput]:
         """Get the state schemas for this extension.
 
         Returns:
             Dict[str, StateSchemaInput]: Map of interface to state schema.
         """
-        return dict(self.app_registry.state_registry.state_schemas)
+        return dict(self.app_registry.state_registry.states)
 
-    def get_lock_schemas(self) -> Dict[str, LockSchemaInput]:
+    def get_lock_schemas(self) -> Dict[str, LockImplementationInput]:
         """Get the lock schemas for this extension.
 
         Returns:
             Dict[str, LockSchemaInput]: Map of interface to lock schema.
         """
 
-        schemas: Dict[str, LockSchemaInput] = {}
+        schemas: Dict[str, LockImplementationInput] = {}
 
         for (
             interface,
@@ -98,7 +98,7 @@ class DefaultExtension(BaseModel):
             if schema.locks is not None:
                 for lock in schema.locks:
                     if lock not in schemas:
-                        schemas[lock] = LockSchemaInput(
+                        schemas[lock] = LockImplementationInput(
                             key=lock,
                             description=f"Lock schema for {lock}",
                         )
@@ -121,17 +121,6 @@ class DefaultExtension(BaseModel):
         """
         return dict(self.app_registry.hooks_registry.background_worker)
 
-    async def aget_implementations(self) -> List[ImplementationInput]:
-        """Get the implementations for this extension. This
-        will be called when the agent starts and will
-        be used to register the implementations on the rekuest server
-
-        the implementations in the registry.
-        Returns:
-            List[ImplementationInput]: The implementations for this extension.
-        """
-        return list(self.app_registry.implementation_registry.implementations.values())
-
     async def astart(self, instance_id: str, app_context: Any) -> None:
         """This should be called when the agent starts"""
 
@@ -152,8 +141,10 @@ class DefaultExtension(BaseModel):
         spawining protocol within an actor. But maps implementation"""
 
         try:
-            actor_builder = self.app_registry.implementation_registry.get_builder_for_interface(
-                interface
+            actor_builder = (
+                self.app_registry.implementation_registry.get_builder_for_interface(
+                    interface
+                )
             )
 
         except KeyError:

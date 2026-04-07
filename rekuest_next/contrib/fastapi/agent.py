@@ -34,7 +34,7 @@ from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetrie
 from rekuest_next.contrib.fastapi.retriever.protocol import StateRetriever
 from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink
 from rekuest_next.contrib.fastapi.sink.protocol import StateSink
-from rekuest_next.api.schema import StateImplementationInput, StateSchemaInput
+from rekuest_next.api.schema import StateImplementationInput
 from rekuest_next.contrib.fastapi.models import (
     LockView,
     StateCollectionResponse,
@@ -688,13 +688,13 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             states=states,
         )
 
-    def get_state_schemas(self) -> dict[str, StateSchemaInput]:
+    def get_states(self) -> dict[str, StateImplementationInput]:
         """Return all collected state schema inputs."""
         return dict(self._collected_state_schemas)
 
-    async def aget_state_schemas(self) -> dict[str, StateSchemaInput]:
+    async def aget_state_schemas(self) -> dict[str, StateImplementationInput]:
         """Return all collected state schema inputs."""
-        return self.get_state_schemas()
+        return self.get_states()
 
     async def aget_lock_views(
         self,

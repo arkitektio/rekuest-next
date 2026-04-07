@@ -3,9 +3,3 @@ mutation createImplementation($input: CreateImplementationInput!) {
     ...Implementation
   }
 }
-
-mutation SetExtensionImplementations($input: SetExtensionImplementationsInput!) {
-  setExtensionImplementations(input: $input) {
-    ...Implementation
-  }
-}
