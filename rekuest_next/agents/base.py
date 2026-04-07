@@ -21,7 +21,7 @@ from pydantic import ConfigDict, Field, PrivateAttr
 
 from koil import unkoil
 from koil.composition import KoiledModel
-from rekuest_next import acall, messages
+from rekuest_next import messages
 from rekuest_next.actors.sync import SyncKeyManager
 from rekuest_next.actors.types import Actor, Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
@@ -32,7 +32,6 @@ from rekuest_next.agents.registry import (
     get_default_extension_registry,
 )
 from rekuest_next.agents.transport.types import AgentTransport
-from rekuest_next.agents.utils import resolve_port_for_path
 from rekuest_next.api.schema import (
     Agent,
     Implementation,
@@ -57,8 +56,6 @@ from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
 
-ContextType = TypeVar("ContextType")
-
 
 class AppContext(asyncio.Protocol):
     """Protocol for the app context that is passed to the hooks."""
@@ -66,7 +63,7 @@ class AppContext(asyncio.Protocol):
     __rekuest_app_context__: str
 
 
-T = TypeVar("ContextType", bound="AppContext")
+ContextType = TypeVar("ContextType", bound="AppContext")
 
 
 @dataclass
@@ -116,9 +113,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    extension_registry: ExtensionRegistry = Field(default_factory=get_default_extension_registry)
 
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
@@ -136,9 +131,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
 
-    interface_implementation_map: Dict[str, Implementation] = Field(
-        default_factory=dict
-    )
+    interface_implementation_map: Dict[str, Implementation] = Field(default_factory=dict)
     implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
     provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
 
@@ -173,22 +166,14 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         default_factory=lambda: {}  # typ
     )
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
-        default_factory=lambda: {}
-    )
+    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(default_factory=lambda: {})
     _collected_state_schemas: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_structure_registries: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
+    _collected_structure_registries: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
     _collected_startup_hooks: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _collected_background_workers: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _state_class_interface_map: Dict[type, str] = PrivateAttr(
-        default_factory=lambda: {}
-    )
+    _collected_background_workers: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
+    _state_class_interface_map: Dict[type, str] = PrivateAttr(default_factory=lambda: {})
 
     # Event based necessities
     current_session: str = Field(
@@ -206,15 +191,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    _collected_implementations: List[ImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_states: list[StateImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_locks: list[LockImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
+    _collected_implementations: List[ImplementationInput] = PrivateAttr(default_factory=lambda: [])
+    _collected_states: list[StateImplementationInput] = PrivateAttr(default_factory=lambda: [])
+    _collected_locks: list[LockImplementationInput] = PrivateAttr(default_factory=lambda: [])
 
     def model_post_init(self, __context: Any) -> None:
         pass
@@ -260,9 +239,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         if self._event_queue is None:
             raise AgentException("Patch queue is not initialized")
         self._event_queue.sync_q.put(
-            QueuedPatchEvent(
-                interface=interface, patch=patch, assignation_id=assignation_id
-            )
+            QueuedPatchEvent(interface=interface, patch=patch, assignation_id=assignation_id)
         )
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
@@ -310,9 +287,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             ),
         )
 
-    async def _ashrink_patch_value(
-        self, interface: str, patch: Patch
-    ) -> JSONSerializable | None:
+    async def _ashrink_patch_value(self, interface: str, patch: Patch) -> JSONSerializable | None:
         if patch.op not in ("add", "replace"):
             return None
 
@@ -670,9 +645,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
         """
-        logger.debug(
-            f"Agent forwarding {message.id} from actor {actor.__class__.__name__}"
-        )
+        logger.debug(f"Agent forwarding {message.id} from actor {actor.__class__.__name__}")
         await self.transport.asend(message)
 
     async def ashrink_state(self, interface: str, state: AnyState) -> Any:  # noqa: ANN401
@@ -692,9 +665,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         )
         return shrinked_state
 
-    async def ainit_states(
-        self, hook_return: StartupHookReturns, app_context: Any = None
-    ) -> None:  # noqa: ANN401
+    async def ainit_states(self, hook_return: StartupHookReturns, app_context: Any = None) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
 
         if not self.instance_id:
@@ -752,17 +723,13 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         from rekuest_next.agents.context import get_context_name, is_context
 
         if not self.running:
-            raise AgentException(
-                "Agent is not running. Contexts are not available yet."
-            )
+            raise AgentException("Agent is not running. Contexts are not available yet.")
 
         if is_context(context):
             context_name = get_context_name(context)
             return self.contexts[context_name]
 
-        raise AgentException(
-            f"Context for type {context} not found in agent {self.name}"
-        )
+        raise AgentException(f"Context for type {context} not found in agent {self.name}")
 
     async def aget_app_context(self) -> AppContext:
         """Get the app context from the agent. This is used to get the
@@ -818,9 +785,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             task.cancel()
 
         try:
-            await asyncio.gather(
-                *self._background_tasks.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._background_tasks.values(), return_exceptions=True)
         except asyncio.CancelledError:
             pass
 
@@ -911,9 +876,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """
 
         if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
-            )
+            raise ProvisionException(f"Extension {assign.extension} not found in agent {self.name}")
         extension = self.extension_registry.agent_extensions[assign.extension]
 
         actor = await extension.aspawn_actor_for_interface(self, assign.interface)
@@ -965,12 +928,8 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         self._app_context = context
 
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.instance_id}"
-            )
-            await self.astart(
-                instance_id=self.instance_id, app_context=self._app_context
-            )
+            logger.info(f"Launching provisioning task. We are running {self.instance_id}")
+            await self.astart(instance_id=self.instance_id, app_context=self._app_context)
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
@@ -1036,9 +995,7 @@ class RekuestAgent(BaseAgent[ContextType]):
         )
 
         if self._agent.hash != await self.aget_hash():
-            print(
-                "Agent hash does not match, registering implementations and states again"
-            )
+            print("Agent hash does not match, registering implementations and states again")
             agent = await aimplement_agent(
                 instance_id=self.instance_id,
                 name=self.name,
