@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.2.1 (2026-04-07)
+
+
 ## v1.2.0 (2026-04-07)
+
+### Bug Fixes
+
+- Context type annotation
+  ([`205bf4d`](https://github.com/arkitektio/rekuest-next/commit/205bf4dba9d3161449cce0ceac359d57db2488cd))
 
 ### Features
 
