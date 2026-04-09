@@ -10,6 +10,7 @@ class TaskLock:
     def __init__(self, agent: "Agent", lock: "LockImplementationInput"):
         self.agent = agent
         self.lock = asyncio.Lock()
+        self.lock_key = lock.definition.key
         self.locking_task = None
         self.definition = lock.definition
 
@@ -20,7 +21,7 @@ class TaskLock:
 
     async def release(self) -> None:
         self.lock.release()
-        await self.agent.aunlock(self.lock.key)
+        await self.agent.aunlock(self.lock_key)
         self.locking_task = None
 
     async def get(self, assignation: str) -> "AssignationLock":

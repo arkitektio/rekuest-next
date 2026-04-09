@@ -881,7 +881,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         # Run startup hooks from extensions
 
         # Inspect all locks
-        locks = [lock.lock.key for lock in self.locks.values()]
+        locks = [lock.lock_key for lock in self.locks.values()]
 
         with acquired_locks(*locks):
             hook_return = await self.arun_startup_hooks(

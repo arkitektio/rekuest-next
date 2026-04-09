@@ -2,39 +2,39 @@
 
 from typing_extensions import Literal
 from typing import (
-    Annotated,
-    Iterator,
-    List,
-    Union,
-    AsyncIterator,
-    Optional,
     Any,
+    Optional,
     Iterable,
+    Union,
+    Annotated,
+    AsyncIterator,
+    List,
+    Iterator,
     Tuple,
 )
+from rekuest_next.traits.action import Callable
 from rekuest_next.traits.ports import (
-    DefinitionInputTrait,
-    ValidatorInputTrait,
     PortTrait,
+    ValidatorInputTrait,
+    DefinitionInputTrait,
     WidgetInputTrait,
     ReturnWidgetInputTrait,
 )
-from pydantic import BaseModel, ConfigDict, Field
-from rekuest_next.funcs import subscribe, execute, aexecute, asubscribe
 from rekuest_next.scalars import (
+    InstanceID,
     ValidatorFunction,
     Args,
-    MediaLike,
+    SearchQuery,
     ActionHash,
     Identifier,
-    InstanceID,
-    SearchQuery,
+    MediaLike,
 )
-from datetime import datetime
-from enum import Enum
-from rekuest_next.traits.action import Callable
+from pydantic import BaseModel, Field, ConfigDict
+from rekuest_next.funcs import subscribe, execute, asubscribe, aexecute
 from rath.scalars import IDCoercible, ID
+from datetime import datetime
 from rekuest_next.rath import RekuestNextRath
+from enum import Enum
 
 
 class ActionKind(str, Enum):
@@ -157,6 +157,7 @@ class PortKind(str, Enum):
 class ProvidesOperator(str, Enum):
     """The operator for matching descriptors."""
 
+    MATCHES = "MATCHES"
     EXISTS = "EXISTS"
     LTE = "LTE"
     GTE = "GTE"
@@ -170,6 +171,7 @@ class ProvidesOperator(str, Enum):
 class RequiresOperator(str, Enum):
     """The operator for matching descriptors."""
 
+    MATCHES = "MATCHES"
     EXISTS = "EXISTS"
     LTE = "LTE"
     GTE = "GTE"
@@ -4923,7 +4925,7 @@ def request_media_access(
 
 async def areserve(
     instance_id: InstanceID,
-    reference: Optional[str] = "25115aa6-4d02-4704-b472-052f308b0850",
+    reference: Optional[str] = "4da1ab0c-a3be-412b-af4c-6a8dd58f4dbb",
     action: Optional[IDCoercible] = None,
     implementation: Optional[IDCoercible] = None,
     title: Optional[str] = None,
@@ -4969,7 +4971,7 @@ async def areserve(
 
 def reserve(
     instance_id: InstanceID,
-    reference: Optional[str] = "25115aa6-4d02-4704-b472-052f308b0850",
+    reference: Optional[str] = "4da1ab0c-a3be-412b-af4c-6a8dd58f4dbb",
     action: Optional[IDCoercible] = None,
     implementation: Optional[IDCoercible] = None,
     title: Optional[str] = None,

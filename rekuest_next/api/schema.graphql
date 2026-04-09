@@ -2310,6 +2310,7 @@ input ProvidesInput {
 
 """The operator for matching descriptors."""
 enum ProvidesOperator {
+  MATCHES
   EXISTS
   LTE
   GTE
@@ -2592,6 +2593,7 @@ input RequiresInput {
 
 """The operator for matching descriptors."""
 enum RequiresOperator {
+  MATCHES
   EXISTS
   LTE
   GTE
@@ -2676,7 +2678,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "25115aa6-4d02-4704-b472-052f308b0850"
+  reference: String = "4da1ab0c-a3be-412b-af4c-6a8dd58f4dbb"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

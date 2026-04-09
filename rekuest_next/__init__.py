@@ -31,6 +31,7 @@ from .app import (
     set_default_app_registry,
     reset_default_app_registry,
 )
+from rekuest_next.annotations import Requires, Provides
 
 try:
     from .arkitekt import RekuestNextService
@@ -70,6 +71,8 @@ __all__ = [
     "acall_raw",
     "structure_reg",
     "AppRegistry",
+    "Requires",
+    "Provides",
     "get_default_app_registry",
     "set_default_app_registry",
     "reset_default_app_registry",

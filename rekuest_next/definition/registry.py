@@ -4,6 +4,8 @@ import contextvars
 from rekuest_next.api.schema import (
     DefinitionInput,
     ImplementationInput,
+    LockDefinitionInput,
+    LockImplementationInput,
 )
 from typing import Dict, List
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,7 +17,9 @@ import hashlib
 from rekuest_next.structures.types import JSONSerializable
 
 
-current_definition_registry = contextvars.ContextVar("current_definition_registry", default=None)
+current_definition_registry = contextvars.ContextVar(
+    "current_definition_registry", default=None
+)
 
 
 class DefinitionRegistry(BaseModel):
@@ -26,9 +30,13 @@ class DefinitionRegistry(BaseModel):
     structure registries for each function and generator.
     """
 
-    implementations: Dict[str, ImplementationInput] = Field(default_factory=dict, exclude=True)
+    implementations: Dict[str, ImplementationInput] = Field(
+        default_factory=dict, exclude=True
+    )
     actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
-    structure_registries: Dict[str, StructureRegistry] = Field(default_factory=dict, exclude=True)
+    structure_registries: Dict[str, StructureRegistry] = Field(
+        default_factory=dict, exclude=True
+    )
     copy_from_default: bool = False
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -44,6 +52,30 @@ class DefinitionRegistry(BaseModel):
         self.implementations[interface] = implementation
         self.actor_builders[interface] = actorBuilder
 
+    def get_implementations(self) -> list[ImplementationInput]:
+        """Get all implementations in the registry."""
+        return list(self.implementations.values())
+
+    def get_locks(self) -> list[LockImplementationInput]:
+        """Get all locks in the registry."""
+        lock_implementations = {}
+
+        for (
+            interface,
+            schema,
+        ) in self.implementations.items():
+            if schema.locks is not None:
+                for lock in schema.locks:
+                    if lock not in lock_implementations:
+                        lock_implementations[lock] = LockImplementationInput(
+                            key=lock,
+                            definition=LockDefinitionInput(
+                                key=lock,
+                                description=f"Lock definition for {lock}",
+                            ),
+                        )
+        return list(lock_implementations.values())
+
     def get_builder_for_interface(self, interface: str) -> ActorBuilder:
         """Get the actor builder for a given interface."""
         return self.actor_builders[interface]
@@ -53,7 +85,9 @@ class DefinitionRegistry(BaseModel):
         assert interface in self.implementations, "No definition for interface"
         return self.implementations[interface].definition
 
-    def get_implementation_input_for_interface(self, interface: str) -> ImplementationInput:
+    def get_implementation_input_for_interface(
+        self, interface: str
+    ) -> ImplementationInput:
         """Get the implementation input for a given interface."""
         assert interface in self.implementations, "No definition for interface"
         return self.implementations[interface]
@@ -77,7 +111,9 @@ class DefinitionRegistry(BaseModel):
 
     def hash(self) -> str:
         """Get the hash of the registry."""
-        return hashlib.sha256(json.dumps(self.dump(), sort_keys=True).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(self.dump(), sort_keys=True).encode()
+        ).hexdigest()
 
     def create_merged(
         self, other: "DefinitionRegistry", strict: bool = True
