@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.3.0 (2026-04-09)
+
+
 ## v1.2.1 (2026-04-07)
+
+### Features
+
+- Update deps
+  ([`db5b472`](https://github.com/arkitektio/rekuest-next/commit/db5b4721ade3e0200dfdf86415e083d98690a06f))
 
 
 ## v1.2.0 (2026-04-07)
