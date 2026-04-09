@@ -5,13 +5,12 @@ import inspect
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, TypeVar, TYPE_CHECKING
+from typing import Any, List, Optional, Type, TypeVar
 import inflection
 from fieldz import fields, Field  # type: ignore
 from pydantic import BaseModel
 
 from rekuest_next.api.schema import ValidatorInput
-from rekuest_next.scalars import ValidatorFunction  # type: ignore
 
 # Handle Python version compatibility for dataclass_transform
 if sys.version_info >= (3, 11):
@@ -131,16 +130,16 @@ def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
     children_classes: tuple[Field[Any], ...] = fields(cls)  # type: ignore
 
     args: list[InspectedArg] = []
-    for field in children_classes:
+    for yfield in children_classes:
         args.append(
             InspectedArg(
-                cls=field.annotated_type or field.type,
-                default=field.default if field.default != Field.MISSING else None,
-                key=field.name,
-                description=field.description
-                or field.metadata.get("description", None),
-                validators=field.metadata.get("validators", None),
-                label=field.metadata.get("label", None),
+                cls=yfield.annotated_type or yfield.type,
+                default=yfield.default if yfield.default != Field.MISSING else None,
+                key=yfield.name,
+                description=yfield.description
+                or yfield.metadata.get("description", None),
+                validators=yfield.metadata.get("validators", None),
+                label=yfield.metadata.get("label", None),
             )
         )
     return args

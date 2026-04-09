@@ -157,7 +157,7 @@ class WebsocketAgentTransport(AgentTransport):
                                     )
                                 else:
                                     yield payload.message
-                            except pydantic.ValidationError as e:
+                            except pydantic.ValidationError:
                                 logger.error(
                                     f"Received non-json message: {message}",
                                     exc_info=True,

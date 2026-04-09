@@ -1,18 +1,16 @@
 """Decorator to register a class as a state."""
 
-from dataclasses import dataclass, is_dataclass
-from typing import Optional, Type, TypeVar, Callable, overload, Any, List
+from dataclasses import dataclass
+from typing import Optional, Type, TypeVar, Callable, overload
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateImplementationInput,
     StateDefinitionInput,
 )
 from rekuest_next.state.observable import StateConfig, make_evented
-from rekuest_next.state.publish import get_current_publisher, noop_publisher
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.state.registry import StateRegistry, get_default_state_registry
 from rekuest_next.structures.default import get_default_structure_registry
-from rekuest_next.protocols import AnyState
 from fieldz import fields, Field
 
 T = TypeVar("T")
@@ -136,9 +134,6 @@ def state(
                 cls = dataclass(cls)
 
             setattr(cls, "__rekuest_state__", cls.__name__ if name is None else name)
-            print(
-                f"Registering state: {cls.__name__} with name: {getattr(cls, '__rekuest_state__')}"
-            )
 
             # Apply Statify Logic
             cls, state_schema = statify(

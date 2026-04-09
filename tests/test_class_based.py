@@ -30,8 +30,12 @@ def test_actify_class_based_function(mock_rekuest: RekuestNext) -> None:
     assert default is not None
     assert isinstance(default, DefaultExtension)
 
-    assert "basic_function" in default.app_registry.implementation_registry.implementations
-    implementation = default.app_registry.implementation_registry.implementations["basic_function"]
+    assert (
+        "basic_function" in default.app_registry.implementation_registry.implementations
+    )
+    implementation = default.app_registry.implementation_registry.implementations[
+        "basic_function"
+    ]
 
     assert len(implementation.definition.args) == 1
 
@@ -52,18 +56,20 @@ def test_actify_class_based_startup(mock_rekuest: RekuestNext) -> None:
             self.rekuest = mock_rekuest
             self.rekuest.register_startup(self.basic_startup)
 
-        def basic_startup(self, instance_id: str) -> DefaultState:
+        def basic_startup(self) -> DefaultState:
             """A basic function that returns the input multiplied by 2."""
-            return DefaultState(instance_id=instance_id)
+            return DefaultState(instance_id="   started")
 
-    class_instance = ClassBase(mock_rekuest)
+    _ = ClassBase(mock_rekuest)
 
-    default = mock_rekuest.agent.hook_registry.startup_hooks.get("basic_startup")
-    assert default is not None
+    default_ext = mock_rekuest.agent.extension_registry.get("default")
+    assert default_ext is not None
+    assert isinstance(default_ext, DefaultExtension)
+    default = default_ext.app_registry.hooks_registry.startup_hooks.get("basic_startup")
     assert isinstance(default, ThreadedStartupHook)
 
 
-def test_actify_class_based_startup(mock_rekuest: RekuestNext) -> None:
+def test_actify_class_based_background(mock_rekuest: RekuestNext) -> None:
     """Test if the function is correctly buildable into an actor definition."""
 
     @state
@@ -90,6 +96,8 @@ def test_actify_class_based_startup(mock_rekuest: RekuestNext) -> None:
     default_ext = mock_rekuest.agent.extension_registry.get("default")
     assert default_ext is not None
     assert isinstance(default_ext, DefaultExtension)
-    default = default_ext.app_registry.hooks_registry.background_worker.get("basic_background")
+    default = default_ext.app_registry.hooks_registry.background_worker.get(
+        "basic_background"
+    )
     assert default is not None
     assert isinstance(default, WrappedThreadedBackgroundTask)

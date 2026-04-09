@@ -3,6 +3,7 @@
 from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.api.schema import (
     ImplementationInput,
+    LockDefinitionInput,
     LockImplementationInput,
     StateImplementationInput,
 )
@@ -100,7 +101,10 @@ class DefaultExtension(BaseModel):
                     if lock not in schemas:
                         schemas[lock] = LockImplementationInput(
                             key=lock,
-                            description=f"Lock schema for {lock}",
+                            definition=LockDefinitionInput(
+                                key=lock,
+                                description=f"Lock definition for {lock}",
+                            ),
                         )
 
         return schemas

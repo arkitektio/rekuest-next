@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING
 
 from rekuest_next.scalars import MediaLike
-from .errors import PermissionsError, UploadError
+from .errors import PermissionsError
 
 from rekuest_next.datalayer import DataLayer
 
@@ -36,15 +36,15 @@ async def astore_media_file(
         aws_session_token=credentials.session_token,
     ) as client:
         try:
-            print(credentials, file.value)
-            await client.put_object(Bucket=credentials.bucket, Key=credentials.key, Body=file.value)  # type: ignore
+            await client.put_object(
+                Bucket=credentials.bucket, Key=credentials.key, Body=file.value
+            )  # type: ignore
         except botocore.exceptions.ClientError as e:  # type: ignore
             if e.response["Error"]["Code"] == "InvalidAccessKeyId":  # type: ignore
-                return PermissionsError("Access Key is invalid, trying to get new credentials")  # type: ignore
+                return PermissionsError(
+                    "Access Key is invalid, trying to get new credentials"
+                )  # type: ignore
 
             raise e
-
-    print(credentials)
-    return credentials.store
 
     return credentials.store

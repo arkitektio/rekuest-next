@@ -1,6 +1,5 @@
 from typing import Protocol
 from rekuest_next.api.schema import (
-    ActionDependencyInput,
     AgentDependencyInput,
     OptimisticInput,
 )

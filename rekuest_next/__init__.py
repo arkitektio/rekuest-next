@@ -20,8 +20,6 @@ from .actors.context import (
     aprogress,
     apausepoint,
     pausepoint,
-    publish,
-    apublish,
     install_hook,
 )
 from .declare import declare, agent_protocol
@@ -36,8 +34,7 @@ from .app import (
 
 try:
     from .arkitekt import RekuestNextService
-except ImportError as e:
-    raise e
+except ImportError:
     pass
 
 
@@ -52,10 +49,8 @@ __all__ = [
     "alog",
     "progress",
     "aprogress",
-    "publish",
-    "apublish",
     "declare",
-    "protocol",
+    "agent_protocol",
     "model",
     "model_field",
     "state",

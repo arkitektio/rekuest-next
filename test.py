@@ -2,7 +2,7 @@ from rekuest_next.register import register
 from rekuest_next.declare import agent_protocol
 
 
-@agent_protocol
+@agent_protocol("Agent")
 class Agent:
     """An example agent protocol with a static method."""
 
@@ -12,7 +12,7 @@ class Agent:
         ...
 
 
-@agent_protocol
+@agent_protocol("AnotherAgent")
 class AnotherAgent:
     """Another example agent protocol with a static method."""
 
@@ -22,8 +22,10 @@ class AnotherAgent:
         ...
 
 
-@register(dependencies=[AnotherAgent, Agent])
+@register
 def workflow(
+    agent_a: Agent,
+    agent_b: AnotherAgent,
     number: int,
 ) -> int:
     """A workflow that returns a static string."""

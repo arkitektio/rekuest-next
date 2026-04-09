@@ -1,7 +1,6 @@
 from __future__ import annotations
 import contextlib
 import os
-import sys
 import threading
 from typing import AsyncGenerator, Callable, Tuple
 
@@ -55,7 +54,6 @@ async def capture_stdouterr() -> AsyncGenerator[Callable[[], Tuple[str, str]], N
         with os.fdopen(fd, "rb") as f:
             while True:
                 data = f.read()
-                print(f"reader got data: {data!r}", file=sys.__stderr__)
                 if not data:
                     break
                 target.append(data)
@@ -68,7 +66,6 @@ async def capture_stdouterr() -> AsyncGenerator[Callable[[], Tuple[str, str]], N
     try:
         # Provide a callable for retrieving the logs
         def get_logs() -> Tuple[str, str]:
-            print("get_logs called")
             return (
                 b"".join(out_chunks).decode(errors="replace"),
                 b"".join(err_chunks).decode(errors="replace"),

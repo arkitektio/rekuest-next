@@ -451,6 +451,17 @@ enum AgentKind {
   WEBHOOK
 }
 
+type AgentMapping {
+  """Get the agent's name from the mapping."""
+  agent: Agent!
+
+  """Get the agent's ID from the mapping."""
+  agentId: String!
+
+  """Get a specific argument by key."""
+  mappedImplementations: [ImplementationMapping!]!
+}
+
 input AgentOrder {
   lastSeen: Ordering
 }
@@ -664,6 +675,9 @@ type Assignation {
   The method of the dependency that caused this assignation, if applicable.
   """
   dependencyMethod: String
+
+  """Get a specific dependency by key."""
+  resolvedDependencies: [ResolvedAgentDependency!]!
 
   """List of recent instructions for this assignation."""
   instructs: [AssignationInstruct!]!
@@ -1435,6 +1449,7 @@ input ImplementAgentInput {
   states: [StateImplementationInput!] = null
   implementations: [ImplementationInput!] = null
   locks: [LockImplementationInput!] = null
+  hash: String = null
 }
 
 """Represents a concrete implementation of an action."""
@@ -1535,6 +1550,17 @@ input ImplementationInput {
   logo: String = null
   locks: [String!] = null
   extension: String = null
+}
+
+type ImplementationMapping {
+  """Get the key of the implementation mapping."""
+  key: String!
+
+  """Get the key of the implementation mapping."""
+  implementation: Implementation!
+
+  """Get the key of the implementation mapping."""
+  resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
 input ImplementationOrder {
@@ -2650,7 +2676,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "bc913003-64a5-4f79-b15f-e4d38a2b1ee1"
+  reference: String = "25115aa6-4d02-4704-b472-052f308b0850"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2689,6 +2715,17 @@ input ResolutionFilter {
   NOT: ResolutionFilter
   DISTINCT: Boolean
   ids: [ID!]
+}
+
+type ResolvedAgentDependency {
+  """Get a specific argument by key."""
+  values: String
+
+  """Get a specific argument by key."""
+  mappedAgents: [AgentMapping!]!
+
+  """Get the key of the resolved dependency."""
+  key: String!
 }
 
 """
@@ -3006,11 +3043,20 @@ input SpaceOrder {
 
 type State {
   id: ID!
-  definition: StateDefinition! @deprecated(reason: "Use schema instead")
-  value: Args!
+
+  """The schema definition for this state."""
+  definition: StateDefinition!
+
+  """The agent to which this state belongs."""
   agent: Agent!
+
+  """The interface this state is associated with."""
   interface: String!
+
+  """Timestamp when this state was created."""
   createdAt: DateTime!
+
+  """Timestamp when this state was last updated."""
   updatedAt: DateTime!
 }
 

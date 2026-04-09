@@ -42,19 +42,17 @@ async def gather_with_progress(
     """Ghathers multiple async tasks while tracking progress.
 
     Args:
-        future_builder (Callable[[int], Awaitable[T]]): A function that takes an integer
-            and returns an awaitable that produces a result of type T.
-        iterations (int): The number of iterations to run.
+        futures (List[Awaitable[T]]): A list of awaitables that produce results of type T.
     """
     completed = 0
     iterations = len(futures)
 
     async def wrapper(i: int) -> T:
         nonlocal completed
-        result = await future_builder(i)
+        result = await futures[i]
         completed += 1
         try:
-            await aprogress(100 * completed / iterations)
+            await aprogress(int(100 * completed / iterations))
         except Exception:
             pass
         return result

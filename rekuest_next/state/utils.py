@@ -10,7 +10,6 @@ from rekuest_next.actors.types import (
 from rekuest_next.definition.define import (
     get_non_null_variants,
     is_none_type,
-    is_nullable,
     is_tuple,
 )
 from rekuest_next.state.predicate import (
@@ -21,7 +20,7 @@ from rekuest_next.state.predicate import (
     is_state,
 )
 from typing import Tuple
-from typing import Dict, Any
+from typing import Dict
 import inspect
 
 
@@ -65,23 +64,18 @@ def prepare_state_variables(
     state_returns: Dict[int, str] = {}
 
     for key, value in parameters.items():
-        print(key, value.annotation)
         if is_state(value.annotation):
-            print(f"Found state variable: {key} of type {value.annotation}")
             write_state_variables[key] = get_state_name(value.annotation)
             required_state_locks[key] = get_state_locks(value.annotation)
         elif is_read_only_state(value.annotation):
             read_only_variables[key] = get_state_name(value.annotation)
 
     returns = sig.return_annotation
-    print(f"Return annotation: {returns}")
-
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):
             if is_state(cls):
                 state_returns[index] = get_state_name(cls)
     else:
-        print(f"Return annotation: {returns}")
         if is_state(returns):
             state_returns[0] = get_state_name(returns)
 
@@ -115,14 +109,12 @@ def prepare_appcontext(
     returns = sig.return_annotation
 
     app_context_returns: Dict[int, str] = {}
-    print(f"Return annotation: {returns}")
 
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):
             if is_app_context(cls):
                 app_context_returns[index] = value.annotation.__rekuest_app_context__
     else:
-        print(f"Return annotation: {returns}")
         if is_app_context(returns):
             app_context_returns[0] = value.annotation.__rekuest_app_context__
 

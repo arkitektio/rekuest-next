@@ -4,10 +4,10 @@ from rekuest_next.structures.default import get_default_structure_registry, id_s
 from rekuest_next.api.schema import (
     Implementation,
     Action,
-    Search_implementationsQuery,
+    SearchImplementationsQuery,
     SearchActionsQuery,
-    Search_testcasesQuery,
-    Search_testresultsQuery,
+    SearchTestCasesQuery,
+    SearchTestResultsQuery,
     SearchShortcutsQuery,
     Shortcut,
     TestCase,
@@ -15,8 +15,8 @@ from rekuest_next.api.schema import (
     AssignationEvent,
     aget_event,
     aget_shortcut,
-    aget_testcase,
-    aget_testresult,
+    aget_test_case,
+    aget_test_result,
     aget_implementation,
     afind,
 )
@@ -29,7 +29,7 @@ structure_reg.register_as_structure(
     aexpand=aget_implementation,
     ashrink=id_shrink,
     default_widget=SearchWidget(
-        query=Search_implementationsQuery.Meta.document, ward="rekuest"
+        query=SearchImplementationsQuery.Meta.document, ward="rekuest"
     ),
 )
 
@@ -54,20 +54,20 @@ structure_reg.register_as_structure(
 structure_reg.register_as_structure(
     TestCase,
     "@rekuest/testcase",
-    aexpand=aget_testcase,
+    aexpand=aget_test_case,
     ashrink=id_shrink,
     default_widget=SearchWidget(
-        query=Search_testcasesQuery.Meta.document, ward="rekuest"
+        query=SearchTestCasesQuery.Meta.document, ward="rekuest"
     ),
 )
 
 structure_reg.register_as_structure(
     TestResult,
     "@rekuest/testresult",
-    aexpand=aget_testresult,
+    aexpand=aget_test_result,
     ashrink=id_shrink,
     default_widget=SearchWidget(
-        query=Search_testresultsQuery.Meta.document, ward="rekuest"
+        query=SearchTestResultsQuery.Meta.document, ward="rekuest"
     ),
 )
 

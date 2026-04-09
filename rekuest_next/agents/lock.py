@@ -1,5 +1,4 @@
 import asyncio
-from rekuest_next import definition
 from rekuest_next.api.schema import LockDefinitionInput, LockImplementationInput
 from typing import TYPE_CHECKING
 

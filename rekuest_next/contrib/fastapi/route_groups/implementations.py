@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -13,7 +12,6 @@ from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.messages import Assign
 from rekuest_next.contrib.fastapi.openapi_utils import (
     create_json_schema_from_ports,
-    register_custom_schema,
 )
 
 

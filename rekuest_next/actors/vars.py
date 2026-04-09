@@ -40,5 +40,5 @@ def get_current_assignation_id_or_none() -> str | None:
     try:
         helper = current_assignation_helper.get()
         return helper.assignment.assignation
-    except LookupError as e:
+    except LookupError:
         return None

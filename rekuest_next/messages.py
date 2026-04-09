@@ -1,6 +1,6 @@
 """Messages that are used to communicate between the rekuest backend and the agent"""
 
-from typing import Any, List, Optional, Literal, Union, Dict
+from typing import Any, Optional, Literal, Union, Dict
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from pydantic import Field

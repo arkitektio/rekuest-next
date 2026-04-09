@@ -5,7 +5,6 @@ from koil.helpers import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
 from rekuest_next.agents.hooks.background import background
-from rekuest_next.coercible_types import DependencyCoercible
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.agents.extensions.default import DefaultExtension
@@ -21,7 +20,6 @@ from typing import (
     Any,
 )
 from rekuest_next.actors.actify import reactify
-from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
@@ -43,7 +41,9 @@ T = TypeVar("T", bound=AnyFunction)
 class RekuestNext(Composition):
     """The main rekuest next client class"""
 
-    structure_registry: StructureRegistry = Field(default_factory=get_default_structure_registry)
+    structure_registry: StructureRegistry = Field(
+        default_factory=get_default_structure_registry
+    )
     rath: RekuestNextRath
     agent: Agent
     postman: Postman
@@ -52,6 +52,7 @@ class RekuestNext(Composition):
         self,
         function: AnyFunction,
         actifier: Actifier = reactify,
+        version: Optional[str] = None,
         interface: Optional[str] = None,
         stateful: bool = False,
         widgets: Optional[Dict[str, AssignWidgetInput]] = None,
@@ -100,7 +101,9 @@ class RekuestNext(Composition):
 
         default_extension = self.agent.extension_registry.get("default")
         assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        assert isinstance(default_extension, DefaultExtension), (
+            "Default is not a DefaultExtension"
+        )
 
         return register_func(
             function,
@@ -117,12 +120,15 @@ class RekuestNext(Composition):
             is_test_for=is_test_for,
             logo=logo,
             validators=validators,
+            version=version,
             in_process=in_process,
             dynamic=dynamic,
             locks=locks,
         )
 
-    def register_startup(self, function: StartupFunction, name: str | None = None) -> None:
+    def register_startup(
+        self, function: StartupFunction, name: str | None = None
+    ) -> None:
         """Register a startup function that will be called when the agent starts.
 
         Args:
@@ -130,14 +136,18 @@ class RekuestNext(Composition):
         """
         default_extension = self.agent.extension_registry.get("default")
         assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        assert isinstance(default_extension, DefaultExtension), (
+            "Default is not a DefaultExtension"
+        )
         startup(
             function,
             name=name or function.__name__,
             registry=default_extension.app_registry.hooks_registry,
         )
 
-    def register_background(self, function: BackgroundFunction, name: str | None = None) -> None:
+    def register_background(
+        self, function: BackgroundFunction, name: str | None = None
+    ) -> None:
         """Register a background function that will be run in the background.
 
         Args:
@@ -145,7 +155,9 @@ class RekuestNext(Composition):
         """
         default_extension = self.agent.extension_registry.get("default")
         assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), "Default is not a DefaultExtension"
+        assert isinstance(default_extension, DefaultExtension), (
+            "Default is not a DefaultExtension"
+        )
         background(
             function,
             name=name or function.__name__,

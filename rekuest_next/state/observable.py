@@ -2,7 +2,6 @@ import dataclasses
 from typing import Any, Generic, Iterable, TypeVar, overload, SupportsIndex
 
 from rekuest_next.actors.vars import (
-    get_current_assignation_helper,
     get_current_assignation_id_or_none,
 )
 from rekuest_next.api.schema import ReturnPortInput, StateDefinitionInput

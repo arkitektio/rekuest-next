@@ -1,8 +1,8 @@
 """Transport types for agents."""
 
-from typing import Protocol, runtime_checkable
+from typing import AsyncGenerator, Protocol, runtime_checkable
 import typing
-from rekuest_next.messages import FromAgentMessage
+from rekuest_next.messages import FromAgentMessage, ToAgentMessage
 
 
 @runtime_checkable
@@ -23,6 +23,10 @@ class AgentTransport(Protocol):
 
     async def __aenter__(self) -> "AgentTransport":
         """Enter the transport context."""
+        ...
+
+    def areceive(self) -> AsyncGenerator[ToAgentMessage, None]:
+        """Receive a message from the transport."""
         ...
 
     async def __aexit__(

@@ -1,6 +1,5 @@
 """Serialization and deserialization function for actors"""
 
-from ast import Return
 from enum import Enum
 from typing import Any, Dict, List, cast
 import asyncio

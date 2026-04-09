@@ -34,7 +34,6 @@ from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetrie
 from rekuest_next.contrib.fastapi.retriever.protocol import StateRetriever
 from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink
 from rekuest_next.contrib.fastapi.sink.protocol import StateSink
-from rekuest_next.api.schema import StateImplementationInput
 from rekuest_next.contrib.fastapi.models import (
     LockView,
     StateCollectionResponse,
@@ -140,9 +139,9 @@ class FastAPIConnectionManager:
         self._active_connections: set[WebSocket] = set()
         self._connections: dict[WebSocket, _ManagedWebSocketConnection] = {}
         self._lock = asyncio.Lock()
-        self.task_routing_key_resolver: Callable[[messages.FromAgentMessage], str | None] | None = (
-            None
-        )
+        self.task_routing_key_resolver: (
+            Callable[[messages.FromAgentMessage], str | None] | None
+        ) = None
 
     def get_task_routing_key(self, message: messages.FromAgentMessage) -> str | None:
         """Resolve the task routing key for an outgoing message."""
@@ -163,8 +162,12 @@ class FastAPIConnectionManager:
         """
         async with self._lock:
             self._active_connections.add(websocket)
-            self._connections[websocket] = _ManagedWebSocketConnection(subscriptions=subscriptions)
-        logger.info(f"WebSocket connected. Total connections: {len(self._active_connections)}")
+            self._connections[websocket] = _ManagedWebSocketConnection(
+                subscriptions=subscriptions
+            )
+        logger.info(
+            f"WebSocket connected. Total connections: {len(self._active_connections)}"
+        )
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a websocket connection and its subscriptions.
@@ -180,7 +183,9 @@ class FastAPIConnectionManager:
                 flush_tasks = list(connection_state.flush_tasks.values())
         for flush_task in flush_tasks:
             flush_task.cancel()
-        logger.info(f"WebSocket disconnected. Total connections: {len(self._active_connections)}")
+        logger.info(
+            f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
+        )
 
     async def broadcast_model(self, message: messages.FromAgentMessage) -> None:
         """Broadcast a message to websocket clients that subscribed to it.
@@ -226,7 +231,9 @@ class FastAPIConnectionManager:
                 ):
                     continue
 
-                interval = connection_state.subscriptions.get_state_update_interval(state_name)
+                interval = connection_state.subscriptions.get_state_update_interval(
+                    state_name
+                )
                 if interval <= 0:
                     immediate_connections.append(websocket)
                     continue
@@ -293,7 +300,10 @@ class FastAPIConnectionManager:
         latest_by_path: dict[str, tuple[int, messages.StatePatchEvent]] = {}
         for index, patch in enumerate(patches):
             latest_by_path[patch.path] = (index, patch)
-        return [patch for _, patch in sorted(latest_by_path.values(), key=lambda item: item[0])]
+        return [
+            patch
+            for _, patch in sorted(latest_by_path.values(), key=lambda item: item[0])
+        ]
 
     def _matches_subscription(
         self,
@@ -304,7 +314,8 @@ class FastAPIConnectionManager:
         if _is_state_message(message):
             state_key = _state_routing_key(message)
             return state_key is not None and (
-                subscriptions.state_keys is None or state_key in subscriptions.state_keys
+                subscriptions.state_keys is None
+                or state_key in subscriptions.state_keys
             )
 
         if _is_lock_message(message):
@@ -350,7 +361,9 @@ class FastApiTransport(AgentTransport):
         description="The websocket connection manager for multiplexed updates.",
     )
 
-    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(default=None)
+    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
+        default=None
+    )
     _connected: bool = PrivateAttr(default=False)
     _instance_id: Optional[str] = PrivateAttr(default=None)
 
@@ -550,7 +563,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         self.transport.connection_manager.task_routing_key_resolver = (
             self.get_task_action_key_for_message
         )
-        if isinstance(self.sink, MemorySink) and isinstance(self.retriever, MemoryRetriever):
+        if isinstance(self.sink, MemorySink) and isinstance(
+            self.retriever, MemoryRetriever
+        ):
             self.retriever.store = self.sink.store
 
     async def abuild_websocket_init_message(
@@ -567,7 +582,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             "states": states.model_dump(mode="json"),
             "locks": {
                 "count": len(locks),
-                "locks": {key: value.model_dump(mode="json") for key, value in locks.items()},
+                "locks": {
+                    key: value.model_dump(mode="json") for key, value in locks.items()
+                },
             },
         }
 
@@ -580,7 +597,11 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
 
     def build_task_action_key(self, assign_message: messages.Assign) -> str:
         """Build the routing key used for task websocket subscriptions."""
-        return assign_message.interface or assign_message.action or assign_message.assignation
+        return (
+            assign_message.interface
+            or assign_message.action
+            or assign_message.assignation
+        )
 
     def get_task_action_key_for_message(self, message: messages.Message) -> str | None:
         """Resolve the task action key for an outgoing message."""
@@ -602,7 +623,10 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
 
         for assignation_id, assign_message in self.managed_assignments.items():
             action_key = self.build_task_action_key(assign_message)
-            if normalized_action_keys is not None and action_key not in normalized_action_keys:
+            if (
+                normalized_action_keys is not None
+                and action_key not in normalized_action_keys
+            ):
                 continue
 
             tasks[assignation_id] = TaskView(
@@ -712,15 +736,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
 
         return locks
 
-    async def apublish_states(self, list: List[StateImplementationInput]) -> None:
-        """Set up the agent states."""
-        print("Publishing states is not implemented for FastApiAgent yet.")
-
-    async def aregister_definitions(self, instance_id: str, app_context: Any) -> None:
-        """Register definitions with the agent."""
-        print("Registering definitions is not implemented for FastApiAgent yet.")
-
-    async def ashelve(self, instance_id, identifier, resource_id, label=None, description=None):
+    async def ashelve(
+        self, instance_id, identifier, resource_id, label=None, description=None
+    ):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
     async def alock(self, key: str, assignation: str):

@@ -9,7 +9,6 @@ from rekuest_next.api.schema import (
     ProvidesInput,
     RequiresInput,
     ReturnWidgetInput,
-    OptimisticInput,
     ValidatorInput,
 )
 from rekuest_next.definition.errors import DefinitionError

@@ -4,7 +4,6 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
     ReturnWidgetInput,
     ChoiceInput,
-    ReturnPortInput,
     ArgPortInput,
     AssignWidgetKind,
     ReturnWidgetKind,

@@ -9,10 +9,32 @@ from rekuest_next.actors.vars import (
 from rekuest_next.api.schema import LogLevel
 from typing import Optional
 from rekuest_next import messages
-from rekuest_next.protocols import AnyState
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def cast_log_level(level: LogLevel) -> int:
+    """Convert a LogLevel to a logging level
+
+    Args:
+        level (LogLevel): The log level to convert
+
+    Returns:
+        int: The logging level
+    """
+    if level == LogLevel.DEBUG:
+        return logging.DEBUG
+    elif level == LogLevel.INFO:
+        return logging.INFO
+    elif level == LogLevel.WARN:
+        return logging.WARNING
+    elif level == LogLevel.ERROR:
+        return logging.ERROR
+    elif level == LogLevel.CRITICAL:
+        return logging.CRITICAL
+    else:
+        raise ValueError(f"Invalid log level: {level}")
 
 
 def install_hook(hook: "AssignmentHook") -> None:
@@ -30,36 +52,6 @@ def install_hook(hook: "AssignmentHook") -> None:
         )
 
 
-async def apublish(state: AnyState) -> None:
-    """Publish a state
-
-    This function is used to publish a state to the actor.
-
-    Args:
-        state (AnyState): The state to publish.
-    """
-    from rekuest_next.state.publish import publish_context
-
-    publisher = publish_context.get()
-    if publisher is not None:
-        print("Currently not implemented")
-
-
-def publish(state: AnyState) -> None:
-    """Publish a state
-
-    This function is used to publish a state to the actor.
-
-    Args:
-        state (AnyState): The state to publish.
-    """
-    from rekuest_next.state.publish import publish_context
-
-    publisher = publish_context.get()
-    if publisher is not None:
-        print("Currently not implemented")
-
-
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
     """Send a log message
 
@@ -70,10 +62,10 @@ async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
     try:
         await get_current_assignation_helper().alog(level, message)
     except Exception:  # pylint: disable=broad-except
-        logger.warning(
+        logger.debug(
             "You attempted to log a message outside of an assignation. This message will not be sent to the rekuest server."
         )
-        print(f"[{level}] {message}")
+        logger.log(cast_log_level(level), f"[{level}] {message}")
         pass
 
 
@@ -91,10 +83,10 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
     try:
         get_current_assignation_helper().log(level, message)
     except Exception:  # pylint: disable=broad-except
-        logger.warning(
+        logger.debug(
             "You attempted to log a message outside of an assignation. This message will not be sent to the rekuest server."
         )
-        print(f"[{level}] {message}")
+        logger.log(cast_log_level(level), f"[{level}] {message}")
         pass
 
 

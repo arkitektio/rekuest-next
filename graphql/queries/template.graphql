@@ -1,10 +1,5 @@
-query get_implementation($id: ID!) {
-  implementation(id: $id) {
-    ...Implementation
-  }
-}
 
-query search_implementations($search: String, $values: [ID!]) {
+query SearchImplementations($search: String, $values: [ID!]) {
   options: implementations(
     filters: { interface: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }
@@ -14,7 +9,7 @@ query search_implementations($search: String, $values: [ID!]) {
   }
 }
 
-query implementations_for($hash: ActionHash!) {
+query ImplementationsFor($hash: ActionHash!) {
   implementations(filters: { actionHash: $hash }) {
     ...Implementation
   }

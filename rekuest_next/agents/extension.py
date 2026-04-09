@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
     from rekuest_next.api.schema import (
         ImplementationInput,
-        StateSchemaInput,
-        LockSchemaInput,
+        StateImplementationInput,
+        LockImplementationInput,
     )
     from rekuest_next.agents.hooks.registry import StartupHook, BackgroundTask
 
@@ -47,7 +47,7 @@ class AgentExtension(Protocol):
         """Get the state schemas for this extension.
 
         Returns:
-            Dict[str, StateSchemaInput]: Map of interface to state schema.
+            Dict[str, StateImplementationInput]: Map of interface to state schema.
         """
         ...
 
@@ -138,11 +138,11 @@ class BaseAgentExtension(ABC):
         """
         return []
 
-    def get_state_schemas(self) -> Dict[str, "StateSchemaInput"]:
+    def get_state_schemas(self) -> Dict[str, "StateImplementationInput"]:
         """Get the state schemas for this extension.
 
         Returns:
-            Dict[str, StateSchemaInput]: Map of interface to state schema.
+            Dict[str, StateImplementationInput]: Map of interface to state schema.
         """
         return {}
 

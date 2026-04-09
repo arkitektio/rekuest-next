@@ -5,7 +5,6 @@ into an actor.
 """
 
 import inspect
-from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -17,14 +16,10 @@ from rekuest_next.actors.functional import (
 )
 from rekuest_next.actors.types import ActorBuilder, AnyFunction, ImplementationDetails
 from rekuest_next.agents.context import (
-    PreparedContextReturns,
-    PreparedContextVariables,
     prepare_context_variables,
 )
 from rekuest_next.api.schema import (
-    AgentDependencyInput,
     DefinitionInput,
-    OptimisticInput,
     PortGroupInput,
     ValidatorInput,
 )
@@ -35,8 +30,6 @@ from rekuest_next.definition.define import (
     prepare_definition,
 )
 from rekuest_next.state.utils import (
-    PreparedStateReturns,
-    PreparedStateVariables,
     prepare_state_variables,
 )
 from rekuest_next.agents.dependency import prepare_dependency_variables

@@ -1,6 +1,5 @@
 fragment State on State {
   id
-  value
   definition {
     ...StateDefinition
   }

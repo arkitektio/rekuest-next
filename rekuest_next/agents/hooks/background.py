@@ -21,7 +21,6 @@ from rekuest_next.agents.context import (
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.agents.hooks.registry import (
     HooksRegistry,
-    BackgroundTask,
     get_default_hook_registry,
 )
 from rekuest_next.protocols import (

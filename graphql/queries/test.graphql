@@ -1,16 +1,16 @@
-query get_testcase($id: ID!) {
+query GetTestCase($id: ID!) {
   testCase(id: $id) {
     ...TestCase
   }
 }
 
-query get_testresult($id: ID!) {
+query GetTestResult($id: ID!) {
   testResult(id: $id) {
     ...TestResult
   }
 }
 
-query search_testcases($search: String, $values: [ID!]) {
+query SearchTestCases($search: String, $values: [ID!]) {
   options: testCases(
     filters: { name: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }
@@ -20,7 +20,7 @@ query search_testcases($search: String, $values: [ID!]) {
   }
 }
 
-query search_testresults($search: String, $values: [ID!]) {
+query SearchTestResults($search: String, $values: [ID!]) {
   options: testResults(
     filters: { name: { iContains: $search }, ids: $values }
     pagination: { limit: 10 }

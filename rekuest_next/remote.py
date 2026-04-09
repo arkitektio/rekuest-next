@@ -40,7 +40,6 @@ from rekuest_next.structures.serialization.actor import (
     ashrink_actor_args,
 )
 from rekuest_next.structures.serialization.postman import aexpand_returns, ashrink_args
-from typing import TYPE_CHECKING
 from rekuest_next.errors import CriticalCallError, ErrorCallError
 
 

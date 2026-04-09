@@ -17,7 +17,6 @@ from typing import (
 import inflection
 from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.coercible_types import (
-    DependencyCoercible,
     OptimisticCoercible,
 )
 from rekuest_next.remote import acall, call

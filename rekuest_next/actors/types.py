@@ -23,7 +23,6 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from rekuest_next.agents.registry import ExtensionRegistry
-    from rekuest_next.declare import DeclaredAgentProtocol
 
 
 @dataclass

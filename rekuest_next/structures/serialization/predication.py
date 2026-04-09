@@ -205,7 +205,7 @@ def predicate_json_with_port(
     if port.kind == PortKind.STRUCTURE:
         if not isinstance(value, dict):
             return False
-        if not "__identifier" in value:
+        if "__identifier" not in value:
             return False
         if value["__identifier"] != port.identifier:
             return False
@@ -214,7 +214,7 @@ def predicate_json_with_port(
     if port.kind == PortKind.MODEL:
         if not isinstance(value, dict):
             return False
-        if not "__identifier" in value:
+        if "__identifier" not in value:
             return False
         if value["__identifier"] != port.identifier:
             return False
@@ -223,14 +223,14 @@ def predicate_json_with_port(
     if port.kind == PortKind.MEMORY_STRUCTURE:
         if not isinstance(value, dict):
             return False
-        if not "__identifier" in value:
+        if "__identifier" not in value:
             return False
         if value["__identifier"] != port.identifier:
             return False
         if value["__identifier"] == port.identifier:
             return True
     if port.kind == PortKind.ENUM:
-        if not value in map(lambda x: x.value, port.choices):
+        if value not in map(lambda x: x.value, port.choices):
             return False
         return True
     if port.kind == PortKind.DICT:
