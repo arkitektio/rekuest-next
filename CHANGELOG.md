@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v1.3.2 (2026-04-09)
+
+
 ## v1.3.1 (2026-04-09)
 
 ### Bug Fixes
 
 - Annotations and locks
   ([`e06d3d0`](https://github.com/arkitektio/rekuest-next/commit/e06d3d00cf706ee0efa430953714a17390504d52))
+
+- Lock keys
+  ([`d7cf43d`](https://github.com/arkitektio/rekuest-next/commit/d7cf43d65e52c8591a51e1f120cf783ff7576094))
 
 
 ## v1.3.0 (2026-04-09)
