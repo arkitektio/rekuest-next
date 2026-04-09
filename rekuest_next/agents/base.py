@@ -25,7 +25,7 @@ from rekuest_next import messages
 from rekuest_next.actors.sync import SyncKeyManager
 from rekuest_next.actors.types import Actor, Passport
 from rekuest_next.agents.errors import AgentException, ProvisionException
-from rekuest_next.agents.hooks.registry import StartupHookReturns
+from rekuest_next.agents.hooks.registry import StartupHook, StartupHookReturns
 from rekuest_next.agents.lock import TaskLock
 from rekuest_next.agents.registry import (
     ExtensionRegistry,
@@ -179,7 +179,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     _collected_structure_registries: Dict[str, Any] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_startup_hooks: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
+    _collected_startup_hooks: Dict[str, StartupHook] = PrivateAttr(
+        default_factory=lambda: {}
+    )
     _collected_background_workers: Dict[str, Any] = PrivateAttr(
         default_factory=lambda: {}
     )

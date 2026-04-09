@@ -5,7 +5,7 @@ import inspect
 from dataclasses import dataclass
 import inflection
 
-from rekuest_next.definition.define import get_non_null_variants,  is_tuple
+from rekuest_next.definition.define import get_non_null_variants, is_tuple
 from rekuest_next.protocols import AnyContext, AnyFunction
 
 
@@ -159,23 +159,20 @@ def prepare_context_variables(
 
     returns = sig.return_annotation
 
-    if hasattr(returns, "_name"):
-        if is_tuple(returns):
-            for index, cls in enumerate(get_non_null_variants(returns)):
-                if is_context(cls):
-                    state_returns[index] = cls.__rekuest_context__
-        else:
-            if is_context(returns):
-                state_returns[0] = returns.__rekuest_context__
+    if is_tuple(returns):
+        for index, cls in enumerate(get_non_null_variants(returns)):
+            if is_context(cls):
+                state_returns[index] = cls.__rekuest_context__
+    else:
+        if is_context(returns):
+            state_returns[0] = returns.__rekuest_context__
+
     return (
         PreparedContextVariables(
             context_variables=state_variables, required_context_locks=required_locks
         ),
         PreparedContextReturns(context_returns=state_returns),
     )
-
-
-
 
 
 def get_all_context_locks(cls: List[Type[AnyContext]]) -> list[str]:

@@ -13,6 +13,8 @@ from .remote import (
     acall_raw,
 )
 from .agents.context import context
+from .agents.hooks.startup import startup
+from .agents.hooks.background import background
 from .actors.context import (
     log,
     alog,
@@ -61,6 +63,8 @@ __all__ = [
     "context",
     "model_field",
     "state",
+    "background",
+    "startup",
     "find",
     "RekuestNextService",
     "call",

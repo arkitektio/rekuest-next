@@ -24,6 +24,17 @@ from typing import Dict
 import inspect
 
 
+def is_empty_type(cls: type) -> bool:
+    """Check if the annotation is an empty type.
+
+    Args:
+        annotation (object): The annotation to check.
+    Returns:
+        bool: True if the annotation is an empty type, False otherwise.
+    """
+    return cls is inspect.Signature.empty
+
+
 def get_return_length(signature: inspect.Signature) -> int:
     """Get the length of the return annotation of a function signature.
 
@@ -37,6 +48,8 @@ def get_return_length(signature: inspect.Signature) -> int:
     if is_tuple(returns):
         return len(get_non_null_variants(returns))
     if is_none_type(returns):
+        return 0
+    if is_empty_type(returns):
         return 0
     else:
         return 1
@@ -113,10 +126,10 @@ def prepare_appcontext(
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):
             if is_app_context(cls):
-                app_context_returns[index] = value.annotation.__rekuest_app_context__
+                app_context_returns[index] = cls.annotation.__rekuest_app_context__
     else:
         if is_app_context(returns):
-            app_context_returns[0] = value.annotation.__rekuest_app_context__
+            app_context_returns[0] = returns.annotation.__rekuest_app_context__
 
     return PreparedAppContextVariables(
         app_context_variables=write_app_context_variables,

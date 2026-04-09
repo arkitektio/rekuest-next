@@ -32,8 +32,13 @@ from rekuest_next.protocols import (
     ThreadedStartupFunction,
     StartupFunction,
 )
+from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.remote import ensure_return_as_tuple
-from rekuest_next.state.utils import get_return_length, prepare_state_variables
+from rekuest_next.state.utils import (
+    get_return_length,
+    prepare_appcontext,
+    prepare_state_variables,
+)
 
 
 startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
@@ -41,11 +46,44 @@ startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
 )
 
 
+class WithVariables:
+    def __init__(self, func: Callable[..., Any]) -> None:
+        self.func = func
+        self.state_variables, self.state_returns = prepare_state_variables(func)
+        self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
+        self.context_variables, self.context_returns = prepare_context_variables(func)
+        self.pass_app_context = self.app_context_variables.count > 0
+
+        # Check the arg length of the function and raise an error if it is more than the context and state variables
+        allowed_arg_types = self.app_context_variables.count
+
+        allowed_return_types = self.state_returns.count + self.context_returns.count
+
+        if len(inspect.signature(func).parameters) > allowed_arg_types:
+            incorrect_args = set(inspect.signature(func).parameters.keys()) - set(
+                self.state_variables.variable_keys
+                + list(self.context_variables.context_variables.keys())
+                + list(self.app_context_variables.app_context_variables.keys())
+            )
+
+            raise ValueError(
+                f"Startup function {func.__name__} has more arguments than the context and state variables. "
+                f"Expected at most {allowed_arg_types} arguments, but got {len(inspect.signature(func).parameters)}."
+                f"{incorrect_args} are not valid argument names."
+            )
+
+        if get_return_length(inspect.signature(func)) > allowed_return_types:
+            raise ValueError(
+                f"Startup function {func.__name__} has more return values than the context and state variables. "
+                f"Expected at most {allowed_return_types} return values, but got {get_return_length(inspect.signature(func))}."
+            )
+
+
 class InspectHookMixin:
     """Mixin to inspect the hook function"""
 
 
-class WrappedStartupHook(StartupHook):
+class WrappedStartupHook(WithVariables):
     """Startup hook that runs in the event loop"""
 
     def __init__(self, func: AsyncStartupFunction) -> None:
@@ -55,42 +93,7 @@ class WrappedStartupHook(StartupHook):
             func (Callable[[str, Any], AnyContext]): The function to run in the startup hook
             func (Callable): The function to run in the startup hook
         """
-        self.func = func
-        self.pass_instance_id = False
-
-        # check if has context argument
-        self.signature = inspect.signature(func)
-        arguments = self.signature.parameters
-        if len(arguments) > 1:
-            raise StartupHookError(
-                "Startup hook must have exactly one argument (app_context) or no arguments"
-            )
-        if len(arguments) == 1:
-            self.pass_app_context = True
-
-        self.return_length = get_return_length(self.signature)
-
-        (
-            self.state_variables,
-            self.state_returns,
-        ) = prepare_state_variables(self.func)
-        (
-            self.context_variables,
-            self.context_returns,
-        ) = prepare_context_variables(self.func)
-
-        assert self.state_variables.count == 0, (
-            "Threaded startup hooks cannot have state variables as arguments"
-        )
-        assert self.context_variables.count == 0, (
-            "Threaded startup hooks cannot have context variables as arguments"
-        )
-
-        assert (
-            self.state_returns.count + self.context_returns.count
-        ) == self.return_length, (
-            "Threaded startup can only return state and context variables"
-        )
+        super().__init__(func)
 
     async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
@@ -109,6 +112,7 @@ class WrappedStartupHook(StartupHook):
                 parsed_returns = await self.func()
         finally:
             startup_context.reset(token)
+
         returns = ensure_return_as_tuple(parsed_returns)
 
         states: Dict[str, Any] = {}
@@ -127,7 +131,7 @@ class WrappedStartupHook(StartupHook):
         return StartupHookReturns(states=states, contexts=contexts)
 
 
-class ThreadedStartupHook(StartupHook):
+class ThreadedStartupHook(WithVariables):
     """Startup hook that runs in the event loop"""
 
     def __init__(self, func: ThreadedStartupFunction) -> None:
@@ -137,41 +141,7 @@ class ThreadedStartupHook(StartupHook):
             func (Callable[[str], AnyContext]): The function to run in the startup hook
             func (Callable): The function to run in the startup hook
         """
-        self.func = func
-        self.pass_instance_id = False
-
-        self.signature = inspect.signature(func)
-
-        # check if has context argument
-        arguments = self.signature.parameters
-        if len(arguments) > 1:
-            raise StartupHookError(
-                "Startup hook must have exactly one argument (app_context) or no arguments"
-            )
-
-        if len(arguments) == 1:
-            self.pass_app_context = True
-        else:
-            self.pass_app_context = False
-
-        self.return_length = get_return_length(self.signature)
-
-        self.state_variables, self.state_returns = prepare_state_variables(self.func)
-        self.context_variables, self.context_returns = prepare_context_variables(
-            self.func
-        )
-        assert self.state_variables.count == 0, (
-            "Threaded startup hooks cannot have state variables as arguments"
-        )
-        assert self.context_variables.count == 0, (
-            "Threaded startup hooks cannot have context variables as arguments"
-        )
-
-        assert (
-            self.state_returns.count + self.context_returns.count
-        ) == self.return_length, (
-            "Threaded startup can only return state and context variables"
-        )
+        super().__init__(func)
 
     def run_func_with_context(self, app_context: Any) -> Any:
         token = startup_context.set(True)
@@ -191,6 +161,7 @@ class ThreadedStartupHook(StartupHook):
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
+
         parsed_returns = await run_spawned(self.run_func_with_context, app_context)
 
         returns = ensure_return_as_tuple(parsed_returns)
