@@ -311,7 +311,7 @@ class SyncKeyGroup(BaseGroup):
             SyncKeyGroup: The SyncKeyGroup instance.
         """
         # Sort locks by key name to ensure consistent ordering and prevent deadlocks
-        sorted_locks = sorted(self.locks, key=lambda x: x.lock_schema.key)
+        sorted_locks = sorted(self.locks, key=lambda x: x.lock_key)
         for lock in sorted_locks:
             await lock.acquire(self.assignation_id)
             self._acquired_locks.append(lock)

@@ -357,7 +357,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         locks: List[TaskLock] = []
         for key in keys:
             for lock in self.locks.values():
-                if lock.lock_schema.key == key:
+                if lock.lock_key == key:
                     locks.append(lock)
         return locks
 
