@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.4.0 (2026-04-09)
+
+### Features
+
+- Fix startup
+  ([`460bdd3`](https://github.com/arkitektio/rekuest-next/commit/460bdd3195eead560397f1bd6e0cd6f6aebae2bc))
+
+
 ## v1.3.2 (2026-04-09)
 
 
