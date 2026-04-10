@@ -193,9 +193,6 @@ class FastAPIConnectionManager:
         Args:
             message: The outgoing agent message to distribute.
         """
-        if _is_state_message(message):
-            await self._buffer_or_broadcast_state_message(message)
-            return
 
         message_json = message.model_dump_json()
         async with self._lock:
@@ -470,6 +467,7 @@ class FastApiTransport(AgentTransport):
             build_initial_payload: Optional callback used to construct the first
                 snapshot message after the init payload has been received.
         """
+        print("WebSocket connection received, waiting for init payload...")
         await websocket.accept()
         try:
             init_data = await websocket.receive_json()
@@ -761,16 +759,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         await self.transport.asend(patch)
         await self.sink.awrite_patch(patch)
 
-        if patch.global_rev % self.snapshot_interval == 0:
-            snapshot = messages.StateSnapshotEvent(
-                session_id=patch.session_id,
-                global_rev=patch.global_rev,
-                snapshots={
-                    interface: copy.deepcopy(shrunk_state)
-                    for interface, shrunk_state in self._current_shrunk_states.items()
-                },
-            )
-            await self.sink.adump_snapshot(snapshot)
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+        await self.transport.asend(snapshot)
+        return await self.sink.adump_snapshot(snapshot)
 
     async def aget_revised_state(self, interface: str) -> RevisedState:
         """Get the current agent-owned shrunk state and revision for an interface."""

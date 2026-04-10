@@ -68,7 +68,9 @@ def create_lifespan(
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
             except Exception as exc:
-                logger.error("Error during provide task shutdown: %s", exc, exc_info=True)
+                logger.error(
+                    "Error during provide task shutdown: %s", exc, exc_info=True
+                )
 
     return lifespan
 
@@ -142,7 +144,9 @@ def add_state_detail_routes(
 ) -> None:
     """Include conditional state detail and retriever routes."""
     state_schemas = state_schemas or agent.get_states()
-    _include_router(app, build_state_detail_router(agent, state_schemas, states_path=states_path))
+    _include_router(
+        app, build_state_detail_router(agent, state_schemas, states_path=states_path)
+    )
 
 
 def add_lock_routes(
@@ -205,7 +209,7 @@ def configure_fastapi(
     extension_registry = ExtensionRegistry()
     extension_registry.register(default_extension)
 
-    db_file = "db_like.db"
+    db_file = "FFFFF.db"
     agent: FastApiAgent[T] = FastApiAgent(  # type: ignore
         extension_registry=extension_registry,
         retriever=SQLLiteRetriever(db_path=db_file),
@@ -233,7 +237,9 @@ def configure_fastapi(
                 fastapi_app,
                 agent,
                 states_path=states_path,
-                state_schemas=agent.get_states(),
+                state_schemas=agent.extension_registry.agent_extensions.get(
+                    "default", default_extension
+                ).get_states(),
             )
         if add_locks:
             add_lock_routes(fastapi_app, agent, locks_path=locks_path)
@@ -247,6 +253,11 @@ def configure_fastapi(
 
         async with agent:
             provide_task = asyncio.create_task(agent.aprovide(context=app_context))
+            provide_task.add_done_callback(
+                lambda t: logger.error(
+                    "Error in agent provide task: %s", t.exception(), exc_info=True
+                )
+            )
             yield
             provide_task.cancel()
             try:
@@ -254,7 +265,9 @@ def configure_fastapi(
             except asyncio.CancelledError:
                 logger.info("Provide task cancelled during shutdown")
             except Exception as exc:
-                logger.error("Error during provide task shutdown: %s", exc, exc_info=True)
+                logger.error(
+                    "Error during provide task shutdown: %s", exc, exc_info=True
+                )
 
     app.router.lifespan_context = lifespan
     return agent

@@ -69,13 +69,6 @@ class StateRetriever(Protocol):
         session_id: Optional[str] = None,
     ) -> Snapshot | List[Snapshot] | None: ...
 
-    async def aget_state_at_local_rev(
-        self,
-        revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Snapshot | List[Snapshot] | None: ...
-
     async def aget_forward_events_after_rev(
         self,
         global_revision: int,

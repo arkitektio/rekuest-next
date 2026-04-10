@@ -116,20 +116,6 @@ class SQLLiteRetriever:
             target_revision=global_revision,
             state_id=state_id,
             session_id=session_id,
-            use_global_revision=True,
-        )
-
-    async def aget_state_at_local_rev(
-        self,
-        revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Snapshot | list[Snapshot] | None:
-        return await self._aget_state_at_revision(
-            target_revision=revision,
-            state_id=state_id,
-            session_id=session_id,
-            use_global_revision=False,
         )
 
     async def aget_forward_events_after_rev(
@@ -150,11 +136,11 @@ class SQLLiteRetriever:
             params = (global_revision, session_id, count)
 
         query = f"""
-     SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
+     SELECT state_id, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
         WHERE global_current_rev >= ? {state_filter} {session_filter}
-        ORDER BY global_current_rev ASC, state_id ASC, current_rev ASC
+        ORDER BY global_current_rev ASC, state_id ASC
         LIMIT ?
         """
 
@@ -187,12 +173,12 @@ class SQLLiteRetriever:
             params.append(session_id)
 
         query = f"""
-        SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
+        SELECT state_id, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
         WHERE global_current_rev >= ? AND global_future_rev <= ?
               {state_filter} {session_filter}
-        ORDER BY global_current_rev ASC, state_id ASC, current_rev ASC
+        ORDER BY global_current_rev ASC, state_id ASC
         """
 
         async with aiosqlite.connect(self.db_path) as db:
@@ -209,22 +195,26 @@ class SQLLiteRetriever:
         before: int = 1,
         after: int = 1,
     ) -> list[Snapshot]:
-        state_ids = [state_id] if state_id is not None else await self._aget_state_ids(session_id)
+        state_ids = (
+            [state_id]
+            if state_id is not None
+            else await self._aget_state_ids(session_id)
+        )
         collected: list[Snapshot] = []
 
         for candidate_state_id in state_ids:
             before_query = """
-        SELECT revision, global_revision, event_time, session_id, state_data
+        SELECT global_revision, event_time, session_id, state_data
         FROM state_snapshots
-        WHERE state_id = ? AND revision <= ? {session_filter}
-        ORDER BY revision DESC
+        WHERE state_id = ? AND global_revision <= ? {session_filter}
+        ORDER BY global_revision DESC
         LIMIT ?
         """
             after_query = """
-        SELECT revision, global_revision, event_time, session_id, state_data
+        SELECT global_revision, event_time, session_id, state_data
         FROM state_snapshots
-        WHERE state_id = ? AND revision > ? {session_filter}
-        ORDER BY revision ASC
+        WHERE state_id = ? AND global_revision > ? {session_filter}
+        ORDER BY global_revision ASC
         LIMIT ?
         """
             session_filter = "AND session_id = ?" if session_id is not None else ""
@@ -245,7 +235,8 @@ class SQLLiteRetriever:
                     after_rows = await cursor.fetchall()
 
             collected.extend(
-                self._row_to_snapshot(row) for row in [*reversed(before_rows), *after_rows]
+                self._row_to_snapshot(row)
+                for row in [*reversed(before_rows), *after_rows]
             )
 
         return collected
@@ -255,7 +246,6 @@ class SQLLiteRetriever:
         target_revision: int,
         state_id: Optional[str],
         session_id: Optional[str],
-        use_global_revision: bool,
     ) -> Snapshot | list[Snapshot] | None:
         if state_id is None:
             state_ids = await self._aget_state_ids(session_id)
@@ -266,7 +256,6 @@ class SQLLiteRetriever:
                         target_revision=target_revision,
                         state_id=candidate_state_id,
                         session_id=session_id,
-                        use_global_revision=use_global_revision,
                     )
                     for candidate_state_id in state_ids
                 ]
@@ -274,24 +263,21 @@ class SQLLiteRetriever:
             ]
             return snapshots
 
-        snapshot_revision_column = "global_revision" if use_global_revision else "revision"
-        patch_current_column = "global_current_rev" if use_global_revision else "current_rev"
-        patch_future_column = "global_future_rev" if use_global_revision else "future_rev"
         session_filter = "AND session_id = ?" if session_id is not None else ""
 
         anchor_query = f"""
-        SELECT revision, global_revision, event_time, session_id, state_data
+        SELECT global_revision, event_time, session_id, state_data
         FROM state_snapshots
-        WHERE state_id = ? AND {snapshot_revision_column} <= ? {session_filter}
-        ORDER BY {snapshot_revision_column} DESC
+        WHERE state_id = ? AND global_revision <= ? {session_filter}
+        ORDER BY global_revision DESC
         LIMIT 1
         """
         patch_query = f"""
-         SELECT state_id, current_rev, future_rev, global_current_rev, global_future_rev,
+         SELECT state_id, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
-        WHERE state_id = ? AND {patch_current_column} >= ? AND {patch_future_column} <= ? {session_filter}
-        ORDER BY {patch_current_column} ASC
+        WHERE state_id = ? AND global_current_rev >= ? AND global_future_rev <= ? {session_filter}
+        ORDER BY global_current_rev ASC
         """
 
         anchor_params: tuple[object, ...] = (state_id, target_revision)
@@ -307,18 +293,27 @@ class SQLLiteRetriever:
                 return None
 
             anchor_snapshot = self._row_to_snapshot(anchor_row)
-            patch_start_revision = (
-                anchor_snapshot.global_revision if use_global_revision else anchor_snapshot.revision
-            ) or 0
+            patch_start_revision = anchor_snapshot.global_revision or 0
 
-            patch_params: tuple[object, ...] = (state_id, patch_start_revision, target_revision)
+            patch_params: tuple[object, ...] = (
+                state_id,
+                patch_start_revision,
+                target_revision,
+            )
             if session_id is not None:
-                patch_params = (state_id, patch_start_revision, target_revision, session_id)
+                patch_params = (
+                    state_id,
+                    patch_start_revision,
+                    target_revision,
+                    session_id,
+                )
 
             async with db.execute(patch_query, patch_params) as cursor:
                 patch_rows = await cursor.fetchall()
 
-        state_data = cast(JSONSerializable, json.loads(json.dumps(anchor_snapshot.data)))
+        state_data = cast(
+            JSONSerializable, json.loads(json.dumps(anchor_snapshot.data))
+        )
         last_snapshot = anchor_snapshot
         for row in patch_rows:
             patch_event = self._row_to_patch_event(row)
@@ -326,7 +321,6 @@ class SQLLiteRetriever:
             last_snapshot = Snapshot(
                 timepoint=patch_event.timepoint,
                 data=state_data,
-                revision=patch_event.future_rev,
                 global_revision=patch_event.global_future_rev,
                 session_id=patch_event.session_id,
             )
@@ -339,7 +333,8 @@ class SQLLiteRetriever:
 
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
-                f"SELECT DISTINCT state_id FROM state_snapshots {session_filter}", params
+                f"SELECT DISTINCT state_id FROM state_snapshots {session_filter}",
+                params,
             ) as cursor:
                 snapshot_state_ids = [row[0] for row in await cursor.fetchall()]
             async with db.execute(
@@ -362,11 +357,10 @@ class SQLLiteRetriever:
         )
 
     def _row_to_snapshot(self, row: tuple[Any, ...]) -> Snapshot:
-        revision, global_revision, event_time, session_id, state_data = row
+        global_revision, event_time, session_id, state_data = row
         return Snapshot(
             timepoint=epoch_ms_to_dt(event_time),
             data=json.loads(state_data),
-            revision=revision,
             global_revision=global_revision,
             session_id=session_id,
         )
@@ -374,8 +368,6 @@ class SQLLiteRetriever:
     def _row_to_patch_event(self, row: tuple[Any, ...]) -> PatchEvent:
         (
             state_id,
-            current_rev,
-            future_rev,
             global_current_rev,
             global_future_rev,
             event_time,
@@ -392,8 +384,6 @@ class SQLLiteRetriever:
         return PatchEvent(
             timepoint=epoch_ms_to_dt(event_time),
             state_id=state_id,
-            current_rev=current_rev,
-            future_rev=future_rev,
             global_current_rev=global_current_rev,
             global_future_rev=global_future_rev,
             correlation_id=correlation_id or "",

@@ -45,8 +45,12 @@ class MemoryRetriever:
             correlation_id=correlation_id,
             start_global_revision=min(patch.global_rev - 1 for patch in patches),
             end_global_revision=max(patch.global_rev for patch in patches),
-            start_time=min(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
-            end_time=max(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
+            start_time=min(
+                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
+            ),
+            end_time=max(
+                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
+            ),
         )
 
     async def aget_session_boundaries(
@@ -55,7 +59,8 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.session_id == session_id and (state_id is None or patch.state_name == state_id)
+            if patch.session_id == session_id
+            and (state_id is None or patch.state_name == state_id)
         ]
         if not patches:
             return None
@@ -64,8 +69,12 @@ class MemoryRetriever:
             session_id=session_id,
             start_global_revision=min(patch.global_rev - 1 for patch in patches),
             end_global_revision=max(patch.global_rev for patch in patches),
-            start_time=min(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
-            end_time=max(datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches),
+            start_time=min(
+                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
+            ),
+            end_time=max(
+                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
+            ),
         )
 
     async def aget_state_at_global_rev(
@@ -76,18 +85,6 @@ class MemoryRetriever:
     ) -> Snapshot | list[Snapshot] | None:
         return self._aget_state_at_revision(
             target_revision=global_revision,
-            state_id=state_id,
-            session_id=session_id,
-        )
-
-    async def aget_state_at_local_rev(
-        self,
-        revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Snapshot | list[Snapshot] | None:
-        return self._aget_state_at_revision(
-            target_revision=revision,
             state_id=state_id,
             session_id=session_id,
         )
@@ -145,12 +142,16 @@ class MemoryRetriever:
         before: int = 1,
         after: int = 1,
     ) -> list[Snapshot]:
-        state_ids = [state_id] if state_id is not None else self._get_state_ids(session_id)
+        state_ids = (
+            [state_id] if state_id is not None else self._get_state_ids(session_id)
+        )
         collected: list[Snapshot] = []
 
         for candidate_state_id in state_ids:
             # Build per-state snapshot list from StateSnapshotEvent messages
-            state_snapshots = self._extract_state_snapshots(candidate_state_id, session_id)
+            state_snapshots = self._extract_state_snapshots(
+                candidate_state_id, session_id
+            )
             before_snapshots = sorted(
                 (s for s in state_snapshots if s[0] <= revision),
                 key=lambda item: item[0],
@@ -191,7 +192,9 @@ class MemoryRetriever:
             if session_id is not None and event.session_id != session_id:
                 continue
             if state_id in event.snapshots:
-                result.append((event.global_rev, event.snapshots[state_id], event.session_id))
+                result.append(
+                    (event.global_rev, event.snapshots[state_id], event.session_id)
+                )
         return result
 
     def _aget_state_at_revision(
@@ -200,7 +203,9 @@ class MemoryRetriever:
         state_id: Optional[str],
         session_id: Optional[str],
     ) -> Snapshot | list[Snapshot] | None:
-        state_ids = [state_id] if state_id is not None else self._get_state_ids(session_id)
+        state_ids = (
+            [state_id] if state_id is not None else self._get_state_ids(session_id)
+        )
         snapshots = [
             snapshot
             for snapshot in (

@@ -123,7 +123,9 @@ class SQLLiteSink:
                 f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
             )
 
-    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
+    async def acreate_session(
+        self, states: List[AnyState], implementations: list
+    ) -> str:
         """Create a new session and return its ID. Should be called at the start of a new logical session. By default this will be called automatically on each agent startup, but can also be called manually if the agent wants to manage sessions itself (e.g., create a new session for each user interaction)."""
         new_session = str(uuid.uuid4())
         created_at_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
@@ -149,13 +151,12 @@ class SQLLiteSink:
                     await db.execute(
                         """
                         INSERT OR IGNORE INTO state_snapshots (
-                            state_id, revision, global_revision, event_time, session_id, state_data
+                            state_id, global_revision, event_time, session_id, state_data
                         ) 
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?)
                     """,
                         (
                             state_id,
-                            snapshot.global_rev,
                             snapshot.global_rev,
                             epoch_ms,
                             target_session,

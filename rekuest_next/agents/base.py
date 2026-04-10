@@ -57,10 +57,22 @@ from rekuest_next.structures.types import JSONSerializable
 logger = logging.getLogger(__name__)
 
 
-class AppContext(asyncio.Protocol):
+class AppContext:
     """Protocol for the app context that is passed to the hooks."""
 
     __rekuest_app_context__: str
+
+
+T = TypeVar("T")
+
+
+def app_context(
+    cls: Type[T],
+) -> Type[T]:
+    """Decorator to register a class as an app context."""
+
+    setattr(cls, "__rekuest_app_context__", cls.__name__)
+    return cls
 
 
 ContextType = TypeVar("ContextType", bound="AppContext")
