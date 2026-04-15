@@ -479,6 +479,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         else:
             description = None
 
+        if not label:
+            label = str(value)
+
         drawer_id = await self.ashelve(
             instance_id=self.instance_id,
             identifier=identifier,

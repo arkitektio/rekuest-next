@@ -380,20 +380,55 @@ async def aexpand_arg(
             )
 
     if port.kind == PortKind.MEMORY_STRUCTURE:
-        if not isinstance(value, (str, int)):
+        if not isinstance(value, (dict)):
             raise to_port_error(
                 port,
                 value,
-                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
-                " strings and ints",
+                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept dicts for structures",
+            ) from None
+
+        if "__identifier" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing __identifier key in dict",
                 path=path,
                 depth=depth,
             ) from None
 
-        if isinstance(value, int):
-            value = str(value)
+        if value["__identifier"] != port.identifier:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Identifier mismatch: expected {port.identifier}, got {value['__identifier']}",
+                path=path,
+                depth=depth,
+            ) from None
 
-        return await shelver.aget_from_shelve(value)
+        if "object" not in value:
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. Missing object key in dict",
+                path=path,
+                depth=depth,
+            ) from None
+
+        object = value["object"]
+
+        if not isinstance(object, (str, int)):
+            raise to_port_error(
+                port,
+                value,
+                f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept strings and ints in the object key",
+                path=path,
+                depth=depth,
+            ) from None
+
+        if isinstance(object, int):
+            object = str(object)
+
+        return await shelver.aget_from_shelve(object)
 
     if port.kind == PortKind.STRUCTURE:
         if not isinstance(value, (dict)):

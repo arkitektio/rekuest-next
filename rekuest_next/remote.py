@@ -288,7 +288,7 @@ async def acall(
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
-) -> tuple[Any]:
+) -> Any:
     """Call the assignation function"""
     action = None
     implementation = None

@@ -21,6 +21,9 @@ from rekuest_next.structures.serialization.protocols import SerializablePort
 from rekuest_next.structures.types import JSONSerializable
 from .predication import predicate_serializable_port
 import datetime as dt
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def ashrink_arg(
@@ -171,7 +174,7 @@ async def ashrink_arg(
                     f"Memory structures can always be just a reference to a memory drawer but got {type(value)}"
                 )
 
-            return value
+            return {"__identifier": port.identifier, "object": value}
 
         if port.kind == PortKind.STRUCTURE:
             if not port.identifier:
@@ -416,10 +419,9 @@ async def aexpand_return(
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
 
     if port.kind == PortKind.MEMORY_STRUCTURE:
-        if not isinstance(value, str):
-            raise PortExpandingError(
-                f"Expected value to be a string, but got {type(value)}"
-            )
+        logger.warning(
+            "Expanding Memory Structures is not yet implemented, returning the reference value. This means that you won't get the full structure but just a reference to it. Use the reference to get the full structure from the memory drawer."
+        )
 
         return value
 

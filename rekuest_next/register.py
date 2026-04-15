@@ -104,26 +104,8 @@ class WrappedFunction(Generic[P, R]):
         return await acall(implementation, *args, parent=helper.assignment, **kwargs)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        """ "Call the wrapped function directly if not within an assignation."""
-        try:
-            helper = get_current_assignation_helper()
-
-            try:
-                dependency = helper.get_dependency(
-                    self.interface,
-                )
-            except KeyError:
-                dependency = None  # type: ignore
-                logger.debug(
-                    "No dependency found for interface %s, but registered locally calling it directly.",
-                    self.interface,
-                )  # TODO: Figure out if we want this behavior
-                return self.func(*args, **kwargs)
-
-            implementation = get_implementation(dependency)
-            return call(implementation, *args, parent=helper.assignment, **kwargs)
-        except NotWithinAnAssignationError:
-            return self.func(*args, **kwargs)
+        """Call the actor's implementation."""
+        return self.func(*args, **kwargs)
 
     def to_dependency_input(self) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
