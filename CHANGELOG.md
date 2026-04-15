@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.4.1 (2026-04-10)
+
+### Bug Fixes
+
+- Fix fastapi agent protocol
+  ([`35e7672`](https://github.com/arkitektio/rekuest-next/commit/35e7672bb07b84e3af0a854caeae1ec1f970db0c))
+
+
 ## v1.4.0 (2026-04-09)
 
 ### Features
