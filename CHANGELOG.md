@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v1.4.2 (2026-04-15)
+
+
 ## v1.4.1 (2026-04-10)
 
 ### Bug Fixes
+
+- Bugs in function calling
+  ([`84de74f`](https://github.com/arkitektio/rekuest-next/commit/84de74f030b34ef1b67c9ed2eb4ec6de185a79b9))
 
 - Fix fastapi agent protocol
   ([`35e7672`](https://github.com/arkitektio/rekuest-next/commit/35e7672bb07b84e3af0a854caeae1ec1f970db0c))
