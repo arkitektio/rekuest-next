@@ -5,13 +5,33 @@ This allow the async patterns of actors to extend to the Qt world.
 """
 
 import inspect
-from typing import Any, AsyncGenerator, Callable, Tuple, get_args, get_origin
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    get_args,
+    get_origin,
+)
 from qtpy import QtCore, QtWidgets
 from koil.qt import QtGenerator, QtFuture, qt_to_async
 from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
 
-from rekuest_next.definition.define import prepare_definition, DefinitionInput
-from rekuest_next.actors.types import ActorBuilder, Agent
+from rekuest_next.agents.context import prepare_context_variables
+from rekuest_next.agents.dependency import prepare_dependency_variables
+from rekuest_next.definition.define import (
+    AssignWidgetMap,
+    EffectsMap,
+    ReturnWidgetMap,
+    prepare_definition,
+    DefinitionInput,
+)
+from rekuest_next.actors.types import ActorBuilder, Agent, ImplementationDetails
+from rekuest_next.protocols import AnyFunction
+from rekuest_next.state.utils import prepare_state_variables
 from rekuest_next.structures.registry import StructureRegistry
 
 
@@ -60,6 +80,7 @@ class QtInLoopBuilder(QtCore.QObject):
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
+                **self.actor_kwargs,
             )
             return ac
         except Exception as e:
@@ -106,6 +127,7 @@ class QtFutureBuilder(QtCore.QObject):
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
+                **self.actor_kwargs,
             )
             return ac
         except Exception as e:
@@ -152,6 +174,7 @@ class QtGeneratorBuilder(QtCore.QObject):
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
                 definition=self.definition,
+                **self.actor_kwargs,
             )
             return ac
         except Exception as e:
@@ -159,11 +182,90 @@ class QtGeneratorBuilder(QtCore.QObject):
 
 
 def qtinloopactifier(
-    function: Callable,
+    function: AnyFunction,
     structure_registry: StructureRegistry,
     parent: QtWidgets.QWidget = None,
-    **kwargs: dict,
-) -> Tuple[DefinitionInput, ActorBuilder]:
+    bypass_shrink: bool = False,
+    bypass_expand: bool = False,
+    description: str | None = None,
+    stateful: bool = False,
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
+    collections: List[str] | None = None,
+    effects: EffectsMap | None = None,
+    port_groups: Optional[List[PortGroupInput]] = None,
+    is_test_for: Optional[List[str]] = None,
+    widgets: AssignWidgetMap | None = None,
+    return_widgets: ReturnWidgetMap | None = None,
+    interfaces: List[str] | None = None,
+    in_process: bool = False,
+    logo: str | None = None,
+    name: str | None = None,
+    auto_locks: bool = True,
+    locks: Optional[List[str]] = None,
+    version: Optional[str] = None,
+    key: Optional[str] = None,
+    actor_class: Optional[type] = None,
+) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+    """Reactify a function
+
+    This function takes a callable (of type async or sync function or generator) and
+    returns a builder function that creates an actor that makes the function callable
+    from the rekuest server.
+    """
+
+    state_variables, state_returns = prepare_state_variables(function)
+    context_variables, context_returns = prepare_context_variables(function)
+    dependency_variables = prepare_dependency_variables(function)
+
+    if not locks and auto_locks:
+        locks = []
+        for lock in context_variables.required_context_locks.values():
+            locks.extend(lock)
+        for lock in state_variables.required_state_locks.values():
+            locks.extend(lock)
+        locks = list(set(locks))
+
+    if state_variables:
+        stateful = True
+
+    implementation_details = ImplementationDetails(
+        state_variables=state_variables,
+        state_returns=state_returns,
+        context_variables=context_variables,
+        context_returns=context_returns,
+        dependency_variables=dependency_variables,
+        locks=locks,
+    )
+
+    definition = prepare_definition(
+        function,
+        structure_registry,
+        widgets=widgets,
+        interfaces=interfaces,
+        port_groups=port_groups,
+        collections=collections,
+        stateful=stateful,
+        validators=validators,
+        effects=effects,
+        is_test_for=is_test_for,
+        name=name,
+        description=description,
+        return_widgets=return_widgets,
+        logo=logo,
+        key=key,
+        version=version,
+    )
+
+    actor_attributes: dict[str, Any] = {
+        "expand_inputs": not bypass_expand,
+        "shrink_outputs": not bypass_shrink,
+        "state_variables": state_variables,
+        "state_returns": state_returns,
+        "context_variables": context_variables,
+        "context_returns": context_returns,
+        "dependency_variables": dependency_variables,
+        "locks": locks,
+    }
     """Qt Actifier
 
     The qt actifier wraps a function and returns a builder that will create an actor
@@ -178,9 +280,10 @@ def qtinloopactifier(
         assign=function,
         structure_registry=structure_registry,
         definition=definition,
+        **actor_attributes,
     )
 
-    return definition, in_loop_instance.build
+    return definition, implementation_details, in_loop_instance.build
 
 
 def qtwithfutureactifier(
@@ -256,7 +359,9 @@ def qtwithgeneratoractifier(
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtGenerator:
-        raise ValueError("The function needs to have a QtGenerator as its first parameter")
+        raise ValueError(
+            "The function needs to have a QtGenerator as its first parameter"
+        )
 
     return_params = get_args(first)
 

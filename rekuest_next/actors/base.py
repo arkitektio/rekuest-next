@@ -4,7 +4,7 @@ from rekuest_next.agents.dependency import dependency_to_protocol
 
 from rath.scalars import ID
 from rekuest_next.declare import DeclaredAgentProtocol, DeclaredAgentAction
-
+import inspect
 import asyncio
 import contextlib
 import logging
@@ -29,7 +29,7 @@ from rekuest_next.definition.define import (
     DefinitionInput,
 )
 from rekuest_next.protocols import AnyContext, AnyState
-from rekuest_next.remote import call_dependency
+from rekuest_next.remote import acall_dependency, call_dependency
 from rekuest_next.state.publish import direct_publishing
 from rekuest_next.state.utils import PreparedStateReturns, PreparedStateVariables
 from rekuest_next.structures.registry import StructureRegistry
@@ -425,6 +425,7 @@ class AgentMethodProxy:
         self.action_protocol = action_protocol
         self.agent_dependency_key = agent_dependency_key
         self.self_key = self_key
+        self.is_async = self.action_protocol.is_async
 
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """ "Call the actor's implementation."""
@@ -440,8 +441,25 @@ class AgentMethodProxy:
             **kwargs,
         )
 
+    async def acall(self, *args: Any, **kwargs: Any) -> Any:
+        """ "Call the actor's implementation asynchronously."""
+
+        helper = get_current_assignation_helper()
+
+        return await acall_dependency(
+            self.action_protocol.definition,
+            ID.validate(self.agent_dependency_key),
+            self.self_key,
+            *args,
+            parent=helper.assignment,
+            **kwargs,
+        )
+
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """ "Call the wrapped function directly if not within an assignation."""
+        if self.is_async:
+            return self.acall(*args, **kwargs)
+
         return self.call(*args, **kwargs)
 
 

@@ -152,6 +152,31 @@ def ChoiceWidget(choices: List[str] | str | List[ChoiceInput]) -> AssignWidgetIn
     return AssignWidgetInput(kind=AssignWidgetKind.CHOICE, choices=tuple(choices))
 
 
+def ProxyWidget(
+    dependency: str, action: str | None = None, arg: str | None = None
+) -> AssignWidgetInput:
+    """A forward widget.
+
+    A forward widget is a widget that takes the widget of a dependency and sets it here. This is useful if you are want to use the same available
+    sleectors (like state) of the agent but in a different function.
+
+    Args:
+        arg_path (str): The path to the argument to forward the widget from, in the format "dependency_name.arg_name"
+        listify (bool): Whether to wrap the forwarded widget in a list (useful if the target argument expects a list but the source is a single value)
+    """
+    if not action or not arg:
+        raise ValueError(
+            "You need to provide both an action and an arg for the ProxyWidget"
+        )
+
+    return AssignWidgetInput(
+        kind=AssignWidgetKind.PROXY,
+        targetDependency=dependency,
+        targetAction=action,
+        targetPort=arg,
+    )
+
+
 def withStateChoices(
     state_path: str,
     dependency: str | None = None,

@@ -362,11 +362,6 @@ input AgentDependencyInput {
   name: String = null
 
   """
-  The maximum amount of viable instances for the agent. This is used to identify the demand in the system.
-  """
-  maxViableInstances: Int = null
-
-  """
   A list of keys of other agent dependencies that are mutually exclusive with this one. This means two agent dependencies with mutually exclusive keys cannot be assigned to the same implementing agent. This is used to identify the demand in the system.
   """
   mutuallyExclusiveKeys: [String!] = null
@@ -379,6 +374,7 @@ input AgentDependencyInput {
   stateDemands: [StateDependencyInput!] = null
   autoResolvable: Boolean! = false
   minViableInstances: Int = null
+  maxViableInstances: Int = null
   preferedInstances: Int = null
 }
 
@@ -466,6 +462,34 @@ input AgentOrder {
   lastSeen: Ordering
 }
 
+"""A plain snapshot of a state's current value."""
+type AgentSnapshotEvent {
+  agentId: ID!
+  values: Args!
+  globalRevision: Int!
+  sessionId: String!
+  timestamp: DateTime!
+}
+
+union AgentSnapshotEventStatePatchEvent = AgentSnapshotEvent | StatePatchEvent
+
+type AgentWithValues {
+  """The ID of the agent this state belongs to"""
+  agentId: ID!
+
+  """The state value, indexed by state_interface"""
+  values: JSON!
+
+  """The maximum global revision across these states"""
+  globalRevision: Int!
+
+  """The patches to move forward"""
+  forwardPatches: [Patch!]!
+
+  """The patches to move backward"""
+  backwardPatches: [Patch!]!
+}
+
 """
 The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
 """
@@ -539,13 +563,13 @@ input AssignInput {
   args: Args!
   reference: String = null
   parent: ID = null
-  cached: Boolean! = false
-  log: Boolean! = false
-  capture: Boolean! = false
-  ephemeral: Boolean! = false
-  dependencies: Args = null
-  isHook: Boolean = false
-  step: Boolean = false
+  cached: Boolean!
+  log: Boolean!
+  capture: Boolean!
+  ephemeral: Boolean!
+  dependencies: [ResolvedDependencyInput!] = null
+  isHook: Boolean = null
+  step: Boolean = null
 }
 
 enum AssignPolicy {
@@ -578,6 +602,9 @@ input AssignWidgetInput {
   filters: [ArgPortInput!] = null
   dependencies: [String!] = []
   dependency: String = null
+  targetDependency: String = null
+  targetAction: String = null
+  targetPort: String = null
   statePath: String = null
   stateAccessors: [StateAccessorInput!] = null
 }
@@ -590,6 +617,7 @@ enum AssignWidgetKind {
   CUSTOM
   STRING
   STATE_CHOICE
+  PROXY
 }
 
 """Tracks the assignment of an implementation to a specific task."""
@@ -1277,6 +1305,19 @@ type Dependency {
   """
   versionFilter: String
 
+  """
+  Minimum number of viable agent instances required to resolve this dependency. This is used in combination with the auto_resolvable field to determine if a dependency can be automatically resolved. If the number of available agent instances that match the filters is less than this number, the dependency will not be considered auto resolvable.
+  """
+  minViableInstances: Int
+
+  """
+  Maximum number of viable agent instances that can be bound to this dependency. This is used in combination with the auto_resolvable field to determine if a dependency can be automatically resolved. If the number of available agent instances that match the filters is greater than this number, the dependency will not be considered auto resolvable.
+  """
+  maxViableInstances: Int
+
+  """List of action demands specified in this dependency."""
+  singular: Boolean!
+
   """List of action demands"""
   actionDemands: [ActionDemand!]!
 }
@@ -1706,6 +1747,20 @@ input LogSnapshotInput {
   value: AnyDefault!
 }
 
+"""The input for mapping an action to an implementation in a agent."""
+input MappedActionInput {
+  key: String!
+  implementation: ID!
+  dependencies: [ResolvedDependencyInput!] = null
+}
+
+"""The input for mapping actions to implementations in a agent."""
+input MappedAgentInput {
+  key: String!
+  agent: ID!
+  mappedActions: [MappedActionInput!]!
+}
+
 """The input for creating a blok."""
 input MaterializeBlokInput {
   blok: ID!
@@ -2107,6 +2162,7 @@ type Patch {
   sessionId: String!
   assignation: Assignation
   state: State!
+  interface: String!
   patch: JSONPatch!
 }
 
@@ -2321,6 +2377,14 @@ enum ProvidesOperator {
   NOT_IN
 }
 
+type ProxyWidget implements AssignWidget {
+  kind: AssignWidgetKind!
+  followValue: String
+  targetPort: String!
+  targetAction: String!
+  targetDependency: String
+}
+
 type Query {
   _entities(representations: [_Any!]!): [_Entity]!
   _service: _Service!
@@ -2469,7 +2533,10 @@ type Query {
   myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
 
   """Materialize the latest state for a specific agent"""
-  checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null): StateWithValue!
+  checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): StateValue!
+
+  """Materialize the latest states for a specific agent"""
+  checkoutAgent(agent: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): AgentWithValues!
 
   """Fetch resolved dependencies for a resolution."""
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
@@ -2494,6 +2561,9 @@ type Query {
 
   """Fetch a memory shelve by ID."""
   memoryShelve(id: ID!): MemoryShelve!
+
+  """Fetch a memory drawer by ID."""
+  memoryDrawer(id: ID!): MemoryDrawer!
 
   """Get a blok by ID."""
   blok(id: ID!): Blok!
@@ -2678,7 +2748,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "4da1ab0c-a3be-412b-af4c-6a8dd58f4dbb"
+  reference: String = "bbdfed7c-00c7-4dd8-88ed-cb8070002c17"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -2762,13 +2832,11 @@ input ResolvedDependencyFilter {
   ids: [ID!]
 }
 
-"""The input for mapping a dependency to an implementation."""
+"""The input for mapping dependencies to implementations in a agent."""
 input ResolvedDependencyInput {
-  dependency: ID!
-  resolutionKey: String = null
   key: String!
-  implementation: ID!
-  downStreamResolution: ID = null
+  mappedAgents: [MappedAgentInput!]!
+  autoResolve: Boolean! = false
 }
 
 """The input for resuming an assignation."""
@@ -2829,6 +2897,7 @@ input ReturnWidgetInput {
 enum ReturnWidgetKind {
   CHOICE
   CUSTOM
+  PROXY
 }
 
 """The input for creating a action demand."""
@@ -3147,6 +3216,7 @@ type StateMapping {
 type StatePatchEvent {
   stateId: ID!
   agentId: ID!
+  interface: String!
   op: String!
   path: String!
   value: Args!
@@ -3168,11 +3238,21 @@ type StateSnapshotEvent {
 
 union StateSnapshotEventStatePatchEvent = StateSnapshotEvent | StatePatchEvent
 
-type StateWithValue {
+type StateValue {
+  """The ID of the state"""
+  stateId: ID!
+
+  """The state value"""
   value: JSON!
-  definition: StateDefinition!
+
+  """The global revision of this state"""
   globalRevision: Int
-  localRevision: Int
+
+  """The patches that can be applied to move forward from this state"""
+  forwardPatches: [Patch!]!
+
+  """The patches that can be applied to move backward from this state"""
+  backwardPatches: [Patch!]!
 }
 
 """
@@ -3300,7 +3380,7 @@ type Subscription {
   watchState(stateId: ID = null, agentId: ID = null, interface: String = null): StateSnapshotEventStatePatchEvent!
 
   """Watch an agent: yields snapshots for all states then streams patches."""
-  watchAgent(agentId: ID!): StateSnapshotEventStatePatchEvent!
+  watchAgent(agentId: ID!): AgentSnapshotEventStatePatchEvent!
 
   """Subscribe to child assignation events."""
   childAssignations(id: ID!): ChildAssignationEvent!

@@ -92,35 +92,9 @@ class DeclaredAgentAction(Generic[P, R]):
             omitfirst=True,  # Omit the first parameter, which is usually `self` in agent protocols
             structure_registry=get_default_structure_registry(),
         )
-        self.interface = interface_name(func)
+        self.is_async = inspect.iscoroutinefunction(func)
+        self.interface = func.__name__
         self._current_implementation_cache: Dict[str, List[Implementation]] = {}
-
-    def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        """ "Call the actor's implementation."""
-
-        helper = get_current_assignation_helper()
-
-        if self.definition.kind == ActionKind.FUNCTION:
-            return call_dependency(
-                self.definition,
-                key,
-                self.interface,
-                *args,
-                parent=helper.assignment,
-                **kwargs,
-            )
-        elif self.definition.kind == ActionKind.GENERATOR:
-            raise NotImplementedError(
-                "Generator actions are not supported in agent protocols."
-            )
-        else:
-            raise Exception(
-                f"Cannot call implementation of kind {self.definition.kind}"
-            )
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
-        """ "Call the wrapped function directly if not within an assignation."""
-        return self.call(*args, **kwargs)
 
     def to_dependency_input(self, key: str) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
@@ -158,7 +132,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
         min: int | None = None,
         max: int | None = None,
         version: str | None = None,
-        auto_resolvable: bool = True,
+        auto_resolvable: bool = False,
         description: str | None = None,
         allow_inactive: bool = True,
     ) -> None:
@@ -186,6 +160,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
     # Add some kwargs because we might overwrite them when looking at the params of the function annotations
     def to_dependency_input(self, key: str) -> AgentDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
+        print("Called")
         return AgentDependencyInput(
             key=key,
             app=self.app,
@@ -215,7 +190,7 @@ class Resolvable(Protocol):
 
 def agent_protocol(
     app: str | None = None,
-    auto_resolvable: bool = True,
+    auto_resolvable: bool = False,
     min: int | None = None,
     max: int | None = None,
     version: str | None = None,
