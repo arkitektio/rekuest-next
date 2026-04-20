@@ -135,8 +135,7 @@ async def acall_dependency_raw(
         ephemeral=False,
     )
 
-    returns = None
-    has_yielded = False
+    returns = tuple()
 
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
@@ -144,7 +143,6 @@ async def acall_dependency_raw(
             returns = i.returns
 
         if i.kind == AssignationEventKind.DONE:
-            assert has_yielded, "Received DONE without YIELD. This is an error."
             return returns
 
         if i.kind == AssignationEventKind.ERROR:
