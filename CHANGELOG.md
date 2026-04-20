@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.4.3 (2026-04-20)
+
+
 ## v1.4.2 (2026-04-15)
+
+### Bug Fixes
+
+- Func not causing snake case errors
+  ([`44ac12e`](https://github.com/arkitektio/rekuest-next/commit/44ac12e98d84a30da8262078442c6d3877cc937a))
 
 
 ## v1.4.1 (2026-04-10)
