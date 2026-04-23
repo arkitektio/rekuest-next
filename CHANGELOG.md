@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.4.4 (2026-04-20)
+
+
 ## v1.4.3 (2026-04-20)
+
+### Bug Fixes
+
+- Werid dependency call
+  ([`53bdab4`](https://github.com/arkitektio/rekuest-next/commit/53bdab4bf24bfb8a6c7c56fe8dcc3afe1944590e))
 
 
 ## v1.4.2 (2026-04-15)
