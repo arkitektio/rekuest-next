@@ -2,6 +2,9 @@
 
 from koil.composition.base import KoiledModel
 import typing
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Callable(KoiledModel):
@@ -14,7 +17,9 @@ class Callable(KoiledModel):
         """
         return getattr(self, "kind")
 
-    def iterate(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Iterator[typing.Any]:
+    def iterate(
+        self, *args: typing.Any, **kwargs: typing.Any
+    ) -> typing.Iterator[typing.Any]:
         """Iterate over the action with the given arguments.
 
         Returns:
@@ -38,9 +43,10 @@ class Callable(KoiledModel):
         from rekuest_next.remote import call
         from rekuest_next.api.schema import ActionKind
 
-        assert self.get_action_kind() == ActionKind.FUNCTION, (
-            "Action kind must be FUNCTION to use call."
-        )
+        if self.get_action_kind() == ActionKind.GENERATOR:
+            logger.warning(
+                "Action kind is Generator, but call is being used. This will exhaust the generator and return the last value. Consider using iterate instead."
+            )
 
         return call(self, *args, **kwargs)  # type: ignore
 

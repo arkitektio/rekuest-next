@@ -52,20 +52,19 @@ __all__ = [
 async def afind(
     action_implementation_res: Union[ID, Action, Implementation, Reservation],
 ) -> Action:
-    from rekuest_next.declare import DeclaredFunction, DeclaredProtocol
-
     """Find and return the assignation generator"""
     if isinstance(action_implementation_res, Action):
         return action_implementation_res
 
     if isinstance(action_implementation_res, (ID, str)):
-        action_implementation_res = await afind_node(action_implementation_res)
-        return action_implementation_res
+        if isinstance(action_implementation_res, str):
+            if "." in action_implementation_res:
+                # If the ID is a string with dots, we assume it's an app . action identifier, and we need to find the action by its identifier
+                raise ValueError(
+                    "Finding by string identifier is not supported yet. Please use the ID type for now."
+                )
 
-    if isinstance(action_implementation_res, (DeclaredFunction, DeclaredProtocol)):
-        action_implementation_res = await afind_node(
-            matching=action_implementation_res.to_dependency_input()
-        )
+        action_implementation_res = await afind_node(action_implementation_res)
         return action_implementation_res
 
     raise ValueError(
