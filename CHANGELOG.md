@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v1.4.6 (2026-04-23)
+
+### Bug Fixes
+
+- Yielding
+  ([`00c24e1`](https://github.com/arkitektio/rekuest-next/commit/00c24e1b1a85e11d233dd39980b6cc51a24c7922))
+
+Co-authored-by: Copilot <copilot@github.com>
+
+
 ## v1.4.5 (2026-04-23)
 
 
