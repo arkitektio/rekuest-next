@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.4.5 (2026-04-23)
+
+
 ## v1.4.4 (2026-04-20)
+
+### Bug Fixes
+
+- Remote action calling
+  ([`f860853`](https://github.com/arkitektio/rekuest-next/commit/f8608530f56a9458a5cc044e223d2e0b6909d6ae))
 
 
 ## v1.4.3 (2026-04-20)
