@@ -341,15 +341,21 @@ async def aexpand_arg(
         fenum = structure_registry.get_fullfilled_enum(port.identifier)
         if fenum:
             if isinstance(value, str):
-                if value not in fenum.cls.__members__:
-                    raise to_port_error(
-                        port,
-                        value,
-                        f"Enum {port.identifier} does not have {value} as member",
-                        path=path,
-                        depth=depth,
-                    )
-                return fenum.cls[value]
+                if value in fenum.cls.__members__:
+                    return fenum.cls[value]
+                # Python 3.13+: partial() values are treated as descriptors so
+                # they never appear in __members__. Fall back to a direct
+                # attribute lookup on the class.
+                attr = getattr(fenum.cls, value, None)
+                if attr is not None:
+                    return attr
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Enum {port.identifier} does not have {value} as member",
+                    path=path,
+                    depth=depth,
+                )
             if isinstance(value, int):
                 if value not in fenum.cls.__members__.values():
                     raise to_port_error(

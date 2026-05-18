@@ -1,0 +1,1154 @@
+/home/jhnnsrs/Code/packages/rekuest-next/.venv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:217: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-8.3.5, pluggy-1.5.0 -- /home/jhnnsrs/Code/packages/rekuest-next/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/jhnnsrs/Code/packages/rekuest-next
+configfile: pyproject.toml
+plugins: anyio-4.9.0, asyncio-0.26.0, cov-6.1.1, aiohttp-1.1.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+tests/test_serializing_enums.py::test_expand_enums_partial_functions FAILED [ 50%]
+tests/test_serializing_enums.py::test_expand_enums_default FAILED        [100%]
+
+=================================== FAILURES ===================================
+_____________________ test_expand_enums_partial_functions ______________________
+
+definition = DefinitionInput(description='Does the enum thing', collections=(), key='enum_function', package=None, version='1', nam...ne, widget=None, provides=None),), tests=None, kind='FUNCTION', is_test_for=(), interfaces=(), is_dev=False, logo=None)
+args = {'x': 'C'}
+structure_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+shelver = <tests.conftest.MockShelver object at 0x745bec150ec0>
+skip_expanding = False
+
+    async def expand_inputs(
+        definition: DefinitionInput,
+        args: Dict[str, JSONSerializable],
+        structure_registry: StructureRegistry,
+        shelver: Shelver,
+        skip_expanding: bool = False,
+    ) -> Dict[str, Any]:
+        """Expand
+    
+        Args:
+            action (Action): [description]
+            args (List[Any]): [description]
+            kwargs (List[Any]): [description]
+            registry (Registry): [description]
+        """
+    
+        expanded_args = []
+    
+        if not skip_expanding:
+            try:
+>               expanded_args = await asyncio.gather(
+                    *[
+                        aexpand_arg(
+                            port,
+                            args.get(port.key, UNSET),
+                            structure_registry=structure_registry,
+                            shelver=shelver,
+                            path=[port.key],
+                            depth=1,
+                        )
+                        for port in definition.args
+                    ]
+                )
+
+rekuest_next/structures/serialization/actor.py:535: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+port = ArgPortInput(validators=(), key='x', label=None, kind='ENUM', description='Enum for the functions', identifier='tests....g_enums.functionenum', nullable=False, effects=(), default=None, children=None, choices=(), widget=None, requires=None)
+value = 'C'
+structure_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+shelver = <tests.conftest.MockShelver object at 0x745bec150ec0>
+
+    async def aexpand_arg(
+        port: ArgPortInput | ReturnPortInput,
+        value: JSONSerializable | UNSET,
+        structure_registry: StructureRegistry,
+        shelver: Shelver,
+        *,
+        path: Sequence[str] | None = None,
+        depth: int = 0,
+    ) -> Any:  # noqa: ANN401
+        """Expand a value through a port
+    
+        Args:
+            port (ArgPort): Port to expand to
+            value (Any): Value to expand
+        Returns:
+            Any: Expanded value
+    
+        """
+        if value is None:
+            value = port.default
+    
+        if value is UNSET:
+            if port.default is not UNSET:
+                value = port.default
+            elif port.nullable:
+                return None
+            else:
+                raise to_port_error(
+                    port,
+                    value,
+                    "Port is required but no value was provided and no default is set",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
+    
+        if value is None:
+            if port.nullable:
+                return None
+            else:
+                raise to_port_error(
+                    port,
+                    value,
+                    "Port is not nullable (optional) but received None",
+                    path=[*(path or []), port.key] if path is not None else [port.key],
+                    depth=depth,
+                )
+    
+        if not isinstance(value, (str, int, float, dict, list)):  # type: ignore
+            raise to_port_error(
+                port,
+                value,
+                "We only accept strings, ints and floats (json serializable) and null values",
+                path=path,
+                depth=depth,
+            )
+    
+        if port.kind == PortKind.DICT:
+            if not port.children:
+                raise to_port_error(
+                    port,
+                    value,
+                    "The port has no children. This is not a valid dict port definition. Please report this to the developers.",
+                    path=path,
+                    depth=depth,
+                )
+    
+            expanding_port = port.children[0]
+    
+            if not isinstance(value, dict):
+                raise to_port_error(
+                    port,
+                    value,
+                    "We only accept dicts for dict ports",
+                    path=path,
+                    depth=depth,
+                )
+    
+            return {
+                key: await aexpand_arg(
+                    expanding_port,
+                    value,
+                    structure_registry=structure_registry,
+                    shelver=shelver,
+                    path=[*(path or []), port.key, key]
+                    if path is not None
+                    else [port.key, key],
+                    depth=depth + 1,
+                )
+                for key, value in value.items()
+            }
+    
+        if port.kind == PortKind.UNION:
+            if not port.children:
+                raise to_port_error(
+                    port,
+                    value,
+                    "Can't expand value to union port. We only accept unions with children. Please report this to the developers.",
+                    path=path,
+                    depth=depth,
+                )
+    
+            if not isinstance(value, dict):
+                raise to_port_error(
+                    port,
+                    value,
+                    "Can't expand value to union port. We only accept dicts in unions. Please report this to the developers.",
+                    path=path,
+                    depth=depth,
+                )
+    
+            for index, possible_port in enumerate(port.children):
+                if predicate_serializable_port(possible_port, value, structure_registry):
+                    return await aexpand_arg(
+                        possible_port,
+                        value,
+                        structure_registry=structure_registry,
+                        shelver=shelver,
+                        path=[*(path or []), f"{port.key}[{index}]"]
+                        if path is not None
+                        else [f"{port.key}[{index}]"],
+                        depth=depth + 1,
+                    )
+    
+        if port.kind == PortKind.LIST:
+            if not port.children:
+                raise to_port_error(
+                    port,
+                    value,
+                    "The port has no children. This is not a valid list port definition. Please report this to the developers.",
+                    path=path,
+                    depth=depth,
+                ) from None
+    
+            expanding_port = port.children[0]
+    
+            if not isinstance(value, list):
+                raise to_port_error(
+                    port,
+                    value,
+                    "We only accept lists for list ports",
+                    path=path,
+                    depth=depth,
+                ) from None
+    
+            return await asyncio.gather(
+                *[
+                    aexpand_arg(
+                        expanding_port,
+                        item,
+                        structure_registry=structure_registry,
+                        shelver=shelver,
+                        path=[*(path or []), f"{port.key}[{index}]"]
+                        if path is not None
+                        else [f"{port.key}[{index}]"],
+                        depth=depth + 1,
+                    )
+                    for index, item in enumerate(value)
+                ]
+            )
+    
+        if port.kind == PortKind.MODEL:
+            children = port.children
+            identifier = port.identifier
+            if not isinstance(value, dict):
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " dicts in models",
+                    path=path,
+                    depth=depth,
+                )
+            if not children:
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " models with children",
+                    path=path,
+                    depth=depth,
+                )
+            if not identifier:
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " models with identifiers",
+                    path=path,
+                    depth=depth,
+                )
+    
+            expanded_args = await asyncio.gather(
+                *[
+                    aexpand_arg(
+                        port,
+                        value.get(port.key, UNSET),
+                        structure_registry=structure_registry,
+                        shelver=shelver,
+                        path=[*(path or []), port.key] if path is not None else [port.key],
+                        depth=depth + 1,
+                    )
+                    for port in children
+                ]
+            )
+            expandend_params = {port.key: val for port, val in zip(children, expanded_args)}
+    
+            fmodel = structure_registry.get_fullfilled_model(identifier=identifier)
+            return fmodel.cls(**expandend_params)
+    
+        if port.kind == PortKind.INT:
+            if not isinstance(value, (int, float, str)):
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " ints, floats and strings",
+                    path=path,
+                    depth=depth,
+                ) from None
+            return int(value)
+    
+        if port.kind == PortKind.DATE:
+            if not isinstance(value, (str, dt.datetime)):
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " strings and datetime",
+                    path=path,
+                    depth=depth,
+                ) from None
+            return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    
+        if port.kind == PortKind.FLOAT:
+            if not isinstance(value, (int, float, str)):
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " ints, floats and strings",
+                    path=path,
+                    depth=depth,
+                ) from None
+            return float(value)
+    
+        if port.kind == PortKind.ENUM:
+            if port.identifier is None:
+                raise to_port_error(
+                    port,
+                    value,
+                    f"Can't expand {value} of type {type(value)} to {port.kind}. We only accept"
+                    " enums with identifiers",
+                    path=path,
+                    depth=depth,
+                ) from None
+    
+            fenum = structure_registry.get_fullfilled_enum(port.identifier)
+            if fenum:
+                if isinstance(value, str):
+                    if value not in fenum.cls.__members__:
+>                       raise to_port_error(
+                            port,
+                            value,
+                            f"Enum {port.identifier} does not have {value} as member",
+                            path=path,
+                            depth=depth,
+                        )
+E                       rekuest_next.structures.errors.ExpandingError: Error expanding value with nested path:
+E                       - x
+E                       Port: x (ENUM)
+E                       Depth: 1
+E                       Reason: Enum tests.test_serializing_enums.functionenum does not have C as member
+
+rekuest_next/structures/serialization/actor.py:345: ExpandingError
+
+The above exception was the direct cause of the following exception:
+
+simple_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+mock_shelver = <tests.conftest.MockShelver object at 0x745bec150ec0>
+
+    @pytest.mark.expand
+    @pytest.mark.asyncio
+    async def test_expand_enums_partial_functions(
+        simple_registry: StructureRegistry, mock_shelver: Shelver
+    ) -> None:
+        """Test if we can expand enums that have partial functions"""
+        functional_definition = prepare_definition(enum_function, structure_registry=simple_registry)
+    
+>       args = await expand_inputs(
+            functional_definition, {"x": "C"}, structure_registry=simple_registry, shelver=mock_shelver
+        )
+
+tests/test_serializing_enums.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+definition = DefinitionInput(description='Does the enum thing', collections=(), key='enum_function', package=None, version='1', nam...ne, widget=None, provides=None),), tests=None, kind='FUNCTION', is_test_for=(), interfaces=(), is_dev=False, logo=None)
+args = {'x': 'C'}
+structure_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+shelver = <tests.conftest.MockShelver object at 0x745bec150ec0>
+skip_expanding = False
+
+    async def expand_inputs(
+        definition: DefinitionInput,
+        args: Dict[str, JSONSerializable],
+        structure_registry: StructureRegistry,
+        shelver: Shelver,
+        skip_expanding: bool = False,
+    ) -> Dict[str, Any]:
+        """Expand
+    
+        Args:
+            action (Action): [description]
+            args (List[Any]): [description]
+            kwargs (List[Any]): [description]
+            registry (Registry): [description]
+        """
+    
+        expanded_args = []
+    
+        if not skip_expanding:
+            try:
+                expanded_args = await asyncio.gather(
+                    *[
+                        aexpand_arg(
+                            port,
+                            args.get(port.key, UNSET),
+                            structure_registry=structure_registry,
+                            shelver=shelver,
+                            path=[port.key],
+                            depth=1,
+                        )
+                        for port in definition.args
+                    ]
+                )
+    
+                expandend_params = {
+                    port.key: val for port, val in zip(definition.args, expanded_args)
+                }
+    
+            except Exception as e:
+>               raise ExpandingError(f"Couldn't expand Arguments: {e}") from e
+E               rekuest_next.structures.errors.ExpandingError: Couldn't expand Arguments: Error expanding value with nested path:
+E               - x
+E               Port: x (ENUM)
+E               Depth: 1
+E               Reason: Enum tests.test_serializing_enums.functionenum does not have C as member
+
+rekuest_next/structures/serialization/actor.py:554: ExpandingError
+__________________________ test_expand_enums_default ___________________________
+
+function = <function enum_function_default at 0x745bec31f100>
+structure_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+widgets = {}, return_widgets = {}, effects = {}, port_groups = []
+allow_empty_doc = True, collections = [], interfaces = [], description = None
+is_test_for = None, port_label_map = None, port_description_map = None
+validators = {}, name = None, omitfirst = None, omitlast = None, logo = None
+stateful = False, omitkeys = [], return_annotations = None, allow_dev = True
+allow_annotations = True, version = None, key = 'x'
+
+    def prepare_definition(
+        function: Callable[..., Any],
+        structure_registry: StructureRegistry,
+        widgets: Optional[AssignWidgetMap] = None,
+        return_widgets: Optional[ReturnWidgetMap] = None,
+        effects: Optional[EffectsMap] = None,
+        port_groups: List[PortGroupInput] | None = None,
+        allow_empty_doc: bool = True,
+        collections: List[str] | None = None,
+        interfaces: Optional[List[str]] = None,
+        description: str | None = None,
+        is_test_for: Optional[List[str]] = None,
+        port_label_map: Optional[Dict[str, str]] = None,
+        port_description_map: Optional[Dict[str, str]] = None,
+        validators: Optional[Dict[str, List[ValidatorInput]]] = None,
+        name: str | None = None,
+        omitfirst: int | None = None,
+        omitlast: int | None = None,
+        logo: str | None = None,
+        stateful: bool = False,
+        omitkeys: list[str] | None = None,
+        return_annotations: Optional[List[Any]] = None,
+        allow_dev: bool = True,
+        allow_annotations: bool = True,
+        version: Optional[str] = None,
+        key: Optional[str] = None,
+    ) -> DefinitionInput:
+        """Define
+    
+        Define a callable (async function, sync function, async generator, async
+        generator) in the context of arkitekt and
+        return its definition (as an input that can be send to the arkitekt service,
+        to register the callable as a function)
+    
+        Args:
+            function (Callable): The function you want to define
+            structure_registry (StructureRegistry): The structure registry that should be checked against and new parameters registered within
+            widgets (Dict[str, WidgetInput], optional): The widgets to use for function parameters. If none or key not present the default widget will be used.
+            return_widgets ()
+        """
+    
+        assert structure_registry is not None, "You need to pass a StructureRegistry"
+    
+        is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
+    
+        sig = inspect.signature(function)
+        widgets = widgets or {}
+        effects = effects or {}
+        omitkeys = omitkeys or []
+        validators = validators or {}
+    
+        port_groups = port_groups or []
+    
+        return_widgets = return_widgets or {}
+        interfaces = interfaces or []
+        collections = collections or []
+        # Generate Args and Kwargs from the Annotation
+        args: List[ArgPortInput] = []
+        returns: List[ReturnPortInput] = []
+    
+        # Docstring Parser to help with descriptions
+        docstring = parse(function.__doc__ or "")
+    
+        function_name = (
+            getattr(function, "__name__", None) or function.__class__.__name__ or "unknown_function"
+        )
+    
+        definition_key = key or function_name
+    
+        is_dev = False
+    
+        if not docstring.short_description and name is None:
+            is_dev = True
+            if not allow_dev:
+                raise NonSufficientDocumentation(
+                    f"We are not in dev mode. Please provide a name or better document  {function_name}. Try docstring :)"
+                )
+    
+        if not docstring.long_description and description is None and not allow_empty_doc:
+            is_dev = True
+            if not allow_dev:
+                raise NonSufficientDocumentation(
+                    f"We are not in dev mode. Please provide a description or better document  {function_name}. Try docstring :)"
+                )
+    
+        type_hints = get_type_hints(function, include_extras=allow_annotations)
+    
+        function_ins_annotation = sig.parameters
+    
+        doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
+        doc_param_label_map: Dict[str, str] = {
+            param.arg_name: param.arg_name for param in docstring.params
+        }
+    
+        if docstring.many_returns:
+            doc_param_description_map.update(
+                {
+                    f"return{index}": param.description
+                    for index, param in enumerate(docstring.many_returns)
+                }
+            )
+            doc_param_label_map.update(
+                {
+                    f"return{index}": param.return_name or f"return{index}"
+                    for index, param in enumerate(docstring.many_returns)
+                }
+            )
+        elif docstring.returns:
+            doc_param_description_map.update({"return0": docstring.returns.description})
+            doc_param_label_map.update({"return0": docstring.returns.return_name or "return0"})
+    
+        if port_label_map:
+            doc_param_label_map.update(port_label_map)
+        if port_description_map:
+            doc_param_description_map.update(port_description_map)
+    
+        for index, (key, value) in enumerate(function_ins_annotation.items()):
+            # We can skip arguments if the builder is going to provide additional arguments
+            if omitfirst is not None and index < omitfirst:
+                continue
+            if omitlast is not None and index > omitlast:
+                continue
+            if key in omitkeys:
+                continue
+    
+            assign_widget = widgets.pop(key, None)
+            port_effects = effects.pop(key, [])
+            return_widget = return_widgets.pop(key, None)
+            item_validators = validators.pop(key, [])
+            default = value.default if value.default != inspect.Parameter.empty else None
+            cls = type_hints.get(key, type(default) if default is not None else None)
+    
+            if cls is None:
+                raise DefinitionError(
+                    f"Could not find type hint for {key} in {function_name}. Please provide a type hint (or default) for this argument."
+                )
+    
+            if is_dependency_type(cls):
+                continue
+    
+            if is_local_var(cls):
+                continue
+    
+            try:
+                args.append(
+>                   convert_object_to_argport(
+                        cls,
+                        key,
+                        structure_registry,
+                        assign_widget=assign_widget,
+                        return_widget=return_widget,
+                        default=default,
+                        effects=port_effects,
+                        nullable=value.default != inspect.Parameter.empty,
+                        description=doc_param_description_map.pop(key, None),
+                        label=doc_param_label_map.pop(key, None),
+                        validators=item_validators,
+                    )
+                )
+
+rekuest_next/definition/define.py:901: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <enum 'FunctionEnum'>, key = 'x'
+registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+assign_widget = None, return_widget = None
+default = functools.partial(<function alert_function_a at 0x745bec31ede0>)
+label = None, description = None, nullable = True, validators = [], effects = []
+requires = None, provides = None
+
+    def convert_object_to_argport(
+        cls: Any,  # noqa: ANN401
+        key: str,
+        registry: StructureRegistry,
+        assign_widget: AssignWidgetInput | None = None,
+        return_widget: ReturnWidgetInput | None = None,
+        default: Any | None = None,  # noqa: ANN401
+        label: str | None = None,
+        description: str | None = None,
+        nullable: bool = False,
+        validators: Optional[List[ValidatorInput]] = None,
+        effects: Optional[List[EffectInput]] = None,
+        requires: Optional[List[RequiresInput]] = None,
+        provides: Optional[List[ProvidesInput]] = None,
+    ) -> ArgPortInput:
+        """
+        Convert a class to an Port
+        """
+        if validators is None:
+            validators = []
+        if effects is None:
+            effects = []
+    
+        if is_nullable(cls):
+            # We are dealing with a union type
+            # wee need to get the non-nullable-types
+            # and convert hem to a new union
+    
+            non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
+            cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
+            # TODO: We might want to handle this better
+    
+            return convert_object_to_argport(
+                cls=cls,
+                key=key,
+                registry=registry,
+                default=default,
+                nullable=True,
+                assign_widget=assign_widget,
+                label=label,
+                effects=effects,
+                return_widget=return_widget,
+                description=description,
+                validators=validators,
+            )
+    
+        if is_model(cls):
+            children = []
+    
+            inspected_model = inspect_model_class(cls)
+            registry.register_as_model(cls, inspected_model.identifier)
+    
+            for arg in inspected_model.args:
+                child = convert_object_to_argport(
+                    cls=arg.cls,
+                    registry=registry,
+                    nullable=False,
+                    key=arg.key,
+                    default=arg.default,
+                    description=arg.description,
+                    validators=arg.validators or [],
+                    label=arg.label,
+                )
+                children.append(child)
+    
+            return ArgPortInput(
+                kind=PortKind.MODEL,
+                widget=assign_widget,
+                key=key,
+                children=tuple(children),
+                label=label,
+                default=None,
+                nullable=nullable,
+                description=description or inspected_model.description,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                identifier=inspected_model.identifier,
+            )
+    
+        if is_annotated(cls):
+            real_type, *annotations = get_args(cls)
+    
+            (
+                default,
+                label,
+                description,
+                assign_widget,
+                return_widget,
+                validators,
+                effects,
+                requires,
+                provides,
+            ) = extract_annotations(
+                annotations,
+                default,
+                label,
+                description,
+                assign_widget,
+                return_widget,
+                validators,
+                effects,
+                requires,
+                provides,
+            )
+    
+            return convert_object_to_argport(
+                real_type,
+                key,
+                registry,
+                assign_widget=assign_widget,
+                default=default,
+                label=label,
+                effects=effects,
+                nullable=nullable,
+                validators=validators,
+                description=description,
+                requires=requires,
+                provides=provides,
+            )
+    
+        if is_list(cls):
+            value_cls = get_list_value_cls(cls)
+            child = convert_object_to_argport(
+                cls=value_cls, registry=registry, nullable=False, key="..."
+            )
+            return ArgPortInput(
+                kind=PortKind.LIST,
+                widget=assign_widget,
+                key=key,
+                children=tuple([child]),
+                label=label,
+                default=default if default else None,
+                nullable=nullable,
+                description=description,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_union(cls):
+            variants = get_non_null_variants(cls)
+            children: list[ArgPortInput] = []
+            for index, arg in enumerate(variants):
+                child = convert_object_to_argport(
+                    cls=arg, registry=registry, nullable=False, key=str(index)
+                )
+                children.append(child)
+    
+            return ArgPortInput(
+                kind=PortKind.UNION,
+                widget=assign_widget,
+                key=key,
+                children=tuple(children),
+                label=label,
+                default=default,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_dict(cls):
+            value_cls = get_dict_value_cls(cls)
+            child = convert_object_to_argport(
+                cls=value_cls, registry=registry, nullable=False, key="..."
+            )
+            return ArgPortInput(
+                key=key,
+                kind=PortKind.DICT,
+                widget=assign_widget,
+                children=tuple([child]),
+                label=label,
+                default=default,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_bool(cls) or (default is not None and isinstance(default, bool)):
+            return ArgPortInput(
+                kind=PortKind.BOOL,
+                widget=assign_widget,
+                key=key,
+                default=default,
+                label=label,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )  # catch bool is subclass of int
+    
+        if is_int(cls) or (default is not None and isinstance(default, int)):
+            return ArgPortInput(
+                kind=PortKind.INT,
+                widget=assign_widget,
+                key=key,
+                default=default,
+                label=label,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_float(cls) or (default is not None and isinstance(default, float)):
+            return ArgPortInput(
+                kind=PortKind.FLOAT,
+                widget=assign_widget,
+                key=key,
+                default=default,
+                label=label,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
+            return ArgPortInput(
+                kind=PortKind.DATE,
+                widget=assign_widget,
+                key=key,
+                default=default,
+                label=label,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+        if is_str(cls) or (default is not None and isinstance(default, str)):
+            return ArgPortInput(
+                kind=PortKind.STRING,
+                widget=assign_widget,
+                key=key,
+                default=default,
+                label=label,
+                nullable=nullable,
+                effects=tuple(effects),
+                validators=tuple(validators),
+                description=description,
+                requires=tuple(requires) if requires else None,
+            )
+    
+>       return registry.get_argport_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            effects=effects,
+            label=label,
+            default=default,
+            validators=validators,
+            assign_widget=assign_widget,
+            requires=tuple(requires) if requires else None,
+        )
+
+rekuest_next/definition/define.py:460: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+cls = <enum 'FunctionEnum'>, key = 'x', nullable = True, description = None
+effects = [], label = None, validators = []
+default = functools.partial(<function alert_function_a at 0x745bec31ede0>)
+assign_widget = None, requires = None
+
+    def get_argport_for_cls(
+        self,
+        cls: Type[Any],
+        key: str,
+        nullable: bool = False,
+        description: Optional[str] = None,
+        effects: Optional[list[EffectInput]] = None,
+        label: Optional[str] = None,
+        validators: Optional[List[ValidatorInput]] = None,
+        default: Any = None,  # noqa: ANN401
+        assign_widget: Optional[AssignWidgetInput] = None,
+        requires: Optional[List[RequiresInput]] = None,
+    ) -> ArgPortInput:
+        """Create a port for a given class
+    
+        This will use the structure registry to find the correct
+        structure for the given class. It will then create a port
+        for this class. You can pass overwrites if the port
+        should not be created with the default values.
+        """
+    
+        fullfilled_type = self.get_fullfilled_type_for_cls(cls)
+    
+        if isinstance(fullfilled_type, FullFilledModel):
+            return ArgPortInput(
+                kind=PortKind.MODEL,
+                identifier=fullfilled_type.identifier,
+                widget=assign_widget,
+                key=key,
+                label=label,
+                default=None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
+            )
+    
+        elif isinstance(fullfilled_type, FullFilledEnum):
+            return ArgPortInput(
+                kind=PortKind.ENUM,
+                identifier=fullfilled_type.identifier,
+                widget=assign_widget,
+                choices=tuple(fullfilled_type.choices),
+                key=key,
+                label=label,
+>               default=fullfilled_type.convert_default(default) if default is not None else None,
+                nullable=nullable,
+                effects=tuple(effects or []),
+                description=description or fullfilled_type.description,
+                validators=tuple(validators or []),
+                requires=tuple(requires) if requires else None,
+            )
+
+rekuest_next/structures/registry.py:354: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = functools.partial(<function alert_function_a at 0x745bec31ede0>)
+
+    def enum_converter(value: Enum) -> str:
+        """Convert an enum value to its string representation."""
+>       return value.name
+E       AttributeError: 'functools.partial' object has no attribute 'name'
+
+rekuest_next/structures/hooks/enum.py:30: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+simple_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+mock_shelver = <tests.conftest.MockShelver object at 0x745bec178050>
+
+    @pytest.mark.asyncio
+    async def test_expand_enums_default(
+        simple_registry: StructureRegistry, mock_shelver: Shelver
+    ) -> None:
+        """Test the default value of the enum function"""
+>       functional_definition = prepare_definition(
+            enum_function_default, structure_registry=simple_registry
+        )
+
+tests/test_serializing_enums.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+function = <function enum_function_default at 0x745bec31f100>
+structure_registry = StructureRegistry(copy_from_default=False, allow_overwrites=True, allow_auto_register=True, registry_hooks=OrderedDict...tInput(kind='CHOICE', query=None, choices=(), min=None, max=None, step=None, placeholder=None, hook=None, ward=None))})
+widgets = {}, return_widgets = {}, effects = {}, port_groups = []
+allow_empty_doc = True, collections = [], interfaces = [], description = None
+is_test_for = None, port_label_map = None, port_description_map = None
+validators = {}, name = None, omitfirst = None, omitlast = None, logo = None
+stateful = False, omitkeys = [], return_annotations = None, allow_dev = True
+allow_annotations = True, version = None, key = 'x'
+
+    def prepare_definition(
+        function: Callable[..., Any],
+        structure_registry: StructureRegistry,
+        widgets: Optional[AssignWidgetMap] = None,
+        return_widgets: Optional[ReturnWidgetMap] = None,
+        effects: Optional[EffectsMap] = None,
+        port_groups: List[PortGroupInput] | None = None,
+        allow_empty_doc: bool = True,
+        collections: List[str] | None = None,
+        interfaces: Optional[List[str]] = None,
+        description: str | None = None,
+        is_test_for: Optional[List[str]] = None,
+        port_label_map: Optional[Dict[str, str]] = None,
+        port_description_map: Optional[Dict[str, str]] = None,
+        validators: Optional[Dict[str, List[ValidatorInput]]] = None,
+        name: str | None = None,
+        omitfirst: int | None = None,
+        omitlast: int | None = None,
+        logo: str | None = None,
+        stateful: bool = False,
+        omitkeys: list[str] | None = None,
+        return_annotations: Optional[List[Any]] = None,
+        allow_dev: bool = True,
+        allow_annotations: bool = True,
+        version: Optional[str] = None,
+        key: Optional[str] = None,
+    ) -> DefinitionInput:
+        """Define
+    
+        Define a callable (async function, sync function, async generator, async
+        generator) in the context of arkitekt and
+        return its definition (as an input that can be send to the arkitekt service,
+        to register the callable as a function)
+    
+        Args:
+            function (Callable): The function you want to define
+            structure_registry (StructureRegistry): The structure registry that should be checked against and new parameters registered within
+            widgets (Dict[str, WidgetInput], optional): The widgets to use for function parameters. If none or key not present the default widget will be used.
+            return_widgets ()
+        """
+    
+        assert structure_registry is not None, "You need to pass a StructureRegistry"
+    
+        is_generator = inspect.isasyncgenfunction(function) or inspect.isgeneratorfunction(function)
+    
+        sig = inspect.signature(function)
+        widgets = widgets or {}
+        effects = effects or {}
+        omitkeys = omitkeys or []
+        validators = validators or {}
+    
+        port_groups = port_groups or []
+    
+        return_widgets = return_widgets or {}
+        interfaces = interfaces or []
+        collections = collections or []
+        # Generate Args and Kwargs from the Annotation
+        args: List[ArgPortInput] = []
+        returns: List[ReturnPortInput] = []
+    
+        # Docstring Parser to help with descriptions
+        docstring = parse(function.__doc__ or "")
+    
+        function_name = (
+            getattr(function, "__name__", None) or function.__class__.__name__ or "unknown_function"
+        )
+    
+        definition_key = key or function_name
+    
+        is_dev = False
+    
+        if not docstring.short_description and name is None:
+            is_dev = True
+            if not allow_dev:
+                raise NonSufficientDocumentation(
+                    f"We are not in dev mode. Please provide a name or better document  {function_name}. Try docstring :)"
+                )
+    
+        if not docstring.long_description and description is None and not allow_empty_doc:
+            is_dev = True
+            if not allow_dev:
+                raise NonSufficientDocumentation(
+                    f"We are not in dev mode. Please provide a description or better document  {function_name}. Try docstring :)"
+                )
+    
+        type_hints = get_type_hints(function, include_extras=allow_annotations)
+    
+        function_ins_annotation = sig.parameters
+    
+        doc_param_description_map = {param.arg_name: param.description for param in docstring.params}
+        doc_param_label_map: Dict[str, str] = {
+            param.arg_name: param.arg_name for param in docstring.params
+        }
+    
+        if docstring.many_returns:
+            doc_param_description_map.update(
+                {
+                    f"return{index}": param.description
+                    for index, param in enumerate(docstring.many_returns)
+                }
+            )
+            doc_param_label_map.update(
+                {
+                    f"return{index}": param.return_name or f"return{index}"
+                    for index, param in enumerate(docstring.many_returns)
+                }
+            )
+        elif docstring.returns:
+            doc_param_description_map.update({"return0": docstring.returns.description})
+            doc_param_label_map.update({"return0": docstring.returns.return_name or "return0"})
+    
+        if port_label_map:
+            doc_param_label_map.update(port_label_map)
+        if port_description_map:
+            doc_param_description_map.update(port_description_map)
+    
+        for index, (key, value) in enumerate(function_ins_annotation.items()):
+            # We can skip arguments if the builder is going to provide additional arguments
+            if omitfirst is not None and index < omitfirst:
+                continue
+            if omitlast is not None and index > omitlast:
+                continue
+            if key in omitkeys:
+                continue
+    
+            assign_widget = widgets.pop(key, None)
+            port_effects = effects.pop(key, [])
+            return_widget = return_widgets.pop(key, None)
+            item_validators = validators.pop(key, [])
+            default = value.default if value.default != inspect.Parameter.empty else None
+            cls = type_hints.get(key, type(default) if default is not None else None)
+    
+            if cls is None:
+                raise DefinitionError(
+                    f"Could not find type hint for {key} in {function_name}. Please provide a type hint (or default) for this argument."
+                )
+    
+            if is_dependency_type(cls):
+                continue
+    
+            if is_local_var(cls):
+                continue
+    
+            try:
+                args.append(
+                    convert_object_to_argport(
+                        cls,
+                        key,
+                        structure_registry,
+                        assign_widget=assign_widget,
+                        return_widget=return_widget,
+                        default=default,
+                        effects=port_effects,
+                        nullable=value.default != inspect.Parameter.empty,
+                        description=doc_param_description_map.pop(key, None),
+                        label=doc_param_label_map.pop(key, None),
+                        validators=item_validators,
+                    )
+                )
+            except Exception as e:
+>               raise DefinitionError(
+                    f"Could not convert Argument of function {function_name} to ArgPort: {value}"
+                ) from e
+E               rekuest_next.definition.errors.DefinitionError: Could not convert Argument of function enum_function_default to ArgPort: x: tests.test_serializing_enums.FunctionEnum = functools.partial(<function alert_function_a at 0x745bec31ede0>)
+
+rekuest_next/definition/define.py:916: DefinitionError
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/pydantic/_internal/_config.py:323
+  /home/jhnnsrs/Code/packages/rekuest-next/.venv/lib/python3.13/site-packages/pydantic/_internal/_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1313
+  /home/jhnnsrs/Code/packages/rekuest-next/.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn9Warning: Marks applied to fixtures have no effect
+  See docs: https://docs.pytest.org/en/stable/deprecations.html#applying-a-mark-to-a-fixture-function
+    return fixture_marker(fixture_function)
+
+tests/test_serializing_enums.py:30
+  /home/jhnnsrs/Code/packages/rekuest-next/tests/test_serializing_enums.py:30: FutureWarning: functools.partial will be a method descriptor in future Python versions; wrap it in enum.member() if you want to preserve the old behavior
+    A = partial(alert_function_a)
+
+tests/test_serializing_enums.py:31
+  /home/jhnnsrs/Code/packages/rekuest-next/tests/test_serializing_enums.py:31: FutureWarning: functools.partial will be a method descriptor in future Python versions; wrap it in enum.member() if you want to preserve the old behavior
+    B = partial(alert_function_b)
+
+tests/test_serializing_enums.py:32
+  /home/jhnnsrs/Code/packages/rekuest-next/tests/test_serializing_enums.py:32: FutureWarning: functools.partial will be a method descriptor in future Python versions; wrap it in enum.member() if you want to preserve the old behavior
+    C = partial(alert_function_c)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_serializing_enums.py::test_expand_enums_partial_functions
+FAILED tests/test_serializing_enums.py::test_expand_enums_default - rekuest_n...
+======================== 2 failed, 5 warnings in 0.05s =========================

@@ -8,7 +8,12 @@ from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.publish import Patch
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import AgentDependencyInput, PortGroupInput, ValidatorInput
+from rekuest_next.api.schema import (
+    AgentDependencyInput,
+    PortGroupInput,
+    TrackInput,
+    ValidatorInput,
+)
 from rekuest_next.definition.define import (
     AssignWidgetMap,
     DefinitionInput,
@@ -102,6 +107,8 @@ class ImplementationDetails:
     context_returns: PreparedContextReturns
     dependency_variables: PreparedDependencyVariables
     locks: Optional[List[str]]
+    tracks: Optional[List["TrackInput"]]
+    manipulates: Optional[List[str]]
 
 
 class Passport(BaseModel):

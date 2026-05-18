@@ -40,6 +40,7 @@ from rekuest_next.api.schema import (
     AssignWidgetInput,
     DefinitionInput,
     ActionDependencyInput,
+    TrackInput,
     PortGroupInput,
     amy_implementation_at,
     get_implementation,
@@ -138,6 +139,7 @@ def register_func(
     optimistics: Optional[List[OptimisticCoercible]] = None,
     locks: Optional[List[str]] = None,
     version: Optional[str] = None,
+    tracks: Optional[List[TrackInput]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the provided definition registry.
 
@@ -185,10 +187,12 @@ def register_func(
         validators=validators,
         interfaces=interfaces,
         in_process=in_process,
+        tracks=tracks,
         version=version,
     )
 
     dependencies: list[AgentDependencyInput] = []
+    print("Dependencies:", implementation_details.manipulates)
     for (
         key,
         dependency,
@@ -205,6 +209,8 @@ def register_func(
             locks=implementation_details.locks or [],
             optimistics=optimistics if optimistics else [],
             dependencies=dependencies,
+            tracks=implementation_details.tracks or [],
+            manipulates=implementation_details.manipulates or [],
         ),
         actor_builder,
     )
@@ -269,6 +275,7 @@ def register(
     implementation_registry: Optional[DefinitionRegistry] = None,
     optimistics: Optional[List[OptimisticCoercible]] = None,
     in_process: bool = False,
+    tracks: Optional[List[TrackInput]] = None,
     dynamic: bool = False,
     sync: Optional[SyncGroup] = None,
     locks: Optional[List[str]] = None,
@@ -322,6 +329,7 @@ def register(  # type: ignore[valid-type]
     optimistics: Optional[List[OptimisticCoercible]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
+    tracks: Optional[List[TrackInput]] = None,
     implementation_registry: Optional[DefinitionRegistry] = None,
     in_process: bool = False,
     dynamic: bool = False,
@@ -395,6 +403,7 @@ def register(  # type: ignore[valid-type]
             widgets=widgets,
             logo=logo,
             effects=effects,
+            tracks=tracks,
             optimistics=optimistics,
             collections=collections,
             interfaces=interfaces,

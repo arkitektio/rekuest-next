@@ -4,7 +4,7 @@ import pytest
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.structures.serialization.actor import expand_inputs
 from rekuest_next.structures.registry import StructureRegistry
-from enum import Enum
+from enum import Enum, member
 from functools import partial
 from rekuest_next.actors.types import Shelver
 
@@ -27,9 +27,9 @@ def alert_function_c(x: int) -> str:
 class FunctionEnum(Enum):
     """Enum for the functions"""
 
-    A = partial(alert_function_a)
-    B = partial(alert_function_b)
-    C = partial(alert_function_c)
+    A = member(partial(alert_function_a))
+    B = member(partial(alert_function_b))
+    C = member(partial(alert_function_c))
 
 
 def enum_function(x: FunctionEnum) -> str:
@@ -56,10 +56,15 @@ async def test_expand_enums_partial_functions(
     simple_registry: StructureRegistry, mock_shelver: Shelver
 ) -> None:
     """Test if we can expand enums that have partial functions"""
-    functional_definition = prepare_definition(enum_function, structure_registry=simple_registry)
+    functional_definition = prepare_definition(
+        enum_function, structure_registry=simple_registry
+    )
 
     args = await expand_inputs(
-        functional_definition, {"x": "C"}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        {"x": "C"},
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
     func = args["x"]  #
     assert func.value(1) == "c", "Enum function should expand to the correct function"
@@ -76,7 +81,10 @@ async def test_expand_enums_default(
     )
 
     args = await expand_inputs(
-        functional_definition, {"x": None}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        {"x": None},
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
     func = args["x"]  #
     assert func.value(1) == "a", "Enum function should expand to the correct function"

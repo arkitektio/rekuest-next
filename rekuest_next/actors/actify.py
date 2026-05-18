@@ -21,6 +21,7 @@ from rekuest_next.agents.context import (
 from rekuest_next.api.schema import (
     DefinitionInput,
     PortGroupInput,
+    TrackInput,
     ValidatorInput,
 )
 from rekuest_next.definition.define import (
@@ -55,6 +56,8 @@ def reactify(
     logo: str | None = None,
     name: str | None = None,
     auto_locks: bool = True,
+    tracks: Optional[List[TrackInput]] = None,
+    manipulates: Optional[List[str]] = None,
     locks: Optional[List[str]] = None,
     version: Optional[str] = None,
     key: Optional[str] = None,
@@ -78,6 +81,12 @@ def reactify(
             locks.extend(lock)
         locks = list(set(locks))
 
+    if not manipulates:
+        manipulates = []
+        for state_name in state_variables.write_state_variables.values():
+            manipulates.append(state_name)
+        manipulates = list(set(manipulates))
+
     if state_variables:
         stateful = True
 
@@ -88,6 +97,8 @@ def reactify(
         context_returns=context_returns,
         dependency_variables=dependency_variables,
         locks=locks,
+        tracks=tracks,
+        manipulates=manipulates,
     )
 
     definition = prepare_definition(
@@ -108,7 +119,7 @@ def reactify(
         key=key,
         version=version,
     )
-    
+
     is_coroutine = inspect.iscoroutinefunction(function)
     is_asyncgen = inspect.isasyncgenfunction(function)
     is_method = inspect.ismethod(function)

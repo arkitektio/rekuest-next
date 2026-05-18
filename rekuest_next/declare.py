@@ -1,5 +1,6 @@
 """Register a function or actor with the definition registry."""
 
+from symtable import Class
 from typing import (
     Any,
     Callable,
@@ -14,7 +15,12 @@ from typing import (
     runtime_checkable,
 )
 import inflection
-from rekuest_next.api.schema import ActionKind, ArgPortInput, ReturnPortInput
+from rekuest_next.api.schema import (
+    ActionKind,
+    ArgPortInput,
+    ReturnPortInput,
+    StateDependencyInput,
+)
 from rekuest_next.remote import call_dependency
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import prepare_definition
@@ -119,7 +125,66 @@ class DeclaredAgentAction(Generic[P, R]):
         )
 
 
+class DeclaredAgentState(Generic[P, R]):
+    """A wrapped function that calls the actor's implementation."""
+
+    def __init__(self, stateclass: Type, agent_interface: str, key: str) -> None:
+        """Initialize the wrapped function."""
+        self.func = stateclass
+        self.agent_interface = agent_interface
+        self.key = key
+
+    def to_dependency_input(self, key: str) -> StateDependencyInput:
+        """Convert the wrapped function to a DependencyInput."""
+
+        arg_matches: list[PortMatchInput] = []
+        return_matches: list[PortMatchInput] = []
+
+        for index, arg in enumerate(self.definition.args):
+            arg_matches.append(port_to_match(index, arg))
+
+        for index, ret in enumerate(self.definition.returns):
+            return_matches.append(returnport_to_match(index, ret))
+
+        return StateDependencyInput(
+            key=self.interface,
+            description=self.definition.description,
+            arg_matches=arg_matches,
+            return_matches=return_matches,
+            allow_inactive=True,
+            name=self.definition.name,
+            optional=False,
+        )
+
+
 Agent = TypeVar("Agent")
+
+
+T = TypeVar("T")
+
+
+def declare_state(cls: Type[T]) -> Type[T]:
+    """Declare a state protocol.
+
+    This is useful for defining state protocols that can be registered later.
+
+    Args:
+        cls (AnyFunction): The class defining the agent protocol.
+        app (str): The application name.
+        version (str | None, optional): The version of the agent protocol. Defaults to None.
+
+    Returns:
+        AnyFunction: The same class, unmodified.
+    """
+    cls.__is_state__ = True
+    return cls
+
+
+def state_dep_like(cls: Class) -> bool:
+    if cls.__is_state__:
+        return True
+    else:
+        return False
 
 
 class DeclaredAgentProtocol(Generic[Agent]):
@@ -144,6 +209,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
         self.allow_inactive = allow_inactive
         self.interface = interface_name(func)
         self.actions: Dict[str, DeclaredAgentAction[Any, Any]] = {}
+        self.states: Dict[str, DeclaredAgentState[Any, Any]] = {}
         self.auto_resolvable = auto_resolvable
         self.min = min
         self.max = max
@@ -155,7 +221,10 @@ class DeclaredAgentProtocol(Generic[Agent]):
                     method, self.interface, key=dependeny_key
                 )
                 self.actions[dependeny_key] = action
-                setattr(self, dependeny_key, action)
+
+            if not dependeny_key.startswith("_") and state_dep_like(method):
+                state = DeclaredAgentState(method, self.interface, key=dependeny_key)
+                self.states[dependeny_key] = state
 
     # Add some kwargs because we might overwrite them when looking at the params of the function annotations
     def to_dependency_input(self, key: str) -> AgentDependencyInput:
@@ -167,6 +236,9 @@ class DeclaredAgentProtocol(Generic[Agent]):
             description=self.description or self.func.__doc__,
             actionDemands=[
                 action.to_dependency_input(key) for key, action in self.actions.items()
+            ],
+            stateDemands=[
+                state.to_dependency_input(key) for key, state in self.states.items()
             ],
             autoResolvable=self.auto_resolvable,
             optional=False,

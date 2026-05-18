@@ -733,6 +733,8 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
             self._current_shrunk_states[interface] = copy.deepcopy(initial_shrunk_state)
 
+        # TODO: Implement state initialization through dataclass
+
         snapshot_event = messages.StateSnapshotEvent(
             session_id=self.current_session,
             global_rev=self.global_revision,

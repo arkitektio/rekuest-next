@@ -25,9 +25,30 @@ def cls_to_identifier(cls: Type[Enum]) -> Identifier:
     return Identifier.validate(f"{cls.__module__.lower()}.{cls.__name__.lower()}")
 
 
-def enum_converter(value: Enum) -> str:
-    """Convert an enum value to its string representation."""
-    return value.name
+def make_enum_converter(cls: Type[Enum]) -> Callable[[Any], str]:
+    """Create a converter that maps a default value to its enum member name.
+
+    Handles both enum instances and raw values (e.g. functools.partial treated
+    as a descriptor in Python 3.13+ so it bypasses normal Enum member wrapping).
+    """
+
+    def converter(value: Any) -> str:
+        if isinstance(value, cls):
+            return value.name
+        # Fallback: search registered members by .value first.
+        for member in cls:
+            if member.value is value or member.value == value:
+                return member.name
+        # Last resort: scan class attributes directly (Python 3.13+ descriptor
+        # behaviour means partial-valued members never appear in __members__).
+        for attr_name, attr_val in vars(cls).items():
+            if attr_name.startswith("_"):
+                continue
+            if attr_val is value or attr_val == value:
+                return attr_name
+        raise ValueError(f"Cannot convert {value!r} to an enum name for {cls}")
+
+    return converter
 
 
 class EnumHook(BaseModel):
@@ -89,7 +110,7 @@ class EnumHook(BaseModel):
             ],
             predicate=predicate,
             description=cls.__doc__,
-            convert_default=enum_converter,
+            convert_default=make_enum_converter(cls),
             default_widget=default_widget,
             default_returnwidget=default_returnwidget,
         )

@@ -33,6 +33,7 @@ from rekuest_next.actors.types import ActorBuilder, Agent, ImplementationDetails
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.state.utils import prepare_state_variables
 from rekuest_next.structures.registry import StructureRegistry
+from rekuest_next.api.schema import ValidatorInput, PortGroupInput
 
 
 class QtInLoopBuilder(QtCore.QObject):

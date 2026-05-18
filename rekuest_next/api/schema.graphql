@@ -1585,11 +1585,13 @@ input ImplementationInput {
   optimistics: [OptimisticInput!] = null
   definition: DefinitionInput!
   dependencies: [AgentDependencyInput!]! = []
+  tracks: [TrackInput!] = null
   interface: String
   params: AnyDefault = null
   dynamic: Boolean! = false
   logo: String = null
   locks: [String!] = null
+  manipulates: [String!]
   extension: String = null
 }
 
@@ -2748,7 +2750,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "bbdfed7c-00c7-4dd8-88ed-cb8070002c17"
+  reference: String = "ce0c1662-4a42-49f2-8be2-7effece48f5b"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -3533,6 +3535,18 @@ input ToolboxOrder {
   name: Ordering
 }
 
+"""
+A value that is being tracked over time during the runtime of an action. This is the state of a dependency
+"""
+input TrackInput {
+  dependencyKey: String = null
+  stateKey: String!
+  valueKey: String!
+  label: String = null
+  description: String = null
+  windows: [WindowInput!] = null
+}
+
 interface UIChild {
   kind: UIChildKind!
 }
@@ -3687,6 +3701,12 @@ input WaiterFilter {
   NOT: WaiterFilter
   DISTINCT: Boolean
   ids: [ID!]
+}
+
+"""A window that is calculated"""
+input WindowInput {
+  windowFunction: String!
+  label: String = null
 }
 
 scalar _Any
