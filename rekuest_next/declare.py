@@ -13,17 +13,16 @@ from typing import (
     TypeVar,
     overload,
     runtime_checkable,
+    get_type_hints,
 )
 import inflection
 from rekuest_next.api.schema import (
-    ActionKind,
     ArgPortInput,
     ReturnPortInput,
     StateDependencyInput,
 )
-from rekuest_next.remote import call_dependency
-from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import prepare_definition
+from rekuest_next.definition.define import convert_object_to_returnport
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.api.schema import (
@@ -31,6 +30,7 @@ from rekuest_next.api.schema import (
     Implementation,
     PortMatchInput,
     AgentDependencyInput,
+    StateDefinitionInput,
 )
 import inspect
 
@@ -133,24 +133,22 @@ class DeclaredAgentState(Generic[P, R]):
         self.func = stateclass
         self.agent_interface = agent_interface
         self.key = key
+        self.interface = key
+        self.definition = inspect_declared_state(stateclass)
 
     def to_dependency_input(self, key: str) -> StateDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
 
-        arg_matches: list[PortMatchInput] = []
-        return_matches: list[PortMatchInput] = []
+        port_matches: list[PortMatchInput] = []
 
-        for index, arg in enumerate(self.definition.args):
-            arg_matches.append(port_to_match(index, arg))
-
-        for index, ret in enumerate(self.definition.returns):
-            return_matches.append(returnport_to_match(index, ret))
+        for index, port in enumerate(self.definition.ports):
+            port_matches.append(returnport_to_match(index, port))
 
         return StateDependencyInput(
-            key=self.interface,
-            description=self.definition.description,
-            arg_matches=arg_matches,
-            return_matches=return_matches,
+            key=self.key,
+            description=None,
+            stateKey=self.interface,
+            portMatches=port_matches,
             allow_inactive=True,
             name=self.definition.name,
             optional=False,
@@ -176,15 +174,42 @@ def declare_state(cls: Type[T]) -> Type[T]:
     Returns:
         AnyFunction: The same class, unmodified.
     """
-    cls.__is_state__ = True
-    return cls
+    state_cls = cls[0] if isinstance(cls, tuple) else cls
+    state_cls.__is_state__ = True
+    if getattr(state_cls, "__rekuest_state__", None) is None:
+        state_cls.__rekuest_state__ = state_cls.__name__
+    return state_cls
 
 
 def state_dep_like(cls: Class) -> bool:
-    if cls.__is_state__:
+    if (
+        isinstance(cls, type)
+        and getattr(cls, "__is_state__", None)
+        and cls.__is_state__
+    ):
         return True
-    else:
-        return False
+    return False
+
+
+def inspect_declared_state(stateclass: Type[Any]) -> StateDefinitionInput:
+    structure_registry = get_default_structure_registry()
+    type_hints = get_type_hints(stateclass, include_extras=True)
+    ports: list[ReturnPortInput] = []
+
+    for field_name, field_type in type_hints.items():
+        default = getattr(stateclass, field_name, None)
+        port = convert_object_to_returnport(
+            cls=field_type,
+            key=field_name,
+            default=default,
+            registry=structure_registry,
+        )
+        ports.append(port)
+
+    return StateDefinitionInput(
+        ports=tuple(ports),
+        name=getattr(stateclass, "__rekuest_state__", stateclass.__name__),
+    )
 
 
 class DeclaredAgentProtocol(Generic[Agent]):
@@ -215,16 +240,24 @@ class DeclaredAgentProtocol(Generic[Agent]):
         self.max = max
         self.version: str | None = version
 
+        type_hints = get_type_hints(func)
+
+        for dependency_key, annotation in type_hints.items():
+            if dependency_key.startswith("_"):
+                continue
+
+            if state_dep_like(annotation):
+                state = DeclaredAgentState(
+                    annotation, self.interface, key=dependency_key
+                )
+                self.states[dependency_key] = state
+
         for dependeny_key, method in inspect.getmembers(func):
             if not dependeny_key.startswith("_") and callable(method):
                 action: DeclaredAgentAction[Any, Any] = DeclaredAgentAction(
                     method, self.interface, key=dependeny_key
                 )
                 self.actions[dependeny_key] = action
-
-            if not dependeny_key.startswith("_") and state_dep_like(method):
-                state = DeclaredAgentState(method, self.interface, key=dependeny_key)
-                self.states[dependeny_key] = state
 
     # Add some kwargs because we might overwrite them when looking at the params of the function annotations
     def to_dependency_input(self, key: str) -> AgentDependencyInput:
@@ -295,6 +328,7 @@ def agent_protocol(
             version=version,
         )
         setattr(the_class, "__rekuest__dependency__", protocol)
+        setattr(the_class, "to_dependency", protocol.to_dependency_input)
         return the_class
 
     return real_decorator
@@ -333,7 +367,17 @@ def state_protocol(
     Returns:
         AnyFunction: The same class, unmodified.
     """
-    return cls
+    if len(cls) == 1:
+        return declare_state(cls[0])
+
+    if len(cls) == 0:
+
+        def wrapper(state_cls: Type[T]) -> Type[T]:
+            return declare_state(state_cls)
+
+        return wrapper
+
+    raise ValueError("You can only declare one state protocol at a time.")
 
 
 declare = agent_protocol

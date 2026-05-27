@@ -2,6 +2,7 @@
 
 from pydantic import ConfigDict, Field, BaseModel
 from rekuest_next.api.schema import (
+    BlokImplementationInput,
     ImplementationInput,
     LockDefinitionInput,
     LockImplementationInput,
@@ -80,6 +81,16 @@ class DefaultExtension(BaseModel):
             Dict[str, StateSchemaInput]: Map of interface to state schema.
         """
         return dict(self.app_registry.state_registry.states)
+
+    def get_bloks(self) -> Dict[str, BlokImplementationInput]:
+        """Get the blok implementations for this extension.
+
+        Returns:
+            Dict[str, BlokImplementationInput]: Map of blok name to blok implementation input.
+        """
+        return self.app_registry.blok_registry.get_declared_bloks(
+            self.app_registry.implementation_registry, self.app_registry.state_registry
+        )
 
     def get_lock_schemas(self) -> Dict[str, LockImplementationInput]:
         """Get the lock schemas for this extension.

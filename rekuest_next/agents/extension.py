@@ -5,7 +5,7 @@ from rekuest_next.actors.types import Actor
 from typing import TYPE_CHECKING, Any
 from abc import ABC, abstractmethod
 
-from rekuest_next.api.schema import StateImplementationInput
+from rekuest_next.api.schema import BlokImplementationInput, StateImplementationInput
 
 if TYPE_CHECKING:
     from rekuest_next.agents.base import BaseAgent
@@ -82,6 +82,14 @@ class AgentExtension(Protocol):
 
         Returns:
             Dict[str, LockSchemaInput]: Map of interface to lock schema.
+        """
+        ...
+
+    def get_bloks(self) -> Dict[str, "BlokImplementationInput"]:
+        """Get the bloks for this extension.
+
+        Returns:
+            Dict[str, BlokImplementationInput]: Map of blok name to blok implementation input.
         """
         ...
 

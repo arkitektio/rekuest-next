@@ -29,6 +29,7 @@ ValidatorFunctionCoercible = str
 SearchQueryCoercible = str | DocumentNode
 MediaLikeCoercible = str | IO[bytes]
 Args = Dict[str, Any]
+JSONSerializable = Union[str, int, float, bool, None, Dict, list]
 
 
 class Interface(str):
@@ -81,6 +82,28 @@ class Identifier(str):
                 "Identifier must contain follow '@package/module' when trying to mimic a global module "
             )
         return Identifier(v)
+
+
+class UISchema(dict):
+    """A UI schema is a dictionary that is used to define the UI of a function. It can contain
+    any key-value pairs that are used to define the UI of a function. The UI schema is passed
+    to the frontend and can be used to render the UI of a function."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,  # noqa: ANN401
+        handler: GetCoreSchemaHandler,  # noqa: ANN401
+    ) -> CoreSchema:
+        """Get the pydantic core schema for the UI schema"""
+        return core_schema.no_info_after_validator_function(cls.validate, handler(dict))
+
+    @classmethod
+    def validate(cls, v: dict) -> "UISchema":
+        """Validate the UI schema"""
+        if not isinstance(v, dict):
+            raise ValueError("UI schema must be a dictionary")
+        return UISchema(v)
 
 
 class ValidatorFunction(str):

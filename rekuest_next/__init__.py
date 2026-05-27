@@ -4,6 +4,7 @@ Rekuest instances, as well as utility functions for working with
 Rekuest objects.
 """
 
+from .blok.parser import jsx
 from .remote import (
     acall,
     call,
@@ -24,7 +25,7 @@ from .actors.context import (
     pausepoint,
     install_hook,
 )
-from .declare import declare, agent_protocol
+from .declare import declare, agent_protocol, declare_state
 from .structures.model import model, model_field
 from .state.decorator import state
 from .app import (
@@ -65,6 +66,7 @@ __all__ = [
     "state",
     "background",
     "startup",
+    "declare_state",
     "find",
     "RekuestNextService",
     "call",

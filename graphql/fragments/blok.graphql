@@ -1,0 +1,9 @@
+fragment Blok on Blok {
+  id
+  name
+   
+}
+
+fragment MaterializedBlok on MaterializedBlok {
+  id
+}

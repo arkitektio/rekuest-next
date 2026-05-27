@@ -164,6 +164,33 @@ class RekuestNext(Composition):
             registry=default_extension.app_registry.hooks_registry,
         )
 
+    def register_blok(
+        self,
+        name: str | None = None,
+        jsx: Optional[str] = None,
+        description: Optional[str] = None,
+        demo_state: Dict[str, Any] | None = None,
+    ) -> None:
+        """Register a blok with the given name and optional JSX content.
+
+        Args:
+            name (str | None): The name of the blok. If None, the function name will be used.
+            jsx (Optional[str]): Optional JSX content to associate with the blok.
+            description (Optional[str]): Optional description for the blok.
+            demo_state (Dict[str, Any] | None): Optional demo state for the blok.
+        """
+        default_extension = self.agent.extension_registry.get("default")
+        assert default_extension is not None, "Default extension not found"
+        assert isinstance(default_extension, DefaultExtension), (
+            "Default is not a DefaultExtension"
+        )
+        default_extension.app_registry.blok_registry.register_blok(
+            name=name,
+            jsx=jsx,
+            description=description,
+            demo_state=demo_state,
+        )
+
     def run(self, context: Any | None = None) -> None:
         """
         Run the application.

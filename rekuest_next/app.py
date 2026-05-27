@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field
 
+from rekuest_next.blok.registry import BlokRegistry
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.agents.hooks.registry import HooksRegistry
 from rekuest_next.state.registry import StateRegistry
@@ -54,10 +55,13 @@ class AppRegistry(BaseModel):
         structure_registry: Registry for structure converters.
     """
 
-    implementation_registry: DefinitionRegistry = Field(default_factory=DefinitionRegistry)
+    implementation_registry: DefinitionRegistry = Field(
+        default_factory=DefinitionRegistry
+    )
     hooks_registry: HooksRegistry = Field(default_factory=HooksRegistry)
     state_registry: StateRegistry = Field(default_factory=StateRegistry)
     structure_registry: StructureRegistry = Field(default_factory=StructureRegistry)
+    blok_registry: BlokRegistry = Field(default_factory=BlokRegistry)
 
     class Config:
         """Pydantic configuration."""
@@ -125,14 +129,18 @@ class AppRegistry(BaseModel):
         Returns:
             The decorated function or a decorator function.
         """
-        from rekuest_next.agents.hooks.background import background as background_decorator
+        from rekuest_next.agents.hooks.background import (
+            background as background_decorator,
+        )
 
         if args:
             return background_decorator(*args, name=name, registry=self.hooks_registry)
         else:
 
             def decorator(func: T) -> T:
-                return background_decorator(func, name=name, registry=self.hooks_registry)
+                return background_decorator(
+                    func, name=name, registry=self.hooks_registry
+                )
 
             return decorator
 

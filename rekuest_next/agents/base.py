@@ -34,6 +34,7 @@ from rekuest_next.agents.registry import (
 from rekuest_next.agents.transport.types import AgentTransport
 from rekuest_next.api.schema import (
     Agent,
+    BlokImplementationInput,
     Implementation,
     StateDefinitionInput,
     LockImplementationInput,
@@ -188,6 +189,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     _collected_state_schemas: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}
     )
+
     _collected_structure_registries: Dict[str, Any] = PrivateAttr(
         default_factory=lambda: {}
     )
@@ -221,6 +223,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         default_factory=lambda: []
     )
     _collected_states: list[StateImplementationInput] = PrivateAttr(
+        default_factory=lambda: []
+    )
+    _collected_bloks: list[BlokImplementationInput] = PrivateAttr(
         default_factory=lambda: []
     )
     _collected_locks: list[LockImplementationInput] = PrivateAttr(
@@ -415,6 +420,11 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             for interface, lock_schema in locks.items():
                 if interface not in self.locks:
                     self.locks[interface] = TaskLock(self, lock_schema)
+
+            blocks = extension.get_bloks()
+            for key, blok in blocks.items():
+                print(blok)
+                self._collected_bloks.append(blok)
 
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
         """Get the structure registry for a given interface from extensions.
@@ -1068,6 +1078,7 @@ class RekuestAgent(BaseAgent[ContextType]):
                 implementations=self._collected_implementations,
                 states=self._collected_states,
                 locks=self._collected_locks,
+                bloks=self._collected_bloks,
             )
 
             logger.info("Registered agent with id %s and hash %s", agent.id, agent.hash)

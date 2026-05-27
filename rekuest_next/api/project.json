@@ -26,6 +26,8 @@
                 "Callback": "str",
                 "Any": "typing.Any",
                 "AnyInput": "typing.Any",
+                "JSONSerializable": "rekuest_next.scalars.JSONSerializable",
+                "UISchema": "rekuest_next.scalars.UISchema",
                 "AnyDefault": "typing.Any",
                 "Args": "rekuest_next.scalars.Args",
                 "ValueMap": "rekuest_next.scalars.ValueMap",
@@ -82,6 +84,12 @@
                 ],
                 "AssignWidgetInput": [
                     "rekuest_next.traits.ports.WidgetInputTrait"
+                ],
+                "CreateBlokInput": [
+                    "rekuest_next.traits.blok.CreateBlokInputTrait"
+                ],
+                "BlokImplementationInput": [
+                    "rekuest_next.traits.blok.BlokImplementationInputTrait"
                 ],
                 "ReturnWidgetInput": [
                     "rekuest_next.traits.ports.ReturnWidgetInputTrait"
