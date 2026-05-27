@@ -93,20 +93,9 @@ class AgentExtension(Protocol):
         """
         ...
 
-    async def aget_implementations(self) -> List["ImplementationInput"]:
-        """Get the implementations for this extension. This
-        will be called when the agent starts and will
-        be used to register the implementations on the rekuest server
-
-        the implementations in the registry.
-        Returns:
-            List[ImplementationInput]: The implementations for this extension.
-        """
-        ...
-
     async def aspawn_actor_for_interface(
         self,
-        agent: "BaseAgent",
+        agent: "BaseAgent[Any]",
         interface: str,
     ) -> Actor:
         """This should create an actor from a implementation and return it.
@@ -173,7 +162,7 @@ class BaseAgentExtension(ABC):
     @abstractmethod
     async def aspawn_actor_for_interface(
         self,
-        agent: "BaseAgent",
+        agent: "BaseAgent[Any]",
         interface: str,
     ) -> Optional[Actor]:
         """This should create an actor from a implementation and return it.

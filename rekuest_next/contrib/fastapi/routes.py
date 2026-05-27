@@ -126,7 +126,7 @@ def add_task_detail_routes(
 
 def add_state_routes(
     app: FastAPI,
-    agent: FastApiAgent,
+    agent: FastApiAgent[Any],
     states_path: str = "/states",
 ) -> None:
     """Include state overview routes."""
@@ -138,7 +138,7 @@ def add_state_routes(
 
 def add_state_detail_routes(
     app: FastAPI,
-    agent: FastApiAgent,
+    agent: FastApiAgent[Any],
     states_path: str = "/states",
     state_schemas: dict[str, StateImplementationInput] | None = None,
 ) -> None:
@@ -151,7 +151,7 @@ def add_state_detail_routes(
 
 def add_lock_routes(
     app: FastAPI,
-    agent: FastApiAgent,
+    agent: FastApiAgent[Any],
     locks_path: str = "/locks",
 ) -> None:
     """Include lock overview routes."""
@@ -163,7 +163,7 @@ def add_lock_routes(
 
 def add_implementation_routes(
     app: FastAPI,
-    agent: FastApiAgent,
+    agent: FastApiAgent[Any],
     extension: str = "default",
 ) -> None:
     """Include all implementation execution routes."""
@@ -172,14 +172,11 @@ def add_implementation_routes(
 
 def add_schema_routes(
     app: FastAPI,
-    agent: FastApiAgent,
+    agent: FastApiAgent[Any],
     extension: str = "default",
 ) -> None:
     """Include schema inspection routes."""
     _include_router(app, build_schema_router(agent, extension=extension))
-
-
-T = TypeVar("T")
 
 
 def configure_fastapi(
@@ -199,6 +196,7 @@ def configure_fastapi(
     assign_path: str = "/assign",
     states_path: str = "/states",
     locks_path: str = "/locks",
+    db_file: str = "agent_data.db",
     app_context: T | None = None,
 ) -> FastApiAgent[T]:
     """Configure a FastAPI app with a refactored set of agent route groups."""
@@ -209,7 +207,6 @@ def configure_fastapi(
     extension_registry = ExtensionRegistry()
     extension_registry.register(default_extension)
 
-    db_file = "FFFFF.db"
     agent: FastApiAgent[T] = FastApiAgent(  # type: ignore
         extension_registry=extension_registry,
         retriever=SQLLiteRetriever(db_path=db_file),

@@ -508,7 +508,7 @@ class FastApiTransport(AgentTransport):
         await self.adisconnect()
 
 
-T = TypeVar("T")
+T = TypeVar("T", bound=Any)
 
 
 class FastApiAgent(BaseAgent[T], Generic[T]):

@@ -206,10 +206,14 @@ class AgentTestClient:
     def client(self) -> TestClient:
         """Get the underlying TestClient."""
         if self._client is None:
-            raise RuntimeError("AgentTestClient is not in a context. Use 'with' statement.")
+            raise RuntimeError(
+                "AgentTestClient is not in a context. Use 'with' statement."
+            )
         return self._client
 
-    def _get_headers(self, extra_headers: Optional[dict[str, str]] = None) -> dict[str, str]:
+    def _get_headers(
+        self, extra_headers: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
         """Get headers for HTTP requests, including x-session-user if as_user is set."""
         headers: dict[str, str] = {}
         if self.as_user:
@@ -238,7 +242,9 @@ class AgentTestClient:
         Returns:
             The response from the server.
         """
-        return self.client.post(path, json=json, headers=self._get_headers(headers), **kwargs)
+        return self.client.post(
+            path, json=json, headers=self._get_headers(headers), **kwargs
+        )
 
     def get(
         self,
@@ -594,7 +600,9 @@ class AsyncAgentTestClient:
         if self.as_user:
             headers["x-session-user"] = self.as_user
 
-        self._websocket = self._test_client.websocket_connect(self.ws_path, headers=headers)
+        self._websocket = self._test_client.websocket_connect(
+            self.ws_path, headers=headers
+        )
         self._websocket.__enter__()
 
         init_message = {"type": "INIT"}
@@ -660,7 +668,9 @@ class AsyncAgentTestClient:
         while not self._stop_ws.is_set():
             try:
                 # Run blocking receive in thread pool
-                data = await asyncio.wait_for(loop.run_in_executor(None, receive_sync), timeout=0.1)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(None, receive_sync), timeout=0.1
+                )
                 if data is not None:
                     event = BufferedEvent.from_json(data)
                     async with self._lock:
@@ -673,7 +683,9 @@ class AsyncAgentTestClient:
             except Exception:
                 break
 
-    def _get_headers(self, extra_headers: Optional[dict[str, str]] = None) -> dict[str, str]:
+    def _get_headers(
+        self, extra_headers: Optional[dict[str, str]] = None
+    ) -> dict[str, str]:
         """Get headers for HTTP requests, including x-session-user if as_user is set."""
         headers: dict[str, str] = {}
         if self.as_user:
@@ -724,7 +736,9 @@ class AsyncAgentTestClient:
         """
         if self._http_client is None:
             raise RuntimeError("Client not connected")
-        return await self._http_client.get(path, headers=self._get_headers(headers), **kwargs)
+        return await self._http_client.get(
+            path, headers=self._get_headers(headers), **kwargs
+        )
 
     async def assign(
         self,
@@ -802,7 +816,9 @@ class AsyncAgentTestClient:
                 break
 
             try:
-                event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.1))
+                event = await asyncio.wait_for(
+                    self._event_queue.get(), timeout=min(remaining, 0.1)
+                )
                 collected.append(event)
             except asyncio.TimeoutError:
                 continue
@@ -832,7 +848,9 @@ class AsyncAgentTestClient:
                 raise TimeoutError("Timeout waiting for end state event")
 
             try:
-                event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.5))
+                event = await asyncio.wait_for(
+                    self._event_queue.get(), timeout=min(remaining, 0.5)
+                )
                 collected.append(event)
 
                 if event.assignation == assignation_id and event.is_end_state():
@@ -865,7 +883,9 @@ class AsyncAgentTestClient:
                 break
 
             try:
-                event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.5))
+                event = await asyncio.wait_for(
+                    self._event_queue.get(), timeout=min(remaining, 0.5)
+                )
                 collected.append(event)
 
                 if event.assignation == assignation_id and event.is_done():
@@ -898,7 +918,9 @@ class AsyncAgentTestClient:
                 break
 
             try:
-                event = await asyncio.wait_for(self._event_queue.get(), timeout=min(remaining, 0.5))
+                event = await asyncio.wait_for(
+                    self._event_queue.get(), timeout=min(remaining, 0.5)
+                )
                 collected.append(event)
 
                 if event.assignation == assignation_id and event.is_error():
@@ -980,7 +1002,7 @@ def create_test_lifespan(
 def create_test_app_and_agent(
     instance_id: str = "test-instance",
     app_registry: Optional["AppRegistry"] = None,
-) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
+) -> tuple[FastAPI, FastApiAgent[Any], AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
     This is a convenience function that sets up all the necessary registries
