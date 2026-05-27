@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.6.2 (2026-05-27)
+
+### Bug Fixes
+
+- Weird input and some types
+  ([`10154a7`](https://github.com/arkitektio/rekuest-next/commit/10154a74fe38d8d2d11da536229fa468dfc130a0))
+
+
 ## v1.6.1 (2026-05-27)
 
 
