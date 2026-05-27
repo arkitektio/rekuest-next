@@ -21,8 +21,13 @@ from rekuest_next.api.schema import (
     ReturnPortInput,
     StateDependencyInput,
 )
+from rekuest_next.definition.dependencies import (
+    build_action_dependency_input,
+    build_state_dependency_input,
+)
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.define import convert_object_to_returnport
+from rekuest_next.definition.match import build_port_match
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.api.schema import (
@@ -54,35 +59,11 @@ R = TypeVar("R")
 
 
 def port_to_match(index: int, port: ArgPortInput) -> PortMatchInput:
-    return PortMatchInput(
-        at=index,
-        key=port.key,
-        identifier=port.identifier,
-        kind=port.kind,
-        nullable=port.nullable,
-        children=[
-            port_to_match(index, child)
-            for index, child in enumerate(port.children or [])
-        ]
-        if port.children
-        else None,
-    )
+    return build_port_match(index, port)
 
 
 def returnport_to_match(index: int, port: ReturnPortInput) -> PortMatchInput:
-    return PortMatchInput(
-        at=index,
-        key=port.key,
-        identifier=port.identifier,
-        kind=port.kind,
-        nullable=port.nullable,
-        children=[
-            returnport_to_match(index, child)
-            for index, child in enumerate(port.children or [])
-        ]
-        if port.children
-        else None,
-    )
+    return build_port_match(index, port)
 
 
 class DeclaredAgentAction(Generic[P, R]):
@@ -104,24 +85,9 @@ class DeclaredAgentAction(Generic[P, R]):
 
     def to_dependency_input(self, key: str) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
-
-        arg_matches: list[PortMatchInput] = []
-        return_matches: list[PortMatchInput] = []
-
-        for index, arg in enumerate(self.definition.args):
-            arg_matches.append(port_to_match(index, arg))
-
-        for index, ret in enumerate(self.definition.returns):
-            return_matches.append(returnport_to_match(index, ret))
-
-        return ActionDependencyInput(
+        return build_action_dependency_input(
             key=self.interface,
-            description=self.definition.description,
-            arg_matches=arg_matches,
-            return_matches=return_matches,
-            allow_inactive=True,
-            name=self.definition.name,
-            optional=False,
+            definition=self.definition,
         )
 
 
@@ -138,20 +104,10 @@ class DeclaredAgentState(Generic[P, R]):
 
     def to_dependency_input(self, key: str) -> StateDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
-
-        port_matches: list[PortMatchInput] = []
-
-        for index, port in enumerate(self.definition.ports):
-            port_matches.append(returnport_to_match(index, port))
-
-        return StateDependencyInput(
+        return build_state_dependency_input(
             key=self.key,
-            description=None,
-            stateKey=self.interface,
-            portMatches=port_matches,
-            allow_inactive=True,
-            name=self.definition.name,
-            optional=False,
+            state_key=self.interface,
+            definition=self.definition,
         )
 
 

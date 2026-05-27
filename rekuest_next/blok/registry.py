@@ -13,16 +13,17 @@ from rekuest_next.api.schema import (
     ActionDependencyInput,
     AgentCallInput,
     AgentDependencyInput,
-    ArgPortInput,
     BlokImplementationInput,
     ComponentNodeInput,
     ComponentPropInput,
-    PortMatchInput,
-    ReturnPortInput,
     StateDependencyInput,
     UtilCallInput,
 )
 from rekuest_next.blok.parser import jsx as parse_jsx
+from rekuest_next.definition.dependencies import (
+    build_action_dependency_input,
+    build_state_dependency_input,
+)
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.state.registry import StateRegistry
 
@@ -338,23 +339,9 @@ def _create_action_dependency(
     if implementation is None:
         raise ValueError(f"Blok references unknown action '{action_key}'")
 
-    arg_matches = tuple(
-        _argport_to_match(index, arg)
-        for index, arg in enumerate(implementation.definition.args)
-    )
-    return_matches = tuple(
-        _returnport_to_match(index, ret)
-        for index, ret in enumerate(implementation.definition.returns)
-    )
-
-    return ActionDependencyInput(
+    return build_action_dependency_input(
         key=action_key,
-        name=implementation.definition.name,
-        description=implementation.definition.description,
-        arg_matches=arg_matches or None,
-        return_matches=return_matches or None,
-        optional=False,
-        allow_inactive=True,
+        definition=implementation.definition,
     )
 
 
@@ -366,49 +353,10 @@ def _create_state_dependency(
     if state_implementation is None:
         raise ValueError(f"Blok references unknown state '{state_key}'")
 
-    port_matches = tuple(
-        _returnport_to_match(index, port)
-        for index, port in enumerate(state_implementation.definition.ports)
-    )
-
-    return StateDependencyInput(
+    return build_state_dependency_input(
         key=state_key,
         state_key=state_key,
-        name=state_implementation.definition.name,
-        description=None,
-        port_matches=port_matches or None,
-        optional=False,
-        allow_inactive=True,
-    )
-
-
-def _argport_to_match(index: int, port: ArgPortInput) -> PortMatchInput:
-    return PortMatchInput(
-        at=index,
-        key=port.key,
-        identifier=port.identifier,
-        kind=port.kind,
-        nullable=port.nullable,
-        children=tuple(
-            _argport_to_match(child_index, child)
-            for child_index, child in enumerate(port.children or ())
-        )
-        or None,
-    )
-
-
-def _returnport_to_match(index: int, port: ReturnPortInput) -> PortMatchInput:
-    return PortMatchInput(
-        at=index,
-        key=port.key,
-        identifier=port.identifier,
-        kind=port.kind,
-        nullable=port.nullable,
-        children=tuple(
-            _returnport_to_match(child_index, child)
-            for child_index, child in enumerate(port.children or ())
-        )
-        or None,
+        definition=state_implementation.definition,
     )
 
 

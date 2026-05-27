@@ -1,9 +1,38 @@
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, model_validator
 
 if TYPE_CHECKING:
     from rekuest_next.api.schema import CreateBlokInput, BlokImplementationInput
+
+
+def _validate_demo_state_against_dependencies(
+    dependencies: Iterable[Any] | None,
+    demo_state: Mapping[str, Any] | None,
+) -> None:
+    if demo_state is None:
+        return
+
+    for dep in dependencies or ():
+        dep_key = dep.key
+        if dep_key not in demo_state:
+            continue
+
+        demo = demo_state[dep_key]
+        state_keys = {state_demand.key for state_demand in dep.state_demands or ()}
+
+        for state_key in state_keys:
+            if state_key not in demo:
+                raise ValueError(
+                    f"demo_state for '{dep_key}' missing key '{state_key}' referenced in blok"
+                )
+
+        extra_keys = set(demo.keys()) - state_keys
+        if extra_keys:
+            raise ValueError(
+                f"demo_state for '{dep_key}' has extra keys not referenced in blok: {sorted(extra_keys)}"
+            )
 
 
 class CreateBlokInputTrait(BaseModel):
@@ -21,27 +50,11 @@ class CreateBlokInputTrait(BaseModel):
         for component in self.components or ():
             validate_blok(component, list(self.dependencies or ()))
 
-        # Validate demo_state against referenced state schemas
-        if self.demo_state:
-            for dep in self.dependencies or ():
-                dep_key = dep.key
-                if dep_key in self.demo_state:
-                    demo = self.demo_state[dep_key]
-                    # Find all referenced state keys for this dependency
-                    state_keys = set()
-                    for state_demand in dep.state_demands or ():
-                        state_keys.add(state_demand.key)
-                    for state_key in state_keys:
-                        if state_key not in demo:
-                            raise ValueError(
-                                f"demo_state for '{dep_key}' missing key '{state_key}' referenced in blok"
-                            )
-                    # Check for extra keys
-                    extra_keys = set(demo.keys()) - state_keys
-                    if extra_keys:
-                        raise ValueError(
-                            f"demo_state for '{dep_key}' has extra keys not referenced in blok: {sorted(extra_keys)}"
-                        )
+        demo_state = cast(
+            dict[str, Any] | None,
+            self.demo_state if isinstance(self.demo_state, dict) else None,
+        )
+        _validate_demo_state_against_dependencies(self.dependencies, demo_state)
 
         return self
 
@@ -63,26 +76,10 @@ class BlokImplementationInputTrait(BaseModel):
         for component in self.components or ():
             validate_blok(component, list(self.dependencies or ()))
 
-        # Validate demo_state against referenced state schemas
-        if self.demo_state:
-            for dep in self.dependencies or ():
-                dep_key = dep.key
-                if dep_key in self.demo_state:
-                    demo = self.demo_state[dep_key]
-                    # Find all referenced state keys for this dependency
-                    state_keys = set()
-                    for state_demand in dep.state_demands or ():
-                        state_keys.add(state_demand.key)
-                    for state_key in state_keys:
-                        if state_key not in demo:
-                            raise ValueError(
-                                f"demo_state for '{dep_key}' missing key '{state_key}' referenced in blok"
-                            )
-                    # Check for extra keys
-                    extra_keys = set(demo.keys()) - state_keys
-                    if extra_keys:
-                        raise ValueError(
-                            f"demo_state for '{dep_key}' has extra keys not referenced in blok: {sorted(extra_keys)}"
-                        )
+        demo_state = cast(
+            dict[str, Any] | None,
+            self.demo_state if isinstance(self.demo_state, dict) else None,
+        )
+        _validate_demo_state_against_dependencies(self.dependencies, demo_state)
 
         return self
