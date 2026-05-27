@@ -1,7 +1,20 @@
 # CHANGELOG
 
 
+## v1.5.0 (2026-05-27)
+
+### Features
+
+- Fix new fastapi
+  ([`673cd2a`](https://github.com/arkitektio/rekuest-next/commit/673cd2a7fd621fab00bf7ce23533a672b542eadf))
+
+
 ## v1.4.8 (2026-05-27)
+
+### Chores
+
+- Refactor + tests
+  ([`c0ef5e7`](https://github.com/arkitektio/rekuest-next/commit/c0ef5e78e65c0155495cdce06b178e74d28cf22f))
 
 
 ## v1.4.7 (2026-05-18)
