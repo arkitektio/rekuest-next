@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from rekuest_next.api.schema import AssignInput, ImplementationInput
+from rekuest_next.api.schema import ImplementationInput
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.openapi_utils import (
     create_json_schema_from_ports,

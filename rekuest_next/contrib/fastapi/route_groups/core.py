@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, WebSocket
 
 from rekuest_next.messages import Cancel, Pause, Resume, Step
 from rekuest_next.api.schema import (
-    AssignInput,
     CancelInput,
     PauseInput,
     ResumeInput,

@@ -22,7 +22,6 @@ from rekuest_next.agents.context import (
 from rekuest_next.agents.hooks.errors import StartupHookError
 from rekuest_next.agents.hooks.registry import (
     HooksRegistry,
-    StartupHook,
     StartupHookReturns,
     get_default_hook_registry,
 )
@@ -32,7 +31,6 @@ from rekuest_next.protocols import (
     ThreadedStartupFunction,
     StartupFunction,
 )
-from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.remote import ensure_return_as_tuple
 from rekuest_next.state.utils import (
     get_return_length,

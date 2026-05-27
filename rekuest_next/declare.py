@@ -218,7 +218,6 @@ class DeclaredAgentProtocol(Generic[Agent]):
     # Add some kwargs because we might overwrite them when looking at the params of the function annotations
     def to_dependency_input(self, key: str) -> AgentDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
-        print("Called")
         return AgentDependencyInput(
             key=key,
             app=self.app,

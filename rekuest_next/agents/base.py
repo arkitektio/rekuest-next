@@ -423,7 +423,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
             blocks = extension.get_bloks()
             for key, blok in blocks.items():
-                print(blok)
                 self._collected_bloks.append(blok)
 
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
@@ -730,7 +729,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         for interface, startup_value in hook_return.states.items():
             # Set the actual state value
 
-            config = startup_value.__rekuest_state_config__
             self.states[interface] = startup_value
 
             # Set the state schema that is needed to shrink the state
@@ -904,7 +902,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         # Collect state schemas, startup hooks, and background workers from all extensions
         self.collect_from_extensions()
 
-        state = await self.aensure()
+        await self.aensure()
         self.current_session = await self._acreate_session()
 
         # Run startup hooks from extensions

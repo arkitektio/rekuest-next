@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field
 
+from rekuest_next.api.schema import ComponentNodeInput
 from rekuest_next.blok.registry import BlokRegistry
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.agents.hooks.registry import HooksRegistry
@@ -240,6 +241,35 @@ class AppRegistry(BaseModel):
                 )
 
             return decorator
+
+    def register_blok(
+        self,
+        name: str,
+        component: Optional[str | ComponentNodeInput] = None,
+        description: Optional[str] = None,
+        demo_state: Optional[dict] = None,
+    ) -> None:
+        """Register a function or class as a Blok implementation.
+
+        This is the main decorator for registering functions that should
+        be exposed as Bloks in the rekuest system.
+
+        Args:
+            *args: The function to register (when used without parentheses).
+            name: Optional name for the Blok. Defaults to function name.
+
+
+        """
+        self.blok_registry.register_blok(
+            name=name,
+            component=component,
+            description=description,
+            demo_state=demo_state,
+        )
+
+    def validate(self) -> None:
+        """Validate the registries to ensure there are no conflicts or issues."""
+        self.blok_registry.get_declared_bloks()
 
 
 # Global app registry instance

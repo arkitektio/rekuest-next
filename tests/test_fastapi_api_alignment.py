@@ -2,6 +2,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from rekuest_next.api.schema import (
+    BlokImplementationInput,
     ImplementationInput,
     PortKind,
     ReturnPortInput,
@@ -102,6 +103,16 @@ def test_schema_router_uses_extension_get_states() -> None:
         def get_lock_schemas(self) -> dict:
             return {}
 
+        def get_bloks(self) -> dict[str, BlokImplementationInput]:
+            return {
+                "demo_blok": BlokImplementationInput(
+                    key="demo_blok",
+                    dependencies=(),
+                    components=(),
+                    description="Demo blok",
+                )
+            }
+
     app = FastAPI()
     agent = FastApiAgent()
     from rekuest_next.agents.registry import ExtensionRegistry
@@ -119,6 +130,49 @@ def test_schema_router_uses_extension_get_states() -> None:
     body = response.json()
     assert body["count"] == 1
     assert "demo_state" in body["states"]
+
+
+def test_schema_router_exposes_blok_implementation_inputs() -> None:
+    class FakeExtension:
+        def get_name(self) -> str:
+            return "default"
+
+        def get_states(self) -> dict[str, StateImplementationInput]:
+            return {}
+
+        def get_static_implementations(self) -> list[ImplementationInput]:
+            return []
+
+        def get_lock_schemas(self) -> dict:
+            return {}
+
+        def get_bloks(self) -> dict[str, BlokImplementationInput]:
+            return {
+                "demo_blok": BlokImplementationInput(
+                    key="demo_blok",
+                    dependencies=(),
+                    components=(),
+                    description="Demo blok",
+                )
+            }
+
+    app = FastAPI()
+    agent = FastApiAgent()
+    from rekuest_next.agents.registry import ExtensionRegistry
+
+    extension_registry = ExtensionRegistry()
+    extension_registry.register(FakeExtension())
+    agent.extension_registry = extension_registry
+
+    app.include_router(build_schema_router(agent))
+
+    with TestClient(app) as client:
+        response = client.get("/schemas/bloks")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] == 1
+    assert "demo_blok" in body["bloks"]
 
 
 def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> None:

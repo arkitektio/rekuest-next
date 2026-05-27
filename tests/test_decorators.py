@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from rekuest_next import startup, context, background, state
+from rekuest_next import startup, context, state
 import pytest
 
 

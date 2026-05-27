@@ -15,7 +15,6 @@ from typing import (
     cast,
 )
 import inflection
-from rekuest_next.actors.errors import NotWithinAnAssignationError
 from rekuest_next.coercible_types import (
     OptimisticCoercible,
 )
@@ -43,7 +42,6 @@ from rekuest_next.api.schema import (
     TrackInput,
     PortGroupInput,
     amy_implementation_at,
-    get_implementation,
     EffectInput,
     ImplementationInput,
     ValidatorInput,
@@ -192,7 +190,6 @@ def register_func(
     )
 
     dependencies: list[AgentDependencyInput] = []
-    print("Dependencies:", implementation_details.manipulates)
     for (
         key,
         dependency,

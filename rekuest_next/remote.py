@@ -138,7 +138,6 @@ async def acall_dependency_raw(
 
     async for i in postman.aassign(x):
         if i.kind == AssignationEventKind.YIELD:
-            has_yielded = True
             returns = i.returns
 
         if i.kind == AssignationEventKind.DONE:

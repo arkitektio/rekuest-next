@@ -52,7 +52,7 @@ class BlokRegistry(BaseModel):
     def register_blok(
         self,
         name: str,
-        jsx: ComponentNodeInput | str | None,
+        component: ComponentNodeInput | str | None,
         description: str | None = None,
         demo_state: Dict[str, Any] | None = None,
     ) -> None:
@@ -60,10 +60,12 @@ class BlokRegistry(BaseModel):
         if not name:
             raise ValueError("A blok name is required")
 
-        if jsx is None:
-            raise ValueError(f"Blok '{name}' must define JSX or a parsed component")
+        if component is None:
+            raise ValueError(f"Blok '{name}' must define a component")
 
-        component = parse_jsx(jsx) if isinstance(jsx, str) else jsx
+        if isinstance(component, str):
+            component = parse_jsx(component)
+
         self.registered_bloks[name] = component
         self.registered_blok_descriptions[name] = description
         self.registered_blok_demo_states[name] = demo_state

@@ -4,7 +4,6 @@ from rekuest_next.agents.dependency import dependency_to_protocol
 
 from rath.scalars import ID
 from rekuest_next.declare import DeclaredAgentProtocol, DeclaredAgentAction
-import inspect
 import asyncio
 import contextlib
 import logging

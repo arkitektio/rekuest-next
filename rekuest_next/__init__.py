@@ -50,6 +50,7 @@ __all__ = [
     "acall",
     "call",
     "log",
+    "jsx",
     "alog",
     "progress",
     "aprogress",

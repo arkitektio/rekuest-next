@@ -21,10 +21,66 @@ class BlokParser:
     @classmethod
     def parse(cls, jsx_string: str) -> ComponentNodeInput:
         try:
-            root_element = ET.fromstring(jsx_string.strip())
+            root_element = ET.fromstring(jsx_string)
             return cls._parse_element(root_element)
         except ET.ParseError as e:
-            raise ValueError(f"Failed to parse JSX/XML: {e}")
+            raise ValueError(cls._format_xml_parse_error(jsx_string, e)) from e
+
+    @staticmethod
+    def _format_xml_parse_error(jsx_string: str, error: ET.ParseError) -> str:
+        reason = str(error)
+        line: int | None = None
+        column: int | None = None
+
+        if getattr(error, "position", None) is not None:
+            line, column = error.position
+
+        if line is None or column is None:
+            return f"Failed to parse JSX/XML: {reason}"
+
+        if ": line " in reason:
+            reason = reason.split(": line ", 1)[0]
+
+        headline_reason = reason
+        if reason == "no element found":
+            headline_reason = (
+                "unexpected end of input (no element found). "
+                "Check for a missing closing tag before this point"
+            )
+
+        source_lines = jsx_string.splitlines()
+        if jsx_string.endswith(("\n", "\r")):
+            source_lines.append("")
+
+        snippet = ""
+
+        if 1 <= line <= len(source_lines):
+            context_before = 2
+            context_after = 1
+            context_start = max(1, line - context_before)
+            context_end = min(len(source_lines), line + context_after)
+            context_lines: list[str] = []
+            gutter_width = len(str(context_end))
+
+            for snippet_line in range(context_start, context_end + 1):
+                source_line = source_lines[snippet_line - 1]
+                rendered_line = source_line
+
+                if snippet_line == line and reason == "no element found":
+                    if not source_line.strip():
+                        rendered_line = f"{' ' * column}<end of input>"
+
+                context_lines.append(
+                    f"{snippet_line:>{gutter_width}} | {rendered_line}"
+                )
+
+            context_lines.append(f"{' ' * gutter_width} | {' ' * column}^")
+            snippet = "\n" + "\n".join(context_lines)
+
+        return (
+            f"Failed to parse JSX/XML at line {line}, column {column + 1}: {headline_reason}"
+            f"{snippet}"
+        )
 
     @classmethod
     def _parse_element(cls, elem: ET.Element) -> ComponentNodeInput:

@@ -1,6 +1,6 @@
 """Additional type hinting classes for Rekuest, that can be used to annotate port groups"""
 
-from typing import Any, TypeVar
+from typing import TypeVar
 from rekuest_next.api.schema import RequiresInput, ProvidesInput
 
 T = TypeVar("T")

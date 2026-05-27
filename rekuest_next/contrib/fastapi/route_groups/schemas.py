@@ -36,9 +36,17 @@ def build_schema_router(
                 lock_schemas[interface] = schema
         return {"count": len(lock_schemas), "locks": lock_schemas}
 
+    async def get_blok_schemas() -> dict:
+        blok_schemas = {}
+        for agent_extension in agent.extension_registry.agent_extensions.values():
+            for key, schema in agent_extension.get_bloks().items():
+                blok_schemas[key] = schema
+        return {"count": len(blok_schemas), "bloks": blok_schemas}
+
     router.add_api_route(
         "/schemas/implementations", get_implementation_schemas, methods=["GET"]
     )
     router.add_api_route("/schemas/states", get_state_schemas, methods=["GET"])
     router.add_api_route("/schemas/locks", get_lock_schemas, methods=["GET"])
+    router.add_api_route("/schemas/bloks", get_blok_schemas, methods=["GET"])
     return router

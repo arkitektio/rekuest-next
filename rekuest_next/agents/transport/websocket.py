@@ -29,6 +29,8 @@ from .errors import (
     AgentWasBlocked,
     KickError,
 )
+from typing import AsyncIterator
+
 from pydantic import BaseModel
 
 
@@ -69,9 +71,6 @@ agent_error_message: Dict[int, str] = {
 }
 
 
-from typing import AsyncIterator
-
-
 class WebsocketAgentTransport(AgentTransport):
     """Websocket Agent Transport"""
 
@@ -108,7 +107,6 @@ class WebsocketAgentTransport(AgentTransport):
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
         """Connect to the agent transport"""
         retry = 0
-        reload_token = False
         instance_id = self._instance_id
 
         while True:
@@ -172,7 +170,6 @@ class WebsocketAgentTransport(AgentTransport):
                         ),
                         exc_info=True,
                     )
-                    reload_token = True
                     raise CorrectableConnectionFail(
                         "Received an InvalidHandshake"
                     ) from e
