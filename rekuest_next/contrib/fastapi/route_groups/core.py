@@ -1,14 +1,18 @@
 """Core agent command and websocket route builders."""
 
 from __future__ import annotations
-
-import uuid
 from typing import Any, Callable
 
 from fastapi import APIRouter, Request, WebSocket
 
-from rekuest_next.messages import Assign, Cancel, Pause, Resume, Step
-from rekuest_next.api.schema import AssignInput, CancelInput, PauseInput, ResumeInput, StepInput
+from rekuest_next.messages import Cancel, Pause, Resume, Step
+from rekuest_next.api.schema import (
+    AssignInput,
+    CancelInput,
+    PauseInput,
+    ResumeInput,
+    StepInput,
+)
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 
 
@@ -33,34 +37,24 @@ def build_core_router(
         """Serve the unified websocket endpoint for tasks, states, and locks."""
         await agent.handle_websocket(websocket)
 
-    async def assign_base_action(request: Request, extension: str = "default") -> dict[str, str]:
+    async def assign_base_action(
+        request: Request, extension: str = "default"
+    ) -> dict[str, str]:
         """Submit a task using the interface provided in the request body."""
         user = get_user_from_request(request)
         payload = await request.json()
         interface = payload.pop("interface", None)
-        assign_input = AssignInput(
-            **{
-                **payload,
-                "cached": payload.get("cached", False),
-                "log": payload.get("log", False),
-                "capture": payload.get("capture", False),
-                "ephemeral": payload.get("ephemeral", False),
-                "instanceId": payload.get("instanceID", "fastapi_instance"),
-            }
-        )
-        assignation_id = str(uuid.uuid4())
-        assign_message = Assign(
+        assign_input = agent.build_assign_input(
+            payload,
             interface=interface,
-            extension=extension,
-            assignation=assignation_id,
-            args=assign_input.args,
+        )
+        assign_message = agent.build_assign_message(
+            assign_input,
             user=str(user),
-            step=assign_input.step,
-            app="fastapi",
-            action="api_call",
+            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assignation_id}
+        return {"status": "submitted", "assignation": assign_message.assignation}
 
     async def assign_action(
         request: Request, interface: str, extension: str = "default"
@@ -68,20 +62,14 @@ def build_core_router(
         """Submit a task for a concrete interface path parameter."""
         user = get_user_from_request(request)
         payload = await request.json()
-        assign_input = AssignInput(**{**payload, "interface": interface})
-        assignation_id = str(uuid.uuid4())
-        assign_message = Assign(
-            interface=interface,
-            extension=extension,
-            assignation=assignation_id,
-            args=assign_input.args,
-            step=assign_input.step,
+        assign_input = agent.build_assign_input(payload, interface=interface)
+        assign_message = agent.build_assign_message(
+            assign_input,
             user=str(user),
-            app="fastapi",
-            action="api_call",
+            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assignation_id}
+        return {"status": "submitted", "assignation": assign_message.assignation}
 
     async def cancel_action(request: Request) -> dict[str, str]:
         """Request cancellation of a running task."""
@@ -113,7 +101,9 @@ def build_core_router(
 
     router.add_api_websocket_route(ws_path, websocket_endpoint)
     router.add_api_route(assign_path, assign_base_action, methods=["POST"])
-    router.add_api_route(f"{assign_path}/{{interface}}", assign_action, methods=["POST"])
+    router.add_api_route(
+        f"{assign_path}/{{interface}}", assign_action, methods=["POST"]
+    )
     router.add_api_route(cancel_path, cancel_action, methods=["POST"])
     router.add_api_route(pause_path, pause_action, methods=["POST"])
     router.add_api_route(resume_path, resume_action, methods=["POST"])

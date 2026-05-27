@@ -143,7 +143,7 @@ def add_state_detail_routes(
     state_schemas: dict[str, StateImplementationInput] | None = None,
 ) -> None:
     """Include conditional state detail and retriever routes."""
-    state_schemas = state_schemas or agent.get_states()
+    state_schemas = state_schemas or agent.get_state_schemas()
     _include_router(
         app, build_state_detail_router(agent, state_schemas, states_path=states_path)
     )

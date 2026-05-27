@@ -11,6 +11,7 @@ type and the matching subscription set.
 import asyncio
 import copy
 import logging
+import uuid
 from dataclasses import dataclass, field as dataclass_field
 from types import TracebackType
 from typing import (
@@ -28,6 +29,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
 
 from rekuest_next import messages
+from rekuest_next.api.schema import AssignInput, StateImplementationInput
 from rekuest_next.agents.base import BaseAgent, RevisedState
 from rekuest_next.agents.transport.base import AgentTransport
 from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetriever
@@ -565,6 +567,67 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             self.retriever, MemoryRetriever
         ):
             self.retriever.store = self.sink.store
+
+    def get_state_schemas(
+        self,
+        extension: str = "default",
+    ) -> dict[str, StateImplementationInput]:
+        """Return the registered state schemas for one FastAPI extension."""
+        return self.extension_registry.get(extension).get_states()
+
+    def build_assign_input(
+        self,
+        payload: dict[str, Any],
+        interface: str | None = None,
+    ) -> AssignInput:
+        """Normalize FastAPI request payloads to the current AssignInput model."""
+        normalized_payload = dict(payload)
+
+        if interface is not None:
+            normalized_payload["interface"] = interface
+
+        if (
+            "instanceID" in normalized_payload
+            and "instanceId" not in normalized_payload
+        ):
+            normalized_payload["instanceId"] = normalized_payload.pop("instanceID")
+
+        normalized_payload.setdefault(
+            "instanceId", self.instance_id or "fastapi_instance"
+        )
+
+        for field_name in ("cached", "log", "capture", "ephemeral"):
+            normalized_payload.setdefault(field_name, False)
+
+        return AssignInput.model_validate(normalized_payload)
+
+    def build_assign_message(
+        self,
+        assign_input: AssignInput,
+        user: str,
+        extension: str = "default",
+        action: str = "api_call",
+        app: str = "fastapi",
+        assignation: str | None = None,
+    ) -> messages.Assign:
+        """Build an Assign message from a normalized FastAPI request payload."""
+        if assign_input.interface is None:
+            raise ValueError("FastAPI assign requests require an interface")
+
+        return messages.Assign(
+            interface=assign_input.interface,
+            extension=extension,
+            assignation=assignation or str(uuid.uuid4()),
+            reservation=assign_input.reservation,
+            parent=assign_input.parent,
+            reference=assign_input.reference,
+            args=assign_input.args,
+            capture=assign_input.capture,
+            user=user,
+            app=app,
+            action=action,
+            step=assign_input.step,
+        )
 
     async def abuild_websocket_init_message(
         self,
