@@ -9,6 +9,7 @@ from rekuest_next.contrib.fastapi.retriever.protocol import (
     Snapshot,
     TaskBoundary,
 )
+from rekuest_next.contrib.sql_lite.schema import ensure_sqlite_schema
 from rekuest_next.messages import JSONSerializable
 
 
@@ -35,6 +36,10 @@ class SQLLiteRetriever:
 
     # --- INITIALIZATION & SESSION MANAGEMENT ---
     async def ainitialize(self) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await ensure_sqlite_schema(db)
+            await db.commit()
+
         return None
 
     # --- READ / RETRIEVE METHODS ---
