@@ -1,9 +1,15 @@
 # CHANGELOG
 
 
+## v1.4.8 (2026-05-27)
+
+
 ## v1.4.7 (2026-05-18)
 
 ### Bug Fixes
+
+- Add blok stuff
+  ([`4f83b45`](https://github.com/arkitektio/rekuest-next/commit/4f83b45535d557efa0fd621dbaea97f0c68bff89))
 
 - Add enum converters
   ([`52f3019`](https://github.com/arkitektio/rekuest-next/commit/52f301993903047cb5ef2b42f1e18b589e7edadb))
