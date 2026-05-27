@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.6.0 (2026-05-27)
+
+### Features
+
+- Fix error handling
+  ([`3d8ad4f`](https://github.com/arkitektio/rekuest-next/commit/3d8ad4f6d67fdcf95e83ea8db091244138f777f5))
+
+
 ## v1.5.1 (2026-05-27)
 
 ### Bug Fixes
