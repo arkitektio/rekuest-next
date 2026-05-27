@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.5.1 (2026-05-27)
+
+### Bug Fixes
+
+- Add sqlite fix
+  ([`538b81f`](https://github.com/arkitektio/rekuest-next/commit/538b81fba21041793e65c5729a7f50d0e4162bb1))
+
+
 ## v1.5.0 (2026-05-27)
 
 ### Features
