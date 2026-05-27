@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v1.6.1 (2026-05-27)
+
+
 ## v1.6.0 (2026-05-27)
+
+### Bug Fixes
+
+- Add some more documentation
+  ([`cff02a0`](https://github.com/arkitektio/rekuest-next/commit/cff02a0d3798a36d2eb525511e06f460afbf2c67))
 
 ### Features
 
