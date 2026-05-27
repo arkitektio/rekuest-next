@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.4.7 (2026-05-18)
+
+### Bug Fixes
+
+- Add enum converters
+  ([`52f3019`](https://github.com/arkitektio/rekuest-next/commit/52f301993903047cb5ef2b42f1e18b589e7edadb))
+
+
 ## v1.4.6 (2026-04-23)
 
 ### Bug Fixes
