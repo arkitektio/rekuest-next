@@ -277,13 +277,20 @@ _GLOBAL_APP_REGISTRY: Optional[AppRegistry] = None
 
 
 def get_default_app_registry() -> AppRegistry:
-    """Get the default global app registry.
+    """Return the process-wide default :class:`AppRegistry` instance.
 
-    This returns a singleton AppRegistry instance that is used when
-    no specific registry is provided to decorator functions.
+    The first call lazily creates the singleton registry. Subsequent calls reuse
+    the same object until :func:`reset_default_app_registry` or
+    :func:`set_default_app_registry` changes it.
 
     Returns:
-        AppRegistry: The default global app registry.
+        The default application registry singleton.
+
+    Examples:
+        Retrieve the shared registry and register an action on it::
+
+            registry = get_default_app_registry()
+            decorator = registry.register(interface="camera")
     """
     global _GLOBAL_APP_REGISTRY
     if _GLOBAL_APP_REGISTRY is None:
@@ -292,22 +299,32 @@ def get_default_app_registry() -> AppRegistry:
 
 
 def set_default_app_registry(registry: AppRegistry) -> None:
-    """Set the default global app registry.
+    """Replace the process-wide default :class:`AppRegistry` instance.
 
-    This allows replacing the global app registry with a custom one.
+    Use this when tests or applications need an isolated registration surface
+    instead of the shared singleton.
 
     Args:
-        registry: The AppRegistry instance to use as the default.
+        registry: Registry instance to install as the new default.
+
+    Examples:
+        Swap in a custom registry for a test run::
+
+            set_default_app_registry(AppRegistry())
     """
     global _GLOBAL_APP_REGISTRY
     _GLOBAL_APP_REGISTRY = registry
 
 
 def reset_default_app_registry() -> None:
-    """Reset the default global app registry.
+    """Clear the cached default :class:`AppRegistry` singleton.
 
-    This clears the global app registry, causing a new one to be
-    created on the next call to get_default_app_registry().
+    The next call to :func:`get_default_app_registry` creates a fresh registry.
+
+    Examples:
+        Reset global registration state between tests::
+
+            reset_default_app_registry()
     """
     global _GLOBAL_APP_REGISTRY
     _GLOBAL_APP_REGISTRY = None

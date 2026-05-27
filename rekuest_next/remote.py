@@ -80,6 +80,27 @@ def find(
         Reservation,
     ],
 ) -> Action:
+    """Resolve an action reference into a concrete action model.
+
+    This synchronous helper delegates to :func:`afind` through ``unkoil``. If an
+    :class:`Action` is passed, it is returned unchanged. If an id-like value is
+    passed, the helper fetches the matching action through the GraphQL layer.
+
+    Args:
+        action_implementation_res: Action object or action id to resolve.
+
+    Returns:
+        The resolved action model.
+
+    Raises:
+        ValueError: If the reference type is unsupported.
+
+    Examples:
+        Resolve an action id before calling it::
+
+            action = find(action_id)
+            result = call(action, value=1)
+    """
     return unkoil(afind, action_implementation_res)
 
 
@@ -165,7 +186,52 @@ async def acall_raw(
     log: bool = False,
     postman: Optional[Postman] = None,
 ) -> Any:  # noqa: ANN401
-    """Call the assignation function"""
+    """Execute a low-level remote call with already serialized arguments.
+
+    This helper builds an :class:`AssignInput`, sends it through the current
+    postman, and returns the raw backend return payload from the final ``DONE``
+    event. It does not shrink Python arguments or expand returned structures;
+    prefer :func:`acall` unless you are deliberately operating on transport-level
+    payloads.
+
+    If the call happens inside another assignation, the current assignation is
+    attached automatically as the parent reference.
+
+    Args:
+        kwargs: Already serialized argument payload to send.
+        action: Concrete action to execute.
+        implementation: Specific implementation override for the action.
+        parent: Optional parent assignation. When omitted, the current
+            assignation is used if available.
+        reservation: Reservation to target instead of a direct action.
+        reference: Stable client-side reference for deduplicating or tracking
+            the remote call.
+        hooks: Hook inputs to attach to the assignation request.
+        cached: Whether the backend may reuse cached results.
+        capture: Whether the backend should capture outputs for later retrieval.
+        assign_timeout: Reserved for compatibility; not currently applied in
+            this helper.
+        timeout_is_recoverable: Reserved for compatibility; not currently used.
+        log: Whether the backend should persist assignation logs.
+        postman: Postman override. Defaults to the current postman context.
+
+    Returns:
+        The raw return payload emitted by the backend.
+
+    Raises:
+        ValueError: If no postman is available.
+        ErrorCallError: If the backend reports a recoverable assignation error.
+        CriticalCallError: If the backend reports a critical assignation error.
+
+    Examples:
+        Send an already serialized payload directly::
+
+            raw_returns = await acall_raw(
+                action=action,
+                kwargs={"value": 1},
+                cached=True,
+            )
+    """
     postman = postman or get_current_postman()
     if not postman:
         raise ValueError("Postman is not set")
@@ -281,7 +347,46 @@ async def acall(
     postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:
-    """Call the assignation function"""
+    """Execute a remote action and return expanded Python values.
+
+    The helper accepts an :class:`Action`, :class:`Implementation`, or
+    :class:`Reservation`. It resolves the target action, shrinks Python
+    arguments with the active structure registry, performs the remote call via
+    :func:`acall_raw`, and expands the returned transport payload back into
+    Python objects.
+
+    Single-value returns are unwrapped for convenience. Multiple returns are
+    returned as a tuple.
+
+    Args:
+        action_implementation_res: Action-like target to execute.
+        *args: Positional Python arguments matching the action definition.
+        reference: Optional client-side reference for the assignation.
+        hooks: Hook inputs to attach to the assignation.
+        cached: Whether cached results may be reused.
+        parent: Optional parent assignation.
+        log: Whether the remote execution should persist logs.
+        capture: Whether outputs should be captured remotely.
+        structure_registry: Structure registry used for shrinking and expanding
+            structured values. Defaults to the current default registry.
+        postman: Postman override. Defaults to the current postman context.
+        **kwargs: Keyword Python arguments matching the action definition.
+
+    Returns:
+        The expanded return value, or a tuple of values for multi-return
+        actions.
+
+    Raises:
+        ValueError: If the target object is not an action, implementation, or
+            reservation.
+        ErrorCallError: If the backend reports an assignation error.
+        CriticalCallError: If the backend reports a critical assignation error.
+
+    Examples:
+        Call an action asynchronously and receive expanded Python objects::
+
+            result = await acall(action, image=my_image, threshold=0.5)
+    """
     action = None
     implementation = None
     reservation = None
@@ -345,7 +450,44 @@ async def aiterate(
     structure_registry: Optional[StructureRegistry] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[tuple[Any], None]:
-    """Async generator that yields the results of the assignation"""
+    """Stream expanded yield values from a remote action.
+
+    This helper follows the same target-resolution and structure-conversion flow
+    as :func:`acall`, but yields each intermediate ``YIELD`` payload from the
+    backend as soon as it arrives. Each yield is expanded through the structure
+    registry before being exposed to the caller.
+
+    Single-value yields are unwrapped for convenience. Multi-value yields are
+    emitted as tuples.
+
+    Args:
+        action_implementation_res: Action-like target to execute.
+        *args: Positional Python arguments matching the action definition.
+        reference: Optional client-side reference for the assignation.
+        hooks: Hook inputs to attach to the assignation.
+        cached: Whether cached results may be reused.
+        parent: Optional parent assignation.
+        log: Whether the remote execution should persist logs.
+        capture: Whether outputs should be captured remotely.
+        structure_registry: Structure registry used for shrinking and expanding
+            structured values.
+        **kwargs: Keyword Python arguments matching the action definition.
+
+    Yields:
+        Expanded yielded values from the remote assignation.
+
+    Raises:
+        ValueError: If the target object is not an action, implementation, or
+            reservation.
+        ErrorCallError: If the backend reports an assignation error.
+        CriticalCallError: If the backend reports a critical assignation error.
+
+    Examples:
+        Stream intermediate results from a remote generator-like action::
+
+            async for chunk in aiterate(action, prompt="hello"):
+                print(chunk)
+    """
     action = None
     implementation = None
     reservation = None
@@ -375,7 +517,7 @@ async def aiterate(
         action, args, kwargs, structure_registry=structure_registry
     )
 
-    async for i in aiterate_raw(
+    async for raw_returns in aiterate_raw(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
@@ -388,7 +530,7 @@ async def aiterate(
         log=log,
     ):
         returns = await aexpand_returns(
-            action, i.returns, structure_registry=structure_registry
+            action, raw_returns, structure_registry=structure_registry
         )
         if len(returns) == 1:
             yield returns[0]
@@ -481,7 +623,34 @@ def call(
     postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN002, ANN003, ANN401
-    """Call the assignation function"""
+    """Synchronously execute a remote action and return expanded values.
+
+    This is the blocking counterpart to :func:`acall`. It bridges into the async
+    implementation via ``unkoil`` so synchronous code can call remote actions
+    without managing an event loop explicitly.
+
+    Args:
+        action_implementation_res: Action-like target to execute.
+        *args: Positional Python arguments matching the action definition.
+        reference: Optional client-side reference for the assignation.
+        hooks: Hook inputs to attach to the assignation.
+        cached: Whether cached results may be reused.
+        parent: Optional parent assignation.
+        log: Whether the remote execution should persist logs.
+        structure_registry: Structure registry used for shrinking and expanding
+            structured values.
+        postman: Postman override. Defaults to the current postman context.
+        **kwargs: Keyword Python arguments matching the action definition.
+
+    Returns:
+        The expanded return value, or a tuple of values for multi-return
+        actions.
+
+    Examples:
+        Call a remote action from synchronous code::
+
+            result = call(action, value=1)
+    """
     return unkoil(
         acall,
         action_implementation_res,
@@ -508,7 +677,33 @@ def iterate(
     structure_registry: Optional[StructureRegistry] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Generator[Any, None, None]:
-    """Iterate over the results of the assignation"""
+    """Synchronously stream expanded yield values from a remote action.
+
+    This is the blocking counterpart to :func:`aiterate`. It adapts the async
+    iterator through ``unkoil_gen`` so synchronous code can consume remote yield
+    events without managing an event loop explicitly.
+
+    Args:
+        action_implementation_res: Action-like target to execute.
+        *args: Positional Python arguments matching the action definition.
+        reference: Optional client-side reference for the assignation.
+        hooks: Hook inputs to attach to the assignation.
+        cached: Whether cached results may be reused.
+        parent: Optional parent assignation.
+        log: Whether the remote execution should persist logs.
+        structure_registry: Structure registry used for shrinking and expanding
+            structured values.
+        **kwargs: Keyword Python arguments matching the action definition.
+
+    Yields:
+        Expanded yielded values from the remote assignation.
+
+    Examples:
+        Consume streamed remote results from synchronous code::
+
+            for chunk in iterate(action, prompt="hello"):
+                print(chunk)
+    """
     return unkoil_gen(
         aiterate,
         action_implementation_res,

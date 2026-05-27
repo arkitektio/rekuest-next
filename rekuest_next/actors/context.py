@@ -38,10 +38,20 @@ def cast_log_level(level: LogLevel) -> int:
 
 
 def install_hook(hook: "AssignmentHook") -> None:
-    """Install an assignment hook for the current assignation.
+    """Attach an assignment hook to the current running assignation.
+
+    Hooks installed here are only attached to the current assignation helper.
+    If the function is called outside an assignation, the hook is ignored and a
+    warning is logged instead of raising.
 
     Args:
-        hook (AssignmentHook): The hook to install.
+        hook: Hook implementation to register on the current assignation.
+
+    Examples:
+        Install a hook while handling an action::
+
+            def run() -> None:
+                install_hook(my_hook)
     """
     try:
         helper = get_current_assignation_helper()
@@ -53,11 +63,20 @@ def install_hook(hook: "AssignmentHook") -> None:
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
-    """Send a log message
+    """Send an asynchronous log message for the current assignation.
+
+    When called inside an assignation, the message is forwarded to the backend
+    through the current assignation helper. Outside an assignation, the message
+    falls back to the local Python logger.
 
     Args:
-        message (str): The log message.
-        level (LogLevel): The log level.
+        message: Message to emit.
+        level: Backend log level to associate with the message.
+
+    Examples:
+        Log from an async action implementation::
+
+            await alog("starting acquisition", level=LogLevel.INFO)
     """
     try:
         await get_current_assignation_helper().alog(level, message)
@@ -70,11 +89,20 @@ async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
 
 
 def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
-    """Send a log message
+    """Send a synchronous log message for the current assignation.
+
+    The helper coerces non-string values to strings before forwarding them to
+    the current assignation helper. Outside an assignation, the message is
+    emitted through the local Python logger instead.
 
     Args:
-        message (str): The log message.
-        level (LogLevel): The log level.
+        message: Message to emit.
+        level: Backend log level to associate with the message.
+
+    Examples:
+        Report progress from a synchronous action::
+
+            log("processing image", level=LogLevel.INFO)
     """
 
     if not isinstance(message, str):  # type: ignore[assignment]
@@ -106,16 +134,20 @@ def useInstanceID() -> str:
 
 
 def progress(percentage: int, message: Optional[str] = None) -> None:
-    """Send Progress
+    """Publish a synchronous progress update for the current assignation.
 
-    This function is used to send progress updates to the actor.
+    The update is forwarded to the assignation helper when one is active. When
+    called outside an assignation, the update is ignored and a warning is
+    logged.
 
     Args:
-        percentage (int): Percentage to progress to
-        message (Optional[str]): Message to send with the progress
+        percentage: Progress percentage to publish.
+        message: Optional human-readable progress message.
 
-    Raises:
-        ValueError: If the percentage is not between 0 and 100
+    Examples:
+        Send a mid-run progress update::
+
+            progress(50, "halfway done")
     """
     try:
         helper = get_current_assignation_helper()
@@ -128,16 +160,19 @@ def progress(percentage: int, message: Optional[str] = None) -> None:
 
 
 async def aprogress(percentage: int, message: Optional[str] = None) -> None:
-    """Send Progress
+    """Publish an asynchronous progress update for the current assignation.
 
-    This function is used to send progress updates to the actor.
+    This is the async counterpart to :func:`progress`. Outside an assignation,
+    the update is ignored and only a warning is logged.
 
     Args:
-        percentage (int): Percentage to progress to
-        message (Optional[str]): Message to send with the progress
+        percentage: Progress percentage to publish.
+        message: Optional human-readable progress message.
 
-    Raises:
-        ValueError: If the percentage is not between 0 and 100
+    Examples:
+        Await progress reporting from an async action::
+
+            await aprogress(90, "almost finished")
     """
     try:
         helper = get_current_assignation_helper()
@@ -150,11 +185,16 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
 
 
 async def apausepoint() -> None:
-    """Await for a breakpoint
+    """Yield control at a cooperative pause point for the current assignation.
 
-    This function is used to await for a breakpoint in the actor.
-    A breakpoint can be caused to be activate by a user through
-    the rekuest server.
+    If the backend requests a pause or breakpoint, the current assignation
+    helper can suspend here. Outside an assignation, the call becomes a logged
+    no-op instead of failing the action.
+
+    Examples:
+        Allow a long-running async action to pause between steps::
+
+            await apausepoint()
     """
     try:
         helper = get_current_assignation_helper()
@@ -168,11 +208,15 @@ async def apausepoint() -> None:
 
 
 def pausepoint() -> None:
-    """Await for a breakpoint
+    """Yield control at a synchronous pause point for the current assignation.
 
-    This function is used to await for a breakpoint in the actor.
-    A breakpoint can be caused to be activate by a user through
-    the rekuest server.
+    This is the synchronous counterpart to :func:`apausepoint`. Outside an
+    assignation, the call is ignored with a warning.
+
+    Examples:
+        Allow a long-running synchronous action to pause between steps::
+
+            pausepoint()
     """
     try:
         helper = get_current_assignation_helper()

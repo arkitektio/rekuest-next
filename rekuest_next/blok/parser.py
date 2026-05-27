@@ -751,5 +751,24 @@ def _infer_iterable_item_match(
 
 
 def jsx(string: str) -> ComponentNodeInput:
-    """Helper to mark JSX strings (no-op in this context)."""
+    """Parse a JSX/XML blok string into a component tree.
+
+    The helper delegates to :class:`BlokParser` and raises a formatted
+    :class:`ValueError` when XML parsing fails. Error messages include line and
+    column information plus nearby source context.
+
+    Args:
+        string: JSX-like XML source describing a blok component tree.
+
+    Returns:
+        Parsed component tree as a :class:`ComponentNodeInput`.
+
+    Raises:
+        ValueError: If the XML cannot be parsed or validated.
+
+    Examples:
+        Parse a minimal blok layout::
+
+            component = jsx("<Page><Label text=\"Ready\" /></Page>")
+    """
     return BlokParser.parse(string)

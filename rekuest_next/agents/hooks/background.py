@@ -168,11 +168,39 @@ def background(  # noqa: ANN201
     name: Optional[str] = None,
     registry: Optional[HooksRegistry] = None,
 ) -> TBackground | Callable[[TBackground], TBackground]:
-    """
-    Background tasks are functions that are run in the background
-    as asyncio tasks. They are started when the agent starts up
-    and stopped automatically when the agent shuts down.
+    """Register a background task on the selected hook registry.
 
+    Background tasks start with the agent and keep running until shutdown. The
+    task signature is inspected for state, context, and app-context dependencies
+    so the runtime can inject matching values when the task is launched.
+
+    Async background tasks run in the event loop. Synchronous ones are wrapped
+    in ``WrappedThreadedBackgroundTask`` and executed through ``run_spawned``.
+    Both variants run inside ``direct_publishing`` so state mutations are
+    propagated immediately.
+
+    Args:
+        *args: Background function to register when used as ``@background``
+            without parentheses.
+        name: Explicit registry key. Defaults to the function name.
+        registry: Hook registry to populate. Defaults to the global hook
+            registry.
+
+    Returns:
+        The original function, or a decorator configured with the provided
+        metadata.
+
+    Raises:
+        ValueError: If more than one function is passed at once.
+
+    Examples:
+        Register a long-running async background loop::
+
+            @background
+            async def heartbeat(state: MyState) -> None:
+                while True:
+                    state.counter += 1
+                    await asyncio.sleep(1)
     """
 
     if len(args) > 1:

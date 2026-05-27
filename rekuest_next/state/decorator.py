@@ -114,8 +114,42 @@ def state(
     registry: Optional[StateRegistry] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Type[T] | Callable[[Type[T]], Type[T]]:
-    """
-    Decorator to register a class as a state.
+    """Register a class as an observable agent state.
+
+    The decorator ensures the class is a dataclass, assigns a rekuest state
+    name, converts the class into an evented state object through ``statify``,
+    and registers the resulting schema in the selected :class:`StateRegistry`.
+    The injected ``__init__`` wrapper wires state changes into the publishing
+    machinery used by the agent runtime.
+
+    Args:
+        *function: Class to decorate when used as ``@state`` without
+            parentheses.
+        local_only: Reserved for compatibility with older state registration
+            flows.
+        app: Optional application namespace for the state.
+        version: Optional version tag for the state.
+        name: Explicit exported state name. Defaults to the class name.
+        required_locks: Locks that must be held while mutating this state.
+        publish_interval: Debounce interval for published state updates.
+        registry: State registry to populate. Defaults to the global registry.
+        structure_reg: Structure registry used while inspecting the state
+            schema.
+
+    Returns:
+        The decorated class, or a decorator configured with the provided
+        metadata.
+
+    Raises:
+        ValueError: If more than one class is passed at once.
+
+    Examples:
+        Register a state class that is observable by the runtime::
+
+            @state(name="camera_state", required_locks=["camera"])
+            class CameraState:
+                connected: bool = False
+                exposure_ms: float = 10.0
     """
     registry = registry or get_default_state_registry()
     structure_registry = structure_reg or get_default_structure_registry()

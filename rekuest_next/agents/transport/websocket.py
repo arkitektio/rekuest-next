@@ -1,4 +1,4 @@
-"""Websocket Agent Transport"""
+"""WebSocket transport used by agents to exchange messages with the backend."""
 
 from types import TracebackType
 from typing import Awaitable, Callable, Dict, Optional, Self, Type
@@ -35,7 +35,7 @@ from pydantic import BaseModel
 
 
 class InMessagePayload(BaseModel):
-    """InMessagePayload class to handle incoming messages"""
+    """Typed wrapper for a single backend payload received over the socket."""
 
     message: messages.ToAgentMessage = Field(
         discriminator="type",
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 async def token_loader() -> str:
-    """Dummy token loader function"""
+    """Placeholder token loader used until a real authentication callback is set."""
     raise NotImplementedError(
         "Websocket transport does need a defined token_loader on Connection"
     )
@@ -72,7 +72,19 @@ agent_error_message: Dict[int, str] = {
 
 
 class WebsocketAgentTransport(AgentTransport):
-    """Websocket Agent Transport"""
+    """Reconnect-capable transport for the agent WebSocket protocol.
+
+    Typical usage is:
+
+    1. instantiate the transport with an endpoint URL and ``token_loader``
+    2. enter it as an async context manager to initialize local state
+    3. call ``aconnect(instance_id)`` before consuming ``areceive()``
+    4. call ``asend(...)`` to queue outbound agent messages
+
+    The receive loop is responsible for opening the socket, registering the
+    agent instance, replying to heartbeat messages, and retrying recoverable
+    connection failures.
+    """
 
     endpoint_url: str
     ssl_context: ssl.SSLContext = Field(
@@ -95,19 +107,43 @@ class WebsocketAgentTransport(AgentTransport):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def __aenter__(self) -> Self:
-        """Connect to the agent transport. Sets the callback and"""
+        """Initialize per-session state used by the transport context.
+
+        This prepares the outbound queue and pending-future registry. The actual
+        network connection is opened lazily by ``areceive()`` after
+        ``aconnect()`` has recorded the target instance id.
+        """
         self._futures = {}
         self._send_queue = asyncio.Queue()
         return self
 
     async def aconnect(self, instance_id: str) -> None:
-        """Connect to the agent transport"""
+        """Record the instance id that will be sent in the next register message.
+
+        The transport does not open the WebSocket immediately here; the id is
+        stored so the receive loop can register the agent once the socket is up.
+        """
         self._instance_id = instance_id
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
-        """Connect to the agent transport"""
+        """Yield backend messages from a live WebSocket connection.
+
+        This method owns the connection lifecycle. It opens the socket,
+        authenticates with the current token, sends the initial register
+        message, starts the background sender task, and yields validated backend
+        messages to the caller.
+
+        Heartbeats are handled internally by sending a matching
+        ``HeartbeatEvent``. Recoverable failures trigger the retry policy,
+        while definite failures are raised to the caller.
+        """
         retry = 0
         instance_id = self._instance_id
+
+        if not instance_id:
+            raise AgentTransportException(
+                "No instance id configured. Call aconnect(instance_id) before areceive()."
+            )
 
         while True:
             send_task = None
@@ -232,7 +268,7 @@ class WebsocketAgentTransport(AgentTransport):
                 raise e
 
     async def sending(self, client: websockets.ClientConnection) -> None:
-        """Send messages to the agent transport"""
+        """Drain queued outbound messages into the active WebSocket connection."""
         if not self._send_queue:
             raise AgentTransportException(
                 "No send queue set. Can't send messages to the agent transport"
@@ -246,17 +282,26 @@ class WebsocketAgentTransport(AgentTransport):
             logger.info("Sending Task sucessfully Cancelled")
 
     async def delayaction(self, action: messages.FromAgentMessage) -> None:
-        """Delay the action until the agent is connected"""
+        """Serialize and enqueue an outbound message for the sender task.
+
+        Messages are queued even when the caller is not writing directly to the
+        socket; the background sender started by ``areceive()`` flushes them in
+        order.
+        """
         assert self._send_queue, "Should be connected"
         logger.debug(">>>>> Sending message %s", action.model_dump_json())
         await self._send_queue.put(action.model_dump_json())
 
     async def asend(self, message: messages.FromAgentMessage) -> None:
-        """Send a message to the agent"""
+        """Public send API used by the agent runtime to queue one message."""
         await self.delayaction(message)
 
     async def adisconnect(self) -> None:
-        """Disconnect the agent transport"""
+        """Explicit disconnect hook for the transport lifecycle.
+
+        The current implementation relies on cancelling the receive loop and
+        leaving the async context, so there is no additional teardown here yet.
+        """
         pass
 
     async def __aexit__(
@@ -265,5 +310,10 @@ class WebsocketAgentTransport(AgentTransport):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        """_summary_"""
+        """Exit the transport context.
+
+        No explicit cleanup is needed beyond the caller-managed shutdown path at
+        the moment, but the hook remains part of the public async context-manager
+        contract.
+        """
         pass

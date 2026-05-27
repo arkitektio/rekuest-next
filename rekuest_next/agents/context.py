@@ -63,30 +63,34 @@ def context(  # type: ignore[valid-type]
     name: Optional[str] = None,
     locks: Optional[list[str]] = None,
 ) -> Type[T] | Callable[[Type[T]], Type[T]]:
-    """Decorator to register a class as a context.
+    """Mark a class as agent context metadata.
 
-    Context classes are used to store information that should be visible to the user
-    of the system and might change between action calls. Examples of context include
-    the position of a robot arm, the current settings of a device, or the status of
-    a process.
-
-    Context can be changed by any action if it declares it as an argument.
-    During this passing the context is locked for the duration of the action call,
-    preventing race conditions. When the action has finished, the new context is published.
-
-
-
+    The decorator does not wrap the class behavior. Instead, it annotates the
+    class with ``__rekuest_context__`` and ``__rekuest_context_locks__`` so
+    startup hooks, background tasks, and action signatures can request the
+    context by type. Lock names declared here are collected during signature
+    inspection and used to serialize access where needed.
 
     Args:
-        name_or_function (Type[T]): The class to register
-        local_only (bool): If True, the context will only be available locally.
-        name (Optional[str]): The name of the context. If None, the class name will be used.
-        locks (Optional[list[str]]): A list of locks for the context. If None, no locks will be used.
+        *function: Class to decorate when used as ``@context`` without
+            parentheses.
+        name: Explicit exported context name. Defaults to the snake_case class
+            name.
+        locks: Optional lock names required when this context is injected.
 
     Returns:
-        Callable[[Type[T]], Type[T]]: The decorator function.
+        The decorated class, or a decorator configured with the provided
+        metadata.
 
+    Raises:
+        ValueError: If more than one class is passed at once.
 
+    Examples:
+        Register a shared context class::
+
+            @context(name="camera_session", locks=["camera"])
+            class CameraSession:
+                device_id: str
     """
 
     if len(function) == 1:

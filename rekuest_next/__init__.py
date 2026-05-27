@@ -1,7 +1,29 @@
-"""This module provides the main interface for the Rekuest library.
-It includes the main classes and functions for creating and managing
-Rekuest instances, as well as utility functions for working with
-Rekuest objects.
+"""Top-level public API for rekuest_next.
+
+Import application-facing decorators, runtime helpers, remote-call utilities,
+and registry helpers from this module instead of reaching into internal
+subpackages. The imported names below are the supported convenience surface for
+agent applications.
+
+The exports are grouped loosely into four categories:
+
+- registration decorators such as ``declare``, ``state``, ``startup``, and
+    ``background``
+- runtime helpers such as ``log``, ``progress``, ``pausepoint``, and ``context``
+- remote execution helpers such as ``find``, ``call``, ``acall``, and
+    ``iterate``
+- registry helpers such as ``AppRegistry`` and the default-app-registry accessors
+
+Examples:
+        Import the common decorators and helpers from one place::
+
+                from rekuest_next import background, declare, jsx, log, startup
+
+                @startup
+                async def boot() -> None:
+                        log("agent starting")
+
+                panel = jsx("<Panel><Label text=\"ready\" /></Panel>")
 """
 
 from .blok.parser import jsx

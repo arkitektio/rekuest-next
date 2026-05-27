@@ -218,11 +218,37 @@ def startup(
     name: Optional[str] = None,
     registry: Optional[HooksRegistry] = None,
 ) -> TStartup | Callable[[TStartup], TStartup]:
-    """Decorator to register a startup hook
+    """Register a startup hook on the selected hook registry.
+
+    Startup hooks run when the agent boots. Their signatures are inspected for
+    app-context, state, and context dependencies, and their return annotations
+    are used to decide which state or context objects should be published for
+    the rest of the agent lifecycle.
+
+    Async startup hooks run directly in the event loop. Synchronous startup
+    hooks are wrapped in ``ThreadedStartupHook`` and executed through
+    ``run_spawned`` so they do not block the loop.
 
     Args:
-        name (str): The name of the startup hook. If not provided, the function name will be used.
-        registry (HooksRegistry): The registry to use. If not provided, the default registry will be used.
+        *args: Startup function to register when used as ``@startup`` without
+            parentheses.
+        name: Explicit registry key. Defaults to the function name.
+        registry: Hook registry to populate. Defaults to the global hook
+            registry.
+
+    Returns:
+        The original function, or a decorator configured with the provided
+        metadata.
+
+    Raises:
+        ValueError: If more than one function is passed at once.
+
+    Examples:
+        Register an async startup hook that returns initial state::
+
+            @startup
+            async def boot(app_context: MyAppContext) -> MyState:
+                return MyState(counter=0)
     """
 
     if len(args) > 1:

@@ -28,7 +28,27 @@ def model_field(
     label: Optional[str] = None,
     **kwargs: Any,
 ) -> Any:
-    """Define a field for a model with an optional description and default value."""
+    """Create a dataclass field enriched with rekuest model metadata.
+
+    The helper delegates to :func:`dataclasses.field` while attaching metadata
+    that is later consumed by model inspection to build argument labels,
+    descriptions, and validators.
+
+    Args:
+        *args: Positional arguments forwarded to :func:`dataclasses.field`.
+        description: Human-readable description used in generated definitions.
+        validators: Optional validator definitions for the field.
+        label: Optional display label for UI rendering.
+        **kwargs: Keyword arguments forwarded to :func:`dataclasses.field`.
+
+    Returns:
+        A dataclass field with rekuest-specific metadata attached.
+
+    Examples:
+        Define a model field with UI metadata::
+
+            threshold = model_field(default=0.5, description="Confidence cutoff")
+    """
 
     return field(
         *args,
@@ -39,11 +59,29 @@ def model_field(
 
 @dataclass_transform(field_specifiers=(model_field,))
 def model(cls: T) -> T:
-    """Mark a class as a model.
+    """Mark a class as a rekuest model and dataclass if needed.
 
-    This decorator transforms the class into a dataclass if it isn't one already,
-    registers it with the rekuest system, and provides detailed error messages
-    if the definition fails.
+    The decorator ensures the class is dataclass-compatible, registers its
+    exported model name through ``__rekuest_model__``, and augments dataclass
+    construction failures with source-aware error messages that point at the
+    offending class line when possible.
+
+    Args:
+        cls: Class to convert and mark as a rekuest model.
+
+    Returns:
+        The dataclass-compatible model class.
+
+    Raises:
+        TypeError: If dataclass conversion fails. The raised error includes file
+            and line context when source code is available.
+
+    Examples:
+        Register a lightweight structured model::
+
+            @model
+            class AcquisitionConfig:
+                threshold: float = model_field(default=0.5)
     """
 
     try:

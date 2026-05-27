@@ -118,17 +118,25 @@ T = TypeVar("T")
 
 
 def declare_state(cls: Type[T]) -> Type[T]:
-    """Declare a state protocol.
+    """Mark a class as a declared state dependency.
 
-    This is useful for defining state protocols that can be registered later.
+    Declared states are lightweight protocol-style classes used by
+    :func:`agent_protocol` to describe remote state dependencies. The decorator
+    sets marker attributes on the class and preserves the class unchanged.
 
     Args:
-        cls (AnyFunction): The class defining the agent protocol.
-        app (str): The application name.
-        version (str | None, optional): The version of the agent protocol. Defaults to None.
+        cls: Class describing the exposed state fields through type annotations.
 
     Returns:
-        AnyFunction: The same class, unmodified.
+        The same class, annotated with rekuest state metadata.
+
+    Examples:
+        Declare a state shape for a protocol dependency::
+
+            @declare_state
+            class CameraState:
+                connected: bool
+                exposure_ms: float
     """
     state_cls = cls[0] if isinstance(cls, tuple) else cls
     state_cls.__is_state__ = True
@@ -255,19 +263,41 @@ def agent_protocol(
     max: int | None = None,
     version: str | None = None,
 ) -> Callable[[Type[T]], Type[T]]:
-    """Declare an agent protocol.
+    """Declare a protocol that describes a remote agent dependency.
 
-    This is useful for defining agent protocols that can be registered later.
+    The decorated class is inspected in two passes:
+
+    - public methods become action demands
+    - annotated attributes marked with :func:`declare_state` become state demands
+
+    The resulting metadata is stored on the class as
+    ``__rekuest__dependency__`` together with a ``to_dependency`` helper so the
+    protocol can be serialized into an :class:`AgentDependencyInput` later.
 
     Args:
-        cls (AnyFunction): The class defining the agent protocol.
-        app (str): The application name.
-        version (str | None, optional): The version of the agent protocol. Defaults to None.
-        auto_resolvable (bool, optional): Whether we can autoassign any available agent that matches this protocol. Defaults to False. (You should set this to False if the agent is somewhat "physical" or robotic, i.e it matters that not the robot with a knife to a kittens throat is called)
-        min (int | None, optional): The minimum number of agents that can be assigned to this protocol. Defaults to None.
-        max (int | None, optional): The maximum number of agents that can be assigned to this protocol. Defaults to None.
+        app: Optional application namespace for dependency resolution.
+        auto_resolvable: Whether any matching available agent may be assigned
+            automatically.
+        min: Minimum viable number of matching agents.
+        max: Maximum viable number of matching agents.
+        version: Optional protocol version string.
+
     Returns:
-        AnyFunction: The same class, unmodified.
+        A class decorator that attaches the inspected dependency metadata.
+
+    Examples:
+        Declare a protocol with action and state requirements::
+
+            @declare_state
+            class CameraState:
+                connected: bool
+
+            @agent_protocol(app="lab")
+            class CameraProtocol:
+                state: CameraState
+
+                async def snap(self, exposure_ms: float) -> bytes:
+                    ...
     """
 
     def real_decorator(
