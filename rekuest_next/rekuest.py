@@ -24,7 +24,7 @@ from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.register import register_func
+from rekuest_next.register import register, register_func
 from rekuest_next.agents.hooks.startup import startup
 from rekuest_next.api.schema import (
     AssignWidgetInput,
@@ -50,24 +50,8 @@ class RekuestNext(Composition):
 
     def register(
         self,
-        function: AnyFunction,
-        actifier: Actifier = reactify,
-        version: Optional[str] = None,
-        interface: Optional[str] = None,
-        stateful: bool = False,
-        widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-        interfaces: Optional[List[str]] = None,
-        collections: Optional[List[str]] = None,
-        port_groups: Optional[List[PortGroupInput]] = None,
-        effects: Optional[Dict[str, List[EffectInput]]] = None,
-        is_test_for: Optional[List[str]] = None,
-        logo: Optional[str] = None,
-        validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-        structure_registry: Optional[StructureRegistry] = None,
-        implementation_registry: Optional[DefinitionRegistry] = None,
-        in_process: bool = False,
-        dynamic: bool = False,
-        locks: Optional[list[str]] = None,
+        *args,
+        **kwargs,
     ) -> Tuple[DefinitionInput, ActorBuilder]:
         """Register a function or actor with optional configuration parameters.
 
@@ -105,25 +89,9 @@ class RekuestNext(Composition):
             "Default is not a DefaultExtension"
         )
 
-        return register_func(
-            function,
-            structure_registry=structure_registry or self.structure_registry,
-            implementation_registry=default_extension.app_registry.implementation_registry,
-            actifier=actifier,
-            interface=interface,
-            stateful=stateful,
-            widgets=widgets,
-            interfaces=interfaces,
-            collections=collections,
-            port_groups=port_groups,
-            effects=effects,
-            is_test_for=is_test_for,
-            logo=logo,
-            validators=validators,
-            version=version,
-            in_process=in_process,
-            dynamic=dynamic,
-            locks=locks,
+        return register(
+            *args,
+            **kwargs,
         )
 
     def register_startup(
@@ -167,7 +135,7 @@ class RekuestNext(Composition):
     def register_blok(
         self,
         name: str | None = None,
-        jsx: Optional[str] = None,
+        component: Optional[str] = None,
         description: Optional[str] = None,
         demo_state: Dict[str, Any] | None = None,
     ) -> None:
@@ -175,7 +143,7 @@ class RekuestNext(Composition):
 
         Args:
             name (str | None): The name of the blok. If None, the function name will be used.
-            jsx (Optional[str]): Optional JSX content to associate with the blok.
+            component (Optional[str]): Optional component content to associate with the blok.
             description (Optional[str]): Optional description for the blok.
             demo_state (Dict[str, Any] | None): Optional demo state for the blok.
         """
@@ -186,10 +154,16 @@ class RekuestNext(Composition):
         )
         default_extension.app_registry.blok_registry.register_blok(
             name=name,
-            jsx=jsx,
+            component=component,
             description=description,
             demo_state=demo_state,
         )
+
+    def state(self, *args, **kwargs):
+        """Decorator to define a state class."""
+        from rekuest_next.state.decorator import state
+
+        return state(*args, **kwargs)
 
     def run(self, context: Any | None = None) -> None:
         """

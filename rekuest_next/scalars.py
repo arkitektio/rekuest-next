@@ -154,8 +154,7 @@ class ValidatorFunction(str):
 
 
 def parse_or_raise(v: str) -> DocumentNode:
-    """Parse a string to a graphql DocumentAction. If it fails, raise a ValueError
-    with the error message and the source location of the error.
+    """Parse a string to a graphql DocumentAction. If it fails, raise a ValueError with the error message and the source location of the error.
 
     Args:
         v (str): The string to parse.
