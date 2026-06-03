@@ -725,6 +725,17 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             raise AgentException("Instance id is not set. The agent is not initialized")
 
         state_schemas = self._collected_state_schemas
+        missing_initializers = sorted(
+            interface
+            for interface in state_schemas
+            if interface not in hook_return.states
+        )
+        if missing_initializers:
+            missing_states = ", ".join(missing_initializers)
+            raise AgentException(
+                "Registered states are missing initialization values from startup hooks: "
+                f"{missing_states}"
+            )
 
         for interface, startup_value in hook_return.states.items():
             # Set the actual state value

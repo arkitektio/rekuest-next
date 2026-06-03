@@ -8,6 +8,7 @@ the context of an assignation.
 
 import json
 from typing import AsyncIterator
+from urllib.parse import quote
 
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
@@ -49,12 +50,18 @@ class ContextLink(ContinuationLink):
 
         try:
             helper = get_current_assignation_helper()
+            encoded_args = quote(
+                json.dumps(helper.args, separators=(",", ":"), ensure_ascii=True),
+                safe="",
+            )
 
-            operation.context.headers["x-assignation-id"] = str(helper.assignation)
-            operation.context.headers["x-assignation-user"] = helper.user
-            operation.context.headers["x-assignation-org"] = helper.org
-            operation.context.headers["x-assignation-args"] = json.dumps(helper.args)
-            operation.context.headers["x-assignation-action"] = helper.action
+            operation.context.headers["Rekuest-Task"] = (
+                f"id={helper.assignation},"
+                f"parent={helper.assignment.parent or ''},"
+                f"args={encoded_args},"
+                f"user={helper.user},"
+                f"action={helper.action}"
+            )
 
         except Exception:
             pass
