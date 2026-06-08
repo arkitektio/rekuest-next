@@ -5,7 +5,7 @@ import inspect
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, TypeVar
+from typing import Any, List, Optional, Type, TypeVar, get_type_hints
 import inflection
 from fieldz import fields, Field  # type: ignore
 from pydantic import BaseModel
@@ -167,11 +167,17 @@ def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
     """Retrieve the arguments for a model."""
     children_classes: tuple[Field[Any], ...] = fields(cls)  # type: ignore
 
+    try:
+        resolved_hints = get_type_hints(cls, include_extras=True)
+    except Exception:
+        resolved_hints = {}
+
     args: list[InspectedArg] = []
     for yfield in children_classes:
+        type_ = resolved_hints.get(yfield.name) or yfield.annotated_type or yfield.type
         args.append(
             InspectedArg(
-                cls=yfield.annotated_type or yfield.type,
+                cls=type_,
                 default=yfield.default if yfield.default != Field.MISSING else None,
                 key=yfield.name,
                 description=yfield.description

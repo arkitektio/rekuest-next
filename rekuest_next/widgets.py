@@ -179,7 +179,6 @@ def ProxyWidget(
 
 def withStateChoices(
     state_path: str,
-    dependency: str | None = None,
     accessors: list[StateAccessorInput] | None = None,
 ) -> AssignWidgetInput:
     """A choice widget with choices from a state path.
@@ -194,9 +193,19 @@ def withStateChoices(
         accessors (list[StateAccessorInput] | None): The state accessor inputs (if not provided, it will be assumed that the state is a list of choices with only a value, or an array with {key: key, value: value, description?: description} structure)
     """
 
+    assert len(state_path.split(".")) >= 2, (
+        "state_path needs to be in the format 'dependency.statename.variable....' or  'self.statename.variable....'"
+    )
+
+    dependency = state_path.split(".")[0]
+    if dependency == "self":
+        dependency = None
+
+    rest_path = ".".join(state_path.split(".")[1:])
+
     return AssignWidgetInput(
         kind=AssignWidgetKind.STATE_CHOICE,
-        statePath=state_path,
+        statePath=rest_path,
         dependency=dependency,
         stateAccessors=accessors if accessors else None,
     )

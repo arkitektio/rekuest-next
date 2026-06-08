@@ -19,8 +19,7 @@ from rekuest_next.state.predicate import (
     is_read_only_state,
     is_state,
 )
-from typing import Tuple
-from typing import Dict
+from typing import Tuple, Dict, get_type_hints
 import inspect
 
 
@@ -71,19 +70,25 @@ def prepare_state_variables(
     sig = inspect.signature(function)
     parameters = sig.parameters
 
+    try:
+        hints = get_type_hints(function, include_extras=True)
+    except Exception:
+        hints = {}
+
     write_state_variables: Dict[str, str] = {}
     read_only_variables: Dict[str, str] = {}
     required_state_locks: Dict[str, list[str]] = {}
     state_returns: Dict[int, str] = {}
 
     for key, value in parameters.items():
-        if is_state(value.annotation):
-            write_state_variables[key] = get_state_name(value.annotation)
-            required_state_locks[key] = get_state_locks(value.annotation)
-        elif is_read_only_state(value.annotation):
-            read_only_variables[key] = get_state_name(value.annotation)
+        annotation = hints.get(key, value.annotation)
+        if is_state(annotation):
+            write_state_variables[key] = get_state_name(annotation)
+            required_state_locks[key] = get_state_locks(annotation)
+        elif is_read_only_state(annotation):
+            read_only_variables[key] = get_state_name(annotation)
 
-    returns = sig.return_annotation
+    returns = hints.get("return", sig.return_annotation)
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):
             if is_state(cls):
@@ -114,22 +119,28 @@ def prepare_appcontext(
     sig = inspect.signature(function)
     parameters = sig.parameters
 
+    try:
+        hints = get_type_hints(function, include_extras=True)
+    except Exception:
+        hints = {}
+
     write_app_context_variables: Dict[str, str] = {}
     for key, value in parameters.items():
-        if is_app_context(value.annotation):
-            write_app_context_variables[key] = value.annotation.__rekuest_app_context__
+        annotation = hints.get(key, value.annotation)
+        if is_app_context(annotation):
+            write_app_context_variables[key] = annotation.__rekuest_app_context__
 
-    returns = sig.return_annotation
+    returns = hints.get("return", sig.return_annotation)
 
     app_context_returns: Dict[int, str] = {}
 
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):
             if is_app_context(cls):
-                app_context_returns[index] = cls.annotation.__rekuest_app_context__
+                app_context_returns[index] = cls.__rekuest_app_context__
     else:
         if is_app_context(returns):
-            app_context_returns[0] = returns.annotation.__rekuest_app_context__
+            app_context_returns[0] = returns.__rekuest_app_context__
 
     return PreparedAppContextVariables(
         app_context_variables=write_app_context_variables,
