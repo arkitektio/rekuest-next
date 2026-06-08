@@ -12,7 +12,6 @@ from typing import (
     cast,
     overload,
 )
-from janus import T
 import asyncio
 
 from koil.helpers import run_spawned

@@ -619,11 +619,11 @@ wheels = [
 
 [[package]]
 name = "janus"
-version = "1.2.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d8/1f/5100f13bc13e24a041f60757b097b3c7c31cf8a08c1c1ef1f1caa2516f22/janus-1.2.0.tar.gz", hash = "sha256:c03475c3e10e042f2a08d31a7a894df2a2a95845ff794b7265e7e9c10a425e5d", size = 21534, upload-time = "2024-12-12T23:59:54.797Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/7f/69884b6618be4baf6ebcacc716ee8680a842428a19f403db6d1c0bb990aa/janus-2.0.0.tar.gz", hash = "sha256:0970f38e0e725400496c834a368a67ee551dc3b5ad0a257e132f5b46f2e77770", size = 22910, upload-time = "2024-12-13T12:59:08.622Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/d6/6b3ac4df8d0e928521fe7d49cff8f3274b5012975ec0bdbb968ae50531aa/janus-1.2.0-py3-none-any.whl", hash = "sha256:3fa91456c00caed4905821a911e95c69d41306e463ea8da72c76c7a096abc698", size = 11674, upload-time = "2024-12-12T23:59:52.327Z" },
+    { url = "https://files.pythonhosted.org/packages/68/34/65604740edcb20e1bda6a890348ed7d282e7dd23aa00401cbe36fd0edbd9/janus-2.0.0-py3-none-any.whl", hash = "sha256:7e6449d34eab04cd016befbd7d8c0d8acaaaab67cb59e076a69149f9031745f9", size = 12161, upload-time = "2024-12-13T12:59:06.106Z" },
 ]
 
 [[package]]
@@ -661,15 +661,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "2.5.3"
+version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "janus" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/bb/74284dbe91bbc197a7ef27f53ff7ebdfd45644884c4a26b2b707d203db68/koil-2.5.3.tar.gz", hash = "sha256:159b18168b4f8a826de4c03a649e1d955f57513cabef46cc93dfaeb37cf39985", size = 15848, upload-time = "2026-04-02T15:26:16.422Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/33/93d970bc79a90ba8dad1773230d9ab85476df28d32411aa65986eb58a95e/koil-3.0.0.tar.gz", hash = "sha256:9d375a258a3e232a84c1505f9383bfc241c084b3bcd0b2bf1a5d412ff83d2a72", size = 23767, upload-time = "2026-06-08T10:38:01.339Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/38/3a0aa88b9c919861adcf296fad719828ed87179bb892ce61af582423add2/koil-2.5.3-py3-none-any.whl", hash = "sha256:d71fbef7c80ee3943ebd76235b4cf9a26ed700a249381fd54b01341b39f1faf1", size = 19398, upload-time = "2026-04-02T15:26:17.345Z" },
+    { url = "https://files.pythonhosted.org/packages/98/bd/d9c4064de94b50f2b3d0b6d1abc27b806c64055a94603fb3ca089045faf9/koil-3.0.0-py3-none-any.whl", hash = "sha256:14e08ba395df419106b52b0e49199192c7dd17c7f205df061fa68116c90b32c2", size = 28322, upload-time = "2026-06-08T10:38:02.221Z" },
 ]
 
 [[package]]
@@ -1220,6 +1219,7 @@ dependencies = [
     { name = "dokker" },
     { name = "fieldz" },
     { name = "inflection" },
+    { name = "janus" },
     { name = "jsonpatch" },
     { name = "koil" },
     { name = "pydantic" },
@@ -1258,8 +1258,9 @@ requires-dist = [
     { name = "dokker", specifier = ">=2.2" },
     { name = "fieldz", specifier = ">=0.0.2" },
     { name = "inflection", specifier = ">=0.5.1" },
+    { name = "janus", specifier = ">=2.0.0" },
     { name = "jsonpatch", specifier = ">=1.33" },
-    { name = "koil", specifier = ">=2.5.3" },
+    { name = "koil", specifier = "==3" },
     { name = "pydantic", specifier = ">=2" },
     { name = "rath", specifier = ">=3.9.0" },
     { name = "websockets", specifier = ">=12.0" },

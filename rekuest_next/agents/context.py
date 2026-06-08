@@ -1,6 +1,6 @@
 """Context management for Rekuest Next."""
 
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, overload
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, overload, get_type_hints
 import inspect
 from dataclasses import dataclass
 import inflection
@@ -151,17 +151,22 @@ def prepare_context_variables(
     sig = inspect.signature(function)
     parameters = sig.parameters
 
+    try:
+        hints = get_type_hints(function, include_extras=True)
+    except Exception:
+        hints = {}
+
     state_variables: Dict[str, str] = {}
     state_returns: Dict[int, str] = {}
     required_locks: Dict[str, list[str]] = {}
 
     for key, value in parameters.items():
-        cls = value.annotation
+        cls = hints.get(key, value.annotation)
         if is_context(cls):
             state_variables[key] = cls.__rekuest_context__
             required_locks[key] = get_context_locks(cls)
 
-    returns = sig.return_annotation
+    returns = hints.get("return", sig.return_annotation)
 
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):

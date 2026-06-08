@@ -1,7 +1,7 @@
 """Decorator to register a class as a state."""
 
 from dataclasses import dataclass
-from typing import Optional, Type, TypeVar, Callable, overload
+from typing import Optional, Type, TypeVar, Callable, overload, get_type_hints
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateImplementationInput,
@@ -24,8 +24,13 @@ def inspect_state(
 
     ports: list[ReturnPortInput] = []
 
+    try:
+        resolved_hints = get_type_hints(cls, include_extras=True)
+    except Exception:
+        resolved_hints = {}
+
     for field in fields(cls):  # type: ignore
-        type_ = field.type or field.annotated_type
+        type_ = resolved_hints.get(field.name) or field.type or field.annotated_type
         if type_ is None:
             raise ValueError(
                 f"Field {field.name} has no type annotation. Please add a type annotation."
