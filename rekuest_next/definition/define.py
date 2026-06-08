@@ -1047,6 +1047,4 @@ def prepare_definition(
         isTestFor=tuple(is_test_for or []),
     )
 
-    print(definition.model_dump_json(indent=2))  # TODO: Remove this debug print
-
     return definition
