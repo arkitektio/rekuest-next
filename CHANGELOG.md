@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v1.6.3 (2026-06-08)
+
+### Bug Fixes
+
+- Api
+  ([`033867e`](https://github.com/arkitektio/rekuest-next/commit/033867e85010e177b2b30f5238b31fb89a70c921))
+
+- Breaking janus changes
+  ([`549f580`](https://github.com/arkitektio/rekuest-next/commit/549f580693cb00ce51871244952b27a8f1057733))
+
+- Error on missing intializers
+  ([`04771ce`](https://github.com/arkitektio/rekuest-next/commit/04771ceff9d220df4b3d441beffd50757805c96b))
+
+- Model and state sceham parsing
+  ([`c80b74d`](https://github.com/arkitektio/rekuest-next/commit/c80b74de00454875b5298818078a7be6ac286225))
+
+
 ## v1.6.2 (2026-05-27)
 
 ### Bug Fixes
