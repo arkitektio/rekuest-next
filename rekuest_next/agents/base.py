@@ -644,6 +644,13 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             except asyncio.CancelledError:
                 pass
 
+        if self._patch_processor_task is not None:
+            self._patch_processor_task.cancel()
+            try:
+                await self._patch_processor_task
+            except (asyncio.CancelledError, RuntimeError):
+                pass
+
         if self._event_queue is not None:
             try:
                 await self._event_queue.async_q.join()
@@ -654,13 +661,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             except RuntimeError:
                 pass
             self._event_queue = None
-
-        if self._patch_processor_task is not None:
-            self._patch_processor_task.cancel()
-            try:
-                await self._patch_processor_task
-            except (asyncio.CancelledError, RuntimeError):
-                pass
 
         for actor_task in self.managed_actor_tasks.values():
             actor_task.cancel()
@@ -932,6 +932,8 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         self._patch_processor_task = asyncio.create_task(self.apatch_event_loop())
         self._patch_processor_task.add_done_callback(
             lambda x: logger.error(f"Patch processor task failed: {x.exception()}")
+            if not x.cancelled() and x.exception() is not None
+            else None
         )
 
         for extension in self.extension_registry.agent_extensions.values():

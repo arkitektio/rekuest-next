@@ -411,10 +411,11 @@ def register(  # type: ignore[valid-type]
             version=version,
         )
 
-        setattr(function_or_actor, "__definition__", definition)
-        setattr(function_or_actor, "__definition_hash__", hash_definition(definition))
+        target = getattr(function_or_actor, "__func__", function_or_actor)
+        setattr(target, "__definition__", definition)
+        setattr(target, "__definition_hash__", hash_definition(definition))
         setattr(
-            function_or_actor,
+            target,
             "__interface__",
             interface or interface_name(function_or_actor),
         )
