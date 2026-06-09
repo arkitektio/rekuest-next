@@ -498,6 +498,3 @@ class StructureRegistry(BaseModel):
                 f"Could not create port for {cls} as it is not a FullFilledStructure"
                 f" or a FullFilledEnum or a FullFilledMemoryStructure"
             )
-
-
-DEFAULT_STRUCTURE_REGISTRY: StructureRegistry | None = None
