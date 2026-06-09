@@ -36,9 +36,7 @@ def build_core_router(
         """Serve the unified websocket endpoint for tasks, states, and locks."""
         await agent.handle_websocket(websocket)
 
-    async def assign_base_action(
-        request: Request, extension: str = "default"
-    ) -> dict[str, str]:
+    async def assign_base_action(request: Request) -> dict[str, str]:
         """Submit a task using the interface provided in the request body."""
         user = get_user_from_request(request)
         payload = await request.json()
@@ -50,13 +48,12 @@ def build_core_router(
         assign_message = agent.build_assign_message(
             assign_input,
             user=str(user),
-            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
         return {"status": "submitted", "assignation": assign_message.assignation}
 
     async def assign_action(
-        request: Request, interface: str, extension: str = "default"
+        request: Request, interface: str
     ) -> dict[str, str]:
         """Submit a task for a concrete interface path parameter."""
         user = get_user_from_request(request)
@@ -65,7 +62,6 @@ def build_core_router(
         assign_message = agent.build_assign_message(
             assign_input,
             user=str(user),
-            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
         return {"status": "submitted", "assignation": assign_message.assignation}

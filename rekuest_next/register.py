@@ -1,7 +1,7 @@
 """Register a function or actor with the definition registry."""
 
 from typing import (
-    Any,
+    TYPE_CHECKING,
     Callable,
     Dict,
     Generic,
@@ -15,6 +15,9 @@ from typing import (
     cast,
 )
 import inflection
+
+if TYPE_CHECKING:
+    from rekuest_next.app import AppRegistry
 from rekuest_next.coercible_types import (
     OptimisticCoercible,
 )
@@ -28,10 +31,6 @@ from rekuest_next.definition.define import (
     dependency_to_dependency_input,
 )
 from rekuest_next.definition.hash import hash_definition
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_default_implementation_registry,
-)
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
@@ -118,7 +117,7 @@ class WrappedFunction(Generic[P, R]):
 def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
-    implementation_registry: DefinitionRegistry,
+    implementation_registry: "AppRegistry",
     interface: Optional[str] = None,
     name: Optional[str] = None,
     actifier: Actifier = reactify,
@@ -269,7 +268,7 @@ def register(
     logo: Optional[str] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional["AppRegistry"] = None,
     optimistics: Optional[List[OptimisticCoercible]] = None,
     in_process: bool = False,
     tracks: Optional[List[TrackInput]] = None,
@@ -327,7 +326,7 @@ def register(  # type: ignore[valid-type]
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     tracks: Optional[List[TrackInput]] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional["AppRegistry"] = None,
     in_process: bool = False,
     dynamic: bool = False,
     locks: Optional[List[str]] = None,
@@ -376,9 +375,9 @@ def register(  # type: ignore[valid-type]
     Returns:
         Union[T, Callable[[T], T]]: The registered function or a decorator.
     """
-    implementation_registry = (
-        implementation_registry or get_default_implementation_registry()
-    )
+    from rekuest_next.app import get_default_app_registry
+
+    implementation_registry = implementation_registry or get_default_app_registry()
     structure_registry = structure_registry or get_default_structure_registry()
 
     if len(func) > 1:
@@ -470,33 +469,6 @@ def register(  # type: ignore[valid-type]
             )
 
         return cast(Callable[[T], T], real_decorator)  # type: ignore
-
-
-def register_test(
-    test_function: AnyFunction,
-    structure_registry: Optional[StructureRegistry] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
-) -> WrappedFunction[..., Any]:
-    """Register a test function for specified interfaces.
-
-    This function wraps a test function into an actor and registers it as a test
-    for the provided interfaces in the implementation registry.
-
-    Args:
-        test_function (AnyFunction): The test function to register.
-        tested_interfaces (List[str]): List of interfaces that this function tests.
-        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
-
-    Returns:
-        WrappedFunction[..., Any]: The registered test function wrapped.
-    """
-    return register(
-        dependencies=[test_function],
-        test_for=test_function,
-        structure_registry=structure_registry,
-        implementation_registry=implementation_registry,
-    )
 
 
 action = register

@@ -568,12 +568,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         ):
             self.retriever.store = self.sink.store
 
-    def get_state_schemas(
-        self,
-        extension: str = "default",
-    ) -> dict[str, StateImplementationInput]:
-        """Return the registered state schemas for one FastAPI extension."""
-        return self.extension_registry.get(extension).get_states()
+    def get_state_schemas(self) -> dict[str, StateImplementationInput]:
+        """Return the registered state schemas from the app registry."""
+        return dict(self.app_registry.states)
 
     def build_assign_input(
         self,

@@ -7,7 +7,6 @@ from pydantic import Field
 from rekuest_next.agents.hooks.background import background
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.agents.extensions.default import DefaultExtension
 from rekuest_next.actors.types import Actifier, Agent
 from rekuest_next.postmans.types import Postman
 from koil import unkoil
@@ -21,7 +20,6 @@ from typing import (
 )
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.types import ActorBuilder
-from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.register import register, register_func
@@ -83,14 +81,10 @@ class RekuestNext(Composition):
             function: A decorator that registers the given function or actor.
         """
 
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-
         return register(
             *args,
+            implementation_registry=self.agent.app_registry,
+            structure_registry=self.agent.app_registry.structure_registry,
             **kwargs,
         )
 
@@ -102,15 +96,10 @@ class RekuestNext(Composition):
         Args:
             function (AnyFunction): The startup function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         startup(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_background(
@@ -121,15 +110,10 @@ class RekuestNext(Composition):
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         background(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_blok(
@@ -147,12 +131,7 @@ class RekuestNext(Composition):
             description (Optional[str]): Optional description for the blok.
             demo_state (Dict[str, Any] | None): Optional demo state for the blok.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-        default_extension.app_registry.blok_registry.register_blok(
+        self.agent.app_registry.register_blok(
             name=name,
             component=component,
             description=description,

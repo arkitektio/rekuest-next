@@ -19,8 +19,7 @@ from rekuest_next.blok.registry import (
 from rekuest_next.declare import DeclaredAgentAction, DeclaredAgentState
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.match import build_port_match, build_port_matches
-from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.state.registry import StateRegistry
+from rekuest_next.app import AppRegistry
 
 
 def test_build_port_match_preserves_nested_shape() -> None:
@@ -61,7 +60,7 @@ def test_declared_action_and_blok_registry_build_same_action_dependency(
 
     declared = DeclaredAgentAction(DemoProtocol.run, "demo", "run")
 
-    definition_registry = DefinitionRegistry()
+    definition_registry = AppRegistry()
     definition_registry.register_at_interface(
         "run",
         ImplementationInput(
@@ -91,8 +90,8 @@ def test_declared_state_and_blok_registry_build_same_state_dependency(
 
     declared = DeclaredAgentState(DemoState, "demo", "status")
 
-    state_registry = StateRegistry()
-    state_registry.register(
+    state_registry = AppRegistry()
+    state_registry.register_state(
         DemoState,
         StateImplementationInput(
             interface="status",

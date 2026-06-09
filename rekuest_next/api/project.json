@@ -88,6 +88,12 @@
                 "CreateBlokInput": [
                     "rekuest_next.traits.blok.CreateBlokInputTrait"
                 ],
+                "ImplementationInput": [
+                    "rekuest_next.traits.implementation.ImplementationInputTrait"
+                ],
+                "ImplementAgentInput": [
+                    "rekuest_next.traits.agent.ImplementAgentInputTrait"
+                ],
                 "BlokImplementationInput": [
                     "rekuest_next.traits.blok.BlokImplementationInputTrait"
                 ],

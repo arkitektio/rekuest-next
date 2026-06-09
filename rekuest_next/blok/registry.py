@@ -2,11 +2,11 @@
 
 from dataclasses import fields, is_dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Set,
 )
-from pydantic import BaseModel, ConfigDict, Field
 
 from rekuest_next.api.schema import (
     ActionArgumentInput,
@@ -19,89 +19,42 @@ from rekuest_next.api.schema import (
     StateDependencyInput,
     UtilCallInput,
 )
-from rekuest_next.blok.parser import jsx as parse_jsx
 from rekuest_next.definition.dependencies import (
     build_action_dependency_input,
     build_state_dependency_input,
 )
-from rekuest_next.definition.registry import DefinitionRegistry
-from rekuest_next.state.registry import StateRegistry
+
+if TYPE_CHECKING:
+    from rekuest_next.app import AppRegistry
 
 
-class BlokRegistry(BaseModel):
-    """Blok Registry
+def build_declared_bloks(
+    app_registry: "AppRegistry",
+) -> Dict[str, BlokImplementationInput]:
+    """Generate blok inputs from their declarations against an app registry."""
+    declared_bloks: Dict[str, BlokImplementationInput] = {}
 
-    Bloks are functions that are run when the default extension starts up.
-    They can setup the state variables and contexts that are used by the agent.
-    They are run in the order they are registered.
+    for blok_key, component in app_registry.registered_bloks.items():
+        dependencies = _build_dependencies_for_component(component, app_registry)
 
-    """
+        demo_state = app_registry.registered_blok_demo_states.get(blok_key)
+        if demo_state is None:
+            demo_state = _autogenerate_demo_state(dependencies, app_registry)
 
-    registered_bloks: Dict[str, ComponentNodeInput] = Field(default_factory=dict)
-    registered_blok_descriptions: Dict[str, str | None] = Field(default_factory=dict)
-    registered_blok_demo_states: Dict[str, Dict[str, Any] | None] = Field(
-        default_factory=dict
-    )
+        declared_bloks[blok_key] = BlokImplementationInput(
+            key=blok_key,
+            dependencies=tuple(dependencies),
+            components=(component,),
+            description=app_registry.registered_blok_descriptions.get(blok_key),
+            demo_state=demo_state,
+        )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def cleanup(self) -> None:
-        """Cleanup the registry"""
-        return None
-
-    def register_blok(
-        self,
-        name: str,
-        component: ComponentNodeInput | str | None,
-        description: str | None = None,
-        demo_state: Dict[str, Any] | None = None,
-    ) -> None:
-        """Register a blok component tree in the registry."""
-        if not name:
-            raise ValueError("A blok name is required")
-
-        if component is None:
-            raise ValueError(f"Blok '{name}' must define a component")
-
-        if isinstance(component, str):
-            component = parse_jsx(component)
-
-        self.registered_bloks[name] = component
-        self.registered_blok_descriptions[name] = description
-        self.registered_blok_demo_states[name] = demo_state
-
-    def get_declared_bloks(
-        self, implementation: DefinitionRegistry, state: StateRegistry
-    ) -> Dict[str, BlokImplementationInput]:
-        """Generate blok inputs from their declarations and registries."""
-        declared_bloks: Dict[str, BlokImplementationInput] = {}
-
-        for blok_key, component in self.registered_bloks.items():
-            dependencies = _build_dependencies_for_component(
-                component,
-                implementation,
-                state,
-            )
-
-            demo_state = self.registered_blok_demo_states.get(blok_key)
-            if demo_state is None:
-                demo_state = _autogenerate_demo_state(dependencies, state)
-
-            declared_bloks[blok_key] = BlokImplementationInput(
-                key=blok_key,
-                dependencies=tuple(dependencies),
-                components=(component,),
-                description=self.registered_blok_descriptions.get(blok_key),
-                demo_state=demo_state,
-            )
-
-        return declared_bloks
+    return declared_bloks
 
 
 def _build_dependencies_for_component(
     component: ComponentNodeInput,
-    implementation_registry: DefinitionRegistry,
-    state_registry: StateRegistry,
+    app_registry: "AppRegistry",
 ) -> list[AgentDependencyInput]:
     referenced_actions, referenced_states, implicit_states = (
         _collect_component_references(
@@ -126,11 +79,11 @@ def _build_dependencies_for_component(
 
     for dependency_key in sorted(dependency_keys):
         action_demands = tuple(
-            _create_action_dependency(action_key, implementation_registry)
+            _create_action_dependency(action_key, app_registry)
             for action_key in sorted(referenced_actions.get(dependency_key, set()))
         )
         state_demands = tuple(
-            _create_state_dependency(state_key, state_registry)
+            _create_state_dependency(state_key, app_registry)
             for state_key in sorted(referenced_states.get(dependency_key, set()))
         )
 
@@ -335,9 +288,9 @@ def _collect_path_reference(
 
 def _create_action_dependency(
     action_key: str,
-    implementation_registry: DefinitionRegistry,
+    app_registry: "AppRegistry",
 ) -> ActionDependencyInput:
-    implementation = implementation_registry.implementations.get(action_key)
+    implementation = app_registry.implementations.get(action_key)
     if implementation is None:
         raise ValueError(f"Blok references unknown action '{action_key}'")
 
@@ -349,9 +302,9 @@ def _create_action_dependency(
 
 def _create_state_dependency(
     state_key: str,
-    state_registry: StateRegistry,
+    app_registry: "AppRegistry",
 ) -> StateDependencyInput:
-    state_implementation = state_registry.states.get(state_key)
+    state_implementation = app_registry.states.get(state_key)
     if state_implementation is None:
         raise ValueError(f"Blok references unknown state '{state_key}'")
 
@@ -372,7 +325,7 @@ def _merge_reference_maps(
 
 def _autogenerate_demo_state(
     dependencies: list[AgentDependencyInput],
-    state_registry: StateRegistry,
+    app_registry: "AppRegistry",
 ) -> Dict[str, Any]:
     demo_state: Dict[str, Any] = {}
 
@@ -381,7 +334,7 @@ def _autogenerate_demo_state(
 
         for state_demand in dependency.state_demands or ():
             state_key = state_demand.key
-            state_cls = state_registry.interface_classes.get(state_key)
+            state_cls = app_registry.state_interface_classes.get(state_key)
             if state_cls is None:
                 raise ValueError(
                     f"Cannot autogenerate demo_state for state '{state_key}': state class not registered"
@@ -437,36 +390,3 @@ def _serialize_state_instance(state_instance: Any) -> Any:
         }
 
     return state_instance
-
-
-default_registry: BlokRegistry | None = None
-
-
-def get_default_blok_registry() -> BlokRegistry:
-    """Get the default hook registry.
-
-    If no global hook registry has been set, this will return the
-    hooks registry from the global app registry.
-
-    Returns:
-        HooksRegistry: The default hook registry.
-    """
-    global default_registry
-    if default_registry is None:
-        from rekuest_next.app import get_default_app_registry
-
-        return get_default_app_registry().blok_registry
-    return default_registry
-
-
-def set_default_blok_registry(registry: BlokRegistry) -> None:
-    """Set a standalone default hook registry.
-
-    This bypasses the app registry and sets a specific hook registry
-    as the global default.
-
-    Args:
-        registry: The BlokRegistry to use as default.
-    """
-    global default_registry
-    default_registry = registry

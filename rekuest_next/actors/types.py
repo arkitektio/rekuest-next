@@ -27,7 +27,7 @@ from dataclasses import dataclass
 
 
 if TYPE_CHECKING:
-    from rekuest_next.agents.registry import ExtensionRegistry
+    from rekuest_next.app import AppRegistry
 
 
 @dataclass
@@ -150,7 +150,7 @@ class Shelver(Protocol):
 class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
-    extension_registry: "ExtensionRegistry"
+    app_registry: "AppRegistry"
     instance_id: str
 
     async def alock(self, key: str, assignation: str) -> None:

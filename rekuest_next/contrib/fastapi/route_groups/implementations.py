@@ -113,12 +113,9 @@ def add_implementation_route(
 
 def build_implementation_router(
     agent: FastApiAgent,
-    extension: str = "default",
 ) -> APIRouter:
     """Build routes for all static implementations."""
     router = APIRouter()
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.app_registry.get_implementations():
         add_implementation_route(router, agent, implementation)
     return router

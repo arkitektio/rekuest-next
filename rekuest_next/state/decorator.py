@@ -1,7 +1,15 @@
 """Decorator to register a class as a state."""
 
 from dataclasses import dataclass
-from typing import Optional, Type, TypeVar, Callable, overload, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Optional,
+    Type,
+    TypeVar,
+    Callable,
+    overload,
+    get_type_hints,
+)
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateImplementationInput,
@@ -9,9 +17,11 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next.state.observable import StateConfig, make_evented
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.state.registry import StateRegistry, get_default_state_registry
 from rekuest_next.structures.default import get_default_structure_registry
 from fieldz import fields, Field
+
+if TYPE_CHECKING:
+    from rekuest_next.app import AppRegistry
 
 T = TypeVar("T")
 
@@ -103,7 +113,7 @@ def state(
     name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
-    registry: Optional[StateRegistry] = None,
+    registry: Optional["AppRegistry"] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Callable[[T], T]: ...
 
@@ -116,7 +126,7 @@ def state(
     name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
-    registry: Optional[StateRegistry] = None,
+    registry: Optional["AppRegistry"] = None,
     structure_reg: Optional[StructureRegistry] = None,
 ) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Register a class as an observable agent state.
@@ -156,7 +166,9 @@ def state(
                 connected: bool = False
                 exposure_ms: float = 10.0
     """
-    registry = registry or get_default_state_registry()
+    from rekuest_next.app import get_default_app_registry
+
+    registry = registry or get_default_app_registry()
     structure_registry = structure_reg or get_default_structure_registry()
 
     if len(function) == 1:
@@ -182,7 +194,7 @@ def state(
                 publish_interval=publish_interval,
             )
 
-            registry.register(cls, state_schema, structure_registry)
+            registry.register_state(cls, state_schema, structure_registry)
             return cls
 
         return wrapper

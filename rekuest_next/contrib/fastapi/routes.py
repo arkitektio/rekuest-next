@@ -164,19 +164,17 @@ def add_lock_routes(
 def add_implementation_routes(
     app: FastAPI,
     agent: FastApiAgent[Any],
-    extension: str = "default",
 ) -> None:
     """Include all implementation execution routes."""
-    _include_router(app, build_implementation_router(agent, extension=extension))
+    _include_router(app, build_implementation_router(agent))
 
 
 def add_schema_routes(
     app: FastAPI,
     agent: FastApiAgent[Any],
-    extension: str = "default",
 ) -> None:
     """Include schema inspection routes."""
-    _include_router(app, build_schema_router(agent, extension=extension))
+    _include_router(app, build_schema_router(agent))
 
 
 def configure_fastapi(
@@ -190,7 +188,6 @@ def configure_fastapi(
     add_locks: bool = True,
     add_tasks: bool = True,
     add_task_details: bool = True,
-    extension: str = "default",
     ws_path: str = "/ws",
     tasks_path: str = "/tasks",
     assign_path: str = "/assign",
@@ -200,15 +197,8 @@ def configure_fastapi(
     app_context: T | None = None,
 ) -> FastApiAgent[T]:
     """Configure a FastAPI app with a refactored set of agent route groups."""
-    from rekuest_next.agents.extensions.default import DefaultExtension
-    from rekuest_next.agents.registry import ExtensionRegistry
-
-    default_extension = DefaultExtension(app_registry=app_registry)
-    extension_registry = ExtensionRegistry()
-    extension_registry.register(default_extension)
-
     agent: FastApiAgent[T] = FastApiAgent(  # type: ignore
-        extension_registry=extension_registry,
+        app_registry=app_registry,
         retriever=SQLLiteRetriever(db_path=db_file),
         sink=SQLLiteSink(db_path=db_file),
     )
@@ -234,16 +224,14 @@ def configure_fastapi(
                 fastapi_app,
                 agent,
                 states_path=states_path,
-                state_schemas=agent.extension_registry.agent_extensions.get(
-                    "default", default_extension
-                ).get_states(),
+                state_schemas=dict(agent.app_registry.states),
             )
         if add_locks:
             add_lock_routes(fastapi_app, agent, locks_path=locks_path)
         if add_implementations:
-            add_implementation_routes(fastapi_app, agent, extension=extension)
+            add_implementation_routes(fastapi_app, agent)
         if add_schema:
-            add_schema_routes(fastapi_app, agent, extension=extension)
+            add_schema_routes(fastapi_app, agent)
 
         configure_openapi(fastapi_app)
         fastapi_app.state.agent = agent

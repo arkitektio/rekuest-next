@@ -23,23 +23,16 @@ from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next import messages
 from rekuest_next.actors.sync import SyncKeyManager
-from rekuest_next.actors.types import Actor, Passport
+from rekuest_next.actors.types import Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.hooks.registry import StartupHook, StartupHookReturns
 from rekuest_next.agents.lock import TaskLock
-from rekuest_next.agents.registry import (
-    ExtensionRegistry,
-    get_default_extension_registry,
-)
+from rekuest_next.app import AppRegistry, get_default_app_registry
 from rekuest_next.agents.transport.types import AgentTransport
 from rekuest_next.api.schema import (
     Agent,
-    BlokImplementationInput,
     Implementation,
     StateDefinitionInput,
-    LockImplementationInput,
-    ImplementationInput,
-    StateImplementationInput,
     aensure_agent,
     aimplement_agent,
     ashelve,
@@ -126,9 +119,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    app_registry: AppRegistry = Field(default_factory=get_default_app_registry)
 
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
@@ -149,8 +140,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     interface_implementation_map: Dict[str, Implementation] = Field(
         default_factory=dict
     )
-    implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
-    provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
 
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
@@ -175,10 +164,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     )
     _app_context: Optional[AppContext] = PrivateAttr(default=None)
 
-    _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _interface_stateschema_map: Dict[str, StateDefinitionInput] = PrivateAttr(
-        default_factory=lambda: {}  # typ
-    )
     _interface_stateschema_input_map: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}  # typ
     )
@@ -189,17 +174,10 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     _collected_state_schemas: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}
     )
-
-    _collected_structure_registries: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
     _collected_startup_hooks: Dict[str, StartupHook] = PrivateAttr(
         default_factory=lambda: {}
     )
     _collected_background_workers: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _state_class_interface_map: Dict[type, str] = PrivateAttr(
         default_factory=lambda: {}
     )
 
@@ -218,19 +196,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    _collected_implementations: List[ImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_states: list[StateImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_bloks: list[BlokImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_locks: list[LockImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
 
     def model_post_init(self, __context: Any) -> None:
         pass
@@ -381,49 +346,36 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         return locks
 
     def collect_from_extensions(self) -> None:
-        """Collect state schemas, startup hooks, background workers, and sync keys from all extensions.
+        """Collect state schemas, hooks, sync keys and locks from the app registry.
 
-        This method iterates through all registered extensions and collects their
-        state schemas, startup hooks, background workers, and sync keys into the agent's
-        internal collections.
+        The actual implementation/state/blok payload is assembled (and validated)
+        lazily by ``AppRegistry.to_implement_agent_input`` at registration time; this
+        only populates the runtime bookkeeping the agent needs while running.
         """
+        app_registry = self.app_registry
 
-        for extension in self.extension_registry.agent_extensions.values():
-            # Collect state schemas
-            state_schemas = extension.get_states()
-            for interface, schema in state_schemas.items():
-                self._collected_state_schemas[interface] = schema.definition
-                self._collected_states.append(schema)
+        # Collect state schemas
+        for interface, schema in app_registry.states.items():
+            self._collected_state_schemas[interface] = schema.definition
 
-            # Collect startup hooks
-            startup_hooks = extension.get_startup_hooks()
-            for name, hook in startup_hooks.items():
-                self._collected_startup_hooks[name] = hook
+        # Collect startup hooks and background workers
+        for name, hook in app_registry.hooks_registry.startup_hooks.items():
+            self._collected_startup_hooks[name] = hook
+        for name, worker in app_registry.hooks_registry.background_worker.items():
+            self._collected_background_workers[name] = worker
 
-            # Collect background workers
-            background_workers = extension.get_background_workers()
-            for name, worker in background_workers.items():
-                self._collected_background_workers[name] = worker
+        # Register sync keys for implementations that declare locks
+        for implementation in app_registry.get_implementations():
+            if implementation.locks is not None:
+                self.sync_key_manager.register_sync_keys(
+                    implementation.interface or implementation.definition.name,
+                    implementation.locks,
+                )
 
-            # Collect sync keys from implementations
-            implementations = extension.get_implementations()
-            for implementation in implementations:
-                if implementation.locks is not None:
-                    self.sync_key_manager.register_sync_keys(
-                        implementation.interface or implementation.definition.name,
-                        implementation.locks,
-                    )
-
-                self._collected_implementations.append(implementation)
-
-            locks = extension.get_lock_schemas()
-            for interface, lock_schema in locks.items():
-                if interface not in self.locks:
-                    self.locks[interface] = TaskLock(self, lock_schema)
-
-            blocks = extension.get_bloks()
-            for key, blok in blocks.items():
-                self._collected_bloks.append(blok)
+        # Build the runtime task locks
+        for lock_schema in app_registry.get_locks():
+            if lock_schema.key not in self.locks:
+                self.locks[lock_schema.key] = TaskLock(self, lock_schema)
 
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
         """Get the structure registry for a given interface from extensions.
@@ -435,14 +387,15 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             The structure registry for the interface.
         """
 
-        for extension in self.extension_registry.agent_extensions.values():
-            app_registry = getattr(extension, "app_registry", None)
-            if app_registry is not None:
-                return app_registry.state_registry.get_registry_for_interface(interface)
-        raise AgentException(f"No structure registry found for interface {interface}")
+        try:
+            return self.app_registry.get_registry_for_interface(interface)
+        except (KeyError, AssertionError):
+            raise AgentException(
+                f"No structure registry found for interface {interface}"
+            )
 
     def get_interface_for_state_class(self, cls: type) -> str:
-        """Get the interface for a state class from extensions.
+        """Get the interface for a state class from the app registry.
 
         Args:
             cls: The state class to get the interface for.
@@ -450,14 +403,10 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         Returns:
             The interface name for the state class.
         """
-        for extension in self.extension_registry.agent_extensions.values():
-            app_registry = getattr(extension, "app_registry", None)
-            if app_registry is not None:
-                try:
-                    return app_registry.state_registry.get_interface_for_class(cls)
-                except (KeyError, AssertionError):
-                    continue
-        raise AgentException(f"No interface found for state class {cls}")
+        try:
+            return self.app_registry.get_interface_for_class(cls)
+        except (KeyError, AssertionError):
+            raise AgentException(f"No interface found for state class {cls}")
 
     async def ashelve(
         self,
@@ -583,8 +532,8 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                 await actor.apass(message)
             else:
                 logger.warning(
-                    "Received unassignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message.assignation}"
+                    "Received unassignation for a provision that is not running. "
+                    f"Received: {message.assignation}"
                 )
                 await self.transport.asend(
                     messages.CriticalEvent(
@@ -678,9 +627,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                 await self._errorfuture
             except asyncio.CancelledError:
                 pass
-
-        for extension in self.extension_registry.agent_extensions.values():
-            await extension.atear_down()
 
         await self.astop_background()
         await self.transport.adisconnect()
@@ -821,11 +767,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         Returns:
             A tuple of sync key names, or empty tuple if none.
         """
-        for extension in self.extension_registry.agent_extensions.values():
-            implementations = extension.get_implementations()
-            for impl in implementations:
-                if (impl.interface or impl.definition.name) == interface:
-                    return impl.locks or ()
+        for impl in self.app_registry.get_implementations():
+            if (impl.interface or impl.definition.name) == interface:
+                return impl.locks or ()
         return ()
 
     def get_sync_key_status(self) -> list[dict]:
@@ -936,9 +880,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             else None
         )
 
-        for extension in self.extension_registry.agent_extensions.values():
-            await extension.astart(instance_id=instance_id, app_context=app_context)
-
         for context_key, context_value in hook_return.contexts.items():
             self.contexts[context_key] = context_value
 
@@ -954,13 +895,16 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         """
 
-        if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
+        try:
+            actor_builder = self.app_registry.get_builder_for_interface(
+                assign.interface
             )
-        extension = self.extension_registry.agent_extensions[assign.extension]
+        except KeyError:
+            raise ProvisionException(
+                f"No actor builder found for interface {assign.interface} in agent {self.name}"
+            )
 
-        actor = await extension.aspawn_actor_for_interface(self, assign.interface)
+        actor = actor_builder(agent=self)
 
         self.managed_actors[assign.actor_id] = actor
         self.managed_assignments[assign.assignation] = assign
@@ -1083,13 +1027,19 @@ class RekuestAgent(BaseAgent[ContextType]):
             logger.info(
                 "Agent hash does not match, registering implementations and states again"
             )
-            agent = await aimplement_agent(
+            # Assemble + validate the whole agent input from the app registry
+            # (the ImplementAgentInput model validators fire on construction).
+            agent_input = self.app_registry.to_implement_agent_input(
                 instance_id=self.instance_id,
                 name=self.name,
-                implementations=self._collected_implementations,
-                states=self._collected_states,
-                locks=self._collected_locks,
-                bloks=self._collected_bloks,
+            )
+            agent = await aimplement_agent(
+                instance_id=agent_input.instance_id,
+                name=agent_input.name,
+                implementations=agent_input.implementations,
+                states=agent_input.states,
+                locks=agent_input.locks,
+                bloks=agent_input.bloks,
             )
 
             logger.info("Registered agent with id %s and hash %s", agent.id, agent.hash)

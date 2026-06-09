@@ -1,7 +1,7 @@
 import ast
 import uuid
 import xml.etree.ElementTree as ET
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 from rekuest_next.api.schema import (
     AgentDependencyInput,
     ComponentNodeInput,
@@ -12,7 +12,9 @@ from rekuest_next.api.schema import (
     ActionArgumentInput,
     PortMatchInput,
     StateDependencyInput,
+    StateImplementationInput,
 )
+from rekuest_next.definition.match import build_port_matches
 
 
 class BlokParser:
@@ -742,6 +744,66 @@ def _infer_iterable_item_match(
 
     raise ValueError(
         f"ForEach items reference '{path}' must resolve to a list-like value"
+    )
+
+
+def resolve_state_reference(
+    dependency: Optional[str],
+    state_path: str,
+    *,
+    dependencies: Iterable[AgentDependencyInput],
+    own_states: Iterable[StateImplementationInput],
+    context: str,
+) -> None:
+    """Validate a ``withStateChoices`` state reference is resolvable.
+
+    A ``dependency`` of ``None`` denotes a ``self`` reference which is resolved
+    against the agent's own ``own_states``. A named ``dependency`` is resolved
+    through that dependency's declared ``state_demands``.
+
+    Raises:
+        ValueError: If the reference cannot be resolved.
+    """
+    path_parts = [part for part in state_path.split(".") if part]
+    if not path_parts:
+        return
+
+    if dependency is None:
+        own_by_interface = {state.interface: state for state in own_states}
+        state_key = path_parts[0]
+        state = own_by_interface.get(state_key)
+        if state is None:
+            raise ValueError(
+                f"Unknown self state reference '{state_path}' in {context}: "
+                f"no own state '{state_key}'. "
+                f"Available states: {sorted(own_by_interface)}"
+            )
+        root_match = PortMatchInput(
+            key=state_key,
+            children=build_port_matches(state.definition.ports),
+        )
+        _resolve_port_match_path(root_match, path_parts[1:], state_path, context)
+        return
+
+    dependency_state_demands = {
+        dep.key: {
+            state_demand.key: state_demand
+            for state_demand in dep.state_demands or ()
+        }
+        for dep in dependencies
+    }
+    if dependency not in dependency_state_demands:
+        raise ValueError(
+            f"State choice widget in {context} references unknown dependency "
+            f"'{dependency}'. Available dependencies: {sorted(dependency_state_demands)}"
+        )
+
+    _resolve_dependency_state_path(
+        dependency,
+        path_parts,
+        dependency_state_demands,
+        state_path,
+        context,
     )
 
 
