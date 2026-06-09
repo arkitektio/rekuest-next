@@ -2,14 +2,13 @@
 
 from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable, Awaitable, Any
 from rekuest_next import messages
-from rekuest_next.actors.sync import SyncGroup
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
+from rekuest_next.coercible_types import OptimisticCoercible
 from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.publish import Patch
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
-    AgentDependencyInput,
     PortGroupInput,
     TrackInput,
     ValidatorInput,
@@ -310,37 +309,67 @@ class ActorBuilder(Protocol):
         ...
 
 
+@dataclass
+class RegisterConfig:
+    """Bundle of every option that shapes a registered function's definition and
+    implementation.
+
+    This is the single source of truth for the registration options. The public
+    ``register`` decorator builds one of these from its keyword arguments and threads
+    it — as a single object — down through ``register_func`` and the actifier, instead
+    of re-listing ~20 parameters at every hop.
+
+    The fields fall into two groups:
+
+    * **definition-shaping** — unpacked by the actifier into ``prepare_definition``:
+      ``name``, ``description``, ``widgets``, ``return_widgets``, ``effects``,
+      ``validators``, ``collections``, ``port_groups``, ``interfaces``,
+      ``is_test_for``, ``logo``, ``stateful``, ``version``, ``key``.
+    * **implementation/actor-shaping** — used by the actifier's actor build and by
+      ``register_func`` when constructing the ``ImplementationInput``: ``dynamic``,
+      ``optimistics``, ``locks``, ``tracks``, ``manipulates``, ``in_process``,
+      ``bypass_shrink``, ``bypass_expand``, ``auto_locks``.
+    """
+
+    # definition-shaping
+    name: Optional[str] = None
+    description: Optional[str] = None
+    widgets: Optional[AssignWidgetMap] = None
+    return_widgets: Optional[ReturnWidgetMap] = None
+    effects: Optional[EffectsMap] = None
+    validators: Optional[Dict[str, List[ValidatorInput]]] = None
+    collections: Optional[List[str]] = None
+    port_groups: Optional[List[PortGroupInput]] = None
+    interfaces: Optional[List[str]] = None
+    is_test_for: Optional[List[str]] = None
+    logo: Optional[str] = None
+    stateful: bool = False
+    version: Optional[str] = None
+    key: Optional[str] = None
+    # implementation / actor-shaping
+    dynamic: bool = False
+    optimistics: Optional[List[OptimisticCoercible]] = None
+    locks: Optional[List[str]] = None
+    tracks: Optional[List[TrackInput]] = None
+    manipulates: Optional[List[str]] = None
+    in_process: bool = False
+    bypass_shrink: bool = False
+    bypass_expand: bool = False
+    auto_locks: bool = True
+
+
 @runtime_checkable
 class Actifier(Protocol):
-    """An actifier is a function that takes a callable and a structure registry
-    as well as optional arguments
-
+    """An actifier is a function that takes a callable, a structure registry and a
+    bundled :class:`RegisterConfig`, and returns a definition, implementation details
+    and an actor builder.
     """
 
     def __call__(
         self,
         function: AnyFunction,
         structure_registry: StructureRegistry,
-        bypass_shrink: bool = False,
-        bypass_expand: bool = False,
-        description: str | None = None,
-        stateful: bool = False,
-        validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-        collections: List[str] | None = None,
-        effects: EffectsMap | None = None,
-        port_groups: Optional[List[PortGroupInput]] = None,
-        is_test_for: Optional[List[str]] = None,
-        widgets: AssignWidgetMap | None = None,
-        return_widgets: ReturnWidgetMap | None = None,
-        interfaces: List[str] | None = None,
-        in_process: bool = False,
-        logo: str | None = None,
-        locks: Optional[List[str]] = None,
-        name: str | None = None,
-        sync: Optional[SyncGroup] = None,
-        dependencies: Optional[List["AgentDependencyInput"]] = None,
-        version: Optional[str] = None,
-        key: Optional[str] = None,
+        config: Optional[RegisterConfig] = None,
     ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
         """A function that will inspect the function and return a definition and
         an actor builder. This method will inspect the function and return a

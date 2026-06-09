@@ -20,7 +20,7 @@ from rekuest_next.declare import declare, declare_state
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.match import build_port_matches
 from rekuest_next.app import AppRegistry
-from rekuest_next.register import register_func
+from rekuest_next.register import register_func, RegisterConfig
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.widgets import withStateChoices
 
@@ -166,7 +166,9 @@ def test_register_with_state_choices_exposes_dependency(
         adjust,
         simple_registry,
         definition_registry,
-        widgets={"exposure": withStateChoices("camera.state.exposure_ms")},
+        RegisterConfig(
+            widgets={"exposure": withStateChoices("camera.state.exposure_ms")},
+        ),
     )
 
     implementation = definition_registry.implementations["adjust"]
@@ -185,5 +187,7 @@ def test_register_with_unknown_state_choice_dependency_is_rejected(
             adjust,
             simple_registry,
             definition_registry,
-            widgets={"exposure": withStateChoices("ghost.state.exposure_ms")},
+            RegisterConfig(
+                widgets={"exposure": withStateChoices("ghost.state.exposure_ms")},
+            ),
         )

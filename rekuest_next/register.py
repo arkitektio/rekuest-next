@@ -24,10 +24,9 @@ from rekuest_next.coercible_types import (
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import Actifier, ActorBuilder
+from rekuest_next.actors.types import Actifier, ActorBuilder, RegisterConfig
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import (
-    AssignWidgetMap,
     dependency_to_dependency_input,
 )
 from rekuest_next.definition.hash import hash_definition
@@ -118,25 +117,10 @@ def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
     implementation_registry: "AppRegistry",
+    config: Optional[RegisterConfig] = None,
+    *,
     interface: Optional[str] = None,
-    name: Optional[str] = None,
     actifier: Actifier = reactify,
-    description: Optional[str] = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: Optional[List[str]] = None,
-    is_test_for: Optional[List[str]] = None,
-    logo: Optional[str] = None,
-    widgets: Optional[AssignWidgetMap] = None,
-    effects: Optional[Dict[str, List[EffectInput]]] = None,
-    interfaces: Optional[List[str]] = None,
-    dynamic: bool = False,
-    stateful: bool = False,
-    in_process: bool = False,
-    optimistics: Optional[List[OptimisticCoercible]] = None,
-    locks: Optional[List[str]] = None,
-    version: Optional[str] = None,
-    tracks: Optional[List[TrackInput]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the provided definition registry.
 
@@ -146,46 +130,22 @@ def register_func(
     Args:
         function_or_actor (AnyFunction): A function or actor to be registered.
         structure_registry (StructureRegistry): The registry used for structuring inputs.
-        implementation_registry (DefinitionRegistry): The registry where implementations are stored.
+        implementation_registry (AppRegistry): The registry where implementations are stored.
+        config (Optional[RegisterConfig], optional): Bundled registration options.
+            Defaults to an empty ``RegisterConfig``.
         interface (Optional[str], optional): Interface name. Inferred if not provided.
-        name (Optional[str], optional): Optional display name.
         actifier (Actifier, optional): Callable converting functions to actors. Defaults to reactify.
-        dependencies (Optional[List[DependencyInput]], optional): External dependencies.
-        port_groups (Optional[List[PortGroupInput]], optional): Port group specifications.
-        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validator mappings.
-        collections (Optional[List[str]], optional): Collection groupings.
-        is_test_for (Optional[List[str]], optional): Interfaces this definition tests.
-        logo (Optional[str], optional): Optional logo URL.
-        widgets (Optional[AssignWidgetMap], optional): Widget mappings.
-        effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effect configurations.
-        interfaces (Optional[List[str]], optional): Interfaces implemented by this actor.
-        dynamic (bool, optional): Whether the definition is dynamically changeable.
-        in_process (bool, optional): Whether to run in the same process.
-        sync (Optional[SyncGroup], optional): Synchronization group, if any.
-        stateful (bool, optional): Indicates whether the actor is stateful.
 
     Returns:
         Tuple[DefinitionInput, ActorBuilder]: Registered definition and its actor builder.
     """
+    config = config or RegisterConfig()
     interface = interface or interface_name(function_or_actor)
 
     definition, implementation_details, actor_builder = actifier(
         function_or_actor,
         structure_registry,
-        widgets=widgets,
-        is_test_for=is_test_for,
-        collections=collections,
-        logo=logo,
-        name=name,
-        description=description,
-        port_groups=port_groups,
-        effects=effects,
-        locks=locks,
-        validators=validators,
-        interfaces=interfaces,
-        in_process=in_process,
-        tracks=tracks,
-        version=version,
+        config,
     )
 
     dependencies: list[AgentDependencyInput] = []
@@ -200,10 +160,10 @@ def register_func(
         ImplementationInput(
             interface=interface,
             definition=definition,
-            logo=logo,
-            dynamic=dynamic,
+            logo=config.logo,
+            dynamic=config.dynamic,
             locks=implementation_details.locks or [],
-            optimistics=optimistics if optimistics else [],
+            optimistics=config.optimistics if config.optimistics else [],
             dependencies=dependencies,
             tracks=implementation_details.tracks or [],
             manipulates=implementation_details.manipulates or [],
@@ -380,34 +340,34 @@ def register(  # type: ignore[valid-type]
     implementation_registry = implementation_registry or get_default_app_registry()
     structure_registry = structure_registry or get_default_structure_registry()
 
-    if len(func) > 1:
-        raise ValueError("You can only register one function or actor at a time.")
-    if len(func) == 1:
-        function_or_actor = func[0]
+    config = RegisterConfig(
+        name=name,
+        description=description,
+        widgets=widgets,
+        effects=effects,
+        validators=validators,
+        collections=collections,
+        port_groups=port_groups,
+        interfaces=interfaces,
+        is_test_for=is_test_for,
+        logo=logo,
+        stateful=stateful,
+        version=version,
+        dynamic=dynamic,
+        optimistics=optimistics,
+        locks=locks,
+        tracks=tracks,
+        in_process=in_process,
+    )
 
+    def _register(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
         definition, _ = register_func(
             function_or_actor,
-            name=name,
-            description=description,
-            structure_registry=structure_registry,
-            implementation_registry=implementation_registry,
-            validators=validators,
-            actifier=actifier,
+            structure_registry,
+            implementation_registry,
+            config,
             interface=interface,
-            stateful=stateful,
-            is_test_for=is_test_for,
-            widgets=widgets,
-            logo=logo,
-            effects=effects,
-            tracks=tracks,
-            optimistics=optimistics,
-            collections=collections,
-            interfaces=interfaces,
-            port_groups=port_groups,
-            in_process=in_process,
-            dynamic=dynamic,
-            locks=locks,
-            version=version,
+            actifier=actifier,
         )
 
         target = getattr(function_or_actor, "__func__", function_or_actor)
@@ -425,50 +385,12 @@ def register(  # type: ignore[valid-type]
             definition,
         )
 
-    else:
+    if len(func) > 1:
+        raise ValueError("You can only register one function or actor at a time.")
+    if len(func) == 1:
+        return _register(func[0])
 
-        def real_decorator(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
-            definition, _ = register_func(
-                function_or_actor,
-                name=name,
-                description=description,
-                structure_registry=structure_registry,
-                implementation_registry=implementation_registry,
-                actifier=actifier,
-                interface=interface,
-                validators=validators,
-                is_test_for=is_test_for,
-                widgets=widgets,
-                effects=effects,
-                collections=collections,
-                interfaces=interfaces,
-                optimistics=optimistics,
-                stateful=stateful,
-                logo=logo,
-                port_groups=port_groups,
-                dynamic=dynamic,
-                in_process=in_process,
-                locks=locks,
-                version=version,
-            )
-
-            setattr(function_or_actor, "__definition__", definition)
-            setattr(
-                function_or_actor, "__definition_hash__", hash_definition(definition)
-            )
-            setattr(
-                function_or_actor,
-                "__interface__",
-                interface or interface_name(function_or_actor),
-            )
-
-            return WrappedFunction(
-                function_or_actor,
-                interface or interface_name(function_or_actor),
-                definition,
-            )
-
-        return cast(Callable[[T], T], real_decorator)  # type: ignore
+    return cast(Callable[[T], T], _register)  # type: ignore
 
 
 action = register

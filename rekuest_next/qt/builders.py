@@ -9,8 +9,6 @@ from typing import (
     Any,
     AsyncGenerator,
     Callable,
-    Dict,
-    List,
     Optional,
     Tuple,
     get_args,
@@ -23,17 +21,18 @@ from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenAct
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.agents.dependency import prepare_dependency_variables
 from rekuest_next.definition.define import (
-    AssignWidgetMap,
-    EffectsMap,
-    ReturnWidgetMap,
     prepare_definition,
     DefinitionInput,
 )
-from rekuest_next.actors.types import ActorBuilder, Agent, ImplementationDetails
+from rekuest_next.actors.types import (
+    ActorBuilder,
+    Agent,
+    ImplementationDetails,
+    RegisterConfig,
+)
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.state.utils import prepare_state_variables
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import ValidatorInput, PortGroupInput
 
 
 class QtInLoopBuilder(QtCore.QObject):
@@ -185,26 +184,9 @@ class QtGeneratorBuilder(QtCore.QObject):
 def qtinloopactifier(
     function: AnyFunction,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    bypass_shrink: bool = False,
-    bypass_expand: bool = False,
-    description: str | None = None,
-    stateful: bool = False,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: List[str] | None = None,
-    effects: EffectsMap | None = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    is_test_for: Optional[List[str]] = None,
-    widgets: AssignWidgetMap | None = None,
-    return_widgets: ReturnWidgetMap | None = None,
-    interfaces: List[str] | None = None,
-    in_process: bool = False,
-    logo: str | None = None,
-    name: str | None = None,
-    auto_locks: bool = True,
-    locks: Optional[List[str]] = None,
-    version: Optional[str] = None,
-    key: Optional[str] = None,
     actor_class: Optional[type] = None,
 ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Reactify a function
@@ -213,12 +195,14 @@ def qtinloopactifier(
     returns a builder function that creates an actor that makes the function callable
     from the rekuest server.
     """
+    config = config or RegisterConfig()
 
     state_variables, state_returns = prepare_state_variables(function)
     context_variables, context_returns = prepare_context_variables(function)
     dependency_variables = prepare_dependency_variables(function)
 
-    if not locks and auto_locks:
+    locks = config.locks
+    if not locks and config.auto_locks:
         locks = []
         for lock in context_variables.required_context_locks.values():
             locks.extend(lock)
@@ -226,7 +210,8 @@ def qtinloopactifier(
             locks.extend(lock)
         locks = list(set(locks))
 
-    if state_variables:
+    stateful = config.stateful
+    if state_variables.count:
         stateful = True
 
     implementation_details = ImplementationDetails(
@@ -241,25 +226,25 @@ def qtinloopactifier(
     definition = prepare_definition(
         function,
         structure_registry,
-        widgets=widgets,
-        interfaces=interfaces,
-        port_groups=port_groups,
-        collections=collections,
+        widgets=config.widgets,
+        interfaces=config.interfaces,
+        port_groups=config.port_groups,
+        collections=config.collections,
         stateful=stateful,
-        validators=validators,
-        effects=effects,
-        is_test_for=is_test_for,
-        name=name,
-        description=description,
-        return_widgets=return_widgets,
-        logo=logo,
-        key=key,
-        version=version,
+        validators=config.validators,
+        effects=config.effects,
+        is_test_for=config.is_test_for,
+        name=config.name,
+        description=config.description,
+        return_widgets=config.return_widgets,
+        logo=config.logo,
+        key=config.key,
+        version=config.version,
     )
 
     actor_attributes: dict[str, Any] = {
-        "expand_inputs": not bypass_expand,
-        "shrink_outputs": not bypass_shrink,
+        "expand_inputs": not config.bypass_expand,
+        "shrink_outputs": not config.bypass_shrink,
         "state_variables": state_variables,
         "state_returns": state_returns,
         "context_variables": context_variables,
@@ -290,14 +275,16 @@ def qtinloopactifier(
 def qtwithfutureactifier(
     function: Callable,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    **kwargs: dict,
 ) -> ActorBuilder:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
     its first parameter being a future that can be resolved within the qt loop
     """
+    config = config or RegisterConfig()
 
     sig = inspect.signature(function)
 
@@ -325,7 +312,20 @@ def qtwithfutureactifier(
         structure_registry,
         omitfirst=1,
         return_annotations=return_params,
-        **kwargs,
+        widgets=config.widgets,
+        interfaces=config.interfaces,
+        port_groups=config.port_groups,
+        collections=config.collections,
+        stateful=config.stateful,
+        validators=config.validators,
+        effects=config.effects,
+        is_test_for=config.is_test_for,
+        name=config.name,
+        description=config.description,
+        return_widgets=config.return_widgets,
+        logo=config.logo,
+        key=config.key,
+        version=config.version,
     )
 
     in_loop_instance = QtFutureBuilder(
@@ -341,14 +341,16 @@ def qtwithfutureactifier(
 def qtwithgeneratoractifier(
     function: Callable,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    **kwargs: dict,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
     its first parameter being a future that can be resolved within the qt loop
     """
+    config = config or RegisterConfig()
 
     sig = inspect.signature(function)
 
@@ -376,7 +378,20 @@ def qtwithgeneratoractifier(
         structure_registry,
         omitfirst=1,
         return_annotations=return_params,
-        **kwargs,
+        widgets=config.widgets,
+        interfaces=config.interfaces,
+        port_groups=config.port_groups,
+        collections=config.collections,
+        stateful=config.stateful,
+        validators=config.validators,
+        effects=config.effects,
+        is_test_for=config.is_test_for,
+        name=config.name,
+        description=config.description,
+        return_widgets=config.return_widgets,
+        logo=config.logo,
+        key=config.key,
+        version=config.version,
     )
 
     in_loop_instance = QtGeneratorBuilder(

@@ -23,7 +23,7 @@ from rekuest_next.api.schema import (
 from rekuest_next.app import AppRegistry
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.match import build_port_matches
-from rekuest_next.register import register_func
+from rekuest_next.register import register_func, RegisterConfig
 from rekuest_next.state.decorator import state as state_decorator
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.widgets import withStateChoices
@@ -169,8 +169,10 @@ def test_real_registration_path_self_widget_validates(
         adjust,
         app.structure_registry,
         app,
-        widgets={"exposure": withStateChoices("self.CameraState.exposure_ms")},
-        stateful=True,
+        RegisterConfig(
+            widgets={"exposure": withStateChoices("self.CameraState.exposure_ms")},
+            stateful=True,
+        ),
     )
 
     agent_input = app.to_implement_agent_input("inst")
@@ -190,8 +192,10 @@ def test_real_registration_path_self_widget_unknown_field_is_rejected(
         adjust,
         app.structure_registry,
         app,
-        widgets={"exposure": withStateChoices("self.CameraState.missing_field")},
-        stateful=True,
+        RegisterConfig(
+            widgets={"exposure": withStateChoices("self.CameraState.missing_field")},
+            stateful=True,
+        ),
     )
 
     with pytest.raises(ValidationError, match="missing_field"):

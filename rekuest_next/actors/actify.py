@@ -6,7 +6,7 @@ into an actor.
 
 import inspect
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from rekuest_next.actors.functional import (
     FunctionalFuncActor,
@@ -14,20 +14,19 @@ from rekuest_next.actors.functional import (
     FunctionalThreadedFuncActor,
     FunctionalThreadedGenActor,
 )
-from rekuest_next.actors.types import ActorBuilder, AnyFunction, ImplementationDetails
+from rekuest_next.actors.types import (
+    ActorBuilder,
+    AnyFunction,
+    ImplementationDetails,
+    RegisterConfig,
+)
 from rekuest_next.agents.context import (
     prepare_context_variables,
 )
 from rekuest_next.api.schema import (
     DefinitionInput,
-    PortGroupInput,
-    TrackInput,
-    ValidatorInput,
 )
 from rekuest_next.definition.define import (
-    AssignWidgetMap,
-    EffectsMap,
-    ReturnWidgetMap,
     prepare_definition,
 )
 from rekuest_next.state.utils import (
@@ -40,40 +39,26 @@ from rekuest_next.structures.registry import StructureRegistry
 def reactify(
     function: AnyFunction,
     structure_registry: StructureRegistry,
-    bypass_shrink: bool = False,
-    bypass_expand: bool = False,
-    description: str | None = None,
-    stateful: bool = False,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: List[str] | None = None,
-    effects: EffectsMap | None = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    is_test_for: Optional[List[str]] = None,
-    widgets: AssignWidgetMap | None = None,
-    return_widgets: ReturnWidgetMap | None = None,
-    interfaces: List[str] | None = None,
-    in_process: bool = False,
-    logo: str | None = None,
-    name: str | None = None,
-    auto_locks: bool = True,
-    tracks: Optional[List[TrackInput]] = None,
-    manipulates: Optional[List[str]] = None,
-    locks: Optional[List[str]] = None,
-    version: Optional[str] = None,
-    key: Optional[str] = None,
+    config: Optional[RegisterConfig] = None,
 ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Reactify a function
 
     This function takes a callable (of type async or sync function or generator) and
     returns a builder function that creates an actor that makes the function callable
     from the rekuest server.
+
+    All registration options are read from the bundled ``config``
+    (:class:`~rekuest_next.actors.types.RegisterConfig`); ``config`` defaults to an
+    empty config so ``reactify(func, registry)`` keeps working.
     """
+    config = config or RegisterConfig()
 
     state_variables, state_returns = prepare_state_variables(function)
     context_variables, context_returns = prepare_context_variables(function)
     dependency_variables = prepare_dependency_variables(function)
 
-    if not locks and auto_locks:
+    locks = config.locks
+    if not locks and config.auto_locks:
         locks = []
         for lock in context_variables.required_context_locks.values():
             locks.extend(lock)
@@ -81,13 +66,15 @@ def reactify(
             locks.extend(lock)
         locks = list(set(locks))
 
+    manipulates = config.manipulates
     if not manipulates:
         manipulates = []
         for state_name in state_variables.write_state_variables.values():
             manipulates.append(state_name)
         manipulates = list(set(manipulates))
 
-    if state_variables:
+    stateful = config.stateful
+    if state_variables.count:
         stateful = True
 
     implementation_details = ImplementationDetails(
@@ -97,27 +84,27 @@ def reactify(
         context_returns=context_returns,
         dependency_variables=dependency_variables,
         locks=locks,
-        tracks=tracks,
+        tracks=config.tracks,
         manipulates=manipulates,
     )
 
     definition = prepare_definition(
         function,
         structure_registry,
-        widgets=widgets,
-        interfaces=interfaces,
-        port_groups=port_groups,
-        collections=collections,
+        widgets=config.widgets,
+        interfaces=config.interfaces,
+        port_groups=config.port_groups,
+        collections=config.collections,
         stateful=stateful,
-        validators=validators,
-        effects=effects,
-        is_test_for=is_test_for,
-        name=name,
-        description=description,
-        return_widgets=return_widgets,
-        logo=logo,
-        key=key,
-        version=version,
+        validators=config.validators,
+        effects=config.effects,
+        is_test_for=config.is_test_for,
+        name=config.name,
+        description=config.description,
+        return_widgets=config.return_widgets,
+        logo=config.logo,
+        key=config.key,
+        version=config.version,
     )
 
     is_coroutine = inspect.iscoroutinefunction(function)
@@ -129,8 +116,8 @@ def reactify(
 
     actor_attributes: dict[str, Any] = {
         "assign": function,
-        "expand_inputs": not bypass_expand,
-        "shrink_outputs": not bypass_shrink,
+        "expand_inputs": not config.bypass_expand,
+        "shrink_outputs": not config.bypass_shrink,
         "structure_registry": structure_registry,
         "definition": definition,
         "state_variables": state_variables,
@@ -153,13 +140,13 @@ def reactify(
             implementation_details,
             partial(FunctionalGenActor, **actor_attributes),
         )
-    elif is_generatorfunction and not in_process:
+    elif is_generatorfunction and not config.in_process:
         return (
             definition,
             implementation_details,
             partial(FunctionalThreadedGenActor, **actor_attributes),
         )
-    elif (is_function or is_method) and not in_process:
+    elif (is_function or is_method) and not config.in_process:
         return (
             definition,
             implementation_details,
