@@ -10,12 +10,11 @@ from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.openapi_utils import (
     create_json_schema_from_ports,
 )
-from typing import Any
 
 
 def add_implementation_route(
     router: APIRouter,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     implementation: ImplementationInput,
 ) -> None:
     """Register a single implementation execution route."""

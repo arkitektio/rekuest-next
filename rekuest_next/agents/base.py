@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, Dict, Generic, List, Optional, Self, Type, TypeVar
+from typing import Any, Dict, List, Optional, Self, Type, TypeVar
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -69,9 +69,6 @@ def app_context(
     return cls
 
 
-ContextType = TypeVar("ContextType", bound="AppContext")
-
-
 @dataclass
 class QueuedPatchEvent:
     interface: str
@@ -88,7 +85,7 @@ class RevisedState:
     data: JSONSerializable
 
 
-class BaseAgent(KoiledModel, Generic[ContextType]):
+class BaseAgent(KoiledModel):
     """Agent
 
     Agents are the governing entities for every app. They are responsible for
@@ -727,7 +724,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             raise AgentException(f"Context {context} not found in agent {self.name}")
         return self.contexts[context]
 
-    def get_context_for_type(self, context: Type[ContextType]) -> ContextType:  # noqa: ANN401
+    def get_context_for_type(self, context: Type[AppContext]) -> AppContext:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
         from rekuest_next.agents.context import get_context_name, is_context
@@ -808,7 +805,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             pass
 
     async def arun_startup_hooks(
-        self, instance_id: str, app_context: Optional[ContextType] = None
+        self, instance_id: str, app_context: Optional[AppContext] = None
     ) -> StartupHookReturns:
         """Run all startup hooks collected from extensions.
 
@@ -848,7 +845,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """A function that gets called so that we create the agent with its definitions before we start the ooop"""
 
     async def astart(
-        self, instance_id: str, app_context: Optional[ContextType] = None
+        self, instance_id: str, app_context: Optional[AppContext] = None
     ) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
@@ -918,7 +915,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         return await self._errorfuture
 
-    def provide(self, context: Optional[ContextType] = None) -> None:
+    def provide(self, context: Optional[AppContext] = None) -> None:
         """Provides the agent. This starts the agents and
         connected the transport."""
         return unkoil(self.aprovide, context=context)
@@ -941,7 +938,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             await self.atear_down()
             raise e
 
-    async def aprovide(self, context: Optional[ContextType] = None) -> None:
+    async def aprovide(self, context: Optional[AppContext] = None) -> None:
         """Provides the agent.
 
         This starts the agents and connectes to the transport.
@@ -996,7 +993,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
 
-class RekuestAgent(BaseAgent[ContextType]):
+class RekuestAgent(BaseAgent):
     """The Rekuest Agent
 
     This is the default agent that is used by rekuest. It provides the basic

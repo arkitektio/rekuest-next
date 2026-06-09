@@ -998,7 +998,7 @@ def create_test_lifespan(
 def create_test_app_and_agent(
     instance_id: str = "test-instance",
     app_registry: Optional["AppRegistry"] = None,
-) -> tuple[FastAPI, FastApiAgent[Any], AppRegistry]:
+) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
     This is a convenience function that sets up all the necessary registries

@@ -1,7 +1,6 @@
 """State detail and retriever route builders."""
 
 from __future__ import annotations
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -72,7 +71,7 @@ def _serialize_snapshot_result(
 
 
 def build_state_detail_router(
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     states: dict[str, StateImplementationInput],
     states_path: str = "/states",
 ) -> APIRouter:

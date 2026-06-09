@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
-
 from fastapi import APIRouter, Query
 
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
@@ -11,11 +9,9 @@ from rekuest_next.contrib.fastapi.models import TaskCollectionResponse
 
 from .common import normalize_filter_values
 
-T = TypeVar("T")
-
 
 def build_task_router(
-    agent: FastApiAgent[T],
+    agent: FastApiAgent,
     tasks_path: str = "/tasks",
 ) -> APIRouter:
     """Build overview routes for managed tasks."""

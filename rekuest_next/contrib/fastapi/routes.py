@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator, Callable
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional
 
 from fastapi import APIRouter, FastAPI, Request
 
@@ -47,12 +47,9 @@ def _include_router(app: FastAPI, router: APIRouter) -> None:
     register_router_custom_schemas(app, router)
 
 
-T = TypeVar("T")
-
-
 def create_lifespan(
-    agent: FastApiAgent[T],
-    app_context: T | None = None,
+    agent: FastApiAgent,
+    app_context: Any | None = None,
 ) -> Callable[[FastAPI], contextlib.AbstractAsyncContextManager[None]]:
     """Create a FastAPI lifespan manager for a configured agent."""
 
@@ -77,7 +74,7 @@ def create_lifespan(
 
 def add_agent_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     get_user_from_request: Optional[Callable[[Request], object]] = None,
     ws_path: str = "/ws",
     assign_path: str = "/assign",
@@ -105,7 +102,7 @@ def add_agent_routes(
 
 def add_task_routes(
     app: FastAPI,
-    agent: FastApiAgent[T],
+    agent: FastApiAgent,
     tasks_path: str = "/tasks",
 ) -> None:
     """Include task overview routes."""
@@ -126,7 +123,7 @@ def add_task_detail_routes(
 
 def add_state_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     states_path: str = "/states",
 ) -> None:
     """Include state overview routes."""
@@ -138,7 +135,7 @@ def add_state_routes(
 
 def add_state_detail_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     states_path: str = "/states",
     state_schemas: dict[str, StateImplementationInput] | None = None,
 ) -> None:
@@ -151,7 +148,7 @@ def add_state_detail_routes(
 
 def add_lock_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     locks_path: str = "/locks",
 ) -> None:
     """Include lock overview routes."""
@@ -163,7 +160,7 @@ def add_lock_routes(
 
 def add_implementation_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
 ) -> None:
     """Include all implementation execution routes."""
     _include_router(app, build_implementation_router(agent))
@@ -171,7 +168,7 @@ def add_implementation_routes(
 
 def add_schema_routes(
     app: FastAPI,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
 ) -> None:
     """Include schema inspection routes."""
     _include_router(app, build_schema_router(agent))
@@ -194,10 +191,10 @@ def configure_fastapi(
     states_path: str = "/states",
     locks_path: str = "/locks",
     db_file: str = "agent_data.db",
-    app_context: T | None = None,
-) -> FastApiAgent[T]:
+    app_context: Any | None = None,
+) -> FastApiAgent:
     """Configure a FastAPI app with a refactored set of agent route groups."""
-    agent: FastApiAgent[T] = FastApiAgent(  # type: ignore
+    agent: FastApiAgent = FastApiAgent(  # type: ignore
         app_registry=app_registry,
         retriever=SQLLiteRetriever(db_path=db_file),
         sink=SQLLiteSink(db_path=db_file),

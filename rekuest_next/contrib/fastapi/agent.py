@@ -19,11 +19,9 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Generic,
     List,
     Optional,
     Self,
-    TypeVar,
 )
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -508,10 +506,7 @@ class FastApiTransport(AgentTransport):
         await self.adisconnect()
 
 
-T = TypeVar("T", bound=Any)
-
-
-class FastApiAgent(BaseAgent[T], Generic[T]):
+class FastApiAgent(BaseAgent):
     """An Agent that uses FastAPI as its web framework.
 
     This agent uses `FastApiTransport` to receive messages from HTTP

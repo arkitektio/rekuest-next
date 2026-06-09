@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -13,7 +12,7 @@ from .common import normalize_filter_values
 
 
 def build_lock_router(
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     locks_path: str = "/locks",
 ) -> APIRouter:
     """Build overview routes for managed locks."""
