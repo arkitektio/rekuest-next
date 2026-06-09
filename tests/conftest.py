@@ -1,8 +1,10 @@
 """Some configuration for pytest"""
 
 from dataclasses import dataclass
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator, Generator, Optional
+from uuid import uuid4
 import pytest
+from rekuest_next.app import AppRegistry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.rekuest import RekuestNext, RekuestNextRath
 from rath.links.testing.direct_succeeding_link import DirectSucceedingLink
@@ -223,19 +225,66 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
             yield deployed
 
 
+def build_fresh_rekuest(
+    setup: Deployment, instance_id: Optional[str] = None
+) -> RekuestNext:
+    """Build a brand-new ``RekuestNext`` against an already-running deployment.
+
+    Every call gets its own empty :class:`AppRegistry` and a unique instance id,
+    so registrations made by one test are completely invisible to the next. This
+    is the per-test entrypoint for the integration tests: build the app, register
+    functions on it, then run it against the shared docker stack.
+
+    Args:
+        setup: The running dokker deployment (from the ``deployment`` fixture).
+        instance_id: Optional explicit instance id. Defaults to a unique value.
+
+    Returns:
+        A fresh, not-yet-entered ``RekuestNext`` client.
+    """
+    instance_id = instance_id or f"test-{uuid4().hex[:8]}"
+    port = setup.spec.find_service("rekuest").get_port_for_internal(80).published
+    http_url = f"http://localhost:{port}/graphql"
+    ws_url = f"ws://localhost:{port}/graphql"
+    agi_url = f"ws://localhost:{port}/agi"
+
+    rath = RekuestNextRath(
+        link=compose(
+            ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+            SplitLink(
+                left=AIOHttpLink(endpoint_url=http_url),
+                right=GraphQLWSLink(ws_endpoint_url=ws_url),
+                split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
+            ),
+        ),
+    )
+
+    agent = RekuestAgent(
+        transport=WebsocketAgentTransport(
+            endpoint_url=agi_url,
+            token_loader=token_loader,
+        ),
+        instance_id=instance_id,
+        rath=rath,
+        name=f"Test-{instance_id}",
+        app_registry=AppRegistry(),
+    )
+
+    return RekuestNext(
+        rath=rath,
+        agent=agent,
+        postman=GraphQLPostman(rath=rath, instance_id=instance_id),
+    )
+
+
 @pytest_asyncio.fixture(scope="session")
 @pytest.mark.asyncio(scope="session")
-async def async_deployed_app() -> AsyncGenerator[DeployedRekuest, None]:
-    """Fixture to deploy the MikroNext application with Docker Compose.
+async def deployment() -> AsyncGenerator[Deployment, None]:
+    """Bring the rekuest stack up once per session and yield the dokker setup.
 
-    This fixture sets up the MikroNext application using Docker Compose,
-    configures health checks, and provides a deployed instance of MikroNext
-    for testing purposes. It also includes watchers for the Mikro and MinIO
-    services to monitor their logs, when performing requests against the application.
-
-    Yields:
-        DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
-
+    Tests build their own fresh ``RekuestNext`` (fresh ``AppRegistry``, unique
+    instance id) against this running stack via :func:`build_fresh_rekuest`, so
+    no registry state ever leaks between tests.
     """
     setup = local(docker_compose_file)
     setup.pull_on_enter = False
@@ -248,62 +297,39 @@ async def async_deployed_app() -> AsyncGenerator[DeployedRekuest, None]:
         max_retries=10,
     )
 
-    watcher = setup.create_watcher("rekuest")
-    minio_watcher = setup.create_watcher("minio")
-
     async with setup:
         await setup.adown()
         await setup.apull()
-
-        instance_id = "default"
-
-        mikro_http_url = f"http://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
-        mikro_ws_url = f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
-
-        rath = RekuestNextRath(
-            link=compose(
-                ComposedAuthLink(
-                    token_loader=token_loader, token_refresher=token_loader
-                ),
-                SplitLink(
-                    left=AIOHttpLink(endpoint_url=mikro_http_url),
-                    right=GraphQLWSLink(ws_endpoint_url=mikro_ws_url),
-                    split=lambda o: o.node.operation != OperationType.SUBSCRIPTION,
-                ),
-            ),
-        )
-
-        agent = RekuestAgent(
-            transport=WebsocketAgentTransport(
-                endpoint_url=f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/agi",
-                token_loader=token_loader,
-            ),
-            instance_id=instance_id,
-            rath=rath,
-            name="Test",
-        )
-
-        rekuest = RekuestNext(
-            rath=rath,
-            agent=agent,
-            postman=GraphQLPostman(
-                rath=rath,
-                instance_id=instance_id,
-            ),
-        )
         await setup.aup()
-
-        rekuest.register(most_basic_function)
-
         await setup.acheck_health()
+        yield setup
 
-        async with rekuest as rekuest:
-            deployed = DeployedRekuest(
-                deployment=setup,
-                rekuest_watcher=watcher,
-                minio_watcher=minio_watcher,
-                rekuest=rekuest,
-                instance_id=instance_id,
-            )
 
-            yield deployed
+@pytest_asyncio.fixture(scope="session")
+@pytest.mark.asyncio(scope="session")
+async def async_deployed_app(
+    deployment: Deployment,
+) -> AsyncGenerator[DeployedRekuest, None]:
+    """A deployed app with ``most_basic_function`` registered on a fresh registry.
+
+    Built on top of the shared ``deployment`` fixture via
+    :func:`build_fresh_rekuest`, so it too gets its own ``AppRegistry``.
+    """
+    instance_id = "default"
+
+    watcher = deployment.create_watcher("rekuest")
+    minio_watcher = deployment.create_watcher("minio")
+
+    rekuest = build_fresh_rekuest(deployment, instance_id=instance_id)
+    rekuest.register(most_basic_function)
+
+    async with rekuest as rekuest:
+        deployed = DeployedRekuest(
+            deployment=deployment,
+            rekuest_watcher=watcher,
+            minio_watcher=minio_watcher,
+            rekuest=rekuest,
+            instance_id=instance_id,
+        )
+
+        yield deployed
