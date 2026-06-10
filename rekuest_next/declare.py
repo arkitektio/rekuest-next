@@ -11,6 +11,7 @@ from typing import (
     TypeVar,
     overload,
     get_type_hints,
+    Protocol,
 )
 import inflection
 from rekuest_next.api.schema import (
@@ -224,7 +225,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
         )
 
 
-T = TypeVar("T")
+T = TypeVar("T", bound=object)
 
 
 def declare(
@@ -291,7 +292,7 @@ def declare(
 
 
 @overload
-def state_protocol(cls: Type[T]) -> Type[T]: ...
+def state_protocol(cls: Type[T], /) -> Type[T]: ...
 
 
 @overload
@@ -310,7 +311,7 @@ def state_protocol(
     version: str | None = None,
     min: int | None = None,
     max: int | None = None,
-) -> Type[T]:
+) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Declare an state protocol.
 
     This is useful for defining state protocols that can be registered later.
