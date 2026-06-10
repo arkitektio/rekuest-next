@@ -1,0 +1,70 @@
+"""ContextLink is a link that adds an assignation token to the context of a graphql operation.
+
+Its used to give some correlation information to every operation that is executed within
+the context of an assignation.
+
+
+"""
+
+import json
+from typing import AsyncIterator
+from urllib.parse import quote
+
+from rath.links.base import ContinuationLink
+from rath.operation import GraphQLResult, Operation
+from rath.errors import NotComposedError
+from rekuest_next.actors.vars import get_current_assignation_helper
+
+
+class ContextLink(ContinuationLink):
+    """ContextLink is a link that adds an assignation token to the context.
+    The authentication token is retrieved by calling the token_loader function.
+    If the wrapped link raises an AuthenticationError, the token_refresher function
+    is called again to refresh the token.
+
+    This link is statelss, and does not store the token. It is up to the user to
+    store the token and pass it to the token_loader function.
+    """
+
+    async def aexecute(
+        self, operation: Operation, retry: int = 0
+    ) -> AsyncIterator[GraphQLResult]:
+        """Executes and forwards an operation to the next link.
+
+        This method will add the authentication token to the context of the operation,
+        and will refresh the token if the next link raises an AuthenticationError, until
+        the maximum number of refresh attempts is reached.
+
+        Parameters
+        ----------
+        operation : Operation
+            The operation to execute
+
+        Yields
+        ------
+        GraphQLResult
+            The result of the operation
+        """
+        if not self.next:
+            raise NotComposedError("No next link set")
+
+        try:
+            helper = get_current_assignation_helper()
+            encoded_args = quote(
+                json.dumps(helper.args, separators=(",", ":"), ensure_ascii=True),
+                safe="",
+            )
+
+            operation.context.headers["Rekuest-Task"] = (
+                f"id={helper.assignation},"
+                f"parent={helper.assignment.parent or ''},"
+                f"args={encoded_args},"
+                f"user={helper.user},"
+                f"action={helper.action}"
+            )
+
+        except Exception:
+            pass
+
+        async for result in self.next.aexecute(operation):
+            yield result
