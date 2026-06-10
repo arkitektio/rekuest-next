@@ -36,6 +36,82 @@ from rekuest_next.agents.dependency import prepare_dependency_variables
 from rekuest_next.structures.registry import StructureRegistry
 
 
+def derive_implementation_details(
+    function: AnyFunction,
+    config: RegisterConfig,
+) -> ImplementationDetails:
+    """Inspect a function's state/context/dependency variables and resolve the
+    implementation metadata.
+
+    Explicit ``config.locks``/``config.manipulates`` win; otherwise locks are
+    inferred from the required state/context locks (when ``config.auto_locks``)
+    and manipulates from the written state variables.
+    """
+    state_variables, state_returns = prepare_state_variables(function)
+    context_variables, context_returns = prepare_context_variables(function)
+    dependency_variables = prepare_dependency_variables(function)
+
+    locks = config.locks
+    if not locks and config.auto_locks:
+        locks = []
+        for lock in context_variables.required_context_locks.values():
+            locks.extend(lock)
+        for lock in state_variables.required_state_locks.values():
+            locks.extend(lock)
+        locks = list(set(locks))
+
+    manipulates = config.manipulates
+    if not manipulates:
+        manipulates = list(set(state_variables.write_state_variables.values()))
+
+    return ImplementationDetails(
+        state_variables=state_variables,
+        state_returns=state_returns,
+        context_variables=context_variables,
+        context_returns=context_returns,
+        dependency_variables=dependency_variables,
+        locks=locks,
+        tracks=config.tracks,
+        manipulates=manipulates,
+    )
+
+
+def prepare_definition_from_config(
+    function: AnyFunction,
+    structure_registry: StructureRegistry,
+    config: RegisterConfig,
+    details: Optional[ImplementationDetails] = None,
+    **prepare_overrides: Any,
+) -> DefinitionInput:
+    """Build the definition for a function from its bundled RegisterConfig.
+
+    ``details`` (when given) marks the definition stateful if the function
+    uses state variables. ``prepare_overrides`` are forwarded to
+    ``prepare_definition`` (e.g. ``omitfirst`` for the Qt actifiers).
+    """
+    stateful = config.stateful or bool(details and details.state_variables.count)
+
+    return prepare_definition(
+        function,
+        structure_registry,
+        widgets=config.widgets,
+        interfaces=config.interfaces,
+        port_groups=config.port_groups,
+        collections=config.collections,
+        stateful=stateful,
+        validators=config.validators,
+        effects=config.effects,
+        is_test_for=config.is_test_for,
+        name=config.name,
+        description=config.description,
+        return_widgets=config.return_widgets,
+        logo=config.logo,
+        key=config.key,
+        version=config.version,
+        **prepare_overrides,
+    )
+
+
 def reactify(
     function: AnyFunction,
     structure_registry: StructureRegistry,
@@ -53,58 +129,9 @@ def reactify(
     """
     config = config or RegisterConfig()
 
-    state_variables, state_returns = prepare_state_variables(function)
-    context_variables, context_returns = prepare_context_variables(function)
-    dependency_variables = prepare_dependency_variables(function)
-
-    locks = config.locks
-    if not locks and config.auto_locks:
-        locks = []
-        for lock in context_variables.required_context_locks.values():
-            locks.extend(lock)
-        for lock in state_variables.required_state_locks.values():
-            locks.extend(lock)
-        locks = list(set(locks))
-
-    manipulates = config.manipulates
-    if not manipulates:
-        manipulates = []
-        for state_name in state_variables.write_state_variables.values():
-            manipulates.append(state_name)
-        manipulates = list(set(manipulates))
-
-    stateful = config.stateful
-    if state_variables.count:
-        stateful = True
-
-    implementation_details = ImplementationDetails(
-        state_variables=state_variables,
-        state_returns=state_returns,
-        context_variables=context_variables,
-        context_returns=context_returns,
-        dependency_variables=dependency_variables,
-        locks=locks,
-        tracks=config.tracks,
-        manipulates=manipulates,
-    )
-
-    definition = prepare_definition(
-        function,
-        structure_registry,
-        widgets=config.widgets,
-        interfaces=config.interfaces,
-        port_groups=config.port_groups,
-        collections=config.collections,
-        stateful=stateful,
-        validators=config.validators,
-        effects=config.effects,
-        is_test_for=config.is_test_for,
-        name=config.name,
-        description=config.description,
-        return_widgets=config.return_widgets,
-        logo=config.logo,
-        key=config.key,
-        version=config.version,
+    implementation_details = derive_implementation_details(function, config)
+    definition = prepare_definition_from_config(
+        function, structure_registry, config, implementation_details
     )
 
     is_coroutine = inspect.iscoroutinefunction(function)
@@ -120,12 +147,12 @@ def reactify(
         "shrink_outputs": not config.bypass_shrink,
         "structure_registry": structure_registry,
         "definition": definition,
-        "state_variables": state_variables,
-        "state_returns": state_returns,
-        "context_variables": context_variables,
-        "context_returns": context_returns,
-        "dependency_variables": dependency_variables,
-        "locks": locks,
+        "state_variables": implementation_details.state_variables,
+        "state_returns": implementation_details.state_returns,
+        "context_variables": implementation_details.context_variables,
+        "context_returns": implementation_details.context_returns,
+        "dependency_variables": implementation_details.dependency_variables,
+        "locks": implementation_details.locks,
     }
 
     if is_coroutine:

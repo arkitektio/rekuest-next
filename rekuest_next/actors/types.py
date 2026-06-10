@@ -105,9 +105,9 @@ class ImplementationDetails:
     context_variables: PreparedContextVariables
     context_returns: PreparedContextReturns
     dependency_variables: PreparedDependencyVariables
-    locks: Optional[List[str]]
-    tracks: Optional[List["TrackInput"]]
-    manipulates: Optional[List[str]]
+    locks: Optional[List[str]] = None
+    tracks: Optional[List["TrackInput"]] = None
+    manipulates: Optional[List[str]] = None
 
 
 class Passport(BaseModel):
@@ -334,6 +334,7 @@ class RegisterConfig:
     # definition-shaping
     name: Optional[str] = None
     description: Optional[str] = None
+    interface: Optional[str] = None
     widgets: Optional[AssignWidgetMap] = None
     return_widgets: Optional[ReturnWidgetMap] = None
     effects: Optional[EffectsMap] = None

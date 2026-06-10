@@ -266,31 +266,17 @@ class AppRegistry(BaseModel):
     def register(
         self,
         *args: T,
-        interface: Optional[str] = None,
         **kwargs: Any,
     ) -> T | Callable[[T], T]:
         """Register a function or class as an implementation."""
         from rekuest_next.register import register as register_decorator
 
-        if args:
-            return register_decorator(
-                *args,
-                interface=interface,
-                implementation_registry=self,
-                structure_registry=self.structure_registry,
-                **kwargs,
-            )
-
-        def decorator(func: T) -> T:
-            return register_decorator(
-                func,
-                interface=interface,
-                implementation_registry=self,
-                structure_registry=self.structure_registry,
-                **kwargs,
-            )
-
-        return decorator
+        return register_decorator(
+            *args,
+            implementation_registry=self,
+            structure_registry=self.structure_registry,
+            **kwargs,
+        )
 
 
 # Global app registry instance
