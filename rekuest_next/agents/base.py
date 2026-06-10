@@ -545,10 +545,10 @@ class BaseAgent(KoiledModel):
         """
         logger.info("Tearing down the agent")
 
-        for background_task in self._background_tasks.values():
+        for background_task in list(self._background_tasks.values()):
             background_task.cancel()
 
-        for background_task in self._background_tasks.values():
+        for background_task in list(self._background_tasks.values()):
             try:
                 await background_task
             except asyncio.CancelledError:
@@ -695,13 +695,20 @@ class BaseAgent(KoiledModel):
             task = asyncio.create_task(
                 worker.arun(self, contexts=self.contexts, states=self.states)
             )
-            task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(
-                lambda x: logger.error(
-                    "Worker %s failed with exception: %s", name, x.exception()
-                )
+                lambda task, name=name: self._on_background_done(name, task)
             )
             self._background_tasks[name] = task
+
+    def _on_background_done(self, name: str, task: "asyncio.Task[None]") -> None:
+        """Done-callback for background worker tasks. Removes the task from the
+        registry and logs any genuine failure (ignoring cancellation)."""
+        self._background_tasks.pop(name, None)
+        if task.cancelled():
+            return
+        exception = task.exception()
+        if exception is not None:
+            logger.error("Worker %s failed with exception: %s", name, exception)
 
     async def astop_background(self) -> None:
         """Stop the background tasks. This will be called when the agent stops."""
