@@ -22,6 +22,7 @@ from rekuest_next.agents.hooks.registry import (
     get_default_hook_registry,
 )
 from rekuest_next.protocols import (
+    AnyFunction,
     AsyncStartupFunction,
     ContextLessStartupFunction,
     ThreadedStartupFunction,
@@ -36,7 +37,7 @@ from rekuest_next.state.utils import (
 
 
 class WithVariables:
-    def __init__(self, func: Callable[..., Any]) -> None:
+    def __init__(self, func: AnyFunction) -> None:
         self.func = func
         self.state_variables, self.state_returns = prepare_state_variables(func)
         self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
@@ -237,7 +238,8 @@ def startup(
         registry = registry or get_default_hook_registry()
 
         if inspect.iscoroutinefunction(func):
-            registry.register_startup(name or func.__name__, WrappedStartupHook(func))
+            a = cast(AsyncStartupFunction, func)
+            registry.register_startup(name or a.__name__, WrappedStartupHook(a))
 
         else:
             assert inspect.isfunction(func) or inspect.ismethod(func), (
@@ -245,12 +247,12 @@ def startup(
             )
             t = cast(ThreadedStartupFunction, func)
 
-            registry.register_startup(name or func.__name__, ThreadedStartupHook(t))
+            registry.register_startup(name or t.__name__, ThreadedStartupHook(t))
 
-        return func  # type: ignore
+        return cast(TStartup, func)
     else:
 
         def decorator(func: TStartup) -> TStartup:
-            return startup(func, name=name, registry=registry)  # type: ignore[return-value]
+            return cast(TStartup, startup(func, name=name, registry=registry))
 
         return decorator

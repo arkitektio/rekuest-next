@@ -1,5 +1,6 @@
 """Types for the actors module"""
 
+import asyncio
 from typing import (
     TYPE_CHECKING,
     Protocol,
@@ -42,6 +43,7 @@ class AssignmentHook:
     modify the assignment before it is processed by the actor.
     """
 
+    id: str
     kind: str
     hook: Callable[[messages.ToAgentMessage], Awaitable[None]]
 
@@ -137,6 +139,8 @@ class Agent(Protocol):
 
     app_registry: "AppRegistry"
     instance_id: str
+    capture_condition: asyncio.Condition
+    capture_active: bool
 
     async def alock(self, key: str, assignation: str) -> None:
         """A function to acquire a lock on the agent. This is used to acquire
@@ -195,7 +199,9 @@ class Agent(Protocol):
         """
         ...
 
-    def publish_patch(self, instance: AnyState, patch: Patch) -> None:
+    def publish_patch(
+        self, interface: str, patch: Patch, assignation_id: str | None = None
+    ) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
         ...
@@ -207,11 +213,13 @@ class Actor(Protocol):
 
     agent: Agent
 
-    def install_assignment_hook(self, assignation: str, hook: AssignmentHook) -> None:
+    def install_assignment_hook(
+        self, assignation_id: str, hook: AssignmentHook
+    ) -> None:
         """Install an assignment hook for the current assignation.
 
         Args:
-            assignation (str): The assignation to install the hook for.
+            assignation_id (str): The assignation to install the hook for.
             hook (AssignmentHook): The hook to install.
         """
         ...
@@ -245,15 +253,6 @@ class Actor(Protocol):
     ) -> bool:
         """Check the assignation. This method will check the assignation and
         return None.
-        """
-        ...
-
-    async def apublish_state(self: Self, state: AnyState) -> None:
-        """A function to publish the state of the actor. This is used to publish the
-        state of the actor to the agent.
-
-        Args:
-            state (AnyState): The state to publish.
         """
         ...
 

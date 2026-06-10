@@ -384,15 +384,6 @@ class Actor(BaseModel):
         else:
             raise UnknownMessageError(f"{message}")
 
-    async def apublish_state(self: Self, state: AnyState) -> None:
-        """A function to publish the state of the actor. This is used to publish the
-        state of the actor to the agent.
-
-        Args:
-            state (AnyState): The state to publish.
-        """
-        await self.agent.apublish_state(state)
-
 
 class AgentMethodProxy:
     def __init__(

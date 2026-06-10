@@ -76,3 +76,20 @@ class StateRetriever(Protocol):
         session_id: Optional[str] = None,
         count: int = 100,
     ) -> List[PatchEvent]: ...
+
+    async def aget_patch_events_between_global_revs(
+        self,
+        from_global_revision: int,
+        to_global_revision: int,
+        state_ids: Optional[List[str]] = None,
+        session_id: Optional[str] = None,
+    ) -> List[PatchEvent]: ...
+
+    async def aget_snapshots_around_rev(
+        self,
+        revision: int,
+        state_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        before: int = 1,
+        after: int = 1,
+    ) -> List[Snapshot]: ...

@@ -2,12 +2,16 @@
 
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Dict,
     Any,
     Protocol,
     runtime_checkable,
 )
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from rekuest_next.actors.types import Agent
 
 
 @runtime_checkable
@@ -17,13 +21,12 @@ class BackgroundTask(Protocol):
     It is run in the order they are registered.
     """
 
-    def __init__(self) -> None:
-        """Initialize the background task"""
-        pass
-
-    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
+    async def arun(
+        self, agent: "Agent", contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> None:
         """Run the background task in the event loop
         Args:
+            agent (Agent): The agent running the background task
             contexts (Dict[str, Any]): The contexts of the agent
             proxies (Dict[str, Any]): The state variables of the agent
         Returns:

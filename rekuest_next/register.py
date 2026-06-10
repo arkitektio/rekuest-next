@@ -2,6 +2,7 @@
 
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Dict,
     Generic,
@@ -29,6 +30,7 @@ from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import (
     dependency_to_dependency_input,
 )
+from rekuest_next.definition.dependencies import build_action_dependency_input
 from rekuest_next.definition.hash import hash_definition
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
@@ -44,6 +46,7 @@ from rekuest_next.api.schema import (
     ImplementationInput,
     ValidatorInput,
     AgentDependencyInput,
+    OptimisticInput,
     my_implementation_at,
 )
 import logging
@@ -74,7 +77,7 @@ class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
     def __init__(
-        self, func: AnyFunction, interface: str, definition: DefinitionInput
+        self, func: Callable[P, R], interface: str, definition: DefinitionInput
     ) -> None:
         """Initialize the wrapped function."""
         self.func = func
@@ -89,7 +92,12 @@ class WrappedFunction(Generic[P, R]):
             helper.actor.agent.instance_id, self.interface
         )
 
-        return call(implementation, *args, parent=helper.assignment, **kwargs)
+        return call(
+            implementation,
+            *args,
+            parent=helper.assignment,
+            **cast("Dict[str, Any]", kwargs),
+        )
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
@@ -98,7 +106,12 @@ class WrappedFunction(Generic[P, R]):
             helper.actor.agent.instance_id, self.interface
         )
 
-        return await acall(implementation, *args, parent=helper.assignment, **kwargs)
+        return await acall(
+            implementation,
+            *args,
+            parent=helper.assignment,
+            **cast("Dict[str, Any]", kwargs),
+        )
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Call the actor's implementation."""
@@ -106,10 +119,10 @@ class WrappedFunction(Generic[P, R]):
 
     def to_dependency_input(self) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
-        return ActionDependencyInput(
+        return build_action_dependency_input(
             key=self.interface,
+            definition=self.definition,
             optional=False,
-            hash=hash_definition(self.definition),
         )
 
 
@@ -154,6 +167,13 @@ def register_func(
     ) in implementation_details.dependency_variables.dependency_variables.items():
         dependencies.append(dependency_to_dependency_input(key, dependency))
 
+    optimistics: list[OptimisticInput] = [
+        optimistic
+        if isinstance(optimistic, OptimisticInput)
+        else optimistic.to_optimistic_input()
+        for optimistic in (config.optimistics or [])
+    ]
+
     implementation_registry.register_at_interface(
         interface,
         ImplementationInput(
@@ -161,11 +181,11 @@ def register_func(
             definition=definition,
             logo=config.logo,
             dynamic=config.dynamic,
-            locks=implementation_details.locks or [],
-            optimistics=config.optimistics if config.optimistics else [],
-            dependencies=dependencies,
-            tracks=implementation_details.tracks or [],
-            manipulates=implementation_details.manipulates or [],
+            locks=tuple(implementation_details.locks or []),
+            optimistics=tuple(optimistics),
+            dependencies=tuple(dependencies),
+            tracks=tuple(implementation_details.tracks or []),
+            manipulates=tuple(implementation_details.manipulates or []),
         ),
         actor_builder,
     )
@@ -316,10 +336,11 @@ def register(  # type: ignore[valid-type]
     )
 
     def _register(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
-        iface = config.interface or interface_name(function_or_actor)
+        any_function = cast(AnyFunction, function_or_actor)
+        iface = config.interface or interface_name(any_function)
 
         definition, _ = register_func(
-            function_or_actor,
+            any_function,
             structure_registry,
             implementation_registry,
             config,

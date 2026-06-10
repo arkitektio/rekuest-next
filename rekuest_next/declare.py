@@ -123,18 +123,14 @@ def declare_state(cls: Type[T]) -> Type[T]:
                 exposure_ms: float
     """
     state_cls = cls[0] if isinstance(cls, tuple) else cls
-    state_cls.__is_state__ = True
+    setattr(state_cls, "__is_state__", True)
     if getattr(state_cls, "__rekuest_state__", None) is None:
-        state_cls.__rekuest_state__ = state_cls.__name__
+        setattr(state_cls, "__rekuest_state__", state_cls.__name__)
     return state_cls
 
 
 def state_dep_like(cls: Class) -> bool:
-    if (
-        isinstance(cls, type)
-        and getattr(cls, "__is_state__", None)
-        and cls.__is_state__
-    ):
+    if isinstance(cls, type) and getattr(cls, "__is_state__", None):
         return True
     return False
 
@@ -295,7 +291,7 @@ def declare(
 
 
 @overload
-def state_protocol(func: Type[T]) -> Type[T]: ...
+def state_protocol(cls: Type[T]) -> Type[T]: ...
 
 
 @overload
@@ -338,5 +334,3 @@ def state_protocol(
         return wrapper
 
     raise ValueError("You can only declare one state protocol at a time.")
-
-

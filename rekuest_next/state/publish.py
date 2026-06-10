@@ -61,6 +61,32 @@ class Publisher(Protocol):
         """
         ...
 
+    def __enter__(self) -> "Publisher":
+        """Enter the publisher as a synchronous context manager."""
+        ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[object],
+    ) -> None:
+        """Exit the synchronous context manager."""
+        ...
+
+    async def __aenter__(self) -> "Publisher":
+        """Enter the publisher as an asynchronous context manager."""
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[object],
+    ) -> None:
+        """Exit the asynchronous context manager."""
+        ...
+
 
 class BasePublisher:
     def __init__(self, state_holder: StateHolder) -> None:
