@@ -19,7 +19,6 @@ import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next import messages
 from rekuest_next.actors.types import Actor
@@ -127,7 +126,6 @@ class BaseAgent(KoiledModel):
     )
     locks: Dict[str, TaskLock] = Field(default_factory=dict)
 
-    # TODO: Probably dead
     capture_condition: asyncio.Condition = Field(default_factory=asyncio.Condition)
     capture_active: bool = Field(default=False)
 
@@ -370,20 +368,6 @@ class BaseAgent(KoiledModel):
             raise AgentException(
                 f"No structure registry found for interface {interface}"
             )
-
-    def get_interface_for_state_class(self, cls: type) -> str:
-        """Get the interface for a state class from the app registry.
-
-        Args:
-            cls: The state class to get the interface for.
-
-        Returns:
-            The interface name for the state class.
-        """
-        try:
-            return self.app_registry.get_interface_for_class(cls)
-        except (KeyError, AssertionError):
-            raise AgentException(f"No interface found for state class {cls}")
 
     async def ashelve(
         self,
@@ -704,37 +688,6 @@ class BaseAgent(KoiledModel):
             raise AgentException(f"Context {context} not found in agent {self.name}")
         return self.contexts[context]
 
-    def get_context_for_type(self, context: Type[AppContext]) -> AppContext:  # noqa: ANN401
-        """Get a context from the agent. This is used to get contexts from the
-        agent from the actor."""
-        from rekuest_next.agents.context import get_context_name, is_context
-
-        if not self.running:
-            raise AgentException(
-                "Agent is not running. Contexts are not available yet."
-            )
-
-        if is_context(context):
-            context_name = get_context_name(context)
-            return self.contexts[context_name]
-
-        raise AgentException(
-            f"Context for type {context} not found in agent {self.name}"
-        )
-
-    async def aget_app_context(self) -> AppContext:
-        """Get the app context from the agent. This is used to get the
-        app context from the agent."""
-        if self._app_context is None:
-            raise AgentException("App context is not set in the agent")
-        return self._app_context
-
-    async def aget_state(self, interface: str) -> AnyState:
-        """Get the state of the extension. This will be called when"""
-        if interface not in self.states:
-            raise AgentException(f"State {interface} not found in agent {self.name}")
-        return self.states[interface]
-
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
 
@@ -865,18 +818,6 @@ class BaseAgent(KoiledModel):
         self.managed_assignments[assign.assignation] = assign
 
         return actor
-
-    async def await_errorfuture(self) -> Exception:
-        """Waits for the error future to be set. This is used to wait for"""
-        if self._errorfuture is None:
-            raise AgentException("Error future is not set")
-
-        return await self._errorfuture
-
-    def provide(self, context: Optional[AppContext] = None) -> None:
-        """Provides the agent. This starts the agents and
-        connected the transport."""
-        return unkoil(self.aprovide, context=context)
 
     async def aloop(self) -> None:
         """Async loop that runs the agent. This is used to run the agent"""

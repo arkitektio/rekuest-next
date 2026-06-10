@@ -1,7 +1,6 @@
 from typing import Tuple
 
 from rekuest_next import startup, context, state
-import pytest
 
 
 def test_startup_decorator():

@@ -10,7 +10,6 @@ from rekuest_next.actors.vars import (
 )
 from rekuest_next.actors.types import Actor, AssignmentHook
 from rekuest_next.protocols import AnyState
-from rath.scalars import ID
 
 
 class AssignmentHelper(BaseModel):
@@ -40,10 +39,6 @@ class AssignmentHelper(BaseModel):
                 message=message,
             )
         )
-
-    def get_resolution(self) -> ID:
-        """Get a dependency by its reference."""
-        return self.assignment.resolution
 
     def install_hook(self, hook: "AssignmentHook") -> None:
         """Install an assignment hook for the current assignation.

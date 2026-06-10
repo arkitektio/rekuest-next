@@ -2,87 +2,10 @@ from __future__ import annotations
 import contextlib
 import os
 import threading
-from typing import AsyncGenerator, Callable, Tuple
+from typing import AsyncGenerator
 
 from rekuest_next import messages
 from rekuest_next.actors.types import Agent
-
-
-# -------------------------------------------------------
-# FD-LEVEL STDOUT + STDERR CAPTURE (works for C/Rust/Python)
-# -------------------------------------------------------
-
-
-@contextlib.asynccontextmanager
-async def capture_stdouterr() -> AsyncGenerator[Callable[[], Tuple[str, str]], None]:
-    """
-    Capture both stdout (fd=1) and stderr (fd=2) at the FD level.
-
-    This captures:
-    - Python print()
-    - sys.stderr.write()
-    - C printf()
-    - C fprintf(stderr, ...)
-    - Rust println!() and eprintln!()
-    - Anything writing to file descriptors 1 and 2.
-
-    Returns:
-        A callable get_logs() → (stdout: str, stderr: str)
-    """
-
-    # Create pipes for capturing stdout & stderr
-    out_r, out_w = os.pipe()
-    err_r, err_w = os.pipe()
-
-    # Duplicate original file descriptors
-    orig_out = os.dup(1)
-    orig_err = os.dup(2)
-
-    # Redirect fd 1 → out_w, fd 2 → err_w
-    os.dup2(out_w, 1)
-    os.dup2(err_w, 2)
-
-    # Close writer ends (FD now duplicated)
-    os.close(out_w)
-    os.close(err_w)
-
-    out_chunks: list[bytes] = []
-    err_chunks: list[bytes] = []
-
-    # Readers run in background threads because os.read() blocks
-    def reader(fd: int, target: list[bytes]) -> None:
-        with os.fdopen(fd, "rb") as f:
-            while True:
-                data = f.read()
-                if not data:
-                    break
-                target.append(data)
-
-    t_out = threading.Thread(target=reader, args=(out_r, out_chunks))
-    t_err = threading.Thread(target=reader, args=(err_r, err_chunks))
-    t_out.start()
-    t_err.start()
-
-    try:
-        # Provide a callable for retrieving the logs
-        def get_logs() -> Tuple[str, str]:
-            return (
-                b"".join(out_chunks).decode(errors="replace"),
-                b"".join(err_chunks).decode(errors="replace"),
-            )
-
-        yield get_logs
-
-    finally:
-        # Restore original stdout/stderr
-        os.dup2(orig_out, 1)
-        os.dup2(orig_err, 2)
-        os.close(orig_out)
-        os.close(orig_err)
-
-        # Ensure threads finish draining the pipes
-        t_out.join()
-        t_err.join()
 
 
 @contextlib.asynccontextmanager

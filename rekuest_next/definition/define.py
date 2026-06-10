@@ -69,28 +69,6 @@ def is_nullable(cls: Any) -> bool:  # noqa: ANN401
     return False
 
 
-def get_non_nullable(cls: Any) -> Any:  # noqa: ANN401
-    """Get the non-nullable type of a union type"""
-    args = get_args(cls)
-
-    non_nullable_args = [arg for arg in args if arg is not type(None)]
-    if len(non_nullable_args) == 1:
-        return non_nullable_args[0]
-    else:
-        return Union.__getitem__(tuple(non_nullable_args))  # type: ignore
-
-
-def get_non_nullable_variant(cls: Any) -> Any:  # noqa: ANN401
-    """Get the non-nullable type of a union type"""
-    non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
-    if len(non_nullable_args) == 1:
-        return non_nullable_args[0]
-    # We are dealing with a Union so we still use the same class
-    # the logic will be handled in the union path
-    # TODO: We might want to handle this better
-    return cls
-
-
 def is_union(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a union"""
     if not is_union_type(cls):

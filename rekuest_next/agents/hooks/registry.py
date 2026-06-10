@@ -8,9 +8,6 @@ from typing import (
     runtime_checkable,
 )
 from pydantic import BaseModel, ConfigDict, Field
-import asyncio
-
-from .errors import StartupHookError
 
 
 @runtime_checkable
@@ -53,11 +50,7 @@ class StartupHook(Protocol):
     It is run in the order they are registered.
     """
 
-    def __init__(self) -> None:
-        """Initialize the startup hook"""
-        pass
-
-    async def arun(self, instance_id: str) -> StartupHookReturns:
+    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Should return a dictionary of state variables"""
         ...
 
@@ -74,16 +67,7 @@ class HooksRegistry(BaseModel):
     background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = {}
-    startup_timeout: float | None = 20
-    """Timeout for the startup hooks, if None, no timeout is set"""
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def cleanup(self) -> None:
-        """Cleanup the registry"""
-        for task in self._background_tasks.values():
-            task.cancel()
 
     def register_background(self, name: str, task: BackgroundTask) -> None:
         """Register a background task in the registry."""
@@ -92,39 +76,6 @@ class HooksRegistry(BaseModel):
     def register_startup(self, name: str, hook: StartupHook) -> None:
         """Register a startup hook in the registry."""
         self.startup_hooks[name] = hook
-
-    async def arun_startup(self, instance_id: str) -> StartupHookReturns:
-        """Run the startup hooks in the registry.
-
-        Args:
-            instance_id (str): The instance id of the agent
-        Returns:
-            StartupHookReturns: The state variables and contexts
-        """
-        states: Dict[str, Any] = {}
-        contexts: Dict[str, Any] = {}
-
-        for key, hook in self.startup_hooks.items():
-            try:
-                answer = (
-                    await asyncio.wait_for(hook.arun(instance_id), timeout=self.startup_timeout)
-                    if self.startup_timeout
-                    else await hook.arun(instance_id)
-                )
-                for i in answer.states:
-                    if i in states:
-                        raise StartupHookError(f"State {i} already defined")
-                    states[i] = answer.states[i]
-
-                for i in answer.contexts:
-                    if i in contexts:
-                        raise StartupHookError(f"Context {i} already defined")
-                    contexts[i] = answer.contexts[i]
-
-            except Exception as e:
-                raise StartupHookError(f"Startup hook {key} failed") from e
-
-        return StartupHookReturns(states=states, contexts=contexts)
 
     def reset(self) -> None:
         """Reset the registry"""

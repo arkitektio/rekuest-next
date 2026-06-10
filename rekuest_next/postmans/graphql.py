@@ -84,10 +84,6 @@ class GraphQLPostman(KoiledModel):
             del self._ass_update_queues[assign.reference]
             raise e
 
-    def unregister_assignation_queue(self, ass_id: str) -> None:
-        """Delte the watch queue"""
-        del self._ass_update_queues[ass_id]
-
     async def watch_assignations(self) -> None:
         """Watch assingaitons task"""
         try:

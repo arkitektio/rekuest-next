@@ -6,18 +6,14 @@ from typing import (
     Callable,
     Dict,
     Generic,
-    List,
     ParamSpec,
-    Protocol,
     Type,
     TypeVar,
     overload,
-    runtime_checkable,
     get_type_hints,
 )
 import inflection
 from rekuest_next.api.schema import (
-    ArgPortInput,
     ReturnPortInput,
     StateDependencyInput,
 )
@@ -27,13 +23,10 @@ from rekuest_next.definition.dependencies import (
 )
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.define import convert_object_to_returnport
-from rekuest_next.definition.match import build_port_match
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.api.schema import (
     ActionDependencyInput,
-    Implementation,
-    PortMatchInput,
     AgentDependencyInput,
     StateDefinitionInput,
 )
@@ -58,14 +51,6 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def port_to_match(index: int, port: ArgPortInput) -> PortMatchInput:
-    return build_port_match(index, port)
-
-
-def returnport_to_match(index: int, port: ReturnPortInput) -> PortMatchInput:
-    return build_port_match(index, port)
-
-
 class DeclaredAgentAction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
@@ -81,7 +66,6 @@ class DeclaredAgentAction(Generic[P, R]):
         )
         self.is_async = inspect.iscoroutinefunction(func)
         self.interface = func.__name__
-        self._current_implementation_cache: Dict[str, List[Implementation]] = {}
 
     def to_dependency_input(self, key: str) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
@@ -245,15 +229,6 @@ class DeclaredAgentProtocol(Generic[Agent]):
 
 
 T = TypeVar("T")
-
-
-@runtime_checkable
-class Resolvable(Protocol):
-    """A protocol for resolvable dependencies."""
-
-    def resolve(self, **kwargs: Any) -> Any:
-        """Resolve the dependency."""
-        ...
 
 
 def agent_protocol(

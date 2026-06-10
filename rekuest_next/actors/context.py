@@ -118,19 +118,9 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
         pass
 
 
-def useUser() -> str:
-    """Returns the user id of the current assignation"""
-    return get_current_assignation_helper().user
-
-
 def useAssign() -> messages.Assign:
     """Returns the assignation id of the current provision"""
     return get_current_assignation_helper().assignment
-
-
-def useInstanceID() -> str:
-    """Returns the guardian id of the current provision"""
-    return get_current_assignation_helper().actor.agent.instance_id
 
 
 def progress(percentage: int, message: Optional[str] = None) -> None:

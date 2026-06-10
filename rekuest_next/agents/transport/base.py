@@ -48,7 +48,6 @@ class AgentTransport(KoiledModel):
     async def aconnect(self, instance_id: str) -> None:
         """Connect to the agent."""
         raise NotImplementedError("This is an abstract Base Class")
-        yield
 
     @abstractmethod
     async def areceive(self) -> AsyncIterator[ToAgentMessage]:

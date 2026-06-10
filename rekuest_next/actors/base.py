@@ -40,13 +40,6 @@ from rekuest_next.state.lock import acquired_locks
 logger = logging.getLogger(__name__)
 
 
-class Passport(BaseModel):
-    """The passport of the actor. This is used to identify the actor and"""
-
-    instance_id: str
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-
-
 class Actor(BaseModel):
     """The base class for all actors.
 
@@ -551,13 +544,6 @@ class SerializingActor(Actor):
                 raise StateRequirementsNotMet(f"State requirements not met: {e}") from e
 
         return context_kwargs, state_kwargs, dependency_kwargs
-
-    async def async_locals(self: Self, state_params: Mapping[str, AnyState]) -> None:
-        """A function to again sync the state of the actor with the state params
-        Args:
-            state_params (Mapping[str, AnyState]): The state params to sync with
-        """
-        return
 
 
 Actor.model_rebuild()

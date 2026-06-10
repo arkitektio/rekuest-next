@@ -28,8 +28,6 @@ from rekuest_next.definition.define import (
     ReturnWidgetMap,
 )
 from typing import Optional, List, Dict, Sequence, Tuple, Callable
-from pydantic import BaseModel, Field
-import uuid
 from dataclasses import dataclass
 
 
@@ -58,11 +56,6 @@ class PreparedStateVariables:
     def count(self) -> int:
         """Get the amount of state variables."""
         return len(self.write_state_variables) + len(self.read_only_variables)
-
-    @property
-    def required_locks_amount(self) -> int:
-        """Get the amount of locks."""
-        return len(self.required_state_locks)
 
     @property
     def variable_keys(self) -> List[str]:
@@ -117,22 +110,6 @@ class ImplementationDetails:
     locks: Optional[List[str]] = None
     tracks: Optional[List["TrackInput"]] = None
     manipulates: Optional[List[str]] = None
-
-
-class Passport(BaseModel):
-    """The passport of the actor. This is used to identify the actor and"""
-
-    instance_id: str
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-
-
-@runtime_checkable
-class ImplementationDetailsProtocol(Protocol):
-    state_variables: Any
-    state_returns: Any
-    context_variables: Any
-    context_returns: Any
-    locks: Optional[List[str]]
 
 
 @runtime_checkable
@@ -207,11 +184,6 @@ class Agent(Protocol):
         shelve."""
         ...
 
-    async def aget_state(self, interface: str) -> AnyState:  # noqa: ANN401
-        """Get a state from the agent. This is used to get states from the
-        agent from the actor."""
-        ...
-
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
@@ -283,27 +255,6 @@ class Actor(Protocol):
         Args:
             state (AnyState): The state to publish.
         """
-        ...
-
-
-@runtime_checkable
-class OnProvide(Protocol):
-    """An on_provide is a function gets call when the actors gets first started"""
-
-    def __call__(
-        self,
-        passport: Passport,
-    ) -> Awaitable[Any]:
-        """Provide the provision. This method will provide the provision and"""
-        ...
-
-
-@runtime_checkable
-class OnUnprovide(Protocol):
-    """An on unprovide is a function gets call when the actors gets kills"""
-
-    def __call__(self) -> Awaitable[Any]:
-        """Unprovide the provision. This method will unprovide the provision and"""
         ...
 
 

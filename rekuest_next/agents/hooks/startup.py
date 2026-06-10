@@ -1,6 +1,5 @@
 """Hooks for the agent"""
 
-import contextvars
 import inspect
 from typing import (
     Any,
@@ -33,11 +32,6 @@ from rekuest_next.state.utils import (
     get_return_length,
     prepare_appcontext,
     prepare_state_variables,
-)
-
-
-startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "startup_hook_context"
 )
 
 
@@ -74,10 +68,6 @@ class WithVariables:
             )
 
 
-class InspectHookMixin:
-    """Mixin to inspect the hook function"""
-
-
 class WrappedStartupHook(WithVariables):
     """Startup hook that runs in the event loop"""
 
@@ -98,15 +88,10 @@ class WrappedStartupHook(WithVariables):
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        token = startup_context.set(True)
-
-        try:
-            if self.pass_app_context:
-                parsed_returns = await self.func(app_context)
-            else:
-                parsed_returns = await self.func()
-        finally:
-            startup_context.reset(token)
+        if self.pass_app_context:
+            parsed_returns = await self.func(app_context)
+        else:
+            parsed_returns = await self.func()
 
         returns = ensure_return_as_tuple(parsed_returns)
 
@@ -139,14 +124,10 @@ class ThreadedStartupHook(WithVariables):
         super().__init__(func)
 
     def run_func_with_context(self, app_context: Any) -> Any:
-        token = startup_context.set(True)
-        try:
-            if self.pass_app_context:
-                return self.func(app_context)
-            else:
-                return self.func()
-        finally:
-            startup_context.reset(token)
+        if self.pass_app_context:
+            return self.func(app_context)
+        else:
+            return self.func()
 
     async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop

@@ -62,8 +62,6 @@ class RekuestNext(Composition):
             effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
             is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
             logo (Optional[str], optional): URL or identifier for the actor's logo.
-            on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
-            on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
             validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
             structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
             implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
@@ -156,9 +154,3 @@ class RekuestNext(Composition):
         Run the application.
         """
         await self.agent.aprovide(context=context)
-
-    async def arun_tests(self, context: Any | None = None) -> None:
-        """
-        Run the application tests.
-        """
-        await self.agent.atest(context=context)

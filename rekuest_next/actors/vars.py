@@ -25,16 +25,6 @@ def get_current_assignation_helper() -> "AssignmentHelper":
         ) from e
 
 
-def is_inside_assignation() -> bool:
-    """Checks if the current context is inside an assignation (e.g. was called from
-    the rekuest_server)"""
-    try:
-        current_assignation_helper.get()
-        return True
-    except LookupError:
-        return False
-
-
 def get_current_assignation_id_or_none() -> str | None:
     """Get the current assignation id."""
     try:

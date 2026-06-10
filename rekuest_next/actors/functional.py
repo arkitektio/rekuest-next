@@ -118,8 +118,6 @@ class FunctionalActorBase(SerializingActor):
                                 )
                             )
 
-                            await self.async_locals(state_kwargs)
-
                 await aflush_captured_logs()
 
                 await self.asend(
