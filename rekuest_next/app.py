@@ -2,8 +2,7 @@
 
 This module provides a single unified registry that holds every piece of agent
 registration data — implementations, states and bloks — together with the hooks
-and structure registries. It replaces the previously separate ``DefinitionRegistry``,
-``StateRegistry`` and ``BlokRegistry`` classes.
+and structure registries.
 """
 
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
@@ -204,30 +203,16 @@ class AppRegistry(BaseModel):
         self,
         *args: Type[T],
         name: Optional[str] = None,
-        local_only: bool = False,
     ) -> Type[T] | Callable[[Type[T]], Type[T]]:
         """Register a class as a stateful entity."""
         from rekuest_next.state.decorator import state as state_decorator
 
-        if args:
-            return state_decorator(
-                *args,
-                name=name,
-                local_only=local_only,
-                registry=self,
-                structure_reg=self.structure_registry,
-            )
-
-        def decorator(cls: Type[T]) -> Type[T]:
-            return state_decorator(
-                cls,
-                name=name,
-                local_only=local_only,
-                registry=self,
-                structure_reg=self.structure_registry,
-            )
-
-        return decorator
+        return state_decorator(
+            *args,
+            name=name,
+            registry=self,
+            structure_reg=self.structure_registry,
+        )
 
     def background(
         self,

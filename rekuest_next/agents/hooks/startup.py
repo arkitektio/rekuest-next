@@ -12,8 +12,6 @@ from typing import (
     cast,
     overload,
 )
-import asyncio
-
 from koil.helpers import run_spawned
 from rekuest_next.agents.context import (
     prepare_context_variables,
@@ -271,19 +269,7 @@ def startup(
         return func  # type: ignore
     else:
 
-        def decorator(func: T) -> T:
-            registry = get_default_hook_registry()
-
-            if asyncio.iscoroutinefunction(func):
-                registry.register_startup(func.__name__, WrappedStartupHook(func))
-
-            else:
-                assert inspect.isfunction(func), (
-                    "Function must be a async function or a sync function"
-                )
-
-                t = cast(ThreadedStartupFunction, func)
-                registry.register_startup(func.__name__, ThreadedStartupHook(t))
-            return func
+        def decorator(func: TStartup) -> TStartup:
+            return startup(func, name=name, registry=registry)  # type: ignore[return-value]
 
         return decorator

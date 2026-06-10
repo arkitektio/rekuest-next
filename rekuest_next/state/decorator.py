@@ -107,9 +107,6 @@ def state(*function: Type[T]) -> Type[T]: ...
 @overload
 def state(
     *,
-    local_only: bool = False,
-    app: Optional[str] = None,
-    version: Optional[str] = None,
     name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
@@ -120,9 +117,6 @@ def state(
 
 def state(
     *function: Type[T],
-    local_only: bool = False,
-    app: Optional[str] = None,
-    version: Optional[str] = None,
     name: Optional[str] = None,
     required_locks: Optional[list[str]] = None,
     publish_interval: float = 0.1,
@@ -133,21 +127,17 @@ def state(
 
     The decorator ensures the class is a dataclass, assigns a rekuest state
     name, converts the class into an evented state object through ``statify``,
-    and registers the resulting schema in the selected :class:`StateRegistry`.
+    and registers the resulting schema in the selected :class:`AppRegistry`.
     The injected ``__init__`` wrapper wires state changes into the publishing
     machinery used by the agent runtime.
 
     Args:
         *function: Class to decorate when used as ``@state`` without
             parentheses.
-        local_only: Reserved for compatibility with older state registration
-            flows.
-        app: Optional application namespace for the state.
-        version: Optional version tag for the state.
         name: Explicit exported state name. Defaults to the class name.
         required_locks: Locks that must be held while mutating this state.
         publish_interval: Debounce interval for published state updates.
-        registry: State registry to populate. Defaults to the global registry.
+        registry: App registry to populate. Defaults to the global registry.
         structure_reg: Structure registry used while inspecting the state
             schema.
 
@@ -173,7 +163,13 @@ def state(
 
     if len(function) == 1:
         cls = function[0]
-        return state(name=cls.__name__)(cls)
+        return state(
+            name=name or cls.__name__,
+            required_locks=required_locks,
+            publish_interval=publish_interval,
+            registry=registry,
+            structure_reg=structure_reg,
+        )(cls)
 
     if len(function) == 0:
 
