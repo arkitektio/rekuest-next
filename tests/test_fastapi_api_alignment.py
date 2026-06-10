@@ -2,7 +2,6 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from rekuest_next.api.schema import (
-    BlokImplementationInput,
     ImplementationInput,
     PortKind,
     ReturnPortInput,

@@ -1,10 +1,8 @@
 """Functional actors for rekuest_next"""
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncGenerator, Callable, Dict, List, Self
 from koil.helpers import iterate_spawned, run_spawned  # type: ignore
-from pydantic import BaseModel, Field
 from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
 from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
@@ -16,158 +14,24 @@ from rekuest_next.actors.debug import capture_to_list
 logger = logging.getLogger(__name__)
 
 
-class FunctionalActor(BaseModel):
-    """The based class for all composable functional"
+class FunctionalActorBase(SerializingActor):
+    """The base class for all functional actors.
 
-    Functional actors are actors that are based on a function, that
-    can be passed on to the actor.
+    Functional actors wrap a plain callable (``assign``) and run it through a
+    single assignment pipeline: expand inputs, inject state/context/dependency
+    locals, execute, shrink each result, and publish Yield/Done events.
+
+    Subclasses only define :meth:`aiterate_results` — how the wrapped callable
+    is invoked and how its results are iterated.
     """
 
     assign: Callable[..., Any]
 
-
-class AsyncFuncActor(SerializingActor):
-    """The base class for all async functional actors
-
-    Async functional actors are actors that are based on a function, that
-    can be passed on to the actor.
-    """
-
-    async def assign(self: Self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
-        """This method should be implemented by the actor"""
+    def aiterate_results(
+        self: Self, **params: Dict[str, Any]
+    ) -> AsyncGenerator[Any, None]:
+        """Invoke the wrapped callable and yield its result(s)."""
         raise NotImplementedError("This method should be implemented by the actor")
-
-    async def _assign_func(self: Self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
-        """This is a wrapper for the assign function to be used in the actor
-        It should allow to inject some additional logic to the assign function"""
-        returns = await self.assign(**kwargs)
-        return returns
-
-    async def on_assign(
-        self: Self,
-        assignment: Assign,
-    ) -> None:
-        """This method is called when the actor is assigned to a task"""
-
-        await self.asend(
-            message=messages.ProgressEvent(
-                assignation=assignment.assignation,
-                progress=0,
-                message="Queued for running",
-            )
-        )
-
-        async with self.sync_context(assignment.assignation, assignment.interface):
-            try:
-                input_kwargs = await expand_inputs(
-                    self.definition,
-                    assignment.args,
-                    structure_registry=self.structure_registry,
-                    shelver=self.agent,
-                    skip_expanding=not self.expand_inputs,
-                )
-            except Exception as ex:
-                logger.critical("Input serialization error", exc_info=True)
-                await self.asend(
-                    message=messages.ErrorEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
-                    )
-                )
-                return
-
-            context_kwargs, state_kwargs, dependency_kwargs = await self.aget_locals()
-
-            params: Dict[str, Any] = {
-                **input_kwargs,
-                **context_kwargs,
-                **state_kwargs,
-                **dependency_kwargs,
-            }
-
-            logs = []
-
-            try:
-                async with capture_to_list(logs, self.agent, assignment):
-                    async with AssignmentHelper(assignment=assignment, actor=self):
-                        returns = await self._assign_func(**params)
-
-                try:
-                    returns = await shrink_outputs(
-                        self.definition,
-                        returns,
-                        structure_registry=self.structure_registry,
-                        shelver=self.agent,
-                        skip_shrinking=not self.shrink_outputs,
-                    )
-                except SerializationError as ex:
-                    logger.critical("Output serialization error", exc_info=True)
-                    await self.asend(
-                        message=messages.ErrorEvent(
-                            assignation=assignment.assignation,
-                            error=str(ex),
-                        )
-                    )
-                    return
-
-                await self.async_locals(state_kwargs)
-
-                if assignment.capture:
-                    output = "".join(logs)
-                    await self.asend(
-                        message=messages.LogEvent(
-                            assignation=assignment.assignation,
-                            message=output,
-                            level="INFO",
-                        )
-                    )
-
-                await self.asend(
-                    message=messages.YieldEvent(
-                        assignation=assignment.assignation,
-                        returns=returns,
-                    )
-                )
-
-                await self.asend(
-                    message=messages.DoneEvent(
-                        assignation=assignment.assignation,
-                    )
-                )
-
-            except (AssertionError, Exception) as ex:
-                if assignment.capture:
-                    output = "".join(logs)
-                    await self.asend(
-                        message=messages.LogEvent(
-                            assignation=assignment.assignation,
-                            message=output,
-                            level="INFO",
-                        )
-                    )
-
-                logger.critical("Assignation error", exc_info=True)
-                await self.asend(
-                    message=messages.CriticalEvent(
-                        assignation=assignment.assignation,
-                        error=str(ex),
-                    )
-                )
-                return
-
-
-class AsyncGenActor(SerializingActor):
-    """The base class for all async generator functional actors"""
-
-    async def assign(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        """This method should be implemented by the actor"""
-
-        raise NotImplementedError("This method should be implemented by the actor")
-        yield None  # type: ignore[unreachable]
-
-    async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        async for returns in self.assign(**kwargs):
-            yield returns
 
     async def on_assign(
         self: Self,
@@ -213,10 +77,20 @@ class AsyncGenActor(SerializingActor):
 
             logs: List[str] = []
 
+            async def aflush_captured_logs() -> None:
+                if logs and assignment.capture:
+                    await self.asend(
+                        message=messages.LogEvent(
+                            assignation=assignment.assignation,
+                            message="".join(logs),
+                            level="INFO",
+                        )
+                    )
+
             try:
                 async with capture_to_list(logs, self.agent, assignment):
                     async with AssignmentHelper(assignment=assignment, actor=self):
-                        async for returns in self._yield_func(**params):
+                        async for returns in self.aiterate_results(**params):
                             try:
                                 returns = await shrink_outputs(
                                     self.definition,
@@ -226,7 +100,9 @@ class AsyncGenActor(SerializingActor):
                                     skip_shrinking=not self.shrink_outputs,
                                 )
                             except SerializationError as ex:
-                                logger.critical("Output serialization error", exc_info=True)
+                                logger.critical(
+                                    "Output serialization error", exc_info=True
+                                )
                                 await self.asend(
                                     message=messages.ErrorEvent(
                                         assignation=assignment.assignation,
@@ -244,15 +120,7 @@ class AsyncGenActor(SerializingActor):
 
                             await self.async_locals(state_kwargs)
 
-                if logs and assignment.capture:
-                    output = "".join(logs)
-                    await self.asend(
-                        message=messages.LogEvent(
-                            assignation=assignment.assignation,
-                            message=output,
-                            level="INFO",
-                        )
-                    )
+                await aflush_captured_logs()
 
                 await self.asend(
                     message=messages.DoneEvent(
@@ -260,16 +128,8 @@ class AsyncGenActor(SerializingActor):
                     )
                 )
 
-            except (AssertionError, Exception) as ex:
-                if logs and assignment.capture:
-                    output = "".join(logs)
-                    await self.asend(
-                        message=messages.LogEvent(
-                            assignation=assignment.assignation,
-                            message=output,
-                            level="INFO",
-                        )
-                    )
+            except Exception as ex:
+                await aflush_captured_logs()
 
                 logger.critical("Assignation error", exc_info=True)
                 await self.asend(
@@ -281,56 +141,43 @@ class AsyncGenActor(SerializingActor):
                 return
 
 
-class FunctionalFuncActor(FunctionalActor, AsyncFuncActor):
-    """A functional actor that is composable with
-    a function"""
+class FunctionalFuncActor(FunctionalActorBase):
+    """A functional actor wrapping an async function."""
+
+    async def aiterate_results(
+        self: Self, **params: Dict[str, Any]
+    ) -> AsyncGenerator[Any, None]:
+        """Await the wrapped coroutine function and yield its single result."""
+        yield await self.assign(**params)
 
 
-class FunctionalGenActor(FunctionalActor, AsyncGenActor):
-    """A functional stream actor that is composable with
-    a function"""
+class FunctionalGenActor(FunctionalActorBase):
+    """A functional stream actor wrapping an async generator function."""
 
-
-class ThreadedFuncActor(AsyncFuncActor):
-    """A functional actrot that runs assignmed in a thread pool"""
-
-    executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(1))
-
-    async def _assign_func(self, **kwargs: Dict[str, Any]) -> Any:  # noqa: ANN401
-        """This is a wrapper for the assign function to be used in the actor
-        It should allow to inject some additional logic to the assign function"""
-        # run the function in a thread pool
-        returns = await run_spawned(
-            self.assign,
-            **kwargs,  # type: ignore[no-untyped-call]
-        )
-        return returns
-
-
-class ThreadedGenActor(AsyncGenActor):
-    """A functional stream actor that runs assigned in a thread pool"""
-
-    executor: ThreadPoolExecutor = Field(default_factory=lambda: ThreadPoolExecutor(4))
-
-    async def _yield_func(self, **kwargs: Dict[str, Any]) -> AsyncGenerator[Any, None]:
-        async for returns in iterate_spawned(  # type: ignore
-            self.assign,  # type: ignore[no-untyped-call]
-            **kwargs,
-        ):
+    async def aiterate_results(
+        self: Self, **params: Dict[str, Any]
+    ) -> AsyncGenerator[Any, None]:
+        """Iterate the wrapped async generator."""
+        async for returns in self.assign(**params):
             yield returns
 
 
-class FunctionalThreadedFuncActor(FunctionalActor, ThreadedFuncActor):
-    """A composable functional actor that runs assigned in a thread pool"""
+class FunctionalThreadedFuncActor(FunctionalActorBase):
+    """A functional actor running a sync function in a worker thread."""
+
+    async def aiterate_results(
+        self: Self, **params: Dict[str, Any]
+    ) -> AsyncGenerator[Any, None]:
+        """Run the wrapped sync function in a thread and yield its result."""
+        yield await run_spawned(self.assign, **params)
 
 
-class FunctionalThreadedGenActor(FunctionalActor, ThreadedGenActor):
-    """A composable functional stream actor that runs assigned in a thread pool"""
+class FunctionalThreadedGenActor(FunctionalActorBase):
+    """A functional stream actor running a sync generator in a worker thread."""
 
-
-class FunctionalAsyncFuncActor(FunctionalActor, AsyncFuncActor):
-    """A composable funcitonal actor that is async"""
-
-
-class FunctionalAsyncGenActor(FunctionalActor, AsyncGenActor):
-    """A composable functional stream actor that is async"""
+    async def aiterate_results(
+        self: Self, **params: Dict[str, Any]
+    ) -> AsyncGenerator[Any, None]:
+        """Iterate the wrapped sync generator from a worker thread."""
+        async for returns in iterate_spawned(self.assign, **params):
+            yield returns
