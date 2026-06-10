@@ -13,11 +13,10 @@ dependencies = [
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=3.9.0",
+    "rath>=3.11.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil>=3",
-    "dokker>=2.2",
+    "koil>=3.1.1",
     "janus>=2.0.0",
 ]
 

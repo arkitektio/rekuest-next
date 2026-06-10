@@ -1198,16 +1198,16 @@ wheels = [
 
 [[package]]
 name = "rath"
-version = "3.9.0"
+version = "3.11.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
     { name = "koil" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/39/bd30d6235adbfa4874d3037ca7451cc79f560748560fe678f9fe2bc820e1/rath-3.9.0.tar.gz", hash = "sha256:a45aa740dd2ad902ab8319e3f706a1c89a867be52a81cc21d3a35065376eb81b", size = 34849, upload-time = "2026-04-09T11:22:51.074Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/67/0e921304066c8631283093a9019d6278eeb7e99b93923665e8849c461d78/rath-3.11.1.tar.gz", hash = "sha256:e8363129fe25385597e1558727aef0bf2406cb6b172701df9f73a1f4e2eb5c12", size = 37647, upload-time = "2026-06-09T19:40:32.247Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/4d/fefd86abc8e40bcee38753779c10415838a25defa52c3c90273ae0541a0e/rath-3.9.0-py3-none-any.whl", hash = "sha256:e3b973965d17319ef4d31135a3da50034f3db9c435e8eb5a04f0428d914bb7f7", size = 52381, upload-time = "2026-04-09T11:22:50.114Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/d6/f630a8fc1045b9b0564a3b7068b38c1f9eb9320e1e2ddce29368fd428b8a/rath-3.11.1-py3-none-any.whl", hash = "sha256:009333b3c72d98e5c107f950ef2b5ae0455e6238e1a6f3fdcc978e12fbe5a6a8", size = 54824, upload-time = "2026-06-09T19:40:31.219Z" },
 ]
 
 [[package]]
@@ -1216,7 +1216,6 @@ version = "1.6.3"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },
-    { name = "dokker" },
     { name = "fieldz" },
     { name = "inflection" },
     { name = "janus" },
@@ -1256,14 +1255,13 @@ dev = [
 requires-dist = [
     { name = "annotated-types", marker = "extra == 'types'", specifier = ">=0.5.0" },
     { name = "docstring-parser", specifier = ">=0.11" },
-    { name = "dokker", specifier = ">=2.2" },
     { name = "fieldz", specifier = ">=0.0.2" },
     { name = "inflection", specifier = ">=0.5.1" },
     { name = "janus", specifier = ">=2.0.0" },
     { name = "jsonpatch", specifier = ">=1.33" },
-    { name = "koil", specifier = ">=3" },
+    { name = "koil", specifier = ">=3.1.1" },
     { name = "pydantic", specifier = ">=2" },
-    { name = "rath", specifier = ">=3.9.0" },
+    { name = "rath", specifier = ">=3.11.1" },
     { name = "websockets", specifier = ">=12.0" },
 ]
 provides-extras = ["types"]
