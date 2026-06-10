@@ -150,15 +150,16 @@ messages. rekuest offers two strategies instead.
 ### Global structures — reference-by-id
 
 Store the object in central storage and pass only a reference. Make a class a
-*structure* by giving it an identifier and async `ashrink`/`aexpand` methods:
+*structure* with the `@structure` decorator — give it an identifier and async
+`ashrink`/`aexpand` methods:
 
 ```python
+from rekuest_next import structure
+
+
+@structure(identifier="myapp/image")
 class Image:
     id: str  # a reference to this object in central storage
-
-    @classmethod
-    def get_identifier(cls) -> str:
-        return "myapp/image"
 
     async def ashrink(self) -> str:
         return self.id
@@ -167,6 +168,10 @@ class Image:
     async def aexpand(cls, value: str) -> "Image":
         return await cls.load_from_server(value)
 ```
+
+> The decorator registers the structure eagerly. A class that instead implements a
+> `get_identifier()` classmethod alongside `ashrink`/`aexpand` is still picked up
+> automatically the first time it is used in a type hint.
 
 Now you can use `Image` directly in type hints — rekuest automatically `ashrink`s
 (serializes) it to its reference when sending and `aexpand`s (deserializes) it back on

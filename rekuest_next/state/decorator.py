@@ -88,7 +88,9 @@ def statify(
 
     def new_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
-        self = make_evented(self, config, "")
+        # make_evented swaps the instance's __class__ in place; the return value
+        # is the same object, so we intentionally do not rebind ``self``.
+        make_evented(self, config, "")
 
     cls.__init__ = new_init
 

@@ -339,6 +339,3 @@ def register(  # type: ignore[valid-type]
         return _register(func[0])
 
     return cast(Callable[[T], T], _register)  # type: ignore
-
-
-action = register

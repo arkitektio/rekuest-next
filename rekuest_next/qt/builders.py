@@ -16,7 +16,7 @@ from typing import (
 )
 from qtpy import QtCore, QtWidgets
 from koil.qt import QtGenerator, QtFuture, qt_to_async, qt_gen_to_async_gen
-from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
+from rekuest_next.actors.functional import FUNC, GEN, FunctionalActor
 
 from rekuest_next.actors.actify import (
     derive_implementation_details,
@@ -70,13 +70,14 @@ class QtInLoopBuilder(QtCore.QObject):
 
         return await self.coro.acall(**kwargs)
 
-    def build(self, agent: Agent) -> "FunctionalFuncActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalFuncActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=FUNC,
                 definition=self.definition,
                 **self.actor_kwargs,
             )
@@ -117,13 +118,14 @@ class QtFutureBuilder(QtCore.QObject):
         x = await self.coro.acall(*args, **kwargs)
         return x
 
-    def build(self, agent: Agent) -> "FunctionalFuncActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalFuncActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=FUNC,
                 definition=self.definition,
                 **self.actor_kwargs,
             )
@@ -166,13 +168,14 @@ class QtGeneratorBuilder(QtCore.QObject):
         async for i in self.generator.acall(*args, **kwargs):
             yield i
 
-    def build(self, agent: Agent) -> "FunctionalGenActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalGenActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=GEN,
                 definition=self.definition,
                 **self.actor_kwargs,
             )

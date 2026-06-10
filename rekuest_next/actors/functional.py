@@ -13,25 +13,31 @@ from rekuest_next.actors.debug import capture_to_list
 
 logger = logging.getLogger(__name__)
 
+#: A strategy that invokes the wrapped callable and yields its result(s).
+ResultIterator = Callable[..., AsyncGenerator[Any, None]]
 
-class FunctionalActorBase(SerializingActor):
-    """The base class for all functional actors.
 
-    Functional actors wrap a plain callable (``assign``) and run it through a
-    single assignment pipeline: expand inputs, inject state/context/dependency
-    locals, execute, shrink each result, and publish Yield/Done events.
+class FunctionalActor(SerializingActor):
+    """An actor that wraps a plain callable (``assign``).
 
-    Subclasses only define :meth:`aiterate_results` — how the wrapped callable
-    is invoked and how its results are iterated.
+    Functional actors run the wrapped callable through a single assignment
+    pipeline: expand inputs, inject state/context/dependency locals, execute,
+    shrink each result, and publish Yield/Done events.
+
+    How the callable is invoked and iterated is supplied as an ``iterator``
+    strategy (see :data:`FUNC`, :data:`GEN`, :data:`THREADED_FUNC`,
+    :data:`THREADED_GEN`) rather than via subclassing — async vs sync and
+    single-value vs generator only differ in that one step.
     """
 
     assign: Callable[..., Any]
+    iterator: "ResultIterator"
 
     def aiterate_results(
         self: Self, **params: Dict[str, Any]
     ) -> AsyncGenerator[Any, None]:
         """Invoke the wrapped callable and yield its result(s)."""
-        raise NotImplementedError("This method should be implemented by the actor")
+        return self.iterator(self.assign, **params)
 
     async def on_assign(
         self: Self,
@@ -139,43 +145,41 @@ class FunctionalActorBase(SerializingActor):
                 return
 
 
-class FunctionalFuncActor(FunctionalActorBase):
-    """A functional actor wrapping an async function."""
-
-    async def aiterate_results(
-        self: Self, **params: Dict[str, Any]
-    ) -> AsyncGenerator[Any, None]:
-        """Await the wrapped coroutine function and yield its single result."""
-        yield await self.assign(**params)
+async def _func_iterator(
+    assign: Callable[..., Any], **params: Any
+) -> AsyncGenerator[Any, None]:
+    """Await an async function and yield its single result."""
+    yield await assign(**params)
 
 
-class FunctionalGenActor(FunctionalActorBase):
-    """A functional stream actor wrapping an async generator function."""
-
-    async def aiterate_results(
-        self: Self, **params: Dict[str, Any]
-    ) -> AsyncGenerator[Any, None]:
-        """Iterate the wrapped async generator."""
-        async for returns in self.assign(**params):
-            yield returns
+async def _gen_iterator(
+    assign: Callable[..., Any], **params: Any
+) -> AsyncGenerator[Any, None]:
+    """Iterate an async generator function."""
+    async for returns in assign(**params):
+        yield returns
 
 
-class FunctionalThreadedFuncActor(FunctionalActorBase):
-    """A functional actor running a sync function in a worker thread."""
-
-    async def aiterate_results(
-        self: Self, **params: Dict[str, Any]
-    ) -> AsyncGenerator[Any, None]:
-        """Run the wrapped sync function in a thread and yield its result."""
-        yield await run_spawned(self.assign, **params)
+async def _threaded_func_iterator(
+    assign: Callable[..., Any], **params: Any
+) -> AsyncGenerator[Any, None]:
+    """Run a sync function in a worker thread and yield its result."""
+    yield await run_spawned(assign, **params)
 
 
-class FunctionalThreadedGenActor(FunctionalActorBase):
-    """A functional stream actor running a sync generator in a worker thread."""
+async def _threaded_gen_iterator(
+    assign: Callable[..., Any], **params: Any
+) -> AsyncGenerator[Any, None]:
+    """Iterate a sync generator function from a worker thread."""
+    async for returns in iterate_spawned(assign, **params):
+        yield returns
 
-    async def aiterate_results(
-        self: Self, **params: Dict[str, Any]
-    ) -> AsyncGenerator[Any, None]:
-        """Iterate the wrapped sync generator from a worker thread."""
-        async for returns in iterate_spawned(self.assign, **params):
-            yield returns
+
+#: Strategy for an async function.
+FUNC: "ResultIterator" = _func_iterator
+#: Strategy for an async generator function.
+GEN: "ResultIterator" = _gen_iterator
+#: Strategy for a sync function (run in a worker thread).
+THREADED_FUNC: "ResultIterator" = _threaded_func_iterator
+#: Strategy for a sync generator function (run in a worker thread).
+THREADED_GEN: "ResultIterator" = _threaded_gen_iterator

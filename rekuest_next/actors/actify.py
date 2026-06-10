@@ -9,10 +9,11 @@ from functools import partial
 from typing import Any, Optional, Tuple
 
 from rekuest_next.actors.functional import (
-    FunctionalFuncActor,
-    FunctionalGenActor,
-    FunctionalThreadedFuncActor,
-    FunctionalThreadedGenActor,
+    FUNC,
+    GEN,
+    THREADED_FUNC,
+    THREADED_GEN,
+    FunctionalActor,
 )
 from rekuest_next.actors.types import (
     ActorBuilder,
@@ -157,28 +158,18 @@ def reactify(
     }
 
     if is_coroutine:
-        return (
-            definition,
-            implementation_details,
-            partial(FunctionalFuncActor, **actor_attributes),
-        )
+        iterator = FUNC
     elif is_asyncgen:
-        return (
-            definition,
-            implementation_details,
-            partial(FunctionalGenActor, **actor_attributes),
-        )
+        iterator = GEN
     elif is_generatorfunction and not config.in_process:
-        return (
-            definition,
-            implementation_details,
-            partial(FunctionalThreadedGenActor, **actor_attributes),
-        )
+        iterator = THREADED_GEN
     elif (is_function or is_method) and not config.in_process:
-        return (
-            definition,
-            implementation_details,
-            partial(FunctionalThreadedFuncActor, **actor_attributes),
-        )
+        iterator = THREADED_FUNC
     else:
         raise NotImplementedError("No way of converting this to a function")
+
+    return (
+        definition,
+        implementation_details,
+        partial(FunctionalActor, iterator=iterator, **actor_attributes),
+    )

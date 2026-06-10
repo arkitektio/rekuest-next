@@ -105,7 +105,7 @@ def declare_state(cls: Type[T]) -> Type[T]:
     """Mark a class as a declared state dependency.
 
     Declared states are lightweight protocol-style classes used by
-    :func:`agent_protocol` to describe remote state dependencies. The decorator
+    :func:`declare` to describe remote state dependencies. The decorator
     sets marker attributes on the class and preserves the class unchanged.
 
     Args:
@@ -231,7 +231,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
 T = TypeVar("T")
 
 
-def agent_protocol(
+def declare(
     app: str | None = None,
     auto_resolvable: bool = False,
     min: int | None = None,
@@ -267,7 +267,7 @@ def agent_protocol(
             class CameraState:
                 connected: bool
 
-            @agent_protocol(app="lab")
+            @declare(app="lab")
             class CameraProtocol:
                 state: CameraState
 
@@ -340,5 +340,3 @@ def state_protocol(
     raise ValueError("You can only declare one state protocol at a time.")
 
 
-declare = agent_protocol
-dependency = agent_protocol
