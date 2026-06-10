@@ -69,7 +69,8 @@ class RekuestNext(Composition):
             implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
             in_process (bool, optional): Execute actor in the same process.
             dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
-            sync (Optional[SyncGroup], optional): Optional synchronization group.
+            concurrency (Literal["parallel", "serial"], optional): Whether assignments to the actor
+                may run concurrently ("parallel") or one at a time ("serial", the default).
 
         Returns:
             function: A decorator that registers the given function or actor.

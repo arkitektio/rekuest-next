@@ -24,7 +24,7 @@ async def iterate_with_progress(
         result = await future_builder(i)
         completed += 1
         try:
-            await aprogress(100 * completed / iterations)
+            await aprogress(int(100 * completed / iterations))
         except Exception:
             pass
         return result

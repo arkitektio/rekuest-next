@@ -10,13 +10,14 @@ import logging
 from typing import (
     Any,
     Dict,
+    Literal,
     Mapping,
     Optional,
     Self,
     Tuple,
 )
 import uuid
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from rekuest_next.actors.errors import UnknownMessageError
 from rekuest_next.actors.vars import get_current_assignation_helper
@@ -33,7 +34,7 @@ from rekuest_next.state.publish import direct_publishing
 from rekuest_next.state.utils import PreparedStateReturns, PreparedStateVariables
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.default import get_default_structure_registry
-from rekuest_next.actors.sync import SyncGroup
+from rekuest_next.agents.lock import LockGroup
 from rekuest_next.state.lock import acquired_locks
 
 logger = logging.getLogger(__name__)
@@ -67,11 +68,11 @@ class Actor(BaseModel):
     running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     locks: Optional[Tuple[str, ...]] = Field(
         default=None,
-        description="The sync keys this actor requires. Locks will be acquired before running.",
+        description="The lock keys this actor requires. Locks will be acquired before running.",
     )
-    sync: SyncGroup = Field(
-        default_factory=SyncGroup,
-        description="The sync group to use for this actor. This is used to synchronize access to the actor.",
+    concurrency: Literal["parallel", "serial"] = Field(
+        default="serial",
+        description="Whether assignments to this actor may run concurrently ('parallel') or one at a time ('serial', the default).",
     )
 
     _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
@@ -83,13 +84,7 @@ class Actor(BaseModel):
     _running_assignment_hooks: Dict[str, AssignmentHook] = PrivateAttr(
         default_factory=lambda: {},
     )
-
-    @model_validator(mode="before")
-    def validate_sync(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """A default syncgroup will be created if none is set"""
-        if values.get("sync") is None:
-            values["sync"] = SyncGroup()
-        return values
+    _serial_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
     def install_assignment_hook(
         self, assignation_id: str, hook: AssignmentHook
@@ -104,10 +99,16 @@ class Actor(BaseModel):
 
     @contextlib.asynccontextmanager
     async def sync_context(self: Self, assignation_id: str, interface: str):
-        """Context manager that acquires sync key locks and the regular sync group.
+        """Context manager that holds the actor's locks while an assignment runs.
 
-        This should be used instead of `async with self.sync:` when sync keys are defined.
-        It first acquires all sync key locks, then the regular sync group.
+        Acquisition order is fixed (see the deadlock invariants documented in
+        ``rekuest_next.agents.lock``): the actor's private serial lock first —
+        only when ``concurrency="serial"`` — then the shared lock keys, sorted
+        by key. The serial lock is uncontended outside this actor, so shared
+        keys are only held while an assignment actually runs, never while it is
+        queued behind the actor. None of the locks are reentrant: an assignment
+        that re-enters this actor or calls another implementation requiring one
+        of its keys will deadlock.
 
         Args:
             assignation_id: The ID of the assignation.
@@ -116,34 +117,20 @@ class Actor(BaseModel):
         Yields:
             None after all locks are acquired.
         """
-        from rekuest_next.actors.sync import SyncKeyGroup
+        async with contextlib.AsyncExitStack() as stack:
+            if self.concurrency == "serial":
+                await stack.enter_async_context(self._serial_lock)
 
-        # Create SyncKeyGroup if locks are defined
-        sync_key_group = None
-        if self.locks:
-            locks = self.agent.get_locks_for_keys(self.locks)
-            if locks:
-                sync_key_group = SyncKeyGroup(
-                    locks=locks,
+            if self.locks:
+                lock_group = LockGroup(
+                    locks=self.agent.get_locks_for_keys(self.locks),
                     assignation_id=assignation_id,
-                    interface=interface,
                 )
+                await stack.enter_async_context(lock_group)
 
-        try:
-            # Acquire sync key locks first
-            if sync_key_group:
-                await sync_key_group.acquire()
-
-            # Then acquire the regular sync group
-
-            async with self.sync:
-                with direct_publishing(self.agent):
-                    with acquired_locks(*(self.locks or [])):
-                        yield
-        finally:
-            # Release sync key locks
-            if sync_key_group:
-                await sync_key_group.release()
+            with direct_publishing(self.agent):
+                with acquired_locks(*(self.locks or [])):
+                    yield
 
     async def on_resume(self: Self, resume: messages.Resume) -> None:
         """A function that is called once the actor is resumed from a paused state.

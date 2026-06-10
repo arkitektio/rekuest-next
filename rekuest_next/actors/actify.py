@@ -153,6 +153,7 @@ def reactify(
         "context_returns": implementation_details.context_returns,
         "dependency_variables": implementation_details.dependency_variables,
         "locks": implementation_details.locks,
+        "concurrency": config.concurrency,
     }
 
     if is_coroutine:

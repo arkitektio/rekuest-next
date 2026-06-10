@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Self, Type, TypeVar
+from typing import Any, Dict, List, Optional, Self, Sequence, Type, TypeVar
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -22,7 +22,6 @@ from pydantic import ConfigDict, Field, PrivateAttr
 from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next import messages
-from rekuest_next.actors.sync import SyncKeyManager
 from rekuest_next.actors.types import Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.hooks.registry import StartupHook, StartupHookReturns
@@ -141,12 +140,6 @@ class BaseAgent(KoiledModel):
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps assignation to actor id"
-    )
-
-    # TODO Delete
-    sync_key_manager: SyncKeyManager = Field(
-        default_factory=SyncKeyManager,
-        description="Manager for sync key locks across all implementations",
     )
 
     managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
@@ -327,7 +320,7 @@ class BaseAgent(KoiledModel):
         """Create a new session identifier. Returns a UUID by default; override in subclasses."""
         return str(uuid.uuid4())
 
-    def get_locks_for_keys(self, keys: List[str]) -> List[TaskLock]:
+    def get_locks_for_keys(self, keys: Sequence[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
 
         Args:
@@ -335,12 +328,7 @@ class BaseAgent(KoiledModel):
         Returns:
             The list of locks for the given keys.
         """
-        locks: List[TaskLock] = []
-        for key in keys:
-            for lock in self.locks.values():
-                if lock.lock_key == key:
-                    locks.append(lock)
-        return locks
+        return [self.locks[key] for key in keys if key in self.locks]
 
     def collect_from_extensions(self) -> None:
         """Collect state schemas, hooks, sync keys and locks from the app registry.
@@ -360,14 +348,6 @@ class BaseAgent(KoiledModel):
             self._collected_startup_hooks[name] = hook
         for name, worker in app_registry.hooks_registry.background_worker.items():
             self._collected_background_workers[name] = worker
-
-        # Register sync keys for implementations that declare locks
-        for implementation in app_registry.get_implementations():
-            if implementation.locks is not None:
-                self.sync_key_manager.register_sync_keys(
-                    implementation.interface or implementation.definition.name,
-                    implementation.locks,
-                )
 
         # Build the runtime task locks
         for lock_schema in app_registry.get_locks():
@@ -754,28 +734,6 @@ class BaseAgent(KoiledModel):
         if interface not in self.states:
             raise AgentException(f"State {interface} not found in agent {self.name}")
         return self.states[interface]
-
-    def get_sync_keys_for_interface(self, interface: str) -> tuple[str, ...]:
-        """Get the sync keys for a given interface.
-
-        Args:
-            interface: The interface name.
-
-        Returns:
-            A tuple of sync key names, or empty tuple if none.
-        """
-        for impl in self.app_registry.get_implementations():
-            if (impl.interface or impl.definition.name) == interface:
-                return impl.locks or ()
-        return ()
-
-    def get_sync_key_status(self) -> list[dict]:
-        """Get the status of all sync keys.
-
-        Returns:
-            A list of status dictionaries for all sync key locks.
-        """
-        return self.sync_key_manager.get_all_status()
 
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""

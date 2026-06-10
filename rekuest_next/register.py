@@ -6,6 +6,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    Literal,
     Optional,
     ParamSpec,
     Tuple,
@@ -204,6 +205,7 @@ def register(
     tracks: Optional[List[TrackInput]] = None,
     dynamic: bool = False,
     locks: Optional[List[str]] = None,
+    concurrency: Literal["parallel", "serial"] = "serial",
     version: Optional[str] = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with configuration: ``@register(...)``."""
@@ -232,6 +234,7 @@ def register(  # type: ignore[valid-type]
     in_process: bool = False,
     dynamic: bool = False,
     locks: Optional[List[str]] = None,
+    concurrency: Literal["parallel", "serial"] = "serial",
     version: Optional[str] = None,
 ) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
     """Register a function or actor with an app registry.
@@ -277,6 +280,9 @@ def register(  # type: ignore[valid-type]
         dynamic (bool): Whether the definition may change dynamically.
         locks (Optional[List[str]]): Resource locks held during assignment
             (auto-inferred from state/context locks when omitted).
+        concurrency (Literal["parallel", "serial"]): Whether assignments to the
+            actor may run concurrently ("parallel") or one at a time
+            ("serial", the default).
         version (Optional[str]): Version of the definition.
 
     Returns:
@@ -304,6 +310,7 @@ def register(  # type: ignore[valid-type]
         dynamic=dynamic,
         optimistics=optimistics,
         locks=locks,
+        concurrency=concurrency,
         tracks=tracks,
         in_process=in_process,
     )

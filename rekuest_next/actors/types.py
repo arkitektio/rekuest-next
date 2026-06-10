@@ -1,6 +1,14 @@
 """Types for the actors module"""
 
-from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable, Awaitable, Any
+from typing import (
+    TYPE_CHECKING,
+    Protocol,
+    Self,
+    runtime_checkable,
+    Awaitable,
+    Any,
+    Literal,
+)
 from rekuest_next import messages
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.coercible_types import OptimisticCoercible
@@ -19,7 +27,7 @@ from rekuest_next.definition.define import (
     EffectsMap,
     ReturnWidgetMap,
 )
-from typing import Optional, List, Dict, Tuple, Callable
+from typing import Optional, List, Dict, Sequence, Tuple, Callable
 from pydantic import BaseModel, Field
 import uuid
 from dataclasses import dataclass
@@ -27,6 +35,7 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from rekuest_next.app import AppRegistry
+    from rekuest_next.agents.lock import TaskLock
 
 
 @dataclass
@@ -160,6 +169,10 @@ class Agent(Protocol):
     async def aunlock(self, key: str) -> None:
         """A function to release a lock on the agent. This is used to release
         locks on the agent."""
+        ...
+
+    def get_locks_for_keys(self, keys: Sequence[str]) -> List["TaskLock"]:
+        """Resolve the agent's task locks for the given lock keys."""
         ...
 
     async def asend(
@@ -328,7 +341,7 @@ class RegisterConfig:
     * **implementation/actor-shaping** — used by the actifier's actor build and by
       ``register_func`` when constructing the ``ImplementationInput``: ``dynamic``,
       ``optimistics``, ``locks``, ``tracks``, ``manipulates``, ``in_process``,
-      ``bypass_shrink``, ``bypass_expand``, ``auto_locks``.
+      ``bypass_shrink``, ``bypass_expand``, ``auto_locks``, ``concurrency``.
     """
 
     # definition-shaping
@@ -357,6 +370,7 @@ class RegisterConfig:
     bypass_shrink: bool = False
     bypass_expand: bool = False
     auto_locks: bool = True
+    concurrency: Literal["parallel", "serial"] = "serial"
 
 
 @runtime_checkable
