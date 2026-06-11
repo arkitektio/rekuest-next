@@ -6,11 +6,14 @@ protocol (get_identifier/ashrink/aexpand) become FullFilledStructure, and
 everything else becomes a FullFilledMemoryStructure kept in the local shelve.
 """
 
-from enum import Enum
+from enum import Enum, IntEnum, StrEnum
 from typing import (
     Any,
     Callable,
+    Literal,
     Type,
+    get_args,
+    get_origin,
 )
 
 from rekuest_next.api.schema import (
@@ -100,6 +103,65 @@ def fullfilled_enum_from_cls(cls: Type[Enum]) -> FullFilledEnum:
         predicate=build_instance_predicate(cls),
         description=cls.__doc__,
         convert_default=make_enum_converter(cls),
+        default_widget=AssignWidgetInput(
+            kind=AssignWidgetKind.CHOICE, choices=tuple(choices)
+        ),
+        default_returnwidget=ReturnWidgetInput(
+            kind=ReturnWidgetKind.CHOICE, choices=tuple(choices)
+        ),
+    )
+
+
+def is_literal(cls: Any) -> bool:  # noqa: ANN401
+    """Check whether an annotation is a ``typing.Literal[...]``."""
+    return get_origin(cls) is Literal
+
+
+def _literal_identifier(values: tuple[Any, ...]) -> Identifier:
+    """Derive a deterministic identifier for a literal-derived enum.
+
+    Same literal members (in the same order) always produce the same
+    identifier, so the same ``Literal[...]`` used across functions resolves to
+    the same enum on the wire.
+    """
+    slug = "_".join(str(value).lower().replace(" ", "_") for value in values)
+    return Identifier.validate(f"literal.{slug}")
+
+
+def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
+    """Build a FullFilledEnum from a ``typing.Literal[...]`` annotation.
+
+    The literal members are turned into a dynamically created enum so the
+    existing enum serialization machinery (expand/shrink/predication) handles
+    them without any special casing. We use ``StrEnum``/``IntEnum`` for
+    homogeneous string/int literals so members stringify to their bare value
+    (a plain ``(str, Enum)`` would stringify as ``"Enum.member"``), and fall
+    back to a plain ``Enum`` for anything else.
+    """
+    values = get_args(cls)
+    if not values:
+        raise StructureDefinitionError(f"Literal {cls} has no members")
+
+    members = {str(value): value for value in values}
+
+    if all(isinstance(value, str) for value in values):
+        base: Type[Enum] = StrEnum
+    elif all(isinstance(value, int) and not isinstance(value, bool) for value in values):
+        base = IntEnum
+    else:
+        base = Enum
+
+    enum_cls: Type[Enum] = base("Literal", members)  # type: ignore[call-overload]
+
+    choices = [ChoiceInput(label=key, value=key) for key in members]
+
+    return FullFilledEnum(
+        cls=enum_cls,
+        identifier=_literal_identifier(values),
+        choices=choices,
+        predicate=build_instance_predicate(enum_cls),
+        description=None,
+        convert_default=make_enum_converter(enum_cls),
         default_widget=AssignWidgetInput(
             kind=AssignWidgetKind.CHOICE, choices=tuple(choices)
         ),

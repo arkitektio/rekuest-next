@@ -28,9 +28,11 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next.structures.convert import (
     fullfilled_enum_from_cls,
+    fullfilled_enum_from_literal,
     fullfilled_memory_structure_from_cls,
     fullfilled_structure_from_cls,
     is_global_structure,
+    is_literal,
     make_enum_converter,
 )
 from rekuest_next.structures.utils import build_instance_predicate
@@ -124,6 +126,16 @@ class StructureRegistry(BaseModel):
             StructureDefinitionError: If the class could not be converted.
         """
         fullfilled_type: FullFilledType
+        if is_literal(cls):
+            # typing.Literal[...] annotations are autoconverted to an enum so a
+            # bare Literal in a function signature gets a choice port. The
+            # dynamically built enum is keyed by its own class via
+            # fullfill_registration; we additionally alias the Literal itself so
+            # repeated lookups hit the cache instead of rebuilding the enum.
+            fullfilled_type = fullfilled_enum_from_literal(cls)
+            self.fullfill_registration(fullfilled_type)
+            self.cls_fullfilled_type_map[cls] = fullfilled_type
+            return fullfilled_type
         if inspect.isclass(cls) and issubclass(cls, Enum):
             fullfilled_type = fullfilled_enum_from_cls(cls)
         elif is_global_structure(cls):

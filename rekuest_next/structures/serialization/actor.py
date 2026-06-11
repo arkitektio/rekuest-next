@@ -891,15 +891,22 @@ async def ashrink_return(
             return str(value)
 
         if port.kind == PortKind.ENUM:
-            if not isinstance(value, Enum):
-                raise to_shrink_port_error(
-                    port,
-                    value,
-                    f"Expected Enum, got {type(value).__name__}: {repr(value)}",
-                    path=[*(path or []), port.key] if path is not None else [port.key],
-                    depth=depth,
-                )
-            return value.name
+            if isinstance(value, Enum):
+                return value.name
+            # typing.Literal-derived enums carry bare values (e.g. "a" or 1)
+            # instead of Enum members, so accept a value that names a valid
+            # choice. This mirrors the leniency of ashrink_actor_arg.
+            candidate = str(value)
+            if any(candidate == choice.value for choice in (port.choices or [])):
+                return candidate
+            raise to_shrink_port_error(
+                port,
+                value,
+                f"Expected Enum or one of {[c.value for c in port.choices or []]}, "
+                f"got {type(value).__name__}: {repr(value)}",
+                path=[*(path or []), port.key] if path is not None else [port.key],
+                depth=depth,
+            )
 
         raise to_shrink_port_error(
             port,

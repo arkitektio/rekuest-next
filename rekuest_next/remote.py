@@ -561,3 +561,13 @@ def call_dependency(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     parameters).
     """
     return unkoil(acall_dependency, *args, **kwargs)
+
+
+def call_dependency_raw(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Synchronously call a method on a dependency with already serialized arguments."""
+    return unkoil(acall_dependency_raw, *args, **kwargs)
+
+
+def call_raw(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Synchronously execute a low-level remote call with already serialized arguments."""
+    return unkoil(acall_raw, *args, **kwargs)

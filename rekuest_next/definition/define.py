@@ -30,6 +30,7 @@ import datetime as dt
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
+from rekuest_next.structures.convert import is_literal
 from typing import Optional, Any, Dict, get_origin, get_args, Annotated
 import types
 import typing
@@ -365,6 +366,23 @@ def convert_object_to_argport(
             requires=tuple(requires) if requires else None,
         )
 
+    if is_literal(cls):
+        # typing.Literal[...] is autoconverted to an enum port. Route through
+        # the registry before the primitive checks below so a literal with a
+        # string/int default isn't mistaken for a plain STRING/INT port.
+        return registry.get_argport_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            effects=effects,
+            label=label,
+            default=default,
+            validators=validators,
+            assign_widget=assign_widget,
+            requires=tuple(requires) if requires else None,
+        )
+
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
         return ArgPortInput(
             kind=PortKind.BOOL,
@@ -624,6 +642,23 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+        )
+
+    if is_literal(cls):
+        # typing.Literal[...] is autoconverted to an enum port. Route through
+        # the registry before the primitive checks below so a literal with a
+        # string/int default isn't mistaken for a plain STRING/INT port.
+        return registry.get_returnport_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            effects=effects,
+            label=label,
+            default=default,
+            validators=validators,
+            return_widget=return_widget,
+            provides=provides,
         )
 
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
