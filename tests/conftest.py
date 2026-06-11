@@ -1,7 +1,7 @@
 """Some configuration for pytest"""
 
 from dataclasses import dataclass
-from typing import AsyncGenerator, Generator, Optional
+from typing import AsyncGenerator, Awaitable, Callable, Generator, Optional
 from uuid import uuid4
 import pytest
 from rekuest_next.app import AppRegistry
@@ -12,7 +12,7 @@ from rekuest_next.agents.base import RekuestAgent
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.agents.transport.websocket import WebsocketAgentTransport
 import os
-from dokker import local, Deployment
+from dokker import local, Deployment, testing
 from dokker.log_watcher import LogWatcher
 from rath.links.auth import ComposedAuthLink
 from rath.links.aiohttp import AIOHttpLink
@@ -114,6 +114,31 @@ async def token_loader() -> str:
     return "test"
 
 
+def make_token_loader(token: str = "test") -> Callable[[], Awaitable[str]]:
+    """Build a token loader that always returns ``token``.
+
+    The integration deployment is configured (see
+    ``tests/integration/configs/rekuest.yaml``) with several static tokens, each
+    mapping to a *different* ``client_app``. Authenticating an app with a given
+    token therefore makes the server treat it as that distinct application. This
+    is what lets several :func:`build_fresh_rekuest` apps run side by side as
+    genuinely separate apps (e.g. a workflow app calling a provider app).
+
+    Args:
+        token: The static token to authenticate as. Must be one of the tokens
+            configured in the deployment (``test``, ``testb``, ``testc``).
+
+    Returns:
+        An async, no-argument token loader suitable for the auth link and agent
+        transport.
+    """
+
+    async def _loader() -> str:
+        return token
+
+    return _loader
+
+
 @dataclass
 class DeployedRekuest:
     """Dataclass to hold the deployed MikroNext application and its components."""
@@ -152,13 +177,12 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
         DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
 
     """
-    setup = local(docker_compose_file)
-    setup.pull_on_enter = False
-    setup.down_on_exit = True
-    setup.up_on_enter = False
+    setup = testing(docker_compose_file)
     setup.add_health_check(
-        url=lambda spec: f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql",
-        service="mikro",
+        url=lambda spec: (
+            f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
+        ),
+        service="rekuest",
         timeout=5,
         max_retries=10,
     )
@@ -226,7 +250,7 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
 
 
 def build_fresh_rekuest(
-    setup: Deployment, instance_id: Optional[str] = None
+    setup: Deployment, instance_id: Optional[str] = None, token: str = "test"
 ) -> RekuestNext:
     """Build a brand-new ``RekuestNext`` against an already-running deployment.
 
@@ -238,11 +262,17 @@ def build_fresh_rekuest(
     Args:
         setup: The running dokker deployment (from the ``deployment`` fixture).
         instance_id: Optional explicit instance id. Defaults to a unique value.
+        token: Static token to authenticate as. The deployment maps each
+            configured token to a distinct ``client_app`` (see
+            ``tests/integration/configs/rekuest.yaml``), so passing different
+            tokens to different ``build_fresh_rekuest`` calls makes the server
+            treat them as genuinely separate apps. Defaults to ``"test"``.
 
     Returns:
         A fresh, not-yet-entered ``RekuestNext`` client.
     """
     instance_id = instance_id or f"test-{uuid4().hex[:8]}"
+    loader = make_token_loader(token)
     port = setup.spec.find_service("rekuest").get_port_for_internal(80).published
     http_url = f"http://localhost:{port}/graphql"
     ws_url = f"ws://localhost:{port}/graphql"
@@ -250,7 +280,7 @@ def build_fresh_rekuest(
 
     rath = RekuestNextRath(
         link=compose(
-            ComposedAuthLink(token_loader=token_loader, token_refresher=token_loader),
+            ComposedAuthLink(token_loader=loader, token_refresher=loader),
             SplitLink(
                 left=AIOHttpLink(endpoint_url=http_url),
                 right=GraphQLWSLink(ws_endpoint_url=ws_url),
@@ -262,7 +292,7 @@ def build_fresh_rekuest(
     agent = RekuestAgent(
         transport=WebsocketAgentTransport(
             endpoint_url=agi_url,
-            token_loader=token_loader,
+            token_loader=loader,
         ),
         instance_id=instance_id,
         rath=rath,
@@ -291,8 +321,10 @@ async def deployment() -> AsyncGenerator[Deployment, None]:
     setup.down_on_exit = True
     setup.up_on_enter = False
     setup.add_health_check(
-        url=lambda spec: f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql",
-        service="mikro",
+        url=lambda spec: (
+            f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
+        ),
+        service="rekuest",
         timeout=5,
         max_retries=10,
     )

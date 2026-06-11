@@ -924,6 +924,7 @@ class RekuestAgent(BaseAgent):
         self._agent = await aensure_agent(
             instance_id=self.instance_id,
             name=self.name,
+            rath=self.rath,
         )
 
         if self._agent.hash != await self.aget_hash():
@@ -943,6 +944,7 @@ class RekuestAgent(BaseAgent):
                 states=agent_input.states,
                 locks=agent_input.locks,
                 bloks=agent_input.bloks,
+                rath=self.rath,
             )
 
             logger.info("Registered agent with id %s and hash %s", agent.id, agent.hash)

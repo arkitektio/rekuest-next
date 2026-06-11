@@ -68,7 +68,7 @@ class GraphQLPostman(KoiledModel):
         queue = self._ass_update_queues[assign.reference]
 
         try:
-            assignation = await aassign(**assign.model_dump())
+            assignation = await aassign(**assign.model_dump(), rath=self.rath)
         except Exception as e:
             raise PostmanException(f"Cannot Assign: {e}") from e
 
@@ -79,7 +79,7 @@ class GraphQLPostman(KoiledModel):
                 queue.task_done()
 
         except asyncio.CancelledError as e:
-            await acancel(assignation=assignation.id)
+            await acancel(assignation=assignation.id, rath=self.rath)
             # TODO: Wait for cancellation to succeed
             del self._ass_update_queues[assign.reference]
             raise e
