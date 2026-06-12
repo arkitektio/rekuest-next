@@ -13,10 +13,14 @@ round-trip to that agent.
 """
 
 import asyncio
+import threading
+import time
 from typing import Protocol
 
 import pytest
 from dokker import Deployment
+from koil import check_cancelled
+from koil.errors import ThreadCancelledError
 
 from rekuest_next.api.schema import amy_implementation_at
 from rekuest_next.declare import declare
@@ -220,6 +224,146 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
         )
 
         for task in (atest_task, btest_task, workflow_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio(scope="session")
+async def test_workflow_cancel_propagates_to_dependency(
+    deployment: Deployment,
+) -> None:
+    """Cancelling a workflow must cancel the dependency tasks it spawned.
+
+    This is the cancellation-propagation variant of the dual-app workflow tests.
+    The provider exposes a long-running *threaded* (sync) action that loops,
+    calling :func:`koil.check_cancelled` on every tick so it can cooperate with
+    cancellation (a sync function runs in a worker thread, so it can only be
+    interrupted at an explicit pause point). The workflow app declares a
+    dependency on it and simply awaits it.
+
+    We launch the workflow, wait until the provider's threaded loop is actually
+    spinning, then cancel the workflow call. Cancelling the consuming ``acall``
+    task makes the postman issue a backend ``cancel`` for the workflow
+    assignation; the server fans that out to the workflow agent, which in turn
+    cancels the dependency assignation it spawned on the provider. We then assert
+    the provider's threaded task observed the cancellation (cancel propagated
+    workflow -> dependency -> worker thread) instead of running to completion.
+    """
+
+    # All apps live in this single process, so the provider's threaded function
+    # can record its lifecycle straight into these shared objects. ``started``
+    # lets the test wait until the worker thread is actually running before it
+    # tries to cancel; ``tracker`` records the terminal outcome.
+    started = threading.Event()
+    tracker: dict[str, int | bool] = {
+        "cancelled": False,
+        "completed": False,
+        "iterations": 0,
+    }
+
+    # --- Provider app: a long-running threaded (sync) action -----------------
+    provider = build_fresh_rekuest(
+        deployment, instance_id="atest-provider", token="atest_token"
+    )
+
+    def slow_stuff(printer: str) -> str:
+        """Slowly stitch images, cooperating with cancellation.
+
+        Sync functions run in a koil worker thread, which cannot be force-killed.
+        Polling ``check_cancelled()`` each iteration lets koil raise
+        ``ThreadCancelledError`` into the loop when the assignation is cancelled.
+        """
+        started.set()
+        try:
+            for i in range(600):  # up to ~60s; cancelled long before this
+                check_cancelled()
+                tracker["iterations"] = i
+                time.sleep(0.1)
+            tracker["completed"] = True
+            return "stitched-" + printer
+        except ThreadCancelledError:
+            tracker["cancelled"] = True
+            raise
+
+    provider.register(slow_stuff)
+
+    # --- Workflow app: declares a dependency on the provider and awaits it ----
+    workflow_app = build_fresh_rekuest(
+        deployment, instance_id="workflow", token="workflow_token"
+    )
+
+    @declare(app="atest", auto_resolvable=True, min=1)
+    class ATestLike(Protocol):
+        async def slow_stuff(self, printer: str) -> str:
+            """Slowly stitch images."""
+            ...
+
+    async def cancel_workflow(atest: ATestLike) -> str:
+        """Call the long-running dependency and return its result."""
+        return await atest.slow_stuff("printer")
+
+    workflow_app.register(cancel_workflow)
+
+    async with provider as provider, workflow_app as workflow_app:
+        # Stagger the starts: all tokens map to the same user, so launching
+        # together races on first-time user creation (see the sibling tests).
+        provider_task = asyncio.create_task(provider.arun())
+        await asyncio.sleep(5)
+        workflow_task = asyncio.create_task(workflow_app.arun())
+        await asyncio.sleep(5)
+
+        impl = await amy_implementation_at(
+            workflow_app.agent.instance_id,
+            "cancel_workflow",
+            rath=workflow_app.rath,
+        )
+
+        # Launch the workflow but do NOT await it to completion: we want to
+        # cancel it mid-flight.
+        call_task = asyncio.create_task(
+            acall(
+                impl,
+                postman=workflow_app.postman,
+                structure_registry=workflow_app.structure_registry,
+            )
+        )
+
+        # Wait until the provider's threaded loop is actually spinning, so we
+        # know there is a live dependency task to cancel.
+        for _ in range(150):
+            if started.is_set() and tracker["iterations"] > 1:
+                break
+            await asyncio.sleep(0.1)
+        assert started.is_set(), "Provider's threaded task never started"
+        assert not call_task.done(), "Workflow finished before it could be cancelled"
+
+        # Cancel the workflow call. This is the event under test: the cancel must
+        # travel all the way down to the provider's worker thread.
+        call_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await call_task
+
+        # Give the cancellation time to propagate down the chain:
+        # workflow assignation -> dependency assignation -> provider actor ->
+        # threaded `check_cancelled()`.
+        for _ in range(150):
+            if tracker["cancelled"]:
+                break
+            await asyncio.sleep(0.1)
+
+        assert tracker["cancelled"], (
+            "Provider's threaded task was not cancelled - the workflow cancel "
+            "did not propagate to its dependency task"
+        )
+        assert not tracker["completed"], (
+            "Provider's threaded task ran to completion despite the cancellation"
+        )
+
+        for task in (provider_task, workflow_task):
             task.cancel()
             try:
                 await task

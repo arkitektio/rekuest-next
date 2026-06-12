@@ -43,6 +43,7 @@ dev-dependencies =  [
     "httpx>=0.28.1",
     "aiosqlite>=0.22.1",
     "dokker>=2.5",
+    "turms>=0.11.0",
 ]
 
 

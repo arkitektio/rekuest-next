@@ -1,5 +1,7 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
+directive @oneOf on INPUT_OBJECT
+
 input AckInput {
   assignation: ID!
 }
@@ -1857,7 +1859,7 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder @oneOf {
+input ImplementationOrder {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -2546,7 +2548,7 @@ input PlacementInput {
   agent: ID = null
 }
 
-input PlacementOrder @oneOf {
+input PlacementOrder {
   role: Ordering
   createdAt: Ordering
 }
@@ -3065,7 +3067,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "38e5794f-434a-4c6e-a217-83e2286b0862"
+  reference: String = "0cbe0b6d-cc47-4dbf-bbe3-c600ded5720a"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null

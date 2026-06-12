@@ -1,6 +1,6 @@
 {
     "schema_url": "http://jhnnsrs-lab/rekuest/schema",
-    "documents": "graphql/rekuest-next/**/**.graphql",
+    "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {
             "pydantic_version": "v2",
@@ -11,7 +11,7 @@
             "dump_schema": true,
             "schema_name": "schema.graphql",
             "generated_name": "schema.py",
-            "documents": "graphql/rekuest-next/**/**.graphql",
+            "documents": "graphql/**/**.graphql",
             "verbose": false,
             "exit_on_error": true,
             "allow_introspection": true,
@@ -90,9 +90,6 @@
                 ],
                 "ImplementationInput": [
                     "rekuest_next.traits.implementation.ImplementationInputTrait"
-                ],
-                "ImplementAgentInput": [
-                    "rekuest_next.traits.agent.ImplementAgentInputTrait"
                 ],
                 "BlokImplementationInput": [
                     "rekuest_next.traits.blok.BlokImplementationInputTrait"
@@ -181,7 +178,7 @@
                     "type": "turms.processors.disclaimer.DisclaimerProcessor"
                 },
                 {
-                    "type": "turms.processors.black.BlackProcessor"
+                    "type": "turms.processors.ruff.RuffProcessor"
                 }
             ],
             "stylers": [
