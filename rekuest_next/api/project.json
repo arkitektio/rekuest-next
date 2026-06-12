@@ -94,6 +94,9 @@
                 "BlokImplementationInput": [
                     "rekuest_next.traits.blok.BlokImplementationInputTrait"
                 ],
+                "ImplementAgentInput": [
+                    "rekuest_next.traits.agent.ImplementAgentInputTrait"
+                ],
                 "ReturnWidgetInput": [
                     "rekuest_next.traits.ports.ReturnWidgetInputTrait"
                 ],

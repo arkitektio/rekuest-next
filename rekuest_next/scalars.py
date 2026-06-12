@@ -258,6 +258,26 @@ class SearchQuery(str):
         return SearchQuery(print_ast(v))
 
 
+# Variables that are part of the SearchQuery contract and are supplied by the
+# ward at runtime, so they never need to be backed by a filter port or dependency.
+# ``limit``/``offset`` are the reserved pagination variables.
+RESERVED_SEARCH_VARIABLES = frozenset({"search", "values", "limit", "offset"})
+
+
+def get_search_query_variables(query: str) -> list[str]:
+    """Return the variable names declared by a search query.
+
+    This includes the mandatory ``search`` and ``values`` variables as well as
+    any additional variables the user declared (which must be backed by a filter
+    port or a dependency of the widget).
+    """
+    document = parse_or_raise(query)
+    definition = document.definitions[0]
+    if not isinstance(definition, OperationDefinitionNode):
+        return []
+    return [v.variable.name.value for v in definition.variable_definitions]
+
+
 class MediaLike:
     """A custom scalar for wrapping of every supported array like structure on
     the mikro platform. This scalar enables validation of various array formats

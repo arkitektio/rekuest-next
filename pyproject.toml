@@ -72,6 +72,9 @@ markers = [
 
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["rekuest_next"]
+
 [[tool.pydoc-markdown.loaders]]
 type = "python"
 search_path = ["arkitekt"]
