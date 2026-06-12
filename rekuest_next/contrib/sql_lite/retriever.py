@@ -141,7 +141,7 @@ class SQLLiteRetriever:
             params = (global_revision, session_id, count)
 
         query = f"""
-     SELECT state_id, global_current_rev, global_future_rev,
+        SELECT state_id, global_current_rev, global_future_rev,
                event_time, correlation_id, session_id, op, path, value
         FROM state_patches
         WHERE global_current_rev >= ? {state_filter} {session_filter}

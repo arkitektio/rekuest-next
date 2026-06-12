@@ -21,6 +21,11 @@ type Action {
   """The app this action belongs to."""
   app: App!
 
+  """
+  An optional icon identifier to represent this Action in the UI (e.g. 'fa-solid fa-dog')
+  """
+  logo: String
+
   """Version string of the action."""
   version: String!
 
@@ -37,7 +42,7 @@ type Action {
   collections: [Collection!]!
 
   """List of implementations for this action."""
-  implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
   """Scope of the action, e.g., user or system."""
   scope: ActionScope!
@@ -71,6 +76,9 @@ type Action {
 
   """Assignations created for this action."""
   assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+
+  """Get the latest completed assignation for this action."""
+  latestAssignation: Assignation
 
   """Retrieve assignations where this action has run."""
   runs: [Assignation!]
@@ -293,7 +301,7 @@ type Agent {
   user: User!
 
   """Implementations the agent can run."""
-  implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
   """Agent's associated memory shelve."""
   memoryShelve: MemoryShelve
@@ -569,10 +577,10 @@ input ArgPortInput {
   nullable: Boolean! = false
   effects: [EffectInput!] = null
   default: AnyDefault = null
-  children: [ArgPortInput!] = null
   choices: [ChoiceInput!] = null
   widget: AssignWidgetInput = null
   requires: [RequiresInput!] = null
+  children: [ArgPortInput!] = null
 }
 
 """The `Args` scalar type represents a Dictionary of arguments"""
@@ -933,7 +941,7 @@ type Blok {
   catalog: UICatalog!
 
   """Materialized bloks that are instances of this blok."""
-  materializedBloks: [MaterializedBlok!]!
+  materializedBloks(filters: MaterializedBlokFilter, ordering: [MaterializedBlokOrder!]! = [], pagination: OffsetPaginationInput): [MaterializedBlok!]!
 
   """Dependencies that need to be resolved for this blok."""
   dependencies(filters: BlokDependencyFilter, pagination: OffsetPaginationInput): [BlokDependency!]!
@@ -1213,6 +1221,10 @@ input CreateImplementationInput {
 
 """The input for creating a placement."""
 input CreatePlacementInput {
+  """
+  A specific blok that should be used to visualize the state of the placement
+  """
+  materializedBlok: ID = null
   role: String = null
   affineMatrix: [[Float!]!] = null
   model: ID = null
@@ -1804,6 +1816,7 @@ input ImplementationFilter {
   OR: ImplementationFilter
   NOT: ImplementationFilter
   DISTINCT: Boolean
+  active: Boolean
   ids: [ID!]
   actionHash: ActionHash
   extension: String
@@ -1829,7 +1842,7 @@ input ImplementationInput {
   dynamic: Boolean! = false
   logo: String = null
   locks: [String!] = null
-  manipulates: [String!]
+  manipulates: [String!] = null
   extension: String = null
 }
 
@@ -1844,11 +1857,12 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder {
+input ImplementationOrder @oneOf {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
   status: Ordering
+  active: Ordering
 }
 
 type ImplementationUpdate {
@@ -1906,7 +1920,7 @@ type Interface {
   package: StructurePackage!
 
   """Implementations that implement this interface."""
-  implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
   """Usages of this interface as an output in actions."""
   outputUsages(filters: OutputInterfaceUsageFilter, pagination: OffsetPaginationInput): [OutputInterfaceUsage!]!
@@ -2021,6 +2035,9 @@ input MaterializeBlokInput {
   agentMappings: [BlokAgentMappingInput!] = null
 }
 
+"""
+A materialized instance of a Blok that can be placed on dashboards and linked to agent states.
+"""
 type MaterializedBlok {
   id: ID!
   blok: Blok!
@@ -2037,6 +2054,27 @@ type MaterializedBlok {
 
   """Placements of this materialized blok."""
   placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
+}
+
+"""A way to filter placements (space memberships)"""
+input MaterializedBlokFilter {
+  AND: MaterializedBlokFilter
+  OR: MaterializedBlokFilter
+  NOT: MaterializedBlokFilter
+  DISTINCT: Boolean
+
+  """Filter by IDs"""
+  ids: [ID!]
+
+  """Filter by agent"""
+  agent: ID
+
+  """Search by name"""
+  search: String
+}
+
+input MaterializedBlokOrder {
+  createdAt: Ordering
 }
 
 """Temporary S3 credentials for reading a media object."""
@@ -2245,6 +2283,9 @@ type Mutation {
 
   """Delete an agent record."""
   deleteAgent(input: DeleteAgentInput!): ID!
+
+  """Update properties of an agent such as its name."""
+  updateAgent(input: UpdateAgentInput!): Agent!
 
   """Create a shortcut to an action."""
   createShortcut(input: CreateShortcutInput!): Shortcut!
@@ -2681,7 +2722,7 @@ type Query {
   protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
 
   """All registered implementations."""
-  implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
   """Test results associated with test cases."""
   testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
@@ -2714,7 +2755,7 @@ type Query {
   resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]!
 
   """List of UI Blok."""
-  materializedBloks: [MaterializedBlok!]!
+  materializedBloks(filters: MaterializedBlokFilter, ordering: [MaterializedBlokOrder!]! = [], pagination: OffsetPaginationInput): [MaterializedBlok!]!
 
   """Available state schemas."""
   stateDefinitions: [StateDefinition!]!
@@ -2974,7 +3015,7 @@ type Reservation {
   reference: String!
 
   """Available implementations for the reservation."""
-  implementations(filters: ImplementationFilter, order: ImplementationOrder, pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
   """Dependency that triggered the reservation."""
   causingDependency: Dependency
@@ -3024,7 +3065,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "e8d06377-1dc4-45d5-a707-76a6b7004c27"
+  reference: String = "e0e9c9a8-9ed6-4e6d-bbd2-deca97f7cc7f"
   instanceId: InstanceId! = "default"
   action: ID = null
   implementation: ID = null
@@ -3146,10 +3187,10 @@ input ReturnPortInput {
   nullable: Boolean! = false
   effects: [EffectInput!] = null
   default: AnyDefault = null
-  children: [ReturnPortInput!] = null
   choices: [ChoiceInput!] = null
   widget: ReturnWidgetInput = null
   provides: [ProvidesInput!] = null
+  children: [ReturnPortInput!] = null
 }
 
 interface ReturnWidget {
@@ -3850,6 +3891,12 @@ input UnshelveMemoryDrawerInput {
   id: String!
 }
 
+"""The input for updating an agent."""
+input UpdateAgentInput {
+  id: ID!
+  name: String = null
+}
+
 """The input for updating a blok."""
 input UpdateBlokInput {
   id: ID!
@@ -3900,6 +3947,10 @@ input UpdateMaterializedBlokInput {
 
 """The input for updating a placement."""
 input UpdatePlacementInput {
+  """
+  A specific blok that should be used to visualize the state of the placement
+  """
+  materializedBlok: ID = null
   role: String = null
   affineMatrix: [[Float!]!] = null
   model: ID = null

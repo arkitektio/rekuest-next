@@ -2,15 +2,16 @@
 
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Dict,
     Any,
     Protocol,
     runtime_checkable,
 )
 from pydantic import BaseModel, ConfigDict, Field
-import asyncio
 
-from .errors import StartupHookError
+if TYPE_CHECKING:
+    from rekuest_next.actors.types import Agent
 
 
 @runtime_checkable
@@ -20,13 +21,12 @@ class BackgroundTask(Protocol):
     It is run in the order they are registered.
     """
 
-    def __init__(self) -> None:
-        """Initialize the background task"""
-        pass
-
-    async def arun(self, contexts: Dict[str, Any], states: Dict[str, Any]) -> None:
+    async def arun(
+        self, agent: "Agent", contexts: Dict[str, Any], states: Dict[str, Any]
+    ) -> None:
         """Run the background task in the event loop
         Args:
+            agent (Agent): The agent running the background task
             contexts (Dict[str, Any]): The contexts of the agent
             proxies (Dict[str, Any]): The state variables of the agent
         Returns:
@@ -53,11 +53,7 @@ class StartupHook(Protocol):
     It is run in the order they are registered.
     """
 
-    def __init__(self) -> None:
-        """Initialize the startup hook"""
-        pass
-
-    async def arun(self, instance_id: str) -> StartupHookReturns:
+    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Should return a dictionary of state variables"""
         ...
 
@@ -74,16 +70,7 @@ class HooksRegistry(BaseModel):
     background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
 
-    _background_tasks: Dict[str, asyncio.Task[None]] = {}
-    startup_timeout: float | None = 20
-    """Timeout for the startup hooks, if None, no timeout is set"""
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def cleanup(self) -> None:
-        """Cleanup the registry"""
-        for task in self._background_tasks.values():
-            task.cancel()
 
     def register_background(self, name: str, task: BackgroundTask) -> None:
         """Register a background task in the registry."""
@@ -93,73 +80,18 @@ class HooksRegistry(BaseModel):
         """Register a startup hook in the registry."""
         self.startup_hooks[name] = hook
 
-    async def arun_startup(self, instance_id: str) -> StartupHookReturns:
-        """Run the startup hooks in the registry.
-
-        Args:
-            instance_id (str): The instance id of the agent
-        Returns:
-            StartupHookReturns: The state variables and contexts
-        """
-        states: Dict[str, Any] = {}
-        contexts: Dict[str, Any] = {}
-
-        for key, hook in self.startup_hooks.items():
-            try:
-                answer = (
-                    await asyncio.wait_for(hook.arun(instance_id), timeout=self.startup_timeout)
-                    if self.startup_timeout
-                    else await hook.arun(instance_id)
-                )
-                for i in answer.states:
-                    if i in states:
-                        raise StartupHookError(f"State {i} already defined")
-                    states[i] = answer.states[i]
-
-                for i in answer.contexts:
-                    if i in contexts:
-                        raise StartupHookError(f"Context {i} already defined")
-                    contexts[i] = answer.contexts[i]
-
-            except Exception as e:
-                raise StartupHookError(f"Startup hook {key} failed") from e
-
-        return StartupHookReturns(states=states, contexts=contexts)
-
     def reset(self) -> None:
         """Reset the registry"""
         self.background_worker = {}
         self.startup_hooks = {}
 
 
-default_registry = None
-
-
 def get_default_hook_registry() -> HooksRegistry:
-    """Get the default hook registry.
-
-    If no global hook registry has been set, this will return the
-    hooks registry from the global app registry.
+    """Return the default hook registry (the app registry's).
 
     Returns:
-        HooksRegistry: The default hook registry.
+        HooksRegistry: The hooks registry of the global app registry.
     """
-    global default_registry
-    if default_registry is None:
-        from rekuest_next.app import get_default_app_registry
+    from rekuest_next.app import get_default_app_registry
 
-        return get_default_app_registry().hooks_registry
-    return default_registry
-
-
-def set_default_hook_registry(registry: HooksRegistry) -> None:
-    """Set a standalone default hook registry.
-
-    This bypasses the app registry and sets a specific hook registry
-    as the global default.
-
-    Args:
-        registry: The HooksRegistry to use as default.
-    """
-    global default_registry
-    default_registry = registry
+    return get_default_app_registry().hooks_registry

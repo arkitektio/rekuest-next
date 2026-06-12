@@ -1,7 +1,6 @@
 """State detail and retriever route builders."""
 
 from __future__ import annotations
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -72,7 +71,7 @@ def _serialize_snapshot_result(
 
 
 def build_state_detail_router(
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     states: dict[str, StateImplementationInput],
     states_path: str = "/states",
 ) -> APIRouter:
@@ -200,17 +199,6 @@ def build_state_detail_router(
             raise HTTPException(status_code=404, detail="Session boundaries not found")
         return _to_session_boundary_response(boundary)
 
-    async def state_at_local(
-        session_id: str,
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        return _serialize_snapshot_result(
-            await agent.retriever.aget_state_at_local_rev(
-                target_revision, state_id=state_id, session_id=session_id
-            )
-        )
-
     async def state_at_global(
         session_id: str,
         target_revision: int,
@@ -219,18 +207,6 @@ def build_state_detail_router(
         return _serialize_snapshot_result(
             await agent.retriever.aget_state_at_global_rev(
                 target_revision, state_id=state_id, session_id=session_id
-            )
-        )
-
-    async def current_state_at_local(
-        target_revision: int,
-        state_id: str | None = Query(default=None),
-    ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
-        if not agent.current_session:
-            raise HTTPException(status_code=404, detail="No active session")
-        return _serialize_snapshot_result(
-            await agent.retriever.aget_state_at_local_rev(
-                target_revision, state_id=state_id, session_id=agent.current_session
             )
         )
 
@@ -360,20 +336,8 @@ def build_state_detail_router(
         description="Return the start and end global revisions covered by the requested session.",
     )
     router.add_api_route(
-        "/state_at_local/{session_id}/{target_revision}",
-        state_at_local,
-        methods=["GET"],
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    router.add_api_route(
         "/state_at_global/{session_id}/{target_revision}",
         state_at_global,
-        methods=["GET"],
-        response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
-    )
-    router.add_api_route(
-        "/current_state_at_local/{target_revision}",
-        current_state_at_local,
         methods=["GET"],
         response_model=RetrieverSnapshotResponse | list[RetrieverSnapshotResponse],
     )

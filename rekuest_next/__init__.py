@@ -30,10 +30,15 @@ from .blok.parser import jsx
 from .remote import (
     acall,
     call,
+    acall_raw,
+    acall_dependency,
+    acall_dependency_raw,
+    call_dependency_raw,
+    call_dependency,
+    call_raw,
     aiterate,
     iterate,
     find,
-    acall_raw,
 )
 from .agents.context import context
 from .agents.hooks.startup import startup
@@ -47,8 +52,9 @@ from .actors.context import (
     pausepoint,
     install_hook,
 )
-from .declare import declare, agent_protocol, declare_state
+from .declare import declare, declare_state
 from .structures.model import model, model_field
+from .structures.decorator import structure
 from .state.decorator import state
 from .app import (
     AppRegistry,
@@ -64,45 +70,49 @@ except ImportError:
     pass
 
 
-from .structure import structure_reg
+from .builtin_structures import structure_reg
 
 __version__ = "0.4.1"
 
 __all__ = [
-    "acall",
-    "call",
-    "log",
+    # registration decorators
+    "declare",
+    "declare_state",
+    "state",
+    "context",
+    "startup",
+    "background",
+    "model",
+    "model_field",
+    "structure",
     "jsx",
+    # runtime helpers
+    "log",
     "alog",
     "progress",
     "aprogress",
-    "declare",
-    "agent_protocol",
-    "model",
-    "model_field",
-    "state",
-    "install_hook",
     "pausepoint",
     "apausepoint",
-    "context",
-    "model_field",
-    "state",
-    "background",
-    "startup",
-    "declare_state",
+    "install_hook",
+    # remote execution helpers
     "find",
-    "RekuestNextService",
     "call",
-    "structure_reg",
+    "acall",
+    "call_raw",
+    "acall_raw",
+    "call_dependency",
+    "acall_dependency",
+    "acall_dependency_raw",
+    "call_dependency_raw",
     "iterate",
     "aiterate",
-    "model",
-    "acall_raw",
-    "structure_reg",
+    # registry helpers
     "AppRegistry",
-    "Requires",
-    "Provides",
+    "structure_reg",
     "get_default_app_registry",
     "set_default_app_registry",
     "reset_default_app_registry",
+    "Requires",
+    "Provides",
+    "RekuestNextService",
 ]

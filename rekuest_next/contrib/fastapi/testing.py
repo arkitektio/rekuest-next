@@ -270,7 +270,6 @@ class AgentTestClient:
         self,
         interface: str,
         args: dict[str, Any],
-        extension: str = "default",
         use_implementation_route: bool = True,
     ) -> AssignmentResult:
         """Assign work to the agent.
@@ -280,7 +279,6 @@ class AgentTestClient:
         Args:
             interface: The interface name (function name) to call.
             args: The arguments to pass to the function.
-            extension: The extension name (default: "default").
             use_implementation_route: If True, uses the direct implementation route
                 (e.g., /my_function). If False, uses the generic assign endpoint
                 (e.g., /assign/my_function).
@@ -744,7 +742,6 @@ class AsyncAgentTestClient:
         self,
         interface: str,
         args: dict[str, Any],
-        extension: str = "default",
         use_implementation_route: bool = False,
     ) -> AssignmentResult:
         """Assign work to the agent.
@@ -752,7 +749,6 @@ class AsyncAgentTestClient:
         Args:
             interface: The interface name (function name) to call.
             args: The arguments to pass to the function.
-            extension: The extension name (default: "default").
             use_implementation_route: If True, uses the direct implementation route.
 
         Returns:
@@ -1002,7 +998,7 @@ def create_test_lifespan(
 def create_test_app_and_agent(
     instance_id: str = "test-instance",
     app_registry: Optional["AppRegistry"] = None,
-) -> tuple[FastAPI, FastApiAgent[Any], AppRegistry]:
+) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
     This is a convenience function that sets up all the necessary registries

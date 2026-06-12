@@ -19,11 +19,9 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Generic,
     List,
     Optional,
     Self,
-    TypeVar,
 )
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -508,10 +506,7 @@ class FastApiTransport(AgentTransport):
         await self.adisconnect()
 
 
-T = TypeVar("T", bound=Any)
-
-
-class FastApiAgent(BaseAgent[T], Generic[T]):
+class FastApiAgent(BaseAgent):
     """An Agent that uses FastAPI as its web framework.
 
     This agent uses `FastApiTransport` to receive messages from HTTP
@@ -568,12 +563,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         ):
             self.retriever.store = self.sink.store
 
-    def get_state_schemas(
-        self,
-        extension: str = "default",
-    ) -> dict[str, StateImplementationInput]:
-        """Return the registered state schemas for one FastAPI extension."""
-        return self.extension_registry.get(extension).get_states()
+    def get_state_schemas(self) -> dict[str, StateImplementationInput]:
+        """Return the registered state schemas from the app registry."""
+        return dict(self.app_registry.states)
 
     def build_assign_input(
         self,

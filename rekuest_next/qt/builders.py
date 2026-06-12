@@ -9,31 +9,28 @@ from typing import (
     Any,
     AsyncGenerator,
     Callable,
-    Dict,
-    List,
     Optional,
     Tuple,
     get_args,
     get_origin,
 )
 from qtpy import QtCore, QtWidgets
-from koil.qt import QtGenerator, QtFuture, qt_to_async
-from rekuest_next.actors.functional import FunctionalFuncActor, FunctionalGenActor
+from koil.qt import QtGenerator, QtFuture, qt_to_async, qt_gen_to_async_gen
+from rekuest_next.actors.functional import FUNC, GEN, FunctionalActor
 
-from rekuest_next.agents.context import prepare_context_variables
-from rekuest_next.agents.dependency import prepare_dependency_variables
-from rekuest_next.definition.define import (
-    AssignWidgetMap,
-    EffectsMap,
-    ReturnWidgetMap,
-    prepare_definition,
-    DefinitionInput,
+from rekuest_next.actors.actify import (
+    derive_implementation_details,
+    prepare_definition_from_config,
 )
-from rekuest_next.actors.types import ActorBuilder, Agent, ImplementationDetails
+from rekuest_next.definition.define import DefinitionInput
+from rekuest_next.actors.types import (
+    ActorBuilder,
+    Agent,
+    ImplementationDetails,
+    RegisterConfig,
+)
 from rekuest_next.protocols import AnyFunction
-from rekuest_next.state.utils import prepare_state_variables
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import ValidatorInput, PortGroupInput
 
 
 class QtInLoopBuilder(QtCore.QObject):
@@ -73,13 +70,14 @@ class QtInLoopBuilder(QtCore.QObject):
 
         return await self.coro.acall(**kwargs)
 
-    def build(self, agent: Agent) -> "FunctionalFuncActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalFuncActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=FUNC,
                 definition=self.definition,
                 **self.actor_kwargs,
             )
@@ -120,13 +118,14 @@ class QtFutureBuilder(QtCore.QObject):
         x = await self.coro.acall(*args, **kwargs)
         return x
 
-    def build(self, agent: Agent) -> "FunctionalFuncActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalFuncActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=FUNC,
                 definition=self.definition,
                 **self.actor_kwargs,
             )
@@ -156,7 +155,9 @@ class QtGeneratorBuilder(QtCore.QObject):
     ) -> None:
         """Initialize the builder."""
         super().__init__(*args, parent=parent)
-        self.yielder = QtYielder(lambda *args, **kwargs: assign(*args, **kwargs))
+        self.generator = qt_gen_to_async_gen(
+            lambda *args, **kwargs: assign(*args, **kwargs)
+        )
         self.provisions = {}
         self.structure_registry = structure_registry
         self.actor_kwargs = actor_kwargs
@@ -164,16 +165,17 @@ class QtGeneratorBuilder(QtCore.QObject):
 
     async def on_assign(self, *args, **kwargs) -> AsyncGenerator[Any, None]:  # noqa: ANN002, ANN003
         """Runs in the same thread as the koil instance."""
-        async for i in self.yielder.aiterate(*args, **kwargs):
+        async for i in self.generator.acall(*args, **kwargs):
             yield i
 
-    def build(self, agent: Agent) -> "FunctionalGenActor":
+    def build(self, agent: Agent) -> "FunctionalActor":
         """Builds the actor."""
         try:
-            ac = FunctionalGenActor(
+            ac = FunctionalActor(
                 agent=agent,
                 structure_registry=self.structure_registry,
                 assign=self.on_assign,
+                iterator=GEN,
                 definition=self.definition,
                 **self.actor_kwargs,
             )
@@ -185,96 +187,33 @@ class QtGeneratorBuilder(QtCore.QObject):
 def qtinloopactifier(
     function: AnyFunction,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    bypass_shrink: bool = False,
-    bypass_expand: bool = False,
-    description: str | None = None,
-    stateful: bool = False,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: List[str] | None = None,
-    effects: EffectsMap | None = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    is_test_for: Optional[List[str]] = None,
-    widgets: AssignWidgetMap | None = None,
-    return_widgets: ReturnWidgetMap | None = None,
-    interfaces: List[str] | None = None,
-    in_process: bool = False,
-    logo: str | None = None,
-    name: str | None = None,
-    auto_locks: bool = True,
-    locks: Optional[List[str]] = None,
-    version: Optional[str] = None,
-    key: Optional[str] = None,
-    actor_class: Optional[type] = None,
 ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
-    """Reactify a function
-
-    This function takes a callable (of type async or sync function or generator) and
-    returns a builder function that creates an actor that makes the function callable
-    from the rekuest server.
-    """
-
-    state_variables, state_returns = prepare_state_variables(function)
-    context_variables, context_returns = prepare_context_variables(function)
-    dependency_variables = prepare_dependency_variables(function)
-
-    if not locks and auto_locks:
-        locks = []
-        for lock in context_variables.required_context_locks.values():
-            locks.extend(lock)
-        for lock in state_variables.required_state_locks.values():
-            locks.extend(lock)
-        locks = list(set(locks))
-
-    if state_variables:
-        stateful = True
-
-    implementation_details = ImplementationDetails(
-        state_variables=state_variables,
-        state_returns=state_returns,
-        context_variables=context_variables,
-        context_returns=context_returns,
-        dependency_variables=dependency_variables,
-        locks=locks,
-    )
-
-    definition = prepare_definition(
-        function,
-        structure_registry,
-        widgets=widgets,
-        interfaces=interfaces,
-        port_groups=port_groups,
-        collections=collections,
-        stateful=stateful,
-        validators=validators,
-        effects=effects,
-        is_test_for=is_test_for,
-        name=name,
-        description=description,
-        return_widgets=return_widgets,
-        logo=logo,
-        key=key,
-        version=version,
-    )
-
-    actor_attributes: dict[str, Any] = {
-        "expand_inputs": not bypass_expand,
-        "shrink_outputs": not bypass_shrink,
-        "state_variables": state_variables,
-        "state_returns": state_returns,
-        "context_variables": context_variables,
-        "context_returns": context_returns,
-        "dependency_variables": dependency_variables,
-        "locks": locks,
-    }
     """Qt Actifier
 
     The qt actifier wraps a function and returns a builder that will create an actor
     that runs in the same thread as the Qt instance, enabling the use of Qt widgets
     and signals.
     """
+    config = config or RegisterConfig()
 
-    definition = prepare_definition(function, structure_registry)
+    implementation_details = derive_implementation_details(function, config)
+    definition = prepare_definition_from_config(
+        function, structure_registry, config, implementation_details
+    )
+
+    actor_attributes: dict[str, Any] = {
+        "expand_inputs": not config.bypass_expand,
+        "shrink_outputs": not config.bypass_shrink,
+        "state_variables": implementation_details.state_variables,
+        "state_returns": implementation_details.state_returns,
+        "context_variables": implementation_details.context_variables,
+        "context_returns": implementation_details.context_returns,
+        "dependency_variables": implementation_details.dependency_variables,
+        "locks": implementation_details.locks,
+    }
 
     in_loop_instance = QtInLoopBuilder(
         parent=parent,
@@ -290,42 +229,46 @@ def qtinloopactifier(
 def qtwithfutureactifier(
     function: Callable,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    **kwargs: dict,
-) -> ActorBuilder:
+) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
     its first parameter being a future that can be resolved within the qt loop
     """
+    config = config or RegisterConfig()
 
     sig = inspect.signature(function)
 
     if len(sig.parameters) == 0:
         raise ValueError(
-            f"The function  {function} you are trying to register with a generator actifier must have at least one parameter, the Generator"
+            f"The function {function} you are trying to register with a future actifier must have at least one parameter, the QtFuture"
         )
 
     first = sig.parameters[list(sig.parameters.keys())[0]].annotation
 
     if not get_origin(first) == QtFuture:
         raise ValueError(
-            f"The function {function}  you are trying to register needs to have a QtGenerator as its first parameter"
+            f"The function {function} you are trying to register needs to have a QtFuture as its first parameter"
         )
 
     return_params = get_args(first)
 
     if len(return_params) == 0:
         raise ValueError(
-            "If you are using a QtGenerator as the first parameter, you need to provide the return type of the generator as a type hint. E.g `QtGenerator[int]`"
+            "If you are using a QtFuture as the first parameter, you need to provide the return type of the future as a type hint. E.g `QtFuture[int]`"
         )
 
-    definition = prepare_definition(
+    implementation_details = derive_implementation_details(function, config)
+    definition = prepare_definition_from_config(
         function,
         structure_registry,
+        config,
+        implementation_details,
         omitfirst=1,
         return_annotations=return_params,
-        **kwargs,
     )
 
     in_loop_instance = QtFutureBuilder(
@@ -335,20 +278,22 @@ def qtwithfutureactifier(
         definition=definition,
     )
 
-    return definition, in_loop_instance.build
+    return definition, implementation_details, in_loop_instance.build
 
 
 def qtwithgeneratoractifier(
     function: Callable,
     structure_registry: StructureRegistry,
+    config: Optional[RegisterConfig] = None,
+    *,
     parent: QtWidgets.QWidget = None,
-    **kwargs: dict,
-) -> Tuple[DefinitionInput, ActorBuilder]:
+) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
-    its first parameter being a future that can be resolved within the qt loop
+    its first parameter being a generator that can be yielded to within the qt loop
     """
+    config = config or RegisterConfig()
 
     sig = inspect.signature(function)
 
@@ -371,12 +316,14 @@ def qtwithgeneratoractifier(
             "If you are using a QtGenerator as the first parameter, you need to provide the return type of the generator as a type hint. E.g `QtGenerator[int]`"
         )
 
-    definition = prepare_definition(
+    implementation_details = derive_implementation_details(function, config)
+    definition = prepare_definition_from_config(
         function,
         structure_registry,
+        config,
+        implementation_details,
         omitfirst=1,
         return_annotations=return_params,
-        **kwargs,
     )
 
     in_loop_instance = QtGeneratorBuilder(
@@ -385,6 +332,5 @@ def qtwithgeneratoractifier(
         structure_registry=structure_registry,
         definition=definition,
     )
-    # build an actor for this inloop instance
 
-    return definition, in_loop_instance.build
+    return definition, implementation_details, in_loop_instance.build

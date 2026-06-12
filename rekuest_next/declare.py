@@ -6,18 +6,15 @@ from typing import (
     Callable,
     Dict,
     Generic,
-    List,
     ParamSpec,
-    Protocol,
     Type,
     TypeVar,
     overload,
-    runtime_checkable,
     get_type_hints,
+    Protocol,
 )
 import inflection
 from rekuest_next.api.schema import (
-    ArgPortInput,
     ReturnPortInput,
     StateDependencyInput,
 )
@@ -27,13 +24,10 @@ from rekuest_next.definition.dependencies import (
 )
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.define import convert_object_to_returnport
-from rekuest_next.definition.match import build_port_match
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.api.schema import (
     ActionDependencyInput,
-    Implementation,
-    PortMatchInput,
     AgentDependencyInput,
     StateDefinitionInput,
 )
@@ -58,14 +52,6 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def port_to_match(index: int, port: ArgPortInput) -> PortMatchInput:
-    return build_port_match(index, port)
-
-
-def returnport_to_match(index: int, port: ReturnPortInput) -> PortMatchInput:
-    return build_port_match(index, port)
-
-
 class DeclaredAgentAction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
@@ -81,7 +67,6 @@ class DeclaredAgentAction(Generic[P, R]):
         )
         self.is_async = inspect.iscoroutinefunction(func)
         self.interface = func.__name__
-        self._current_implementation_cache: Dict[str, List[Implementation]] = {}
 
     def to_dependency_input(self, key: str) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
@@ -121,7 +106,7 @@ def declare_state(cls: Type[T]) -> Type[T]:
     """Mark a class as a declared state dependency.
 
     Declared states are lightweight protocol-style classes used by
-    :func:`agent_protocol` to describe remote state dependencies. The decorator
+    :func:`declare` to describe remote state dependencies. The decorator
     sets marker attributes on the class and preserves the class unchanged.
 
     Args:
@@ -139,18 +124,14 @@ def declare_state(cls: Type[T]) -> Type[T]:
                 exposure_ms: float
     """
     state_cls = cls[0] if isinstance(cls, tuple) else cls
-    state_cls.__is_state__ = True
+    setattr(state_cls, "__is_state__", True)
     if getattr(state_cls, "__rekuest_state__", None) is None:
-        state_cls.__rekuest_state__ = state_cls.__name__
+        setattr(state_cls, "__rekuest_state__", state_cls.__name__)
     return state_cls
 
 
 def state_dep_like(cls: Class) -> bool:
-    if (
-        isinstance(cls, type)
-        and getattr(cls, "__is_state__", None)
-        and cls.__is_state__
-    ):
+    if isinstance(cls, type) and getattr(cls, "__is_state__", None):
         return True
     return False
 
@@ -244,19 +225,10 @@ class DeclaredAgentProtocol(Generic[Agent]):
         )
 
 
-T = TypeVar("T")
+T = TypeVar("T", bound=object)
 
 
-@runtime_checkable
-class Resolvable(Protocol):
-    """A protocol for resolvable dependencies."""
-
-    def resolve(self, **kwargs: Any) -> Any:
-        """Resolve the dependency."""
-        ...
-
-
-def agent_protocol(
+def declare(
     app: str | None = None,
     auto_resolvable: bool = False,
     min: int | None = None,
@@ -292,7 +264,7 @@ def agent_protocol(
             class CameraState:
                 connected: bool
 
-            @agent_protocol(app="lab")
+            @declare(app="lab")
             class CameraProtocol:
                 state: CameraState
 
@@ -320,7 +292,7 @@ def agent_protocol(
 
 
 @overload
-def state_protocol(func: Type[T]) -> Type[T]: ...
+def state_protocol(cls: Type[T], /) -> Type[T]: ...
 
 
 @overload
@@ -339,7 +311,7 @@ def state_protocol(
     version: str | None = None,
     min: int | None = None,
     max: int | None = None,
-) -> Type[T]:
+) -> Type[T] | Callable[[Type[T]], Type[T]]:
     """Declare an state protocol.
 
     This is useful for defining state protocols that can be registered later.
@@ -363,7 +335,3 @@ def state_protocol(
         return wrapper
 
     raise ValueError("You can only declare one state protocol at a time.")
-
-
-declare = agent_protocol
-dependency = agent_protocol

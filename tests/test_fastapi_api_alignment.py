@@ -2,7 +2,6 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from rekuest_next.api.schema import (
-    BlokImplementationInput,
     ImplementationInput,
     PortKind,
     ReturnPortInput,
@@ -15,6 +14,7 @@ from rekuest_next.contrib.fastapi.route_groups.implementations import (
 )
 from rekuest_next.contrib.fastapi.route_groups.schemas import build_schema_router
 from rekuest_next.contrib.fastapi.routes import add_state_detail_routes
+from rekuest_next.app import AppRegistry
 from rekuest_next.definition.define import prepare_definition
 
 
@@ -75,51 +75,24 @@ def test_add_state_detail_routes_uses_current_agent_state_accessor() -> None:
     assert "/states/checkout" in paths
 
 
-def test_schema_router_uses_extension_get_states() -> None:
-    class FakeExtension:
-        def get_name(self) -> str:
-            return "default"
-
-        def get_states(self) -> dict[str, StateImplementationInput]:
-            return {
-                "demo_state": StateImplementationInput(
-                    interface="demo_state",
-                    definition=StateDefinitionInput(
-                        name="DemoState",
-                        ports=(
-                            ReturnPortInput(
-                                key="value",
-                                kind=PortKind.STRING,
-                                nullable=False,
-                            ),
-                        ),
-                    ),
-                )
-            }
-
-        def get_static_implementations(self) -> list[ImplementationInput]:
-            return []
-
-        def get_lock_schemas(self) -> dict:
-            return {}
-
-        def get_bloks(self) -> dict[str, BlokImplementationInput]:
-            return {
-                "demo_blok": BlokImplementationInput(
-                    key="demo_blok",
-                    dependencies=(),
-                    components=(),
-                    description="Demo blok",
-                )
-            }
-
+def test_schema_router_uses_app_registry_states() -> None:
     app = FastAPI()
     agent = FastApiAgent()
-    from rekuest_next.agents.registry import ExtensionRegistry
-
-    extension_registry = ExtensionRegistry()
-    extension_registry.register(FakeExtension())
-    agent.extension_registry = extension_registry
+    app_registry = AppRegistry()
+    app_registry.states["demo_state"] = StateImplementationInput(
+        interface="demo_state",
+        definition=StateDefinitionInput(
+            name="DemoState",
+            ports=(
+                ReturnPortInput(
+                    key="value",
+                    kind=PortKind.STRING,
+                    nullable=False,
+                ),
+            ),
+        ),
+    )
+    agent.app_registry = app_registry
 
     app.include_router(build_schema_router(agent))
 
@@ -133,36 +106,11 @@ def test_schema_router_uses_extension_get_states() -> None:
 
 
 def test_schema_router_exposes_blok_implementation_inputs() -> None:
-    class FakeExtension:
-        def get_name(self) -> str:
-            return "default"
-
-        def get_states(self) -> dict[str, StateImplementationInput]:
-            return {}
-
-        def get_static_implementations(self) -> list[ImplementationInput]:
-            return []
-
-        def get_lock_schemas(self) -> dict:
-            return {}
-
-        def get_bloks(self) -> dict[str, BlokImplementationInput]:
-            return {
-                "demo_blok": BlokImplementationInput(
-                    key="demo_blok",
-                    dependencies=(),
-                    components=(),
-                    description="Demo blok",
-                )
-            }
-
     app = FastAPI()
     agent = FastApiAgent()
-    from rekuest_next.agents.registry import ExtensionRegistry
-
-    extension_registry = ExtensionRegistry()
-    extension_registry.register(FakeExtension())
-    agent.extension_registry = extension_registry
+    app_registry = AppRegistry()
+    app_registry.register_blok("demo_blok", "<Page />", description="Demo blok")
+    agent.app_registry = app_registry
 
     app.include_router(build_schema_router(agent))
 

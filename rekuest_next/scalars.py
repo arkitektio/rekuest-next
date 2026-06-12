@@ -12,7 +12,7 @@ from graphql import (
     print_source_location,
     GraphQLSyntaxError,
 )
-from typing import IO, Callable, Dict, Any, Union
+from typing import IO, Dict, Any, Union
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -30,32 +30,6 @@ SearchQueryCoercible = str | DocumentNode
 MediaLikeCoercible = str | IO[bytes]
 Args = Dict[str, Any]
 JSONSerializable = Union[str, int, float, bool, None, Dict, list]
-
-
-class Interface(str):
-    """An interface is a string that is used to identify a function on a
-    extension"""
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the interface"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
-
-    @classmethod
-    def validate(cls, v: Union[str, Callable[[Any], Any]]) -> str:
-        """Validate the interface"""
-        if not isinstance(v, str):
-            if hasattr(v, "__name__"):
-                return v.__name__
-            else:
-                raise ValueError("Interface must be either a str or function")
-        return v
-
-    pass
 
 
 class Identifier(str):
@@ -142,15 +116,6 @@ class ValidatorFunction(str):
                 raise ValueError("Function must have at least one argument")
 
         return cls(v)
-
-    def retrieve_args(self) -> list[str]:
-        """Retrieve the arguments of the validator function"""
-        args_match = re.match(r"\((.*?)\)", self)
-        if args_match:
-            return [
-                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
-            ]
-        return []
 
 
 def parse_or_raise(v: str) -> DocumentNode:
@@ -291,6 +256,26 @@ class SearchQuery(str):
             )
 
         return SearchQuery(print_ast(v))
+
+
+# Variables that are part of the SearchQuery contract and are supplied by the
+# ward at runtime, so they never need to be backed by a filter port or dependency.
+# ``limit``/``offset`` are the reserved pagination variables.
+RESERVED_SEARCH_VARIABLES = frozenset({"search", "values", "limit", "offset"})
+
+
+def get_search_query_variables(query: str) -> list[str]:
+    """Return the variable names declared by a search query.
+
+    This includes the mandatory ``search`` and ``values`` variables as well as
+    any additional variables the user declared (which must be backed by a filter
+    port or a dependency of the widget).
+    """
+    document = parse_or_raise(query)
+    definition = document.definitions[0]
+    if not isinstance(definition, OperationDefinitionNode):
+        return []
+    return [v.variable.name.value for v in definition.variable_definitions]
 
 
 class MediaLike:

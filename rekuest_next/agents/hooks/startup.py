@@ -1,6 +1,5 @@
 """Hooks for the agent"""
 
-import contextvars
 import inspect
 from typing import (
     Any,
@@ -12,8 +11,6 @@ from typing import (
     cast,
     overload,
 )
-import asyncio
-
 from koil.helpers import run_spawned
 from rekuest_next.agents.context import (
     prepare_context_variables,
@@ -25,6 +22,7 @@ from rekuest_next.agents.hooks.registry import (
     get_default_hook_registry,
 )
 from rekuest_next.protocols import (
+    AnyFunction,
     AsyncStartupFunction,
     ContextLessStartupFunction,
     ThreadedStartupFunction,
@@ -38,13 +36,8 @@ from rekuest_next.state.utils import (
 )
 
 
-startup_context: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "startup_hook_context"
-)
-
-
 class WithVariables:
-    def __init__(self, func: Callable[..., Any]) -> None:
+    def __init__(self, func: AnyFunction) -> None:
         self.func = func
         self.state_variables, self.state_returns = prepare_state_variables(func)
         self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
@@ -76,10 +69,6 @@ class WithVariables:
             )
 
 
-class InspectHookMixin:
-    """Mixin to inspect the hook function"""
-
-
 class WrappedStartupHook(WithVariables):
     """Startup hook that runs in the event loop"""
 
@@ -100,15 +89,10 @@ class WrappedStartupHook(WithVariables):
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
         """
-        token = startup_context.set(True)
-
-        try:
-            if self.pass_app_context:
-                parsed_returns = await self.func(app_context)
-            else:
-                parsed_returns = await self.func()
-        finally:
-            startup_context.reset(token)
+        if self.pass_app_context:
+            parsed_returns = await self.func(app_context)
+        else:
+            parsed_returns = await self.func()
 
         returns = ensure_return_as_tuple(parsed_returns)
 
@@ -141,14 +125,10 @@ class ThreadedStartupHook(WithVariables):
         super().__init__(func)
 
     def run_func_with_context(self, app_context: Any) -> Any:
-        token = startup_context.set(True)
-        try:
-            if self.pass_app_context:
-                return self.func(app_context)
-            else:
-                return self.func()
-        finally:
-            startup_context.reset(token)
+        if self.pass_app_context:
+            return self.func(app_context)
+        else:
+            return self.func()
 
     async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
@@ -258,7 +238,8 @@ def startup(
         registry = registry or get_default_hook_registry()
 
         if inspect.iscoroutinefunction(func):
-            registry.register_startup(name or func.__name__, WrappedStartupHook(func))
+            a = cast(AsyncStartupFunction, func)
+            registry.register_startup(name or a.__name__, WrappedStartupHook(a))
 
         else:
             assert inspect.isfunction(func) or inspect.ismethod(func), (
@@ -266,24 +247,12 @@ def startup(
             )
             t = cast(ThreadedStartupFunction, func)
 
-            registry.register_startup(name or func.__name__, ThreadedStartupHook(t))
+            registry.register_startup(name or t.__name__, ThreadedStartupHook(t))
 
-        return func  # type: ignore
+        return cast(TStartup, func)
     else:
 
-        def decorator(func: T) -> T:
-            registry = get_default_hook_registry()
-
-            if asyncio.iscoroutinefunction(func):
-                registry.register_startup(func.__name__, WrappedStartupHook(func))
-
-            else:
-                assert inspect.isfunction(func), (
-                    "Function must be a async function or a sync function"
-                )
-
-                t = cast(ThreadedStartupFunction, func)
-                registry.register_startup(func.__name__, ThreadedStartupHook(t))
-            return func
+        def decorator(func: TStartup) -> TStartup:
+            return cast(TStartup, startup(func, name=name, registry=registry))
 
         return decorator

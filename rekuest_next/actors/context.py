@@ -118,19 +118,9 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
         pass
 
 
-def useUser() -> str:
-    """Returns the user id of the current assignation"""
-    return get_current_assignation_helper().user
-
-
 def useAssign() -> messages.Assign:
     """Returns the assignation id of the current provision"""
     return get_current_assignation_helper().assignment
-
-
-def useInstanceID() -> str:
-    """Returns the guardian id of the current provision"""
-    return get_current_assignation_helper().actor.agent.instance_id
 
 
 def progress(percentage: int, message: Optional[str] = None) -> None:
@@ -227,8 +217,3 @@ def pausepoint() -> None:
             "You attempted to await a breakpoint outside of an assignation. This breakpoint will not be awaited."
         )
         pass
-
-
-# Backwards-compatible aliases for arkitekt_next
-abreakpoint = apausepoint
-breakpoint = pausepoint

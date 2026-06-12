@@ -1,6 +1,6 @@
 """Context management for Rekuest Next."""
 
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, overload, get_type_hints
+from typing import Callable, Dict, Optional, Tuple, Type, TypeVar, overload, get_type_hints
 import inspect
 from dataclasses import dataclass
 import inflection
@@ -121,11 +121,6 @@ class PreparedContextVariables:
         """Get the amount of state variables."""
         return len(self.context_variables)
 
-    @property
-    def required_locks_amount(self) -> int:
-        """Get the amount of locks."""
-        return len(self.required_context_locks)
-
 
 @dataclass
 class PreparedContextReturns:
@@ -182,15 +177,3 @@ def prepare_context_variables(
         ),
         PreparedContextReturns(context_returns=state_returns),
     )
-
-
-def get_all_context_locks(cls: List[Type[AnyContext]]) -> list[str]:
-    """Returns the context variable for a given context class.
-
-    Args:
-        cls (Type[AnyContext]): The context class to get the variable for.
-    """
-    locks: list[str] = []
-    for c in cls:
-        locks.extend(get_context_locks(c))
-    return list(set(locks))

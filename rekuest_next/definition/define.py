@@ -24,12 +24,13 @@ from rekuest_next.api.schema import (
     ValidatorInput,
 )
 import inspect
-from docstring_parser import parse
+from docstring_parser import parse, DocstringStyle
 from rekuest_next.definition.errors import DefinitionError, NonSufficientDocumentation
 import datetime as dt
 from rekuest_next.structures.registry import (
     StructureRegistry,
 )
+from rekuest_next.structures.convert import is_literal
 from typing import Optional, Any, Dict, get_origin, get_args, Annotated
 import types
 import typing
@@ -67,28 +68,6 @@ def is_nullable(cls: Any) -> bool:  # noqa: ANN401
         return True
 
     return False
-
-
-def get_non_nullable(cls: Any) -> Any:  # noqa: ANN401
-    """Get the non-nullable type of a union type"""
-    args = get_args(cls)
-
-    non_nullable_args = [arg for arg in args if arg is not type(None)]
-    if len(non_nullable_args) == 1:
-        return non_nullable_args[0]
-    else:
-        return Union.__getitem__(tuple(non_nullable_args))  # type: ignore
-
-
-def get_non_nullable_variant(cls: Any) -> Any:  # noqa: ANN401
-    """Get the non-nullable type of a union type"""
-    non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
-    if len(non_nullable_args) == 1:
-        return non_nullable_args[0]
-    # We are dealing with a Union so we still use the same class
-    # the logic will be handled in the union path
-    # TODO: We might want to handle this better
-    return cls
 
 
 def is_union(cls: Any) -> bool:  # noqa: ANN401
@@ -387,6 +366,23 @@ def convert_object_to_argport(
             requires=tuple(requires) if requires else None,
         )
 
+    if is_literal(cls):
+        # typing.Literal[...] is autoconverted to an enum port. Route through
+        # the registry before the primitive checks below so a literal with a
+        # string/int default isn't mistaken for a plain STRING/INT port.
+        return registry.get_argport_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            effects=effects,
+            label=label,
+            default=default,
+            validators=validators,
+            assign_widget=assign_widget,
+            requires=tuple(requires) if requires else None,
+        )
+
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
         return ArgPortInput(
             kind=PortKind.BOOL,
@@ -648,6 +644,23 @@ def convert_object_to_returnport(
             description=description,
         )
 
+    if is_literal(cls):
+        # typing.Literal[...] is autoconverted to an enum port. Route through
+        # the registry before the primitive checks below so a literal with a
+        # string/int default isn't mistaken for a plain STRING/INT port.
+        return registry.get_returnport_for_cls(
+            cls,
+            key,
+            nullable=nullable,
+            description=description,
+            effects=effects,
+            label=label,
+            default=default,
+            validators=validators,
+            return_widget=return_widget,
+            provides=provides,
+        )
+
     if is_bool(cls) or (default is not None and isinstance(default, bool)):
         return ReturnPortInput(
             kind=PortKind.BOOL,
@@ -815,8 +828,10 @@ def prepare_definition(
     args: List[ArgPortInput] = []
     returns: List[ReturnPortInput] = []
 
-    # Docstring Parser to help with descriptions
-    docstring = parse(function.__doc__ or "")
+    # Docstring Parser to help with descriptions. ``AUTO`` tries every known
+    # style (reST, Google, Numpydoc, Epydoc) and keeps the best match, so we
+    # accept whatever convention the author happens to use.
+    docstring = parse(function.__doc__ or "", style=DocstringStyle.AUTO)
 
     function_name = (
         getattr(function, "__name__", None)
@@ -828,18 +843,21 @@ def prepare_definition(
 
     is_dev = False
 
-    if not docstring.short_description and name is None:
-        is_dev = True
-        if not allow_dev:
-            raise NonSufficientDocumentation(
-                f"We are not in dev mode. Please provide a name or better document  {function_name}. Try docstring :)"
-            )
+    # Whether the action carries any human-written documentation. The registered
+    # name is *never* taken from the docstring (see below), so an undocumented
+    # function is still perfectly registerable -- it is just flagged as a "dev"
+    # (insufficiently documented) action, and rejected outright when docs are
+    # required (``not allow_empty_doc``) and we are not in dev mode.
+    has_documentation = bool(
+        description or docstring.short_description or docstring.long_description
+    )
 
-    if not docstring.long_description and description is None and not allow_empty_doc:
+    if not has_documentation:
         is_dev = True
-        if not allow_dev:
+        if not allow_empty_doc and not allow_dev:
             raise NonSufficientDocumentation(
-                f"We are not in dev mode. Please provide a description or better document  {function_name}. Try docstring :)"
+                f"We are not in dev mode. Please document {function_name} with a "
+                "docstring or pass an explicit description. Try a docstring :)"
             )
 
     type_hints = get_type_hints(function, include_extras=allow_annotations)
@@ -998,20 +1016,23 @@ def prepare_definition(
                     )
                 )
 
-    action_name = None
-    # Documentation Parsing
-    if name is not None:
-        action_name = name
+    # The registered name is NEVER inferred from the docstring. Using the
+    # docstring summary line as the action name was being misused, so the name
+    # comes only from an explicit ``name`` argument or, failing that, the
+    # function's own name. The docstring is reserved purely for the description.
+    action_name = name or snake_to_title_case(function_name)
 
-    elif docstring.long_description:
-        action_name = docstring.short_description or snake_to_title_case(
-            function.__name__
-        )
-        description = description or docstring.long_description
-
-    else:
-        action_name = name or snake_to_title_case(function_name)
-        description = description or docstring.short_description or "No Description"
+    # Build the description from the docstring, joining the summary line
+    # (short description) and the body (long description) back together. This
+    # works for any docstring style (reST, Google, Numpydoc, Epydoc) because
+    # ``parse`` auto-detects the style above.
+    if description is None:
+        doc_parts = [
+            part
+            for part in (docstring.short_description, docstring.long_description)
+            if part
+        ]
+        description = "\n\n".join(doc_parts) if doc_parts else "No Description"
 
     if widgets:
         raise DefinitionError(

@@ -2,6 +2,7 @@
 
 from typing import Callable, Generator
 from rekuest_next.actors.actify import reactify
+from rekuest_next.actors.types import RegisterConfig
 from rekuest_next.api.schema import ActionKind
 from rekuest_next.structures.registry import StructureRegistry
 import pytest
@@ -22,6 +23,21 @@ def test_actify_function(simple_registry: StructureRegistry) -> None:
 
     defi, impl_d, actor_builder = reactify(func, simple_registry)
     assert defi.kind == ActionKind.FUNCTION
+
+
+def test_actify_stateful_config(simple_registry: StructureRegistry) -> None:
+    """A stateless function is not stateful by default, but honors stateful=True
+    from the config. Guards against the previously-buggy always-truthy state check."""
+
+    def func() -> int:
+        """A stateless function."""
+        return 1
+
+    plain, _, _ = reactify(func, simple_registry)
+    assert plain.stateful is False
+
+    forced, _, _ = reactify(func, simple_registry, RegisterConfig(stateful=True))
+    assert forced.stateful is True
 
 
 def test_actify_generator(simple_registry: StructureRegistry) -> None:

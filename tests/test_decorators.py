@@ -1,10 +1,8 @@
 from typing import Tuple
 
 from rekuest_next import startup, context, state
-import pytest
 
 
-@pytest.mark.gggg
 def test_startup_decorator():
     @startup
     def my_startup_hook():

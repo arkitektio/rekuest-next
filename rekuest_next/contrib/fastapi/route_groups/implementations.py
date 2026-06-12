@@ -10,12 +10,11 @@ from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.openapi_utils import (
     create_json_schema_from_ports,
 )
-from typing import Any
 
 
 def add_implementation_route(
     router: APIRouter,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     implementation: ImplementationInput,
 ) -> None:
     """Register a single implementation execution route."""
@@ -113,12 +112,9 @@ def add_implementation_route(
 
 def build_implementation_router(
     agent: FastApiAgent,
-    extension: str = "default",
 ) -> APIRouter:
     """Build routes for all static implementations."""
     router = APIRouter()
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.app_registry.get_implementations():
         add_implementation_route(router, agent, implementation)
     return router

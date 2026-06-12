@@ -13,11 +13,10 @@ dependencies = [
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=3.9.0",
+    "rath>=3.11.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil==3",
-    "dokker>=2.2",
+    "koil>=3.1.1",
     "janus>=2.0.0",
 ]
 
@@ -43,6 +42,8 @@ dev-dependencies =  [
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
     "aiosqlite>=0.22.1",
+    "dokker>=2.5",
+    "turms>=0.11.0",
 ]
 
 
@@ -70,6 +71,9 @@ markers = [
 ]
 
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["rekuest_next"]
 
 [[tool.pydoc-markdown.loaders]]
 type = "python"

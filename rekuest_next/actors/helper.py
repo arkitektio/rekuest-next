@@ -9,8 +9,6 @@ from rekuest_next.actors.vars import (
     current_assignation_helper,
 )
 from rekuest_next.actors.types import Actor, AssignmentHook
-from rekuest_next.protocols import AnyState
-from rath.scalars import ID
 
 
 class AssignmentHelper(BaseModel):
@@ -41,10 +39,6 @@ class AssignmentHelper(BaseModel):
             )
         )
 
-    def get_resolution(self) -> ID:
-        """Get a dependency by its reference."""
-        return self.assignment.resolution
-
     def install_hook(self, hook: "AssignmentHook") -> None:
         """Install an assignment hook for the current assignation.
 
@@ -70,14 +64,6 @@ class AssignmentHelper(BaseModel):
                 message=message,
             )
         )
-
-    async def apublish_state(self: Self, state: AnyState) -> None:
-        """Publish the state of the actor.
-
-        Args:
-            state (AnyState): The state to publish.
-        """
-        await self.actor.apublish_state(state)
 
     async def abreakpoint(self) -> bool:
         """Check if the actor needs to break"""

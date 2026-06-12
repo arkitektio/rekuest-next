@@ -1,11 +1,13 @@
 """Register a function or actor with the definition registry."""
 
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     Generic,
     List,
+    Literal,
     Optional,
     ParamSpec,
     Tuple,
@@ -15,23 +17,21 @@ from typing import (
     cast,
 )
 import inflection
+
+if TYPE_CHECKING:
+    from rekuest_next.app import AppRegistry
 from rekuest_next.coercible_types import (
     OptimisticCoercible,
 )
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
-from rekuest_next.actors.sync import SyncGroup
-from rekuest_next.actors.types import Actifier, ActorBuilder
+from rekuest_next.actors.types import Actifier, ActorBuilder, RegisterConfig
 from rekuest_next.actors.vars import get_current_assignation_helper
 from rekuest_next.definition.define import (
-    AssignWidgetMap,
     dependency_to_dependency_input,
 )
+from rekuest_next.definition.dependencies import build_action_dependency_input
 from rekuest_next.definition.hash import hash_definition
-from rekuest_next.definition.registry import (
-    DefinitionRegistry,
-    get_default_implementation_registry,
-)
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
@@ -46,6 +46,7 @@ from rekuest_next.api.schema import (
     ImplementationInput,
     ValidatorInput,
     AgentDependencyInput,
+    OptimisticInput,
     my_implementation_at,
 )
 import logging
@@ -76,7 +77,7 @@ class WrappedFunction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
     def __init__(
-        self, func: AnyFunction, interface: str, definition: DefinitionInput
+        self, func: Callable[P, R], interface: str, definition: DefinitionInput
     ) -> None:
         """Initialize the wrapped function."""
         self.func = func
@@ -91,7 +92,12 @@ class WrappedFunction(Generic[P, R]):
             helper.actor.agent.instance_id, self.interface
         )
 
-        return call(implementation, *args, parent=helper.assignment, **kwargs)
+        return call(
+            implementation,
+            *args,
+            parent=helper.assignment,
+            **cast("Dict[str, Any]", kwargs),
+        )
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
@@ -100,7 +106,12 @@ class WrappedFunction(Generic[P, R]):
             helper.actor.agent.instance_id, self.interface
         )
 
-        return await acall(implementation, *args, parent=helper.assignment, **kwargs)
+        return await acall(
+            implementation,
+            *args,
+            parent=helper.assignment,
+            **cast("Dict[str, Any]", kwargs),
+        )
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Call the actor's implementation."""
@@ -108,85 +119,45 @@ class WrappedFunction(Generic[P, R]):
 
     def to_dependency_input(self) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput."""
-        return ActionDependencyInput(
+        return build_action_dependency_input(
             key=self.interface,
+            definition=self.definition,
             optional=False,
-            hash=hash_definition(self.definition),
         )
 
 
 def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
-    implementation_registry: DefinitionRegistry,
-    interface: Optional[str] = None,
-    name: Optional[str] = None,
+    implementation_registry: "AppRegistry",
+    config: Optional[RegisterConfig] = None,
+    *,
     actifier: Actifier = reactify,
-    description: Optional[str] = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    collections: Optional[List[str]] = None,
-    is_test_for: Optional[List[str]] = None,
-    logo: Optional[str] = None,
-    widgets: Optional[AssignWidgetMap] = None,
-    effects: Optional[Dict[str, List[EffectInput]]] = None,
-    interfaces: Optional[List[str]] = None,
-    dynamic: bool = False,
-    stateful: bool = False,
-    in_process: bool = False,
-    optimistics: Optional[List[OptimisticCoercible]] = None,
-    locks: Optional[List[str]] = None,
-    version: Optional[str] = None,
-    tracks: Optional[List[TrackInput]] = None,
 ) -> Tuple[DefinitionInput, ActorBuilder]:
-    """Register a function or actor with the provided definition registry.
+    """Register a function or actor with the provided app registry.
 
-    This function wraps a callable or actor into an ActorBuilder and registers it with a
-    DefinitionRegistry instance, using an optionally provided or inferred interface name.
+    This function wraps a callable or actor into an ActorBuilder and registers it
+    with an AppRegistry instance, at ``config.interface`` or an interface name
+    inferred from the function name.
 
     Args:
         function_or_actor (AnyFunction): A function or actor to be registered.
         structure_registry (StructureRegistry): The registry used for structuring inputs.
-        implementation_registry (DefinitionRegistry): The registry where implementations are stored.
-        interface (Optional[str], optional): Interface name. Inferred if not provided.
-        name (Optional[str], optional): Optional display name.
+        implementation_registry (AppRegistry): The registry where implementations are stored.
+        config (Optional[RegisterConfig], optional): Bundled registration options.
+            Defaults to an empty ``RegisterConfig``.
         actifier (Actifier, optional): Callable converting functions to actors. Defaults to reactify.
-        dependencies (Optional[List[DependencyInput]], optional): External dependencies.
-        port_groups (Optional[List[PortGroupInput]], optional): Port group specifications.
-        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validator mappings.
-        collections (Optional[List[str]], optional): Collection groupings.
-        is_test_for (Optional[List[str]], optional): Interfaces this definition tests.
-        logo (Optional[str], optional): Optional logo URL.
-        widgets (Optional[AssignWidgetMap], optional): Widget mappings.
-        effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effect configurations.
-        interfaces (Optional[List[str]], optional): Interfaces implemented by this actor.
-        dynamic (bool, optional): Whether the definition is dynamically changeable.
-        in_process (bool, optional): Whether to run in the same process.
-        sync (Optional[SyncGroup], optional): Synchronization group, if any.
-        stateful (bool, optional): Indicates whether the actor is stateful.
 
     Returns:
         Tuple[DefinitionInput, ActorBuilder]: Registered definition and its actor builder.
     """
-    interface = interface or interface_name(function_or_actor)
+    config = config or RegisterConfig()
+    interface = config.interface or interface_name(function_or_actor)
 
     definition, implementation_details, actor_builder = actifier(
         function_or_actor,
         structure_registry,
-        widgets=widgets,
-        is_test_for=is_test_for,
-        collections=collections,
-        logo=logo,
-        name=name,
-        description=description,
-        port_groups=port_groups,
-        effects=effects,
-        locks=locks,
-        validators=validators,
-        interfaces=interfaces,
-        in_process=in_process,
-        tracks=tracks,
-        version=version,
+        config,
     )
 
     dependencies: list[AgentDependencyInput] = []
@@ -196,18 +167,25 @@ def register_func(
     ) in implementation_details.dependency_variables.dependency_variables.items():
         dependencies.append(dependency_to_dependency_input(key, dependency))
 
+    optimistics: list[OptimisticInput] = [
+        optimistic
+        if isinstance(optimistic, OptimisticInput)
+        else optimistic.to_optimistic_input()
+        for optimistic in (config.optimistics or [])
+    ]
+
     implementation_registry.register_at_interface(
         interface,
         ImplementationInput(
             interface=interface,
             definition=definition,
-            logo=logo,
-            dynamic=dynamic,
-            locks=implementation_details.locks or [],
-            optimistics=optimistics if optimistics else [],
-            dependencies=dependencies,
-            tracks=implementation_details.tracks or [],
-            manipulates=implementation_details.manipulates or [],
+            logo=config.logo,
+            dynamic=config.dynamic,
+            locks=tuple(implementation_details.locks or []),
+            optimistics=tuple(optimistics),
+            dependencies=tuple(dependencies),
+            tracks=tuple(implementation_details.tracks or []),
+            manipulates=tuple(implementation_details.manipulates or []),
         ),
         actor_builder,
     )
@@ -220,35 +198,7 @@ T = TypeVar("T", bound=AnyFunction)
 
 @overload
 def register(func: Callable[P, R]) -> WrappedFunction[P, R]:
-    """Register a function or actor with optional configuration parameters.
-
-    This overload supports usage of `@register(...)` as a configurable decorator.
-
-    Args:
-        func (T): Function to register.
-        actifier (Actifier, optional): Function to wrap callables into actors.
-        interface (Optional[str], optional): Interface name override.
-        stateful (bool, optional): Whether the actor maintains internal state.
-        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Mapping of parameter names to widgets.
-        dependencies (Optional[List[DependencyInput]], optional): List of external dependencies.
-        interfaces (Optional[List[str]], optional): Additional interfaces implemented.
-        collections (Optional[List[str]], optional): Groupings for organizational purposes.
-        port_groups (Optional[List[PortGroupInput]], optional): Port group assignments.
-        effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
-        is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
-        logo (Optional[str], optional): URL or identifier for the actor's logo.
-        on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
-        on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
-        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
-        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
-        in_process (bool, optional): Execute actor in the same process.
-        dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
-        sync (Optional[SyncGroup], optional): Optional synchronization group.
-
-    Returns:
-        Callable[[T], T]: A decorator that registers the given function or actor.
-    """
+    """Register a function or actor directly: ``@register``."""
     ...
 
 
@@ -269,43 +219,16 @@ def register(
     logo: Optional[str] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional["AppRegistry"] = None,
     optimistics: Optional[List[OptimisticCoercible]] = None,
     in_process: bool = False,
     tracks: Optional[List[TrackInput]] = None,
     dynamic: bool = False,
-    sync: Optional[SyncGroup] = None,
     locks: Optional[List[str]] = None,
+    concurrency: Literal["parallel", "serial"] = "serial",
     version: Optional[str] = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
-    """Register a function or actor with optional configuration parameters.
-
-    This overload supports usage of `@register(...)` as a configurable decorator.
-
-    Args:
-        actifier (Actifier, optional): Function to wrap callables into actors.
-        interface (Optional[str], optional): Interface name override.
-        stateful (bool, optional): Whether the actor maintains internal state.
-        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Mapping of parameter names to widgets.
-        dependencies (Optional[List[DependencyInput]], optional): List of external dependencies.
-        interfaces (Optional[List[str]], optional): Additional interfaces implemented.
-        collections (Optional[List[str]], optional): Groupings for organizational purposes.
-        port_groups (Optional[List[PortGroupInput]], optional): Port group assignments.
-        effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
-        is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
-        logo (Optional[str], optional): URL or identifier for the actor's logo.
-        on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
-        on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
-        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
-        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
-        in_process (bool, optional): Execute actor in the same process.
-        dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
-        sync (Optional[SyncGroup], optional): Optional synchronization group.
-
-    Returns:
-        Callable[[T], T]: A decorator that registers the given function or actor.
-    """
+    """Register a function or actor with configuration: ``@register(...)``."""
     ...
 
 
@@ -327,176 +250,113 @@ def register(  # type: ignore[valid-type]
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     tracks: Optional[List[TrackInput]] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
+    implementation_registry: Optional["AppRegistry"] = None,
     in_process: bool = False,
     dynamic: bool = False,
     locks: Optional[List[str]] = None,
+    concurrency: Literal["parallel", "serial"] = "serial",
     version: Optional[str] = None,
 ) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
-    """Register a function or actor to the default definition and structure registries.
+    """Register a function or actor with an app registry.
 
-    This function serves as both a decorator and a direct-call function to register
-    actors or callables. It supports detailed customization of the registration
-    process including dependency tracking, custom widgets, interface annotations,
-    validation, and lifecycle hooks.
+    Serves as both a bare decorator and a configurable decorator. All keyword
+    arguments are bundled into a single :class:`RegisterConfig` that is threaded
+    through ``register_func`` and the actifier.
 
     Use this as:
         @register
         def my_function(...): ...
 
     Or with arguments:
-        @register(interface="custom_interface", dependencies=[...])
+        @register(interface="custom_interface", widgets={...})
         def my_function(...): ...
 
-    Or as a direct call:
-        register(my_function, interface="custom_interface", ...)
-
     Args:
-        *func (T): Function to register if using direct-call mode.
-        actifier (Actifier, optional): Function to transform a callable into an actor.
-        interface (Optional[str], optional): Interface name; inferred from function if not provided.
-        stateful (bool, optional): Whether the actor maintains internal state.
-        widgets (Optional[Dict[str, AssignWidgetInput]], optional): Optional widget configurations.
-        dependencies (Optional[List[DependencyInput]], optional): External dependencies required.
-        interfaces (Optional[List[str]], optional): Interfaces this actor complies with.
-        collections (Optional[List[str]], optional): Groupings for organizing definitions.
-        port_groups (Optional[List[PortGroupInput]], optional): Input/output port groupings.
-        effects (Optional[Dict[str, List[EffectInput]]], optional): Side-effects mapping.
-        is_test_for (Optional[List[str]], optional): Indicates the actor is a test for given interfaces.
-        logo (Optional[str], optional): Optional logo or image identifier.
-        on_provide (Optional[OnProvide], optional): Async hook called on provisioning.
-        on_unprovide (Optional[OnUnprovide], optional): Async hook called on unprovisioning.
-        validators (Optional[Dict[str, List[ValidatorInput]]], optional): Validation configuration.
-        structure_registry (Optional[StructureRegistry], optional): Overrides default structure registry.
-        implementation_registry (Optional[DefinitionRegistry], optional): Overrides default implementation registry.
-        in_process (bool, optional): Execute actor in the current process.
-        dynamic (bool, optional): Enables dynamic redefinition.
-        locks (Optional[List[str]], optional): List of resource locks.
+        *func: Function to register when used as a bare decorator.
+        name (Optional[str]): Display name. Defaults to the function name.
+        description (Optional[str]): Description. Defaults to the docstring.
+        actifier (Actifier): Converts the callable into an actor builder.
+            Defaults to :func:`reactify`.
+        interface (Optional[str]): Interface name. Inferred from the function
+            name if not provided.
+        stateful (bool): Mark the definition stateful (auto-set when the
+            function uses state variables).
+        widgets (Optional[Dict[str, AssignWidgetInput]]): Widgets per argument.
+        interfaces (Optional[List[str]]): Additional interfaces implemented.
+        collections (Optional[List[str]]): Organizational groupings.
+        port_groups (Optional[List[PortGroupInput]]): Port group assignments.
+        effects (Optional[Dict[str, List[EffectInput]]]): Effects per port.
+        is_test_for (Optional[List[str]]): Interfaces this function tests.
+        logo (Optional[str]): URL or identifier of the action's logo.
+        validators (Optional[Dict[str, List[ValidatorInput]]]): Input validation
+            rules per argument.
+        structure_registry (Optional[StructureRegistry]): Overrides the default
+            structure registry.
+        implementation_registry (Optional[AppRegistry]): Overrides the default
+            app registry.
+        optimistics (Optional[List[OptimisticCoercible]]): Optimistic outputs.
+        in_process (bool): Run the actor in the event loop instead of a thread.
+        tracks (Optional[List[TrackInput]]): Tracks the implementation follows.
+        dynamic (bool): Whether the definition may change dynamically.
+        locks (Optional[List[str]]): Resource locks held during assignment
+            (auto-inferred from state/context locks when omitted).
+        concurrency (Literal["parallel", "serial"]): Whether assignments to the
+            actor may run concurrently ("parallel") or one at a time
+            ("serial", the default).
+        version (Optional[str]): Version of the definition.
 
     Returns:
-        Union[T, Callable[[T], T]]: The registered function or a decorator.
+        The wrapped function, or a decorator producing it.
     """
-    implementation_registry = (
-        implementation_registry or get_default_implementation_registry()
-    )
+    from rekuest_next.app import get_default_app_registry
+
+    implementation_registry = implementation_registry or get_default_app_registry()
     structure_registry = structure_registry or get_default_structure_registry()
 
-    if len(func) > 1:
-        raise ValueError("You can only register one function or actor at a time.")
-    if len(func) == 1:
-        function_or_actor = func[0]
+    config = RegisterConfig(
+        name=name,
+        description=description,
+        interface=interface,
+        widgets=widgets,
+        effects=effects,
+        validators=validators,
+        collections=collections,
+        port_groups=port_groups,
+        interfaces=interfaces,
+        is_test_for=is_test_for,
+        logo=logo,
+        stateful=stateful,
+        version=version,
+        dynamic=dynamic,
+        optimistics=optimistics,
+        locks=locks,
+        concurrency=concurrency,
+        tracks=tracks,
+        in_process=in_process,
+    )
+
+    def _register(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
+        any_function = cast(AnyFunction, function_or_actor)
+        iface = config.interface or interface_name(any_function)
 
         definition, _ = register_func(
-            function_or_actor,
-            name=name,
-            description=description,
-            structure_registry=structure_registry,
-            implementation_registry=implementation_registry,
-            validators=validators,
+            any_function,
+            structure_registry,
+            implementation_registry,
+            config,
             actifier=actifier,
-            interface=interface,
-            stateful=stateful,
-            is_test_for=is_test_for,
-            widgets=widgets,
-            logo=logo,
-            effects=effects,
-            tracks=tracks,
-            optimistics=optimistics,
-            collections=collections,
-            interfaces=interfaces,
-            port_groups=port_groups,
-            in_process=in_process,
-            dynamic=dynamic,
-            locks=locks,
-            version=version,
         )
 
         target = getattr(function_or_actor, "__func__", function_or_actor)
         setattr(target, "__definition__", definition)
         setattr(target, "__definition_hash__", hash_definition(definition))
-        setattr(
-            target,
-            "__interface__",
-            interface or interface_name(function_or_actor),
-        )
+        setattr(target, "__interface__", iface)
 
-        return WrappedFunction(
-            function_or_actor,
-            interface or interface_name(function_or_actor),
-            definition,
-        )
+        return WrappedFunction(function_or_actor, iface, definition)
 
-    else:
+    if len(func) > 1:
+        raise ValueError("You can only register one function or actor at a time.")
+    if len(func) == 1:
+        return _register(func[0])
 
-        def real_decorator(function_or_actor: Callable[P, R]) -> WrappedFunction[P, R]:
-            definition, _ = register_func(
-                function_or_actor,
-                name=name,
-                description=description,
-                structure_registry=structure_registry,
-                implementation_registry=implementation_registry,
-                actifier=actifier,
-                interface=interface,
-                validators=validators,
-                is_test_for=is_test_for,
-                widgets=widgets,
-                effects=effects,
-                collections=collections,
-                interfaces=interfaces,
-                optimistics=optimistics,
-                stateful=stateful,
-                logo=logo,
-                port_groups=port_groups,
-                dynamic=dynamic,
-                in_process=in_process,
-                locks=locks,
-                version=version,
-            )
-
-            setattr(function_or_actor, "__definition__", definition)
-            setattr(
-                function_or_actor, "__definition_hash__", hash_definition(definition)
-            )
-            setattr(
-                function_or_actor,
-                "__interface__",
-                interface or interface_name(function_or_actor),
-            )
-
-            return WrappedFunction(
-                function_or_actor,
-                interface or interface_name(function_or_actor),
-                definition,
-            )
-
-        return cast(Callable[[T], T], real_decorator)  # type: ignore
-
-
-def register_test(
-    test_function: AnyFunction,
-    structure_registry: Optional[StructureRegistry] = None,
-    implementation_registry: Optional[DefinitionRegistry] = None,
-) -> WrappedFunction[..., Any]:
-    """Register a test function for specified interfaces.
-
-    This function wraps a test function into an actor and registers it as a test
-    for the provided interfaces in the implementation registry.
-
-    Args:
-        test_function (AnyFunction): The test function to register.
-        tested_interfaces (List[str]): List of interfaces that this function tests.
-        structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
-        implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
-
-    Returns:
-        WrappedFunction[..., Any]: The registered test function wrapped.
-    """
-    return register(
-        dependencies=[test_function],
-        test_for=test_function,
-        structure_registry=structure_registry,
-        implementation_registry=implementation_registry,
-    )
-
-
-action = register
+    return cast(Callable[[T], T], _register)  # type: ignore

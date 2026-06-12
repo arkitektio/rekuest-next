@@ -52,7 +52,6 @@ def get_return_length(signature: inspect.Signature) -> int:
         return 0
     else:
         return 1
-    return 0
 
 
 def prepare_state_variables(

@@ -1,4 +1,11 @@
-"""General utils for rekuest_next"""
+"""Remote-call helpers for rekuest_next.
+
+The public surface is ``acall``/``call`` (single result), ``aiterate``/``iterate``
+(streaming), their ``*_raw`` counterparts operating on already-serialized
+payloads, and ``acall_dependency``/``call_dependency`` for dependency method
+calls. All of them funnel through the same internal helpers: target
+resolution, ``AssignInput`` construction, and the postman event stream.
+"""
 
 import uuid
 from typing import (
@@ -8,6 +15,7 @@ from typing import (
     Generator,
     List,
     Optional,
+    Tuple,
     Union,
 )
 
@@ -19,7 +27,6 @@ from rekuest_next.actors.vars import (
     NotWithinAnAssignationError,
 )
 from rekuest_next.api.schema import (
-    AssignationEvent,
     AssignationEventKind,
     AssignInput,
     HookInput,
@@ -113,144 +120,65 @@ def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
     return tuple([value])
 
 
-async def acall_dependency_raw(
-    dependency_key: ID,
-    method: str,
-    kwargs: Dict[str, JSONSerializable],  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
-    cached: bool = False,
-    parent: Optional[Assign] = None,
-    capture: bool = False,
-    log: bool = False,
-    postman: Optional[Postman] = None,
-) -> Any:  # noqa: ANN002, ANN003, ANN401
-    """Call a method on a dependency"""
-
-    """Call the assignation function"""
-    postman = postman or get_current_postman()
-    if not postman:
-        raise ValueError("Postman is not set")
-
-    try:
-        parent = useAssign()
-    except NotWithinAnAssignationError:
-        # If we are not within an assignation, we can set the parent to None
-        parent = None
-
-    reference = reference or str(uuid.uuid4())
-
-    x = AssignInput(
-        instanceId=postman.instance_id,
-        dependency=dependency_key,
-        method=method,  # type: ignore
-        args=kwargs or {},
-        reference=reference,
-        hooks=tuple(hooks or []),
-        cached=cached,
-        capture=capture,
-        parent=ID.validate(parent.assignation) if parent else None,
-        log=log,
-        isHook=False,
-        ephemeral=False,
+def _resolve_target(
+    target: Union[Action, Implementation, Reservation],
+) -> Tuple[Action, Optional[Implementation], Optional[Reservation]]:
+    """Resolve an action-like target into (action, implementation, reservation)."""
+    if isinstance(target, Implementation):
+        return target.action, target, None
+    if isinstance(target, Reservation):
+        return target.action, None, target
+    if isinstance(target, Action):
+        return target, None, None
+    raise ValueError(
+        "action_implementation_res must be a Action, Implementation or Reservation"
     )
 
-    returns = tuple()
 
-    async for i in postman.aassign(x):
-        if i.kind == AssignationEventKind.YIELD:
-            returns = i.returns
-
-        if i.kind == AssignationEventKind.DONE:
-            return returns
-
-        if i.kind == AssignationEventKind.ERROR:
-            raise ErrorCallError(i.message)
-
-        if i.kind == AssignationEventKind.CRITICAL:
-            raise CriticalCallError(i.message)
-
-
-async def acall_raw(
-    kwargs: Dict[str, Any] | None = None,
-    action: Optional[Action] = None,
-    implementation: Optional[Implementation] = None,
-    parent: Optional[Assign] = None,
-    reservation: Optional[Reservation] = None,
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
-    cached: bool = False,
-    capture: bool = False,
-    assign_timeout: Optional[float] = None,
-    timeout_is_recoverable: bool = False,
-    log: bool = False,
-    postman: Optional[Postman] = None,
-) -> Any:  # noqa: ANN401
-    """Execute a low-level remote call with already serialized arguments.
-
-    This helper builds an :class:`AssignInput`, sends it through the current
-    postman, and returns the raw backend return payload from the final ``DONE``
-    event. It does not shrink Python arguments or expand returned structures;
-    prefer :func:`acall` unless you are deliberately operating on transport-level
-    payloads.
-
-    If the call happens inside another assignation, the current assignation is
-    attached automatically as the parent reference.
-
-    Args:
-        kwargs: Already serialized argument payload to send.
-        action: Concrete action to execute.
-        implementation: Specific implementation override for the action.
-        parent: Optional parent assignation. When omitted, the current
-            assignation is used if available.
-        reservation: Reservation to target instead of a direct action.
-        reference: Stable client-side reference for deduplicating or tracking
-            the remote call.
-        hooks: Hook inputs to attach to the assignation request.
-        cached: Whether the backend may reuse cached results.
-        capture: Whether the backend should capture outputs for later retrieval.
-        assign_timeout: Reserved for compatibility; not currently applied in
-            this helper.
-        timeout_is_recoverable: Reserved for compatibility; not currently used.
-        log: Whether the backend should persist assignation logs.
-        postman: Postman override. Defaults to the current postman context.
-
-    Returns:
-        The raw return payload emitted by the backend.
-
-    Raises:
-        ValueError: If no postman is available.
-        ErrorCallError: If the backend reports a recoverable assignation error.
-        CriticalCallError: If the backend reports a critical assignation error.
-
-    Examples:
-        Send an already serialized payload directly::
-
-            raw_returns = await acall_raw(
-                action=action,
-                kwargs={"value": 1},
-                cached=True,
-            )
-    """
+def _resolve_postman(postman: Optional[Postman]) -> Postman:
+    """Resolve the postman to use, falling back to the current context."""
     postman = postman or get_current_postman()
     if not postman:
         raise ValueError("Postman is not set")
+    return postman
 
-    try:
-        parent = useAssign()
-    except NotWithinAnAssignationError:
-        # If we are not within an assignation, we can set the parent to None
-        parent = None
 
-    reference = reference or str(uuid.uuid4())
+def _build_assign_input(
+    postman: Postman,
+    *,
+    args: Optional[Dict[str, Any]],
+    reference: Optional[str],
+    hooks: Optional[List[HookInput]],
+    parent: Optional[Assign],
+    cached: bool,
+    log: bool,
+    capture: bool,
+    action: Optional[Action] = None,
+    implementation: Optional[Implementation] = None,
+    reservation: Optional[Reservation] = None,
+    dependency: Optional[ID] = None,
+    method: Optional[str] = None,
+) -> AssignInput:
+    """Build the AssignInput for a remote call.
 
-    x = AssignInput(
+    When no ``parent`` is given and the call happens inside another
+    assignation, the current assignation is attached as the parent.
+    """
+    if parent is None:
+        try:
+            parent = useAssign()
+        except NotWithinAnAssignationError:
+            parent = None
+
+    return AssignInput(
         instanceId=postman.instance_id,
         action=action.id if action else None,
         implementation=implementation.id if implementation else None,
         reservation=reservation,  # type: ignore
-        args=kwargs or {},
-        reference=reference,
+        dependency=dependency,
+        method=method,  # type: ignore
+        args=args or {},
+        reference=reference or str(uuid.uuid4()),
         hooks=tuple(hooks or []),
         cached=cached,
         capture=capture,
@@ -260,14 +188,22 @@ async def acall_raw(
         ephemeral=False,
     )
 
-    returns = tuple()
 
-    async for i in postman.aassign(x):
+async def _astream_raw(
+    postman: Postman, assign_input: AssignInput
+) -> AsyncGenerator[Any, None]:
+    """Stream the YIELD payloads of an assignation, returning on DONE.
+
+    Raises:
+        ErrorCallError: If the backend reports an assignation error.
+        CriticalCallError: If the backend reports a critical assignation error.
+    """
+    async for i in postman.aassign(assign_input):
         if i.kind == AssignationEventKind.YIELD:
-            returns = i.returns
+            yield i.returns
 
         if i.kind == AssignationEventKind.DONE:
-            return returns
+            return
 
         if i.kind == AssignationEventKind.ERROR:
             raise ErrorCallError(i.message)
@@ -286,52 +222,112 @@ async def aiterate_raw(
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
     capture: bool = False,
-    assign_timeout: Optional[float] = None,
-    timeout_is_recoverable: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
-) -> AsyncGenerator[AssignationEvent, None]:
-    """Async generator that yields the results of the assignation"""
-    postman = postman or get_current_postman()
-    if not postman:
-        raise ValueError("Postman is not set")
+) -> AsyncGenerator[Any, None]:
+    """Stream the raw YIELD payloads of a remote call.
 
-    try:
-        parent = useAssign()
-    except NotWithinAnAssignationError:
-        # If we are not within an assignation, we can set the parent to None
-        parent = None
-
-    reference = reference or str(uuid.uuid4())
-
-    x = AssignInput(
-        instanceId=postman.instance_id,
-        action=action.id if action else None,
-        implementation=implementation.id if implementation else None,
-        reservation=reservation,  # type: ignore
-        args=kwargs or {},
+    Operates on already-serialized arguments and yields transport-level
+    payloads; prefer :func:`aiterate` unless you are deliberately operating on
+    transport-level data.
+    """
+    resolved_postman = _resolve_postman(postman)
+    assign_input = _build_assign_input(
+        resolved_postman,
+        args=kwargs,
         reference=reference,
-        hooks=tuple(hooks or []),
+        hooks=hooks,
+        parent=parent,
         cached=cached,
-        capture=capture,
-        parent=ID.validate(parent.assignation) if parent else None,
         log=log,
-        isHook=False,
-        ephemeral=False,
+        capture=capture,
+        action=action,
+        implementation=implementation,
+        reservation=reservation,
     )
 
-    async for i in postman.aassign(x):
-        if i.kind == AssignationEventKind.YIELD:
-            yield i.returns
+    async for returns in _astream_raw(resolved_postman, assign_input):
+        yield returns
 
-        if i.kind == AssignationEventKind.DONE:
-            return
 
-        if i.kind == AssignationEventKind.ERROR:
-            raise ErrorCallError(i.message)
+async def acall_raw(
+    kwargs: Dict[str, Any] | None = None,
+    action: Optional[Action] = None,
+    implementation: Optional[Implementation] = None,
+    parent: Optional[Assign] = None,
+    reservation: Optional[Reservation] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    capture: bool = False,
+    log: bool = False,
+    postman: Optional[Postman] = None,
+) -> Any:  # noqa: ANN401
+    """Execute a low-level remote call with already serialized arguments.
 
-        if i.kind == AssignationEventKind.CRITICAL:
-            raise CriticalCallError(i.message)
+    Sends an assignation through the current postman and returns the raw
+    backend payload of the final ``YIELD`` event. It does not shrink Python
+    arguments or expand returned structures; prefer :func:`acall` unless you
+    are deliberately operating on transport-level payloads.
+
+    Raises:
+        ValueError: If no postman is available.
+        ErrorCallError: If the backend reports a recoverable assignation error.
+        CriticalCallError: If the backend reports a critical assignation error.
+    """
+    returns = tuple()
+
+    async for r in aiterate_raw(
+        kwargs=kwargs,
+        action=action,
+        implementation=implementation,
+        parent=parent,
+        reservation=reservation,
+        reference=reference,
+        hooks=hooks,
+        cached=cached,
+        capture=capture,
+        log=log,
+        postman=postman,
+    ):
+        returns = r
+
+    return returns
+
+
+async def acall_dependency_raw(
+    dependency_key: ID,
+    method: str,
+    kwargs: Dict[str, JSONSerializable],
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    cached: bool = False,
+    parent: Optional[Assign] = None,
+    capture: bool = False,
+    log: bool = False,
+    postman: Optional[Postman] = None,
+) -> Any:  # noqa: ANN401
+    """Call a method on a dependency with already serialized arguments."""
+    resolved_postman = _resolve_postman(postman)
+    assign_input = _build_assign_input(
+        resolved_postman,
+        args=kwargs,
+        reference=reference,
+        hooks=hooks,
+        parent=parent,
+        cached=cached,
+        log=log,
+        capture=capture,
+        dependency=dependency_key,
+        method=method,
+    )
+
+    returns = tuple()
+
+    async for r in _astream_raw(resolved_postman, assign_input):
+        returns = r
+
+    return returns
 
 
 async def acall(
@@ -351,7 +347,7 @@ async def acall(
 
     The helper accepts an :class:`Action`, :class:`Implementation`, or
     :class:`Reservation`. It resolves the target action, shrinks Python
-    arguments with the active structure registry, performs the remote call via
+    arguments with the structure registry, performs the remote call via
     :func:`acall_raw`, and expands the returned transport payload back into
     Python objects.
 
@@ -364,7 +360,8 @@ async def acall(
         reference: Optional client-side reference for the assignation.
         hooks: Hook inputs to attach to the assignation.
         cached: Whether cached results may be reused.
-        parent: Optional parent assignation.
+        parent: Optional parent assignation. When omitted, the current
+            assignation is used if available.
         log: Whether the remote execution should persist logs.
         capture: Whether outputs should be captured remotely.
         structure_registry: Structure registry used for shrinking and expanding
@@ -387,42 +384,20 @@ async def acall(
 
             result = await acall(action, image=my_image, threshold=0.5)
     """
-    action = None
-    implementation = None
-    reservation = None
-
-    if isinstance(action_implementation_res, Implementation):
-        # If the action is a implementation, we need to find the action
-        action = action_implementation_res.action
-        implementation = action_implementation_res
-
-    elif isinstance(action_implementation_res, Reservation):
-        # If the action is a reservation, we need to find the action
-        action = action_implementation_res.action
-        reservation = action_implementation_res
-
-    elif isinstance(action_implementation_res, Action):  # type: ignore
-        # If the action is a action, we need to find the action
-        action = action_implementation_res
-    else:
-        # If the action is not a action, we need to find the action
-        raise ValueError(
-            "action_implementation_res must be a Action, Implementation or Reservation"
-        )
-
-    structure_registry = get_default_structure_registry()
+    action, implementation, reservation = _resolve_target(action_implementation_res)
+    structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_args(
         action, args, kwargs, structure_registry=structure_registry
     )
 
-    returns = await acall_raw(
+    raw_returns = await acall_raw(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
         reservation=reservation,
         reference=reference,
-        hooks=hooks or [],
+        hooks=hooks,
         cached=cached,
         capture=capture,
         parent=parent,
@@ -431,7 +406,7 @@ async def acall(
     )
 
     returns = await aexpand_returns(
-        action, returns, structure_registry=structure_registry
+        action, raw_returns, structure_registry=structure_registry
     )
     if len(returns) == 1:
         return returns[0]
@@ -448,8 +423,9 @@ async def aiterate(
     log: bool = False,
     capture: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
+    postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
-) -> AsyncGenerator[tuple[Any], None]:
+) -> AsyncGenerator[Any, None]:
     """Stream expanded yield values from a remote action.
 
     This helper follows the same target-resolution and structure-conversion flow
@@ -466,11 +442,13 @@ async def aiterate(
         reference: Optional client-side reference for the assignation.
         hooks: Hook inputs to attach to the assignation.
         cached: Whether cached results may be reused.
-        parent: Optional parent assignation.
+        parent: Optional parent assignation. When omitted, the current
+            assignation is used if available.
         log: Whether the remote execution should persist logs.
         capture: Whether outputs should be captured remotely.
         structure_registry: Structure registry used for shrinking and expanding
             structured values.
+        postman: Postman override. Defaults to the current postman context.
         **kwargs: Keyword Python arguments matching the action definition.
 
     Yields:
@@ -488,29 +466,7 @@ async def aiterate(
             async for chunk in aiterate(action, prompt="hello"):
                 print(chunk)
     """
-    action = None
-    implementation = None
-    reservation = None
-
-    if isinstance(action_implementation_res, Implementation):
-        # If the action is a implementation, we need to find the action
-        action = action_implementation_res.action
-        implementation = action_implementation_res
-
-    elif isinstance(action_implementation_res, Reservation):
-        # If the action is a reservation, we need to find the action
-        action = action_implementation_res.action
-        reservation = action_implementation_res
-
-    elif isinstance(action_implementation_res, Action):  # type: ignore
-        # If the action is a action, we need to find the action
-        action = action_implementation_res
-    else:
-        # If the action is not a action, we need to find the action
-        raise ValueError(
-            "action_implementation_res must be a Action, Implementation or Reservation"
-        )
-
+    action, implementation, reservation = _resolve_target(action_implementation_res)
     structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_args(
@@ -523,11 +479,12 @@ async def aiterate(
         implementation=implementation,
         reservation=reservation,
         reference=reference,
-        hooks=hooks or [],
+        hooks=hooks,
         cached=cached,
         capture=capture,
         parent=parent,
         log=log,
+        postman=postman,
     ):
         returns = await aexpand_returns(
             action, raw_returns, structure_registry=structure_registry
@@ -552,21 +509,20 @@ async def acall_dependency(
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
     **kwargs: Any,  # noqa: ANN401
-) -> Any:  # noqa: ANN002, ANN003, ANN401
-    """Call a method on a dependency"""
-
+) -> Any:  # noqa: ANN401
+    """Call a method on a dependency and return expanded Python values."""
     structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_actor_args(
         definition, args, kwargs, structure_registry=structure_registry
     )
 
-    returns = await acall_dependency_raw(
+    raw_returns = await acall_dependency_raw(
         kwargs=shrinked_args,
         dependency_key=dependency_key,
         method=method,
         reference=reference,
-        hooks=hooks or [],
+        hooks=hooks,
         cached=cached,
         parent=parent,
         capture=capture,
@@ -574,145 +530,44 @@ async def acall_dependency(
         postman=postman,
     )
 
-    returns = await aexpand_actor_returns(definition, returns, structure_registry)
+    returns = await aexpand_actor_returns(definition, raw_returns, structure_registry)
     if len(returns) == 1:
         return returns[0]
     return returns
 
 
-def call_dependency(
-    definition: DefinitionInput,
-    dependency_key: ID,
-    method: str,
-    *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
-    cached: bool = False,
-    parent: Assign | None = None,
-    log: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    postman: Optional[Postman] = None,
-    **kwargs: Any,  # noqa: ANN401
-) -> Any:  # noqa: ANN002, ANN003, ANN401
-    return unkoil(
-        acall_dependency,
-        definition,
-        dependency_key,
-        method,
-        *args,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        parent=parent,
-        log=log,
-        structure_registry=structure_registry,
-        postman=postman,
-        **kwargs,
-    )
-
-
-def call(
-    action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
-    cached: bool = False,
-    parent: Assign | None = None,
-    log: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    postman: Optional[Postman] = None,
-    **kwargs: Any,  # noqa: ANN401
-) -> Any:  # noqa: ANN002, ANN003, ANN401
+def call(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     """Synchronously execute a remote action and return expanded values.
 
-    This is the blocking counterpart to :func:`acall`. It bridges into the async
-    implementation via ``unkoil`` so synchronous code can call remote actions
-    without managing an event loop explicitly.
-
-    Args:
-        action_implementation_res: Action-like target to execute.
-        *args: Positional Python arguments matching the action definition.
-        reference: Optional client-side reference for the assignation.
-        hooks: Hook inputs to attach to the assignation.
-        cached: Whether cached results may be reused.
-        parent: Optional parent assignation.
-        log: Whether the remote execution should persist logs.
-        structure_registry: Structure registry used for shrinking and expanding
-            structured values.
-        postman: Postman override. Defaults to the current postman context.
-        **kwargs: Keyword Python arguments matching the action definition.
-
-    Returns:
-        The expanded return value, or a tuple of values for multi-return
-        actions.
-
-    Examples:
-        Call a remote action from synchronous code::
-
-            result = call(action, value=1)
+    Blocking counterpart to :func:`acall` (see there for parameters); bridges
+    into the async implementation via ``unkoil``.
     """
-    return unkoil(
-        acall,
-        action_implementation_res,
-        *args,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        parent=parent,
-        log=log,
-        structure_registry=structure_registry,
-        postman=postman,
-        **kwargs,
-    )
+    return unkoil(acall, *args, **kwargs)
 
 
-def iterate(
-    action_implementation_res: Union[Action, Implementation, Reservation],
-    *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
-    cached: bool = False,
-    parent: Assign | None = None,
-    log: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    **kwargs: Any,  # noqa: ANN401
-) -> Generator[Any, None, None]:
+def iterate(*args: Any, **kwargs: Any) -> Generator[Any, None, None]:  # noqa: ANN401
     """Synchronously stream expanded yield values from a remote action.
 
-    This is the blocking counterpart to :func:`aiterate`. It adapts the async
-    iterator through ``unkoil_gen`` so synchronous code can consume remote yield
-    events without managing an event loop explicitly.
-
-    Args:
-        action_implementation_res: Action-like target to execute.
-        *args: Positional Python arguments matching the action definition.
-        reference: Optional client-side reference for the assignation.
-        hooks: Hook inputs to attach to the assignation.
-        cached: Whether cached results may be reused.
-        parent: Optional parent assignation.
-        log: Whether the remote execution should persist logs.
-        structure_registry: Structure registry used for shrinking and expanding
-            structured values.
-        **kwargs: Keyword Python arguments matching the action definition.
-
-    Yields:
-        Expanded yielded values from the remote assignation.
-
-    Examples:
-        Consume streamed remote results from synchronous code::
-
-            for chunk in iterate(action, prompt="hello"):
-                print(chunk)
+    Blocking counterpart to :func:`aiterate` (see there for parameters);
+    adapts the async iterator through ``unkoil_gen``.
     """
-    return unkoil_gen(
-        aiterate,
-        action_implementation_res,
-        *args,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        parent=parent,
-        log=log,
-        structure_registry=structure_registry,
-        **kwargs,
-    )
+    return unkoil_gen(aiterate, *args, **kwargs)
+
+
+def call_dependency(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Synchronously call a method on a dependency.
+
+    Blocking counterpart to :func:`acall_dependency` (see there for
+    parameters).
+    """
+    return unkoil(acall_dependency, *args, **kwargs)
+
+
+def call_dependency_raw(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Synchronously call a method on a dependency with already serialized arguments."""
+    return unkoil(acall_dependency_raw, *args, **kwargs)
+
+
+def call_raw(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    """Synchronously execute a low-level remote call with already serialized arguments."""
+    return unkoil(acall_raw, *args, **kwargs)

@@ -55,16 +55,6 @@ class Predicator(Protocol):
 
 
 @runtime_checkable
-class DefaultConverter(Protocol):
-    """A callable that takes a value and returns a string representation of it
-    that can be serialized to json."""
-
-    def __call__(self, value: Any) -> str:  # noqa: ANN401
-        """Convert a value to a string representation."""
-        ...
-
-
-@runtime_checkable
 class Expander(Protocol):
     """A callable that takes a string and returns the original value,
     which can be deserialized from json."""

@@ -7,31 +7,23 @@ from pydantic import Field
 from rekuest_next.agents.hooks.background import background
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.agents.extensions.default import DefaultExtension
-from rekuest_next.actors.types import Actifier, Agent
+from rekuest_next.actors.types import Agent
 from rekuest_next.postmans.types import Postman
 from koil import unkoil
 from koil.composition import Composition
 
 from typing import (
     Dict,
-    List,
     Tuple,
     Any,
 )
-from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.types import ActorBuilder
-from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.register import register, register_func
+from rekuest_next.register import register
 from rekuest_next.agents.hooks.startup import startup
 from rekuest_next.api.schema import (
-    AssignWidgetInput,
     DefinitionInput,
-    PortGroupInput,
-    EffectInput,
-    ValidatorInput,
 )
 
 
@@ -70,27 +62,22 @@ class RekuestNext(Composition):
             effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
             is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
             logo (Optional[str], optional): URL or identifier for the actor's logo.
-            on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
-            on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
             validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
             structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
             implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
             in_process (bool, optional): Execute actor in the same process.
             dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
-            sync (Optional[SyncGroup], optional): Optional synchronization group.
+            concurrency (Literal["parallel", "serial"], optional): Whether assignments to the actor
+                may run concurrently ("parallel") or one at a time ("serial", the default).
 
         Returns:
             function: A decorator that registers the given function or actor.
         """
 
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-
         return register(
             *args,
+            implementation_registry=self.agent.app_registry,
+            structure_registry=self.agent.app_registry.structure_registry,
             **kwargs,
         )
 
@@ -102,15 +89,10 @@ class RekuestNext(Composition):
         Args:
             function (AnyFunction): The startup function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         startup(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_background(
@@ -121,15 +103,10 @@ class RekuestNext(Composition):
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         background(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_blok(
@@ -147,12 +124,7 @@ class RekuestNext(Composition):
             description (Optional[str]): Optional description for the blok.
             demo_state (Dict[str, Any] | None): Optional demo state for the blok.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-        default_extension.app_registry.blok_registry.register_blok(
+        self.agent.app_registry.register_blok(
             name=name,
             component=component,
             description=description,
@@ -182,9 +154,3 @@ class RekuestNext(Composition):
         Run the application.
         """
         await self.agent.aprovide(context=context)
-
-    async def arun_tests(self, context: Any | None = None) -> None:
-        """
-        Run the application tests.
-        """
-        await self.agent.atest(context=context)
