@@ -34,7 +34,6 @@ def add_implementation_route(
                 "type": "object",
                 "description": "The policy for the assignation",
             },
-            "instanceId": {"type": "string", "description": "The instance ID"},
             "reference": {"type": "string", "description": "A reference string"},
             "cached": {"type": "boolean", "default": False},
             "log": {"type": "boolean", "default": False},
@@ -45,7 +44,7 @@ def add_implementation_route(
                 "description": "Whether to step through the assignation",
             },
         },
-        "required": ["args", "instanceId", "cached", "log", "capture", "ephemeral"],
+        "required": ["args", "cached", "log", "capture", "ephemeral"],
     }
     response_schema = create_json_schema_from_ports(
         implementation.definition.returns,

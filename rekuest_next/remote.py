@@ -144,7 +144,6 @@ def _resolve_postman(postman: Optional[Postman]) -> Postman:
 
 
 def _build_assign_input(
-    postman: Postman,
     *,
     args: Optional[Dict[str, Any]],
     reference: Optional[str],
@@ -171,7 +170,6 @@ def _build_assign_input(
             parent = None
 
     return AssignInput(
-        instanceId=postman.instance_id,
         action=action.id if action else None,
         implementation=implementation.id if implementation else None,
         reservation=reservation,  # type: ignore
@@ -233,7 +231,6 @@ async def aiterate_raw(
     """
     resolved_postman = _resolve_postman(postman)
     assign_input = _build_assign_input(
-        resolved_postman,
         args=kwargs,
         reference=reference,
         hooks=hooks,
@@ -310,7 +307,6 @@ async def acall_dependency_raw(
     """Call a method on a dependency with already serialized arguments."""
     resolved_postman = _resolve_postman(postman)
     assign_input = _build_assign_input(
-        resolved_postman,
         args=kwargs,
         reference=reference,
         hooks=hooks,

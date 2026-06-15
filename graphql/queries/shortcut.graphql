@@ -1,9 +1,9 @@
 query ListShortcuts(
   $pagination: OffsetPaginationInput
   $filters: ShortcutFilter
-  $order: ShortcutOrder
+  $ordering: [ShortcutOrder!]
 ) {
-  shortcuts(order: $order, pagination: $pagination, filters: $filters) {
+  shortcuts(ordering: $ordering, pagination: $pagination, filters: $filters) {
     ...ListShortcut
   }
 }

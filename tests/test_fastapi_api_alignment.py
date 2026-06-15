@@ -18,20 +18,18 @@ from rekuest_next.app import AppRegistry
 from rekuest_next.definition.define import prepare_definition
 
 
-def test_fastapi_agent_build_assign_input_normalizes_instance_aliases() -> None:
+def test_fastapi_agent_build_assign_input_defaults_flags() -> None:
     agent = FastApiAgent()
 
     assign_input = agent.build_assign_input(
         {
             "args": {"value": "hello"},
-            "instanceID": "custom-instance",
             "capture": True,
         },
         interface="echo",
     )
 
     assert assign_input.interface == "echo"
-    assert assign_input.instance_id == "custom-instance"
     assert assign_input.capture is True
     assert assign_input.cached is False
     assert assign_input.log is False
@@ -152,7 +150,7 @@ def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> 
     with TestClient(app) as client:
         response = client.post(
             "/echo",
-            json={"args": {"value": "hello"}, "instanceID": "custom-instance"},
+            json={"args": {"value": "hello"}},
         )
 
     assert response.status_code == 200

@@ -39,7 +39,7 @@ async def test_single_app_with_app_token(deployment: Deployment) -> None:
     """
 
     provider = build_fresh_rekuest(
-        deployment, instance_id="atest-provider", token="atest_token"
+        deployment, token="atest_token"
     )
 
     def do_stuff(printer: str) -> str:
@@ -52,7 +52,7 @@ async def test_single_app_with_app_token(deployment: Deployment) -> None:
         task = asyncio.create_task(provider.arun())
         await asyncio.sleep(5)
 
-        impl = await amy_implementation_at(provider.agent.instance_id, "do_stuff")
+        impl = await amy_implementation_at("do_stuff")
         answer = await acall(impl, printer="x")
         assert answer == "stitched-x", f"Unexpected result: {answer!r}"
 
@@ -74,7 +74,7 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
 
     # --- Provider app: registers the concrete implementation -----------------
     provider = build_fresh_rekuest(
-        deployment, instance_id="atest-provider", token="atest_token"
+        deployment, token="atest_token"
     )
 
     def do_stuff(printer: str) -> str:
@@ -85,7 +85,7 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
 
     # --- Workflow app: declares a dependency on the provider's protocol ------
     workflow_app = build_fresh_rekuest(
-        deployment, instance_id="workflow", token="workflow_token"
+        deployment, token="workflow_token"
     )
 
     @declare(app="atest", auto_resolvable=True, min=1)
@@ -113,7 +113,6 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
         # With two apps entered, the ambient rath/postman context is ambiguous,
         # so address every remote call explicitly to the workflow app.
         impl = await amy_implementation_at(
-            workflow_app.agent.instance_id,
             "single_workflow",
             rath=workflow_app.rath,
         )
@@ -145,7 +144,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
 
     # --- Provider app A: atest -----------------------------------------------
     atest_app = build_fresh_rekuest(
-        deployment, instance_id="atest-provider", token="atest_token"
+        deployment, token="atest_token"
     )
 
     def do_stuff(printer: str) -> str:
@@ -156,7 +155,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
 
     # --- Provider app B: btest -----------------------------------------------
     btest_app = build_fresh_rekuest(
-        deployment, instance_id="btest-provider", token="btest_token"
+        deployment, token="btest_token"
     )
 
     def do_another_stuff(ptiner: str) -> str:
@@ -167,7 +166,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
 
     # --- Workflow app: depends on both providers -----------------------------
     workflow_app = build_fresh_rekuest(
-        deployment, instance_id="workflow", token="workflow_token"
+        deployment, token="workflow_token"
     )
 
     @declare(app="atest", auto_resolvable=True, min=1)
@@ -209,7 +208,6 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
         # Address every remote call explicitly to the workflow app, since the
         # ambient rath/postman context is ambiguous with three apps entered.
         impl = await amy_implementation_at(
-            workflow_app.agent.instance_id,
             "two_app_workflow",
             rath=workflow_app.rath,
         )
@@ -267,7 +265,7 @@ async def test_workflow_cancel_propagates_to_dependency(
 
     # --- Provider app: a long-running threaded (sync) action -----------------
     provider = build_fresh_rekuest(
-        deployment, instance_id="atest-provider", token="atest_token"
+        deployment, token="atest_token"
     )
 
     def slow_stuff(printer: str) -> str:
@@ -293,7 +291,7 @@ async def test_workflow_cancel_propagates_to_dependency(
 
     # --- Workflow app: declares a dependency on the provider and awaits it ----
     workflow_app = build_fresh_rekuest(
-        deployment, instance_id="workflow", token="workflow_token"
+        deployment, token="workflow_token"
     )
 
     @declare(app="atest", auto_resolvable=True, min=1)
@@ -317,7 +315,6 @@ async def test_workflow_cancel_propagates_to_dependency(
         await asyncio.sleep(5)
 
         impl = await amy_implementation_at(
-            workflow_app.agent.instance_id,
             "cancel_workflow",
             rath=workflow_app.rath,
         )
@@ -383,7 +380,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
 
     # --- Provider app A: atest -----------------------------------------------
     atest_app = build_fresh_rekuest(
-        deployment, instance_id="atest-provider", token="atest_token"
+        deployment, token="atest_token"
     )
 
     def do_stuff(printer: str) -> str:
@@ -394,7 +391,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
 
     # --- Provider app B: btest -----------------------------------------------
     btest_app = build_fresh_rekuest(
-        deployment, instance_id="btest-provider", token="btest_token"
+        deployment, token="btest_token"
     )
 
     def do_another_stuff(ptiner: str) -> str:
@@ -405,7 +402,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
 
     # --- Workflow app: depends on both providers -----------------------------
     workflow_app = build_fresh_rekuest(
-        deployment, instance_id="workflow", token="workflow_token"
+        deployment, token="workflow_token"
     )
 
     @declare(app="atest", auto_resolvable=True, min=1)
@@ -451,7 +448,6 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
         # Address every remote call explicitly to the workflow app, since the
         # ambient rath/postman context is ambiguous with three apps entered.
         impl = await amy_implementation_at(
-            workflow_app.agent.instance_id,
             "two_app_workflow",
             rath=workflow_app.rath,
         )

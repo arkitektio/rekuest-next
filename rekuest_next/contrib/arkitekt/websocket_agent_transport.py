@@ -10,7 +10,6 @@ class WebsocketAgentTransportConfig(BaseModel):
     """Configuration for the WebsocketAgentTransport."""
 
     endpoint_url: str
-    instance_id: str = "default"
 
 
 async def fake_token_loader() -> str:  # noqa: ANN002, ANN003
@@ -36,8 +35,8 @@ class ArkitektWebsocketAgentTransport(WebsocketAgentTransport):
         self.endpoint_url = alias.to_ws_path("agi")
         self.token_loader = self.fakts.aget_token
 
-    async def aconnect(self, instance_id: str):  # noqa: ANN002, ANN003, ANN201
+    async def aconnect(self):  # noqa: ANN002, ANN003, ANN201
         """Connect the WebsocketAgentTransport."""
         await self.aconfigure()
 
-        return await super().aconnect(instance_id)  # type: ignore[return-value]
+        return await super().aconnect()  # type: ignore[return-value]

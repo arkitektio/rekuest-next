@@ -362,7 +362,6 @@ class FastApiTransport(AgentTransport):
         default=None
     )
     _connected: bool = PrivateAttr(default=False)
-    _instance_id: Optional[str] = PrivateAttr(default=None)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -409,16 +408,11 @@ class FastApiTransport(AgentTransport):
         logger.info(f"Agent sending message: {message_json}")
         await self.connection_manager.broadcast_model(message)
 
-    async def aconnect(self, instance_id: str) -> None:
-        """Connect the transport.
-
-        Args:
-            instance_id: The instance ID for this agent.
-        """
-        self._instance_id = instance_id
+    async def aconnect(self) -> None:
+        """Connect the transport."""
         self._receive_queue = asyncio.Queue()
         self._connected = True
-        logger.info(f"FastAPI transport connected with instance_id: {instance_id}")
+        logger.info("FastAPI transport connected")
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
         """Receive messages from the queue.
@@ -577,16 +571,6 @@ class FastApiAgent(BaseAgent):
 
         if interface is not None:
             normalized_payload["interface"] = interface
-
-        if (
-            "instanceID" in normalized_payload
-            and "instanceId" not in normalized_payload
-        ):
-            normalized_payload["instanceId"] = normalized_payload.pop("instanceID")
-
-        normalized_payload.setdefault(
-            "instanceId", self.instance_id or "fastapi_instance"
-        )
 
         for field_name in ("cached", "log", "capture", "ephemeral"):
             normalized_payload.setdefault(field_name, False)
@@ -790,7 +774,7 @@ class FastApiAgent(BaseAgent):
         return locks
 
     async def ashelve(
-        self, instance_id, identifier, resource_id, label=None, description=None
+        self, identifier, resource_id, label=None, description=None
     ):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
@@ -855,11 +839,11 @@ class FastApiAgent(BaseAgent):
                 self.sink_catch_up_timeout,
             )
 
-    async def astart(self, instance_id: str, app_context: Any) -> None:
+    async def astart(self, app_context: Any = None) -> None:
         """Start the agent and initialize the sink and retriever."""
         await self.sink.ainitialize()
         await self.retriever.ainitialize()
-        await super().astart(instance_id=instance_id, app_context=app_context)
+        await super().astart(app_context=app_context)
         # Dump initial snapshots after states are initialized
         if self._current_shrunk_states:
             snapshot = messages.StateSnapshotEvent(

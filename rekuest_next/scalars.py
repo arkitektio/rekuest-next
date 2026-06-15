@@ -20,7 +20,6 @@ import re
 
 
 ActionHash = str
-InstanceID = str
 QString = str
 
 ValueMap = Dict[str, Any]

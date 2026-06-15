@@ -66,7 +66,7 @@ agent_error_codes: Dict[int, Type[Exception]] = {
 
 agent_error_message: Dict[int, str] = {
     KICK_CODE: "Agent was kicked by the server",
-    BUSY_CODE: "Agent can't connect on this instance_id as another instance is already connected. Please kick the other instance first or use another instance_id",
+    BUSY_CODE: "Agent can't connect as another instance is already connected. Please kick the other instance first",
     BLOCKED_CODE: "Agent is currently blocked by the server. Unblock first!",
 }
 
@@ -78,7 +78,7 @@ class WebsocketAgentTransport(AgentTransport):
 
     1. instantiate the transport with an endpoint URL and ``token_loader``
     2. enter it as an async context manager to initialize local state
-    3. call ``aconnect(instance_id)`` before consuming ``areceive()``
+    3. call ``aconnect()`` before consuming ``areceive()``
     4. call ``asend(...)`` to queue outbound agent messages
 
     The receive loop is responsible for opening the socket, registering the
@@ -95,6 +95,8 @@ class WebsocketAgentTransport(AgentTransport):
     time_between_retries: float = 3
     allow_reconnect: bool = True
     auto_connect: bool = True
+    force: bool = False
+    """If another connection is already registered for this agent, kick it and take over."""
 
     _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
     _connected: ContextBool = False
@@ -102,7 +104,6 @@ class WebsocketAgentTransport(AgentTransport):
     _send_queue: Contextual[asyncio.Queue[str]] = None
     _connection_task: Contextual[asyncio.Task[None]] = None
     _connected_future: Contextual[asyncio.Future[bool]] = None
-    _instance_id: Contextual[str] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -111,19 +112,20 @@ class WebsocketAgentTransport(AgentTransport):
 
         This prepares the outbound queue and pending-future registry. The actual
         network connection is opened lazily by ``areceive()`` after
-        ``aconnect()`` has recorded the target instance id.
+        ``aconnect()`` has been called.
         """
         self._futures = {}
         self._send_queue = asyncio.Queue()
         return self
 
-    async def aconnect(self, instance_id: str) -> None:
-        """Record the instance id that will be sent in the next register message.
+    async def aconnect(self) -> None:
+        """Mark the transport as ready to open the WebSocket.
 
-        The transport does not open the WebSocket immediately here; the id is
-        stored so the receive loop can register the agent once the socket is up.
+        The transport does not open the WebSocket immediately here; the receive
+        loop registers the agent once the socket is up. The backend binds the
+        agent to its instance based on the authentication token.
         """
-        self._instance_id = instance_id
+        pass
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
         """Yield backend messages from a live WebSocket connection.
@@ -138,12 +140,6 @@ class WebsocketAgentTransport(AgentTransport):
         while definite failures are raised to the caller.
         """
         retry = 0
-        instance_id = self._instance_id
-
-        if not instance_id:
-            raise AgentTransportException(
-                "No instance id configured. Call aconnect(instance_id) before areceive()."
-            )
 
         while True:
             send_task = None
@@ -164,7 +160,7 @@ class WebsocketAgentTransport(AgentTransport):
                         await client.send(
                             messages.Register(
                                 token=token,
-                                instance_id=instance_id,
+                                force=self.force,
                             ).model_dump_json()
                         )
 
@@ -201,7 +197,7 @@ class WebsocketAgentTransport(AgentTransport):
                     logger.warning(
                         (
                             "Websocket to"
-                            f" {self.endpoint_url}?token=*******&instance_id={instance_id} was"
+                            f" {self.endpoint_url}?token=******* was"
                             " denied. Trying to reload token"
                         ),
                         exc_info=True,

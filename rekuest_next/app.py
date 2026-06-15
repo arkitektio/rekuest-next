@@ -178,7 +178,6 @@ class AppRegistry(BaseModel):
     # ------------------------------------------------------------------ #
     def to_implement_agent_input(
         self,
-        instance_id: str,
         name: Optional[str] = None,
     ) -> ImplementAgentInput:
         """Assemble (and validate) the full agent input from this registry.
@@ -188,7 +187,6 @@ class AppRegistry(BaseModel):
         everything the agent registers.
         """
         return ImplementAgentInput(
-            instance_id=instance_id,
             name=name,
             implementations=tuple(self.get_implementations()),
             states=tuple(self.states.values()),

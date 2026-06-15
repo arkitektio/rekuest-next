@@ -38,7 +38,7 @@ async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
         task = asyncio.create_task(app.arun())
         await asyncio.sleep(5)  # Wait for the agent to provide
 
-        impl = await amy_implementation_at(app.agent.instance_id, "count_up")
+        impl = await amy_implementation_at("count_up")
 
         received = [value async for value in aiterate(impl, until=3)]
         assert received == [0, 1, 2], f"Expected streamed [0, 1, 2], got {received}"
@@ -68,7 +68,7 @@ async def test_iterate_async_generator_action(deployment: Deployment) -> None:
         task = asyncio.create_task(app.arun())
         await asyncio.sleep(5)  # Wait for the agent to provide
 
-        impl = await amy_implementation_at(app.agent.instance_id, "spell_out")
+        impl = await amy_implementation_at("spell_out")
 
         received = [value async for value in aiterate(impl, word="abc")]
         assert received == ["a", "b", "c"], f"Expected ['a', 'b', 'c'], got {received}"

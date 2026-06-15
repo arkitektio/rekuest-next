@@ -45,6 +45,12 @@ class FunctionalActor(SerializingActor):
     ) -> None:
         """This method is called when the actor is assigned to a task"""
 
+        impl_id = (
+            f"implementation '{self.definition.name}' "
+            f"(interface={assignment.interface}, action={assignment.action}, "
+            f"assignation={assignment.assignation})"
+        )
+
         await self.asend(
             message=messages.ProgressEvent(
                 assignation=assignment.assignation,
@@ -63,7 +69,9 @@ class FunctionalActor(SerializingActor):
                     skip_expanding=not self.expand_inputs,
                 )
             except Exception as ex:
-                logger.critical("Input serialization error", exc_info=True)
+                logger.critical(
+                    f"Input serialization error in {impl_id}", exc_info=True
+                )
                 await self.asend(
                     message=messages.ErrorEvent(
                         assignation=assignment.assignation,
@@ -107,7 +115,8 @@ class FunctionalActor(SerializingActor):
                                 )
                             except SerializationError as ex:
                                 logger.critical(
-                                    "Output serialization error", exc_info=True
+                                    f"Output serialization error in {impl_id}",
+                                    exc_info=True,
                                 )
                                 await self.asend(
                                     message=messages.ErrorEvent(
@@ -135,7 +144,7 @@ class FunctionalActor(SerializingActor):
             except Exception as ex:
                 await aflush_captured_logs()
 
-                logger.critical("Assignation error", exc_info=True)
+                logger.critical(f"Assignation error in {impl_id}", exc_info=True)
                 await self.asend(
                     message=messages.CriticalEvent(
                         assignation=assignment.assignation,

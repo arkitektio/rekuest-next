@@ -106,10 +106,6 @@ class BaseAgent(KoiledModel):
         default=None,
         description="The name of the agent. This is used to identify the agent in the system.",
     )
-    instance_id: str = Field(
-        default="default",
-        description="The instance id of the agent. This is used to identify the agent in the system.",
-    )
 
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
@@ -371,7 +367,6 @@ class BaseAgent(KoiledModel):
 
     async def ashelve(
         self,
-        instance_id: str,
         identifier: Identifier,
         resource_id: str,
         label: Optional[str] = None,
@@ -402,7 +397,6 @@ class BaseAgent(KoiledModel):
             label = str(value)
 
         drawer_id = await self.ashelve(
-            instance_id=self.instance_id,
             identifier=identifier,
             resource_id=uuid.uuid4().hex,
             label=label,
@@ -502,6 +496,12 @@ class BaseAgent(KoiledModel):
                         error="Actors is no longer running and not managed. Probablry there was a restart",
                     )
                 )
+
+        elif isinstance(message, messages.ProtocolError):
+            raise AgentException(
+                "Received a protocol error from the backend. This usually means "
+                f"the agent sent a message the backend could not process: {message.error}"
+            )
 
         elif isinstance(message, messages.Collect):
             for key in message.drawers:
@@ -628,9 +628,6 @@ class BaseAgent(KoiledModel):
     ) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
 
-        if not self.instance_id:
-            raise AgentException("Instance id is not set. The agent is not initialized")
-
         state_schemas = self._collected_state_schemas
         missing_initializers = sorted(
             interface
@@ -723,12 +720,9 @@ class BaseAgent(KoiledModel):
             pass
 
     async def arun_startup_hooks(
-        self, instance_id: str, app_context: Optional[AppContext] = None
+        self, app_context: Optional[AppContext] = None
     ) -> StartupHookReturns:
         """Run all startup hooks collected from extensions.
-
-        Args:
-            instance_id: The instance id of the agent.
 
         Returns:
             StartupHookReturns: The combined states and contexts from all hooks.
@@ -741,7 +735,7 @@ class BaseAgent(KoiledModel):
         for key, hook in self._collected_startup_hooks.items():
             try:
                 answer = await asyncio.wait_for(
-                    hook.arun(instance_id=instance_id, app_context=app_context),
+                    hook.arun(app_context=app_context),
                     timeout=20,
                 )
                 for i in answer.states:
@@ -762,9 +756,7 @@ class BaseAgent(KoiledModel):
     async def aensure(self) -> None:
         """A function that gets called so that we create the agent with its definitions before we start the ooop"""
 
-    async def astart(
-        self, instance_id: str, app_context: Optional[AppContext] = None
-    ) -> None:
+    async def astart(self, app_context: Optional[AppContext] = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
@@ -781,9 +773,7 @@ class BaseAgent(KoiledModel):
         locks = [lock.lock_key for lock in self.locks.values()]
 
         with acquired_locks(*locks):
-            hook_return = await self.arun_startup_hooks(
-                instance_id=instance_id, app_context=app_context
-            )
+            hook_return = await self.arun_startup_hooks(app_context=app_context)
             await self.ainit_states(hook_return=hook_return, app_context=app_context)
 
         self.global_revision = 0
@@ -830,7 +820,7 @@ class BaseAgent(KoiledModel):
         """Async loop that runs the agent. This is used to run the agent"""
         try:
             self.running = True
-            await self.transport.aconnect(self.instance_id)
+            await self.transport.aconnect()
 
             async for message in self.transport.areceive():
                 await self.process(message)
@@ -850,18 +840,11 @@ class BaseAgent(KoiledModel):
         This starts the agents and connectes to the transport.
         It also starts the agent and starts listening for messages from the transport.
         """
-        if hasattr(context, "instance_id"):
-            self.instance_id = getattr(context, "instance_id", self.instance_id)
-
         self._app_context = context
 
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.instance_id}"
-            )
-            await self.astart(
-                instance_id=self.instance_id, app_context=self._app_context
-            )
+            logger.info("Launching provisioning task.")
+            await self.astart(app_context=self._app_context)
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
@@ -922,7 +905,6 @@ class RekuestAgent(BaseAgent):
         """
 
         self._agent = await aensure_agent(
-            instance_id=self.instance_id,
             name=self.name,
             rath=self.rath,
         )
@@ -934,11 +916,9 @@ class RekuestAgent(BaseAgent):
             # Assemble + validate the whole agent input from the app registry
             # (the ImplementAgentInput model validators fire on construction).
             agent_input = self.app_registry.to_implement_agent_input(
-                instance_id=self.instance_id,
                 name=self.name,
             )
             agent = await aimplement_agent(
-                instance_id=agent_input.instance_id,
                 name=agent_input.name,
                 implementations=agent_input.implementations,
                 states=agent_input.states,
@@ -951,14 +931,12 @@ class RekuestAgent(BaseAgent):
 
     async def ashelve(
         self,
-        instance_id: str,
         identifier: Identifier,
         resource_id: str,
         label: Optional[str] = None,
         description: Optional[str] = None,
     ) -> str:
         drawer = await ashelve(
-            instance_id=instance_id,
             identifier=identifier,
             resource_id=resource_id,
             label=label,
@@ -969,7 +947,7 @@ class RekuestAgent(BaseAgent):
 
     async def acollect(self, key: str) -> None:
         del self.shelve[key]
-        await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
+        await aunshelve(id=key, rath=self.rath)
 
     async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
         await self.transport.asend(snapshot)

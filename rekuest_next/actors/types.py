@@ -138,7 +138,6 @@ class Agent(Protocol):
     """A protocol for the agent that is used to send messages to the agent."""
 
     app_registry: "AppRegistry"
-    instance_id: str
     capture_condition: asyncio.Condition
     capture_active: bool
 

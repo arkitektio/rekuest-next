@@ -6,7 +6,7 @@ fragment Assignation on Assignation {
   }
   id
   latestEventKind
-  events(order: {createdAt: ASC}) {
+  events(ordering: [{createdAt: ASC}]) {
     id
     returns
     level

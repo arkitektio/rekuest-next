@@ -968,7 +968,6 @@ class AsyncAgentTestClient:
 @contextlib.contextmanager
 def create_test_lifespan(
     agent: FastApiAgent,
-    instance_id: str = "test-instance",
 ) -> Generator[contextlib.AbstractAsyncContextManager[None], None, None]:
     """Create a test lifespan context manager for FastAPI.
 
@@ -977,7 +976,6 @@ def create_test_lifespan(
 
     Args:
         agent: The FastApiAgent to use.
-        instance_id: The instance ID for the agent.
 
     Yields:
         An async context manager suitable for FastAPI's lifespan parameter.
@@ -986,7 +984,7 @@ def create_test_lifespan(
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.agent = agent
-        await agent.transport.aconnect(instance_id)
+        await agent.transport.aconnect()
         try:
             yield
         finally:
@@ -996,16 +994,12 @@ def create_test_lifespan(
 
 
 def create_test_app_and_agent(
-    instance_id: str = "test-instance",
     app_registry: Optional["AppRegistry"] = None,
 ) -> tuple[FastAPI, FastApiAgent, AppRegistry]:
     """Create a fresh FastAPI app and agent for testing.
 
     This is a convenience function that sets up all the necessary registries
     and creates a properly configured FastAPI app using configure_fastapi.
-
-    Args:
-        instance_id: The instance ID for the agent.
 
     Returns:
         A tuple of (app, agent, app_registry).
@@ -1049,7 +1043,6 @@ def create_test_app_and_agent(
         app=app,
         app_registry=app_registry,
     )
-    agent.instance_id = instance_id
 
     return app, agent, app_registry
 

@@ -1,5 +1,7 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
+directive @oneOf on INPUT_OBJECT
+
 input AckInput {
   assignation: ID!
 }
@@ -48,19 +50,19 @@ type Action {
   scope: ActionScope!
 
   """Actions for which this is a test."""
-  isTestFor(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+  isTestFor(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
 
   """Marks whether the action is in development."""
   isDev: Boolean!
 
   """List of tests associated with the action."""
-  tests(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+  tests(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
 
   """Interfaces implemented by the action."""
   interfaces: [String!]!
 
   """Protocols associated with the action."""
-  protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+  protocols(filters: ProtocolFilter, ordering: [ProtocolOrder!]! = [], pagination: OffsetPaginationInput): [Protocol!]!
 
   """Timestamp when the action was defined."""
   definedAt: DateTime!
@@ -75,7 +77,7 @@ type Action {
   organization: Organization!
 
   """Assignations created for this action."""
-  assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+  assignations(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
 
   """Get the latest completed assignation for this action."""
   latestAssignation: Assignation
@@ -134,11 +136,6 @@ type ActionDemand {
 """The input for creating a action demand."""
 input ActionDemandInput {
   """
-  The key of the action. This is used to identify the action in the system.
-  """
-  key: String!
-
-  """
   The hash of the action. This is used to identify the action in the system.
   """
   hash: ActionHash = null
@@ -149,11 +146,6 @@ input ActionDemandInput {
   name: String = null
 
   """
-  The description of the action. This can described the action and its purpose.
-  """
-  description: String = null
-
-  """
   The demands for the action args and returns. This is used to identify the demand in the system.
   """
   argMatches: [PortMatchInput!] = null
@@ -162,11 +154,6 @@ input ActionDemandInput {
   The demands for the action args and returns. This is used to identify the demand in the system.
   """
   returnMatches: [PortMatchInput!] = null
-
-  """
-  The protocols that the action has to implement. This is used to identify the demand in the system.
-  """
-  protocols: [ID!] = null
 
   """
   Require that the action has a specific number of args. This is used to identify the demand in the system.
@@ -285,9 +272,6 @@ type Agent {
   """Hash representing the agent's definition for change detection."""
   hash: String!
 
-  """Unique instance identifier on the agent."""
-  instanceId: InstanceId!
-
   """Registry entry this agent belongs to."""
   registry: Registry!
 
@@ -334,7 +318,7 @@ type Agent {
   hookUrlSecret: String
 
   """Assignations executed by this agent."""
-  assignations(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+  assignations(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
 
   """The app this agent belongs to."""
   app: App!
@@ -346,7 +330,7 @@ type Agent {
   placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
 
   """Sessions associated with this agent."""
-  sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
+  sessions(filters: SessionFilter, ordering: [SessionOrder!]! = [], pagination: OffsetPaginationInput): [Session!]!
 
   """Blok mappings associated with this agent."""
   agentMappings: [BlokAgentMapping!]!
@@ -433,9 +417,6 @@ input AgentFilter {
   """Filter by client ID of the app the agent is registered to"""
   clientId: String
 
-  """Filter by instance ID of the agent"""
-  instanceId: String
-
   """Filter by IDs of the agents"""
   ids: [ID!]
 
@@ -474,11 +455,6 @@ input AgentFilter {
 }
 
 input AgentInput {
-  """
-  The instance ID of the agent. This is used to identify the agent in the system.
-  """
-  instanceId: InstanceId!
-
   """
   The name of the agent. This is used to identify the agent in the system.
   """
@@ -592,7 +568,6 @@ input AssignInput {
   The policy for the assignation. This defines how the assignation should be handled.
   """
   policy: AssignPolicy = null
-  instanceId: InstanceId!
   action: ID = null
   dependency: String = null
   resolution: ID = null
@@ -712,8 +687,8 @@ type Assignation {
   """Current status message."""
   statusMessage: String
 
-  """Waiter responsible for this assignation."""
-  waiter: Waiter!
+  """Registry that created this assignation."""
+  registry: Registry
 
   """Creation timestamp."""
   createdAt: DateTime!
@@ -731,13 +706,13 @@ type Assignation {
   ephemeral: Boolean!
 
   """Child assignations spawned from this one."""
-  children(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+  children(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
 
   """Agent responsible for this assignation."""
   agent: Agent
 
   """The events"""
-  events(filters: AssignationEventFilter, order: AssignationEventOrder, pagination: OffsetPaginationInput): [AssignationEvent!]!
+  events(filters: AssignationEventFilter, ordering: [AssignationEventOrder!]! = [], pagination: OffsetPaginationInput): [AssignationEvent!]!
 
   """The dependency thats linked to the parents execution if applicable."""
   dependency: String
@@ -843,7 +818,6 @@ input AssignationFilter {
   DISTINCT: Boolean
   ids: [ID!]
   status: [AssignationStatus!]
-  instanceId: InstanceId
   clientId: ID
   state: [AssignationEventKind!]
   implementation: ID
@@ -1046,7 +1020,6 @@ input BlokImplementationInput {
 """The input for bouncing an agent."""
 input BounceInput {
   agent: ID!
-  duration: Int = null
 }
 
 """The input for canceling an assignation."""
@@ -1134,7 +1107,7 @@ type Collection {
   name: String!
 
   """Actions included in this collection."""
-  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+  actions(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
 }
 
 """
@@ -1183,7 +1156,6 @@ input CreateBlokInput {
   dependencies: [AgentDependencyInput!] = null
   description: String = null
   catalog: String = null
-  uri: String
   components: [ComponentNodeInput!] = null
   demoState: Args = null
 }
@@ -1215,7 +1187,6 @@ input CreateForeignImplementationInput {
 """The input for creating a implementation."""
 input CreateImplementationInput {
   implementation: ImplementationInput!
-  instanceId: InstanceId!
   extension: String!
 }
 
@@ -1252,7 +1223,6 @@ input CreateShortcutInput {
   name: String!
   description: String = null
   action: ID!
-  implementation: ID = null
   args: Args!
   allowQuick: Boolean! = false
   useReturns: Boolean! = false
@@ -1285,8 +1255,6 @@ input CreateThreeDModelInput {
   name: String!
   description: String = null
   media: MediaLike!
-  transferFunction: String = null
-  dependency: AgentDependencyInput = null
 }
 
 """The input for creating a toolbox."""
@@ -1727,7 +1695,6 @@ scalar Identifier
 Implement an agent with the given implementations, states and locks. This will create the agent if it doesn't exist and update it if it does exist.
 """
 input ImplementAgentInput {
-  instanceId: InstanceId!
   name: String = null
   extensions: [String!] = null
   states: [StateImplementationInput!] = null
@@ -1766,6 +1733,19 @@ type Implementation {
   """States that this implementation manipulates."""
   manipulates: [State!]!
 
+  """
+  If this is a higher-order (wrapper) implementation, the lower implementation it wraps.
+  """
+  higherOrderFor: Implementation
+
+  """The higher-order implementations that wrap this implementation."""
+  lowerOrderImplementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
+
+  """
+  Projection config (bound params, arg/dependency/return maps) when this is a higher-order implementation.
+  """
+  higherOrderConfig: AnyDefault!
+
   """Constructed name for display, combining interface and agent name."""
   name: String!
 
@@ -1802,7 +1782,6 @@ input ImplementationAgentFilter {
   DISTINCT: Boolean
   clientId: String
   ids: [ID!]
-  instanceId: String
   extensions: [String!]
   hasImplementations: [String!]
   hasStates: [String!]
@@ -1857,7 +1836,7 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder @oneOf {
+input ImplementationOrder {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -1908,9 +1887,6 @@ input InputStructureUsageFilter {
   ids: [ID!]
   structure: ID
 }
-
-"""The `InstanceID` scalar type represents a unique instance identifier"""
-scalar InstanceId
 
 """If this structure is the default in its package."""
 type Interface {
@@ -1996,28 +1972,18 @@ enum LogLevel {
 
 """The input for logging state patches."""
 input LogPatchesInput {
-  instanceId: String!
   patches: [PatchInput!]!
 }
 
 """The input for logging state snapshots."""
 input LogSnapshotInput {
-  instanceId: String!
   value: AnyDefault!
-}
-
-"""The input for mapping an action to an implementation in a agent."""
-input MappedActionInput {
-  key: String!
-  implementation: ID!
-  dependencies: [ResolvedDependencyInput!] = null
 }
 
 """The input for mapping actions to implementations in a agent."""
 input MappedAgentInput {
   key: String!
   agent: ID!
-  mappedActions: [MappedActionInput!]!
 }
 
 """The input for creating a blok."""
@@ -2250,6 +2216,11 @@ type Mutation {
 
   """Delete a registered implementation."""
   deleteImplementation(input: DeleteImplementationInput!): String!
+
+  """
+  Mark an implementation as a higher-order wrapper of a lower implementation, with a projection config.
+  """
+  setHigherOrder(input: SetHigherOrderInput!): Implementation!
 
   """Ensure agent record exists or is up to date."""
   ensureAgent(input: AgentInput!): Agent!
@@ -2546,7 +2517,7 @@ input PlacementInput {
   agent: ID = null
 }
 
-input PlacementOrder @oneOf {
+input PlacementOrder {
   role: Ordering
   createdAt: Ordering
 }
@@ -2652,7 +2623,7 @@ type Protocol {
   name: String!
 
   """Associated actions."""
-  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+  actions(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
 }
 
 input ProtocolFilter {
@@ -2707,19 +2678,19 @@ type Query {
   _service: _Service!
 
   """List all registered clients."""
-  clients(filters: ClientFilter, order: ClientOrder, pagination: OffsetPaginationInput): [Client!]!
+  clients(filters: ClientFilter, ordering: [ClientOrder!]! = [], pagination: OffsetPaginationInput): [Client!]!
 
   """List of all hardware records."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
 
   """Retrieve all compute agents."""
-  agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
+  agents(filters: AgentFilter, ordering: [AgentOrder!]! = [], pagination: OffsetPaginationInput): [Agent!]!
 
   """List of all available actions."""
-  actions(filters: ActionFilter, order: ActionOrder, pagination: OffsetPaginationInput): [Action!]!
+  actions(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
 
   """Retrieve protocols grouping actions."""
-  protocols(filters: ProtocolFilter, order: ProtocolOrder, pagination: OffsetPaginationInput): [Protocol!]!
+  protocols(filters: ProtocolFilter, ordering: [ProtocolOrder!]! = [], pagination: OffsetPaginationInput): [Protocol!]!
 
   """All registered implementations."""
   implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
@@ -2731,16 +2702,16 @@ type Query {
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
 
   """List of all reservations."""
-  reservations(instanceId: InstanceId = null): [Reservation!]!
+  reservations: [Reservation!]!
 
   """Reservations made by the current user."""
-  myreservations(instanceId: InstanceId = null): [Reservation!]!
+  myreservations: [Reservation!]!
 
   """List of shortcuts."""
-  shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
+  shortcuts(filters: ShortcutFilter, ordering: [ShortcutOrder!]! = [], pagination: OffsetPaginationInput): [Shortcut!]!
 
   """List of toolboxes containing shortcuts."""
-  toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
+  toolboxes(filters: ToolboxFilter, ordering: [ToolboxOrder!]! = [], pagination: OffsetPaginationInput): [Toolbox!]!
 
   """All dashboards."""
   dashboards: [Dashboard!]!
@@ -2761,7 +2732,7 @@ type Query {
   stateDefinitions: [StateDefinition!]!
 
   """All memory shelves."""
-  memoryShelves(filters: MemoryShelveFilter, order: MemoryShelveOrder, pagination: OffsetPaginationInput): [MemoryShelve!]!
+  memoryShelves(filters: MemoryShelveFilter, ordering: [MemoryShelveOrder!]! = [], pagination: OffsetPaginationInput): [MemoryShelve!]!
 
   """All memory drawers."""
   memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
@@ -2776,15 +2747,13 @@ type Query {
   interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
 
   """All tasks."""
-  tasks(filters: AssignationFilter, order: AssignationOrder, pagination: OffsetPaginationInput): [Assignation!]!
+  tasks(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
 
-  """
-  Fetch a specific agent by ID or by app, version, device_id and instance_id.
-  """
-  agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null, instanceId: String = null): Agent!
+  """Fetch a specific agent by ID or by app, version and device_id."""
+  agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null): Agent!
 
   """List all spaces."""
-  spaces(filters: SpaceFilter, order: SpaceOrder, pagination: OffsetPaginationInput): [Space!]!
+  spaces(filters: SpaceFilter, ordering: [SpaceOrder!]! = [], pagination: OffsetPaginationInput): [Space!]!
 
   """Fetch a specific space by ID."""
   space(id: ID!): Space!
@@ -2796,13 +2765,13 @@ type Query {
   placement(id: ID!): Placement!
 
   """List all 3D models."""
-  threedModels(filters: ThreeDModelFilter, order: ThreeDModelOrder, pagination: OffsetPaginationInput): [ThreeDModel!]!
+  threedModels(filters: ThreeDModelFilter, ordering: [ThreeDModelOrder!]! = [], pagination: OffsetPaginationInput): [ThreeDModel!]!
 
   """Fetch a specific 3D model by ID."""
   threedModel(id: ID!): ThreeDModel!
 
   """List all sessions."""
-  sessions(filters: SessionFilter, order: SessionOrder, pagination: OffsetPaginationInput): [Session!]!
+  sessions(filters: SessionFilter, ordering: [SessionOrder!]! = [], pagination: OffsetPaginationInput): [Session!]!
 
   """Fetch a specific session by ID."""
   session(id: ID!): Session!
@@ -2838,7 +2807,7 @@ type Query {
   action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
 
   """Fetch assignations."""
-  assignations(instanceId: InstanceId = null): [Assignation!]!
+  assignations: [Assignation!]!
 
   """Fetch a specific event."""
   event(id: ID = null): [AssignationEvent!]!
@@ -2847,7 +2816,7 @@ type Query {
   implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
 
   """Find your implementation at a specific interface."""
-  myImplementationAt(instanceId: String!, actionId: ID = null, interface: String = null): Implementation!
+  myImplementationAt(actionId: ID = null, interface: String = null): Implementation!
 
   """Materialize the latest state for a specific agent"""
   checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): StateValue!
@@ -2941,7 +2910,7 @@ type Registry {
   organization: Organization!
 
   """Agents registered under this registry."""
-  agents(filters: AgentFilter, order: AgentOrder, pagination: OffsetPaginationInput): [Agent!]!
+  agents(filters: AgentFilter, ordering: [AgentOrder!]! = [], pagination: OffsetPaginationInput): [Agent!]!
 }
 
 """Profile information for a user."""
@@ -2999,8 +2968,8 @@ type Reservation {
   """Name of the reservation."""
   name: String!
 
-  """Waiter associated with the reservation."""
-  waiter: Waiter!
+  """Registry that created the reservation."""
+  registry: Registry
 
   """Optional title."""
   title: String
@@ -3035,7 +3004,6 @@ type Reservation {
 
 """A way to filter reservations"""
 input ReservationFilter {
-  waiter: WaiterFilter
   AND: ReservationFilter
   OR: ReservationFilter
   NOT: ReservationFilter
@@ -3065,8 +3033,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "e0e9c9a8-9ed6-4e6d-bbd2-deca97f7cc7f"
-  instanceId: InstanceId! = "default"
+  reference: String = "3f411192-2b16-4483-a811-0d3063638b1a"
   action: ID = null
   implementation: ID = null
   title: String = null
@@ -3220,22 +3187,9 @@ enum ReturnWidgetKind {
 """The input for creating a action demand."""
 input SchemaDemandInput {
   """
-  The key of the action. This is used to identify the action in the system.
-  """
-  key: String!
-
-  """The hash of the state."""
-  hash: ActionHash = null
-
-  """
   The demands for the action args and returns. This is used to identify the demand in the system.
   """
   matches: [PortMatchInput!] = null
-
-  """
-  The protocols that the action has to implement. This is used to identify the demand in the system.
-  """
-  protocols: [ID!] = null
 }
 
 """A way to filter by scope"""
@@ -3299,12 +3253,23 @@ input SessionOrder {
   endedAt: Ordering
 }
 
-input ShelveInMemoryDrawerInput {
-  """
-  The instance ID of the agent. This is used to identify the agent in the system.
-  """
-  instanceId: InstanceId!
+"""
+Mark an existing implementation as a higher-order wrapper of a lower implementation.
+"""
+input SetHigherOrderInput {
+  """The wrapper implementation to mark as higher-order."""
+  implementation: ID!
 
+  """The lower implementation it wraps."""
+  lowerImplementation: ID!
+
+  """
+  Projection config: bound params + arg/dependency/return maps (see Implementation.higher_order_config).
+  """
+  config: AnyDefault = null
+}
+
+input ShelveInMemoryDrawerInput {
   """
   The identifier of the drawer. This is used to identify the drawer in the system.
   """
@@ -3342,7 +3307,7 @@ type Shortcut {
   implementation: Implementation
 
   """Toolboxes that contain this shortcut."""
-  toolboxes(filters: ToolboxFilter, order: ToolboxOrder, pagination: OffsetPaginationInput): [Toolbox!]!
+  toolboxes(filters: ToolboxFilter, ordering: [ToolboxOrder!]! = [], pagination: OffsetPaginationInput): [Toolbox!]!
 
   """Saved arguments for the shortcut."""
   savedArgs: AnyDefault!
@@ -3661,13 +3626,13 @@ type Subscription {
   newActions(cage: ID!): Action!
 
   """Subscribe to updates on assignations."""
-  assignations(instanceId: InstanceId!): AssignationChangeEvent!
+  assignations: AssignationChangeEvent!
 
   """Subscribe to updates on reservations."""
-  reservations(instanceId: InstanceId!): Reservation!
+  reservations: Reservation!
 
   """Subscribe to events related to assignations."""
-  assignationEvents(instanceId: InstanceId!): AssignationEvent!
+  assignationEvents: AssignationEvent!
 
   """Subscribe to updates on agent connections and statuses."""
   agents: AgentChangeEvent!
@@ -3824,7 +3789,7 @@ type Toolbox {
   description: String!
 
   """List of shortcuts in this toolbox."""
-  shortcuts(filters: ShortcutFilter, order: ShortcutOrder, pagination: OffsetPaginationInput): [Shortcut!]!
+  shortcuts(filters: ShortcutFilter, ordering: [ShortcutOrder!]! = [], pagination: OffsetPaginationInput): [Shortcut!]!
 }
 
 input ToolboxFilter {
@@ -3874,7 +3839,6 @@ type UICatalog {
 """The input for bouncing an agent."""
 input UnblockInput {
   agent: ID!
-  reason: String = null
 }
 
 input UnreserveInput {
@@ -3882,11 +3846,6 @@ input UnreserveInput {
 }
 
 input UnshelveMemoryDrawerInput {
-  """
-  The instance ID of the agent. This is used to identify the agent in the system.
-  """
-  instanceId: InstanceId!
-
   """The resource ID of the drawer."""
   id: String!
 }
@@ -3947,14 +3906,9 @@ input UpdateMaterializedBlokInput {
 
 """The input for updating a placement."""
 input UpdatePlacementInput {
-  """
-  A specific blok that should be used to visualize the state of the placement
-  """
-  materializedBlok: ID = null
   role: String = null
   affineMatrix: [[Float!]!] = null
   model: ID = null
-  agent: ID = null
   id: ID!
 }
 
@@ -4017,28 +3971,6 @@ input ValidatorInput {
   dependencies: [String!] = []
   label: String = null
   errorMessage: String = null
-}
-
-"""Entity that waits for the completion of assignations."""
-type Waiter {
-  """Unique ID of the waiter."""
-  id: ID!
-
-  """Instance ID associated with the waiter."""
-  instanceId: InstanceId!
-
-  """Registry the waiter belongs to."""
-  registry: Registry!
-}
-
-"""A way to filter waiters"""
-input WaiterFilter {
-  instanceId: InstanceId!
-  AND: WaiterFilter
-  OR: WaiterFilter
-  NOT: WaiterFilter
-  DISTINCT: Boolean
-  ids: [ID!]
 }
 
 """A window that is calculated"""

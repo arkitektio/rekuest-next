@@ -33,7 +33,6 @@ class GraphQLPostman(KoiledModel):
 
     rath: RekuestNextRath
     connected: bool = Field(default=False)
-    instance_id: str = Field(description="The instance_id of the waiter")
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
 
     _ass_update_queues: Dict[str, asyncio.Queue[AssignationEvent]] = PrivateAttr(
@@ -87,9 +86,7 @@ class GraphQLPostman(KoiledModel):
     async def watch_assignations(self) -> None:
         """Watch assingaitons task"""
         try:
-            async for assignation in awatch_assignations(
-                self.instance_id, rath=self.rath
-            ):
+            async for assignation in awatch_assignations(rath=self.rath):
                 self._received_something = True
                 if assignation.event:
                     reference = assignation.event.reference

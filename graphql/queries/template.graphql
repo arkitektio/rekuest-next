@@ -15,9 +15,8 @@ query ImplementationsFor($hash: ActionHash!) {
   }
 }
 
-query MyImplementationAt($instanceId: String!, $interface: String, $actionId: ID) {
+query MyImplementationAt($interface: String, $actionId: ID) {
   myImplementationAt(
-    instanceId: $instanceId
     interface: $interface
     actionId: $actionId
   ) {

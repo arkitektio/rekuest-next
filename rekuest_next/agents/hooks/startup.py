@@ -81,10 +81,9 @@ class WrappedStartupHook(WithVariables):
         """
         super().__init__(func)
 
-    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
+    async def arun(self, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
         Args:
-            instance_id (str): The instance id of the agent
             app_context (Any): The context for the startup hook
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts
@@ -130,10 +129,9 @@ class ThreadedStartupHook(WithVariables):
         else:
             return self.func()
 
-    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
+    async def arun(self, app_context: Any) -> StartupHookReturns:
         """Run the startup hook in the event loop
         Args:
-            instance_id (str): The instance id of the agent
             app_context (Any): The context for the startup hook
         Returns:
             Optional[Dict[str, Any]]: The state variables and contexts

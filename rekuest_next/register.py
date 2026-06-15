@@ -88,9 +88,7 @@ class WrappedFunction(Generic[P, R]):
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = my_implementation_at(
-            helper.actor.agent.instance_id, self.interface
-        )
+        implementation = my_implementation_at(self.interface)
 
         return call(
             implementation,
@@ -102,9 +100,7 @@ class WrappedFunction(Generic[P, R]):
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
         helper = get_current_assignation_helper()
-        implementation = await amy_implementation_at(
-            helper.actor.agent.instance_id, self.interface
-        )
+        implementation = await amy_implementation_at(self.interface)
 
         return await acall(
             implementation,

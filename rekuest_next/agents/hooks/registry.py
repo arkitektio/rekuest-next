@@ -53,7 +53,7 @@ class StartupHook(Protocol):
     It is run in the order they are registered.
     """
 
-    async def arun(self, instance_id: str, app_context: Any) -> StartupHookReturns:
+    async def arun(self, app_context: Any) -> StartupHookReturns:
         """Should return a dictionary of state variables"""
         ...
 

@@ -41,7 +41,7 @@ async def test_run_and_call_app(
 
     await asyncio.sleep(5)  # Wait for the app to start
 
-    impl = await amy_implementation_at(async_deployed_app.instance_id, "most_basic_function")
+    impl = await amy_implementation_at("most_basic_function")
 
     answer = await acall(impl, hello="hello")
     assert answer == "hello world", "The answer should be 'hello'"

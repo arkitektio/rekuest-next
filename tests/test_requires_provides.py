@@ -57,8 +57,8 @@ def capture_image(file: TiffFileName) -> LargLine:
 # A raw query that DOES select requires/provides, which the generated
 # `MyImplementationAt` fragments omit.
 IMPLEMENTATION_WITH_DESCRIPTORS = """
-query ImplWithDescriptors($instanceId: String!, $interface: String) {
-  myImplementationAt(instanceId: $instanceId, interface: $interface) {
+query ImplWithDescriptors($interface: String) {
+  myImplementationAt(interface: $interface) {
     id
     interface
     action {
@@ -90,7 +90,7 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
     Asserts the server stored and exposes the descriptors exactly as declared on
     both the arg port (requires) and the return port (provides).
     """
-    app = build_fresh_rekuest(deployment, instance_id="requires-provides")
+    app = build_fresh_rekuest(deployment)
     app.register(capture_image)
 
     async with app as app:
@@ -100,7 +100,7 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
         try:
             result = await app.rath.aquery(
                 IMPLEMENTATION_WITH_DESCRIPTORS,
-                {"instanceId": app.agent.instance_id, "interface": "capture_image"},
+                {"interface": "capture_image"},
             )
 
             action = result.data["myImplementationAt"]["action"]
@@ -118,7 +118,7 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
 
             # And the function still runs end-to-end with a conforming input.
             impl = await amy_implementation_at(
-                app.agent.instance_id, "capture_image", rath=app.rath
+                "capture_image", rath=app.rath
             )
             answer = await acall(
                 impl,

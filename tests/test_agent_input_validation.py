@@ -90,7 +90,6 @@ def test_self_state_choice_resolving_against_own_state_is_accepted(
     simple_registry: StructureRegistry,
 ) -> None:
     agent_input = ImplementAgentInput(
-        instance_id="agent",
         implementations=(
             _implementation(simple_registry, state_path="self.camera_state.exposure_ms"),
         ),
@@ -104,7 +103,6 @@ def test_self_state_choice_without_own_state_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError, match="camera_state"):
         ImplementAgentInput(
-            instance_id="agent",
             implementations=(
                 _implementation(
                     simple_registry, state_path="self.camera_state.exposure_ms"
@@ -119,7 +117,6 @@ def test_self_state_choice_with_unknown_field_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError, match="missing_field"):
         ImplementAgentInput(
-            instance_id="agent",
             implementations=(
                 _implementation(
                     simple_registry, state_path="self.camera_state.missing_field"
@@ -134,7 +131,6 @@ def test_duplicate_implementation_interface_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError, match="Duplicate implementation interface"):
         ImplementAgentInput(
-            instance_id="agent",
             implementations=(
                 _implementation(simple_registry, interface="dup"),
                 _implementation(simple_registry, interface="dup"),
@@ -147,7 +143,6 @@ def test_lock_reference_without_lock_implementation_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError, match="references lock 'mylock'"):
         ImplementAgentInput(
-            instance_id="agent",
             implementations=(
                 _implementation(simple_registry, locks=("mylock",)),
             ),
@@ -230,7 +225,6 @@ def test_externally_dependent_agent_is_accepted(
     )
 
     agent_input = ImplementAgentInput(
-        instance_id="agent",
         implementations=(
             _implementation(simple_registry, dependencies=(camera_dependency,)),
         ),

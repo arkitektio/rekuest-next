@@ -49,8 +49,7 @@ class RekuestNextService(BaseArkitektService):
 
     def build_service(self, fakts: Fakts, params: Params) -> "RekuestNext":
         """Build the service."""
-        instance_id = params.get("instance_id", "default")
-
+        force = params.get("force", False)
         datalayer = FaktsDataLayer(fakts_group="s3", fakts=fakts)
 
         rath = RekuestNextRath(
@@ -83,8 +82,8 @@ class RekuestNextService(BaseArkitektService):
                 fakts=fakts,
                 endpoint_url="FAKE_URL",
                 token_loader=fakts.aget_token,
+                force=force,
             ),
-            instance_id=instance_id,
             rath=rath,
             name=f"{fakts.manifest.identifier}:{fakts.manifest.version}",
         )
@@ -94,7 +93,6 @@ class RekuestNextService(BaseArkitektService):
             agent=agent,
             postman=GraphQLPostman(
                 rath=rath,
-                instance_id=instance_id,
             ),
         )
 

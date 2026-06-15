@@ -35,7 +35,6 @@
                 "ID": "rath.scalars.ID",
                 "ActionHash": "rekuest_next.scalars.ActionHash",
                 "Arg": "typing.Any",
-                "InstanceId": "rekuest_next.scalars.InstanceID",
                 "Identifier": "rekuest_next.scalars.Identifier",
                 "SearchQuery": "rekuest_next.scalars.SearchQuery",
                 "ValidatorFunction": "rekuest_next.scalars.ValidatorFunction"

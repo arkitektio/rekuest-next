@@ -76,10 +76,10 @@ async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> No
         task = asyncio.create_task(app.arun())
         await asyncio.sleep(5)  # Wait for the agent to provide
 
-        make_impl = await amy_implementation_at(app.agent.instance_id, "make_image")
+        make_impl = await amy_implementation_at("make_image")
         reference = await acall(make_impl, size=5)
 
-        count_impl = await amy_implementation_at(app.agent.instance_id, "count_pixels")
+        count_impl = await amy_implementation_at("count_pixels")
         result = await acall(count_impl, image=_drawer(reference))
 
         assert result == 5, f"Expected the piped image to have 5 pixels, got {result}"
@@ -118,15 +118,14 @@ async def test_three_stage_memory_pipeline(deployment: Deployment) -> None:
         task = asyncio.create_task(app.arun())
         await asyncio.sleep(5)  # Wait for the agent to provide
 
-        instance_id = app.agent.instance_id
 
-        make_impl = await amy_implementation_at(instance_id, "make_image")
+        make_impl = await amy_implementation_at("make_image")
         image_ref = await acall(make_impl, size=10)
 
-        threshold_impl = await amy_implementation_at(instance_id, "threshold_image")
+        threshold_impl = await amy_implementation_at("threshold_image")
         mask_ref = await acall(threshold_impl, image=_drawer(image_ref), at=4)
 
-        measure_impl = await amy_implementation_at(instance_id, "measure_mask")
+        measure_impl = await amy_implementation_at("measure_mask")
         area = await acall(measure_impl, mask=_drawer(mask_ref))
 
         # pixels 4..9 are >= 4 -> area 6, computed on the real piped objects.

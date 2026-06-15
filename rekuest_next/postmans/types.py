@@ -17,7 +17,6 @@ class Postman(Protocol):
     """
 
     connected: bool
-    instance_id: str
 
     def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
         """Assign"""

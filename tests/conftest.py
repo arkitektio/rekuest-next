@@ -1,7 +1,7 @@
 """Some configuration for pytest"""
 
 from dataclasses import dataclass
-from typing import AsyncGenerator, Awaitable, Callable, Generator, Optional
+from typing import AsyncGenerator, Awaitable, Callable, Generator
 from uuid import uuid4
 import pytest
 from rekuest_next.app import AppRegistry
@@ -63,8 +63,6 @@ def mock_rekuest() -> RekuestNext:
     """Fixture for a mock rekuest"""
     # This fixture can be used to mock the rekuest functionality if needed
 
-    instance_id = "default"
-
     async def token_loader() -> str:
         """Mock token loader function."""
         return "mock_token"
@@ -76,7 +74,6 @@ def mock_rekuest() -> RekuestNext:
             endpoint_url="ws://localhost:8000/graphql",
             token_loader=token_loader,
         ),
-        instance_id=instance_id,
         rath=rath,
         name="Test",
     )
@@ -88,7 +85,6 @@ def mock_rekuest() -> RekuestNext:
         agent=agent,
         postman=GraphQLPostman(
             rath=rath,
-            instance_id=instance_id,
         ),
     )
 
@@ -147,7 +143,6 @@ class DeployedRekuest:
     rekuest_watcher: LogWatcher
     minio_watcher: LogWatcher
     rekuest: RekuestNext
-    instance_id: str = "default"
 
 
 def most_basic_function(hello: str) -> str:
@@ -195,8 +190,6 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
 
         setup.pull()
 
-        instance_id = "default"
-
         mikro_http_url = f"http://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
         mikro_ws_url = f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
 
@@ -218,7 +211,6 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
                 endpoint_url=f"ws://localhost:{setup.spec.find_service('rekuest').get_port_for_internal(80).published}/agi",
                 token_loader=token_loader,
             ),
-            instance_id=instance_id,
             rath=rath,
             name="Test",
         )
@@ -228,7 +220,6 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
             agent=agent,
             postman=GraphQLPostman(
                 rath=rath,
-                instance_id=instance_id,
             ),
         )
         setup.up()
@@ -243,35 +234,31 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
                 rekuest_watcher=watcher,
                 minio_watcher=minio_watcher,
                 rekuest=rekuest,
-                instance_id=instance_id,
             )
 
             yield deployed
 
 
-def build_fresh_rekuest(
-    setup: Deployment, instance_id: Optional[str] = None, token: str = "test"
-) -> RekuestNext:
+def build_fresh_rekuest(setup: Deployment, token: str = "test") -> RekuestNext:
     """Build a brand-new ``RekuestNext`` against an already-running deployment.
 
-    Every call gets its own empty :class:`AppRegistry` and a unique instance id,
-    so registrations made by one test are completely invisible to the next. This
-    is the per-test entrypoint for the integration tests: build the app, register
-    functions on it, then run it against the shared docker stack.
+    Every call gets its own empty :class:`AppRegistry`, so registrations made by
+    one test are completely invisible to the next. This is the per-test
+    entrypoint for the integration tests: build the app, register functions on
+    it, then run it against the shared docker stack.
 
     Args:
         setup: The running dokker deployment (from the ``deployment`` fixture).
-        instance_id: Optional explicit instance id. Defaults to a unique value.
         token: Static token to authenticate as. The deployment maps each
             configured token to a distinct ``client_app`` (see
             ``tests/integration/configs/rekuest.yaml``), so passing different
             tokens to different ``build_fresh_rekuest`` calls makes the server
-            treat them as genuinely separate apps. Defaults to ``"test"``.
+            treat them as genuinely separate apps. The server binds the agent to
+            its instance based on this authentication. Defaults to ``"test"``.
 
     Returns:
         A fresh, not-yet-entered ``RekuestNext`` client.
     """
-    instance_id = instance_id or f"test-{uuid4().hex[:8]}"
     loader = make_token_loader(token)
     port = setup.spec.find_service("rekuest").get_port_for_internal(80).published
     http_url = f"http://localhost:{port}/graphql"
@@ -294,16 +281,15 @@ def build_fresh_rekuest(
             endpoint_url=agi_url,
             token_loader=loader,
         ),
-        instance_id=instance_id,
         rath=rath,
-        name=f"Test-{instance_id}",
+        name=f"Test-{token}-{uuid4().hex[:8]}",
         app_registry=AppRegistry(),
     )
 
     return RekuestNext(
         rath=rath,
         agent=agent,
-        postman=GraphQLPostman(rath=rath, instance_id=instance_id),
+        postman=GraphQLPostman(rath=rath),
     )
 
 
@@ -347,12 +333,10 @@ async def async_deployed_app(
     Built on top of the shared ``deployment`` fixture via
     :func:`build_fresh_rekuest`, so it too gets its own ``AppRegistry``.
     """
-    instance_id = "default"
-
     watcher = deployment.create_watcher("rekuest")
     minio_watcher = deployment.create_watcher("minio")
 
-    rekuest = build_fresh_rekuest(deployment, instance_id=instance_id)
+    rekuest = build_fresh_rekuest(deployment)
     rekuest.register(most_basic_function)
 
     async with rekuest as rekuest:
@@ -361,7 +345,6 @@ async def async_deployed_app(
             rekuest_watcher=watcher,
             minio_watcher=minio_watcher,
             rekuest=rekuest,
-            instance_id=instance_id,
         )
 
         yield deployed
