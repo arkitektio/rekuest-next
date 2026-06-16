@@ -67,7 +67,6 @@ class TaskView(BaseModel):
     assignation: str
     action_key: str
     interface: str | None
-    extension: str | None
     user: str | None
     app: str | None
     action: str | None

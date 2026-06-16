@@ -95,7 +95,37 @@ async def test_shrink_union(simple_registry: StructureRegistry, mock_shelver: Sh
         structure_registry=simple_registry,
     )
 
-    assert args["rep"]["use"] == 0, "Should use the first union type"
+    assert args["rep"]["__use"] == 0, "Should use the first union type"
+
+
+@pytest.mark.asyncio
+async def test_roundtrip_union_cross_path(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
+    """A union arg shrunk by the postman path expands cleanly on the actor path.
+
+    This is the boundary that motivated unifying the wire format: postman shrinks
+    args, the backend forwards them, and the agent (actor path) expands them.
+    """
+    functional_definition = prepare_definition(
+        union_structure_function, structure_registry=simple_registry
+    )
+
+    shrinked_args = await ashrink_args(
+        functional_definition,
+        (SerializableObject(number=3),),
+        {},
+        structure_registry=simple_registry,
+    )
+    assert shrinked_args["rep"]["__use"] == 0
+
+    expanded_args = await expand_inputs(
+        functional_definition,
+        shrinked_args,
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
+    )
+    assert expanded_args["rep"] == SerializableObject(number=3)
 
 
 @pytest.mark.shrink

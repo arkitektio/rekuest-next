@@ -1,7 +1,5 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
-directive @oneOf on INPUT_OBJECT
-
 input AckInput {
   assignation: ID!
 }
@@ -224,7 +222,7 @@ enum ActionKind {
   GENERATOR
 }
 
-input ActionOrder {
+input ActionOrder @oneOf {
   definedAt: Ordering
   usedAt: Ordering
 }
@@ -272,17 +270,20 @@ type Agent {
   """Hash representing the agent's definition for change detection."""
   hash: String!
 
-  """Registry entry this agent belongs to."""
-  registry: Registry!
+  """The client (app instance) this agent runs as."""
+  client: Client!
+
+  """User associated with the agent."""
+  user: User!
+
+  """The organization this agent belongs to."""
+  organization: Organization!
 
   """Historical records of agent's hardware."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
 
   """Device associated with the agent."""
   device: Device!
-
-  """User associated with the agent."""
-  user: User!
 
   """Implementations the agent can run."""
   implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
@@ -298,9 +299,6 @@ type Agent {
 
   """Is the agent currently connected."""
   connected: Boolean!
-
-  """List of installed agent extensions."""
-  extensions: [String!]!
 
   """Agent name."""
   name: String!
@@ -420,9 +418,6 @@ input AgentFilter {
   """Filter by IDs of the agents"""
   ids: [ID!]
 
-  """Filter by extensions of the agents"""
-  extensions: [String!]
-
   """Filter by implementations of the agents"""
   hasImplementations: [String!]
 
@@ -477,7 +472,7 @@ type AgentMapping {
   mappedImplementations: [ImplementationMapping!]!
 }
 
-input AgentOrder {
+input AgentOrder @oneOf {
   lastSeen: Ordering
 }
 
@@ -687,8 +682,8 @@ type Assignation {
   """Current status message."""
   statusMessage: String
 
-  """Registry that created this assignation."""
-  registry: Registry
+  """Caller that created this assignation."""
+  caller: Caller
 
   """Creation timestamp."""
   createdAt: DateTime!
@@ -801,7 +796,7 @@ enum AssignationEventKind {
   CRITICAL
 }
 
-input AssignationEventOrder {
+input AssignationEventOrder @oneOf {
   createdAt: Ordering
 }
 
@@ -853,7 +848,7 @@ enum AssignationInstructKind {
   COLLECT
 }
 
-input AssignationOrder {
+input AssignationOrder @oneOf {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -1022,6 +1017,21 @@ input BounceInput {
   agent: ID!
 }
 
+"""The (client, user, organization) identity that requests work."""
+type Caller {
+  """Unique identifier for the caller."""
+  id: ID!
+
+  """The associated client."""
+  client: Client!
+
+  """The associated user."""
+  user: User!
+
+  """The organization this caller belongs to."""
+  organization: Organization!
+}
+
 """The input for canceling an assignation."""
 input CancelInput {
   assignation: ID!
@@ -1089,7 +1099,7 @@ input ClientFilter {
 }
 
 """A way to order apps"""
-input ClientOrder {
+input ClientOrder @oneOf {
   definedAt: Ordering
 }
 
@@ -1174,20 +1184,9 @@ input CreateDashboardInput {
   organization: String = null
 }
 
-"""The input for creating a implementation in another agents extension."""
-input CreateForeignImplementationInput {
-  """
-  The agent ID to create the implementation in. This is used to identify the agent in the system.
-  """
-  agent: ID!
-  implementation: ImplementationInput!
-  extension: String!
-}
-
 """The input for creating a implementation."""
 input CreateImplementationInput {
   implementation: ImplementationInput!
-  extension: String!
 }
 
 """The input for creating a placement."""
@@ -1317,7 +1316,7 @@ input DashboardPlacementFilter {
   search: String
 }
 
-input DashboardPlacementOrder {
+input DashboardPlacementOrder @oneOf {
   role: Ordering
   createdAt: Ordering
 }
@@ -1696,7 +1695,6 @@ Implement an agent with the given implementations, states and locks. This will c
 """
 input ImplementAgentInput {
   name: String = null
-  extensions: [String!] = null
   states: [StateImplementationInput!] = null
   implementations: [ImplementationInput!] = null
   locks: [LockImplementationInput!] = null
@@ -1711,9 +1709,6 @@ type Implementation {
 
   """Interface string representing the implementation entrypoint."""
   interface: String!
-
-  """Extension or module name."""
-  extension: String!
 
   """Agent running this implementation."""
   agent: Agent!
@@ -1782,7 +1777,6 @@ input ImplementationAgentFilter {
   DISTINCT: Boolean
   clientId: String
   ids: [ID!]
-  extensions: [String!]
   hasImplementations: [String!]
   hasStates: [String!]
 }
@@ -1798,7 +1792,6 @@ input ImplementationFilter {
   active: Boolean
   ids: [ID!]
   actionHash: ActionHash
-  extension: String
   parameters: [ParamPair!]
   resolvableFor: ID
   search: String
@@ -1822,7 +1815,6 @@ input ImplementationInput {
   logo: String = null
   locks: [String!] = null
   manipulates: [String!] = null
-  extension: String = null
 }
 
 type ImplementationMapping {
@@ -1836,7 +1828,7 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder {
+input ImplementationOrder @oneOf {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -2039,7 +2031,7 @@ input MaterializedBlokFilter {
   search: String
 }
 
-input MaterializedBlokOrder {
+input MaterializedBlokOrder @oneOf {
   createdAt: Ordering
 }
 
@@ -2150,7 +2142,7 @@ input MemoryShelveFilter {
   ids: [ID!]
 }
 
-input MemoryShelveOrder {
+input MemoryShelveOrder @oneOf {
   name: Ordering
 }
 
@@ -2165,9 +2157,6 @@ type MessageEffect implements Effect {
 type Mutation {
   """Create a new implementation entry."""
   createImplementation(input: CreateImplementationInput!): Implementation!
-
-  """Register an external implementation."""
-  createForeignImplementation(input: CreateForeignImplementationInput!): Implementation!
 
   """Acknowledge an assignation."""
   ack(input: AckInput!): Assignation!
@@ -2517,7 +2506,7 @@ input PlacementInput {
   agent: ID = null
 }
 
-input PlacementOrder {
+input PlacementOrder @oneOf {
   role: Ordering
   createdAt: Ordering
 }
@@ -2636,7 +2625,7 @@ input ProtocolFilter {
   search: String
 }
 
-input ProtocolOrder {
+input ProtocolOrder @oneOf {
   name: Ordering
 }
 
@@ -2813,7 +2802,7 @@ type Query {
   event(id: ID = null): [AssignationEvent!]!
 
   """Find implementation at given interface."""
-  implementationAt(agent: ID!, extension: String = null, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
+  implementationAt(agent: ID!, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
 
   """Find your implementation at a specific interface."""
   myImplementationAt(actionId: ID = null, interface: String = null): Implementation!
@@ -2895,24 +2884,6 @@ input ReInitInput {
   agent: ID = null
 }
 
-"""Links a user and a client for registry tracking."""
-type Registry {
-  """Unique identifier for the registry."""
-  id: ID!
-
-  """The associated client."""
-  client: Client!
-
-  """The associated user."""
-  user: User!
-
-  """The organization this registry belongs to."""
-  organization: Organization!
-
-  """Agents registered under this registry."""
-  agents(filters: AgentFilter, ordering: [AgentOrder!]! = [], pagination: OffsetPaginationInput): [Agent!]!
-}
-
 """Profile information for a user."""
 type Release {
   """Unique ID of the release."""
@@ -2968,8 +2939,8 @@ type Reservation {
   """Name of the reservation."""
   name: String!
 
-  """Registry that created the reservation."""
-  registry: Registry
+  """Caller that created the reservation."""
+  caller: Caller
 
   """Optional title."""
   title: String
@@ -3033,7 +3004,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "3f411192-2b16-4483-a811-0d3063638b1a"
+  reference: String = "1486c11c-e197-4bd8-a874-0201f67ea580"
   action: ID = null
   implementation: ID = null
   title: String = null
@@ -3248,7 +3219,7 @@ input SessionFilter {
   agent: ID
 }
 
-input SessionOrder {
+input SessionOrder @oneOf {
   startedAt: Ordering
   endedAt: Ordering
 }
@@ -3341,7 +3312,7 @@ input ShortcutFilter {
   toolbox: ID
 }
 
-input ShortcutOrder {
+input ShortcutOrder @oneOf {
   name: Ordering
 }
 
@@ -3388,7 +3359,7 @@ input SpaceFilter {
   search: String
 }
 
-input SpaceOrder {
+input SpaceOrder @oneOf {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3761,7 +3732,7 @@ input ThreeDModelFilter {
   search: String
 }
 
-input ThreeDModelOrder {
+input ThreeDModelOrder @oneOf {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3802,7 +3773,7 @@ input ToolboxFilter {
   search: String
 }
 
-input ToolboxOrder {
+input ToolboxOrder @oneOf {
   name: Ordering
 }
 

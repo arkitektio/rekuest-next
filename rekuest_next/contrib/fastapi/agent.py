@@ -581,7 +581,6 @@ class FastApiAgent(BaseAgent):
         self,
         assign_input: AssignInput,
         user: str,
-        extension: str = "default",
         action: str = "api_call",
         app: str = "fastapi",
         assignation: str | None = None,
@@ -592,7 +591,6 @@ class FastApiAgent(BaseAgent):
 
         return messages.Assign(
             interface=assign_input.interface,
-            extension=extension,
             assignation=assignation or str(uuid.uuid4()),
             reservation=assign_input.reservation,
             parent=assign_input.parent,
@@ -670,7 +668,6 @@ class FastApiAgent(BaseAgent):
                 assignation=assignation_id,
                 action_key=action_key,
                 interface=assign_message.interface,
-                extension=assign_message.extension,
                 user=assign_message.user,
                 app=assign_message.app,
                 action=assign_message.action,

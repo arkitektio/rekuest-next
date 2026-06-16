@@ -53,7 +53,6 @@ def test_fastapi_agent_build_assign_message_uses_normalized_assign_input() -> No
     assign_message = agent.build_assign_message(assign_input, user="alice")
 
     assert assign_message.interface == "echo"
-    assert assign_message.extension == "default"
     assert assign_message.user == "alice"
     assert assign_message.app == "fastapi"
     assert assign_message.action == "api_call"

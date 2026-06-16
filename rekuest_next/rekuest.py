@@ -137,20 +137,33 @@ class RekuestNext(Composition):
 
         return state(*args, **kwargs)
 
-    def run(self, context: Any | None = None) -> None:
+    def run(self, context: Any | None = None, *, force: bool | None = None) -> None:
         """
         Run the application.
-        """
-        return unkoil(self.arun, context=context)
 
-    def run_detached(self, context: Any | None = None) -> KoilFuture[None]:
+        If ``force`` is set, it overrides the transport's build-time force policy for
+        this run (kicking any existing connection for this agent and taking over).
+        """
+        return unkoil(self.arun, context=context, force=force)
+
+    def run_detached(
+        self, context: Any | None = None, *, force: bool | None = None
+    ) -> KoilFuture[None]:
         """
         Run the application detached.
-        """
-        return unkoil_task(self.arun, context=context)
 
-    async def arun(self, context: Any | None = None) -> None:
+        See :meth:`run` for the ``force`` override semantics.
+        """
+        return unkoil_task(self.arun, context=context, force=force)
+
+    async def arun(self, context: Any | None = None, *, force: bool | None = None) -> None:
         """
         Run the application.
+
+        If ``force`` is not None it overrides the transport's build-time force policy
+        for this run. The override is guarded as ``force`` is a websocket-transport
+        concept and the agent only holds an abstract transport.
         """
+        if force is not None and hasattr(self.agent.transport, "force"):
+            self.agent.transport.force = force
         await self.agent.aprovide(context=context)
