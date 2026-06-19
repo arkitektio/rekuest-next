@@ -17,13 +17,11 @@ from rekuest_next.actors.vars import get_current_assignation_helper
 
 
 class ContextLink(ContinuationLink):
-    """ContextLink is a link that adds an assignation token to the context.
-    The authentication token is retrieved by calling the token_loader function.
-    If the wrapped link raises an AuthenticationError, the token_refresher function
-    is called again to refresh the token.
+    """ContextLink is a link that adds an provnance token to the context.
 
-    This link is statelss, and does not store the token. It is up to the user to
-    store the token and pass it to the token_loader function.
+    The provenance token is used to give some correlation information to every operation that is executed within
+    the context of an assignation. It is signed by the rekuest server and can be used to verify the provenance of the operation.
+
     """
 
     async def aexecute(
@@ -50,18 +48,9 @@ class ContextLink(ContinuationLink):
 
         try:
             helper = get_current_assignation_helper()
-            encoded_args = quote(
-                json.dumps(helper.args, separators=(",", ":"), ensure_ascii=True),
-                safe="",
-            )
 
-            operation.context.headers["Rekuest-Task"] = (
-                f"id={helper.assignation},"
-                f"parent={helper.assignment.parent or ''},"
-                f"args={encoded_args},"
-                f"user={helper.user},"
-                f"action={helper.action}"
-            )
+            if helper.token is not None:
+                operation.context.headers["Rekuest-Task"] = helper.token
 
         except Exception:
             pass

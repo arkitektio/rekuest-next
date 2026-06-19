@@ -1741,6 +1741,16 @@ type Implementation {
   """
   higherOrderConfig: AnyDefault!
 
+  """
+  Whether a signed provenance token is minted when this implementation is assigned.
+  """
+  needsToken: Boolean!
+
+  """
+  Declared audience for the provenance token's `aud`, or null to derive it at dispatch.
+  """
+  provenanceAudience: [String!]
+
   """Constructed name for display, combining interface and agent name."""
   name: String!
 
@@ -1815,6 +1825,8 @@ input ImplementationInput {
   logo: String = null
   locks: [String!] = null
   manipulates: [String!] = null
+  needsToken: Boolean! = true
+  provenanceAudience: [String!] = null
 }
 
 type ImplementationMapping {
@@ -3004,7 +3016,7 @@ enum ReservationStrategy {
 
 """The input for reserving a action."""
 input ReserveInput {
-  reference: String = "1486c11c-e197-4bd8-a874-0201f67ea580"
+  reference: String = "d0a1d14a-668d-4061-bdfd-df84a5ff59aa"
   action: ID = null
   implementation: ID = null
   title: String = null

@@ -125,6 +125,15 @@ class AssignmentHelper(BaseModel):
         """Returns the args that caused the assignation"""
         return self.assignment.args
 
+    @property
+    def token(self) -> str | None:
+        """Returns the opaque provenance token of the assignation, if any.
+
+        The token is forwarded untouched to downstream services; it is None
+        when the implementation opted out of provenance (needs_token=False).
+        """
+        return self.assignment.token
+
     def __enter__(self) -> Self:
         """Set the current assignation helper to this instance.
         This is used to send logs and progress messages to the actor.

@@ -181,6 +181,7 @@ def register_func(
             optimistics=tuple(optimistics),
             dependencies=tuple(dependencies),
             tracks=tuple(implementation_details.tracks or []),
+            needs_token=True,  # TODO: Make this configurable in the future, but for now, we want to ensure that all actors require tokens for security reasons.
             manipulates=tuple(implementation_details.manipulates or []),
         ),
         actor_builder,
