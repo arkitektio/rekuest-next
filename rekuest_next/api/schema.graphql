@@ -1,5 +1,7 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
+directive @oneOf on INPUT_OBJECT
+
 input AckInput {
   assignation: ID!
 }
@@ -64,9 +66,6 @@ type Action {
 
   """Timestamp when the action was defined."""
   definedAt: DateTime!
-
-  """Reservations related to this action."""
-  reservations(filters: ReservationFilter, pagination: OffsetPaginationInput): [Reservation!]
 
   """Test cases for this action."""
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]
@@ -222,7 +221,7 @@ enum ActionKind {
   GENERATOR
 }
 
-input ActionOrder @oneOf {
+input ActionOrder {
   definedAt: Ordering
   usedAt: Ordering
 }
@@ -472,7 +471,7 @@ type AgentMapping {
   mappedImplementations: [ImplementationMapping!]!
 }
 
-input AgentOrder @oneOf {
+input AgentOrder {
   lastSeen: Ordering
 }
 
@@ -570,7 +569,6 @@ input AssignInput {
   agent: ID = null
   actionHash: ActionHash = null
   method: String = null
-  reservation: ID = null
   interface: String = null
   hooks: [HookInput!] = null
   args: Args!
@@ -659,9 +657,6 @@ type Assignation {
   """Parent assignation that triggered this one."""
   parent: Assignation
 
-  """Reservation that caused this assignation."""
-  reservation: Reservation
-
   """Action assigned."""
   action: Action!
 
@@ -678,9 +673,6 @@ type Assignation {
 
   """Last instruction type."""
   latestInstructKind: AssignationInstructKind!
-
-  """Current status message."""
-  statusMessage: String
 
   """Caller that created this assignation."""
   caller: Caller
@@ -796,7 +788,7 @@ enum AssignationEventKind {
   CRITICAL
 }
 
-input AssignationEventOrder @oneOf {
+input AssignationEventOrder {
   createdAt: Ordering
 }
 
@@ -806,7 +798,6 @@ enum AssignationField {
 }
 
 input AssignationFilter {
-  reservation: ReservationFilter
   AND: AssignationFilter
   OR: AssignationFilter
   NOT: AssignationFilter
@@ -848,7 +839,7 @@ enum AssignationInstructKind {
   COLLECT
 }
 
-input AssignationOrder @oneOf {
+input AssignationOrder {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -1099,7 +1090,7 @@ input ClientFilter {
 }
 
 """A way to order apps"""
-input ClientOrder @oneOf {
+input ClientOrder {
   definedAt: Ordering
 }
 
@@ -1171,7 +1162,7 @@ input CreateBlokInput {
 }
 
 """
-Input for reserving an action. This is used to reserve an action for a waiter instance, optionally specifying the action or implementation to reserve, along with additional metadata for the reservation.
+Input for creating a dashboard, optionally specifying its name, the bloks to include, and the owning organization.
 """
 input CreateDashboardInput {
   """The name of the dashboard."""
@@ -1316,7 +1307,7 @@ input DashboardPlacementFilter {
   search: String
 }
 
-input DashboardPlacementOrder @oneOf {
+input DashboardPlacementOrder {
   role: Ordering
   createdAt: Ordering
 }
@@ -1840,7 +1831,7 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder @oneOf {
+input ImplementationOrder {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -2043,7 +2034,7 @@ input MaterializedBlokFilter {
   search: String
 }
 
-input MaterializedBlokOrder @oneOf {
+input MaterializedBlokOrder {
   createdAt: Ordering
 }
 
@@ -2154,7 +2145,7 @@ input MemoryShelveFilter {
   ids: [ID!]
 }
 
-input MemoryShelveOrder @oneOf {
+input MemoryShelveOrder {
   name: Ordering
 }
 
@@ -2208,12 +2199,6 @@ type Mutation {
 
   """Unblock a previously blocked agent."""
   unblock(input: UnblockInput!): Agent!
-
-  """Reserve an implementation for future use."""
-  reserve(input: ReserveInput!): Reservation!
-
-  """Release a reserved implementation."""
-  unreserve(input: UnreserveInput!): String!
 
   """Delete a registered implementation."""
   deleteImplementation(input: DeleteImplementationInput!): String!
@@ -2518,7 +2503,7 @@ input PlacementInput {
   agent: ID = null
 }
 
-input PlacementOrder @oneOf {
+input PlacementOrder {
   role: Ordering
   createdAt: Ordering
 }
@@ -2637,7 +2622,7 @@ input ProtocolFilter {
   search: String
 }
 
-input ProtocolOrder @oneOf {
+input ProtocolOrder {
   name: Ordering
 }
 
@@ -2701,12 +2686,6 @@ type Query {
 
   """All test cases."""
   testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
-
-  """List of all reservations."""
-  reservations: [Reservation!]!
-
-  """Reservations made by the current user."""
-  myreservations: [Reservation!]!
 
   """List of shortcuts."""
   shortcuts(filters: ShortcutFilter, ordering: [ShortcutOrder!]! = [], pagination: OffsetPaginationInput): [Shortcut!]!
@@ -2805,7 +2784,7 @@ type Query {
   snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]!
 
   """Fetch a specific action."""
-  action(id: ID = null, reservation: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
+  action(id: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
 
   """Fetch assignations."""
   assignations: [Assignation!]!
@@ -2882,9 +2861,6 @@ type Query {
   """Get test result by ID."""
   testResult(id: ID!): TestResult!
 
-  """Retrieve reservation by ID."""
-  reservation(id: ID!): Reservation!
-
   """Get implementation by ID."""
   implementation(id: ID!): Implementation!
 
@@ -2941,87 +2917,6 @@ enum RequiresOperator {
   NOT_EQUALS
   IN
   NOT_IN
-}
-
-"""Reservation for planned assignment of implementations."""
-type Reservation {
-  """ID of the reservation."""
-  id: ID!
-
-  """Name of the reservation."""
-  name: String!
-
-  """Caller that created the reservation."""
-  caller: Caller
-
-  """Optional title."""
-  title: String
-
-  """Action this reservation is for."""
-  action: Action!
-
-  """Last update timestamp."""
-  updatedAt: DateTime!
-
-  """Reference string for identification."""
-  reference: String!
-
-  """Available implementations for the reservation."""
-  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
-
-  """Dependency that triggered the reservation."""
-  causingDependency: Dependency
-
-  """Reservation strategy applied."""
-  strategy: ReservationStrategy!
-
-  """Is the reservation currently viable."""
-  viable: Boolean!
-
-  """Did the reservation succeed."""
-  happy: Boolean!
-
-  """Chosen implementation."""
-  implementation: Implementation
-}
-
-"""A way to filter reservations"""
-input ReservationFilter {
-  AND: ReservationFilter
-  OR: ReservationFilter
-  NOT: ReservationFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  status: [ReservationStatus!]
-}
-
-enum ReservationStatus {
-  ACTIVE
-  INACTIVE
-  UNHAPPY
-  HAPPY
-  UNCONNECTED
-  ENDED
-}
-
-"""The pattern of assignment of the reservation"""
-enum ReservationStrategy {
-  RANDOM
-  ROUND_ROBIN
-  LEAST_BUSY
-  LEAST_TIME
-  LEAST_LOAD
-  DIRECT
-}
-
-"""The input for reserving a action."""
-input ReserveInput {
-  reference: String = "d0a1d14a-668d-4061-bdfd-df84a5ff59aa"
-  action: ID = null
-  implementation: ID = null
-  title: String = null
-  hash: ActionHash = null
-  assignationId: ID = null
 }
 
 """Represents a resolution for a blok."""
@@ -3231,7 +3126,7 @@ input SessionFilter {
   agent: ID
 }
 
-input SessionOrder @oneOf {
+input SessionOrder {
   startedAt: Ordering
   endedAt: Ordering
 }
@@ -3324,7 +3219,7 @@ input ShortcutFilter {
   toolbox: ID
 }
 
-input ShortcutOrder @oneOf {
+input ShortcutOrder {
   name: Ordering
 }
 
@@ -3371,7 +3266,7 @@ input SpaceFilter {
   search: String
 }
 
-input SpaceOrder @oneOf {
+input SpaceOrder {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3611,9 +3506,6 @@ type Subscription {
   """Subscribe to updates on assignations."""
   assignations: AssignationChangeEvent!
 
-  """Subscribe to updates on reservations."""
-  reservations: Reservation!
-
   """Subscribe to events related to assignations."""
   assignationEvents: AssignationEvent!
 
@@ -3744,7 +3636,7 @@ input ThreeDModelFilter {
   search: String
 }
 
-input ThreeDModelOrder @oneOf {
+input ThreeDModelOrder {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3785,7 +3677,7 @@ input ToolboxFilter {
   search: String
 }
 
-input ToolboxOrder @oneOf {
+input ToolboxOrder {
   name: Ordering
 }
 
@@ -3822,10 +3714,6 @@ type UICatalog {
 """The input for bouncing an agent."""
 input UnblockInput {
   agent: ID!
-}
-
-input UnreserveInput {
-  reservation: ID!
 }
 
 input UnshelveMemoryDrawerInput {

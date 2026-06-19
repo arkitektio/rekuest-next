@@ -59,7 +59,7 @@ def _drawer(reference: object) -> str:
 async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> None:
     """Output of one call is piped into another, resolving the live instance."""
 
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
 
     def make_image(size: int) -> Image:
         """Create an in-memory image."""
@@ -96,7 +96,7 @@ async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> No
 async def test_three_stage_memory_pipeline(deployment: Deployment) -> None:
     """Chain three calls, threading memory structures all the way through."""
 
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
 
     def make_image(size: int) -> Image:
         """Create an in-memory image."""
@@ -148,7 +148,7 @@ async def test_each_test_gets_a_fresh_app_registry(deployment: Deployment) -> No
     ``AppRegistry`` isolation that ``build_fresh_rekuest`` provides.
     """
 
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
 
     assert app.agent.app_registry.implementations == {}
 

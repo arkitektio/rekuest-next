@@ -1,5 +1,0 @@
-subscription WatchReservations {
-  reservations {
-    ...Reservation
-  }
-}

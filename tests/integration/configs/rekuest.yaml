@@ -50,6 +50,14 @@ lok:
       client_app: workflow
       client_release: v0.0.1
       client_id: workflow
+    standalone_token:
+      sub: 1
+      iss: lok
+      org: test
+      device_id: standalone_device
+      client_app: standalone
+      client_release: v0.0.1
+      client_id: standalone
 
 
 

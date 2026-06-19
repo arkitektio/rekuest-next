@@ -68,6 +68,7 @@ def _build_implementation(
         dependencies=dependencies,
         dynamic=False,
         interface="adjust",
+        needs_token=True,
     )
 
 

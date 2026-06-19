@@ -1,9 +1,0 @@
-mutation reserve($input: ReserveInput!) {
-  reserve(input: $input) {
-    ...Reservation
-  }
-}
-
-mutation unreserve($input: UnreserveInput!) {
-  unreserve(input: $input)
-}

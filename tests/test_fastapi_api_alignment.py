@@ -140,6 +140,7 @@ def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> 
         dependencies=(),
         dynamic=False,
         interface="echo",
+        needs_token=True,
     )
 
     router = APIRouter()

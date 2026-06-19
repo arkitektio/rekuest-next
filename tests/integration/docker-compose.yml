@@ -13,7 +13,7 @@ services:
     - redis
     - db
     - minio
-    image: jhnnsrs/rekuest:dev
+    image: jhnnsrs/rekuest:next
     command: bash run-debug.sh
     stop_grace_period: 1s
     ports:

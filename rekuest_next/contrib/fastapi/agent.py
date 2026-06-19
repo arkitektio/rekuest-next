@@ -592,7 +592,6 @@ class FastApiAgent(BaseAgent):
         return messages.Assign(
             interface=assign_input.interface,
             assignation=assignation or str(uuid.uuid4()),
-            reservation=assign_input.reservation,
             parent=assign_input.parent,
             reference=assign_input.reference,
             args=assign_input.args,

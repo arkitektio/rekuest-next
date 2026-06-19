@@ -122,7 +122,8 @@ def make_token_loader(token: str = "test") -> Callable[[], Awaitable[str]]:
 
     Args:
         token: The static token to authenticate as. Must be one of the tokens
-            configured in the deployment (``test``, ``testb``, ``testc``).
+            configured in the deployment (``test``, ``atest_token``,
+            ``btest_token``, ``workflow_token``, ``standalone_token``).
 
     Returns:
         An async, no-argument token loader suitable for the auth link and agent

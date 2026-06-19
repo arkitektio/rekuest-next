@@ -72,6 +72,7 @@ def test_declared_action_and_blok_registry_build_same_action_dependency(
             dependencies=(),
             dynamic=False,
             interface="run",
+            needs_token=True,
         ),
         lambda *args, **kwargs: None,
     )

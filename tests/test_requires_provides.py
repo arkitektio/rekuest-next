@@ -79,9 +79,6 @@ query ImplWithDescriptors($interface: String) {
 """
 
 
-@pytest.mark.skip(
-    reason="Requires/Provides support is not yet implemented on the server side."
-)
 @pytest.mark.integration
 @pytest.mark.asyncio(scope="session")
 async def test_server_respects_requires_and_provides(deployment: Deployment) -> None:
@@ -90,7 +87,7 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
     Asserts the server stored and exposes the descriptors exactly as declared on
     both the arg port (requires) and the return port (provides).
     """
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
     app.register(capture_image)
 
     async with app as app:
@@ -117,9 +114,7 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
             assert ret["provides"] == [{"key": "x", "operator": "GTE", "value": 1}]
 
             # And the function still runs end-to-end with a conforming input.
-            impl = await amy_implementation_at(
-                "capture_image", rath=app.rath
-            )
+            impl = await amy_implementation_at("capture_image", rath=app.rath)
             answer = await acall(
                 impl,
                 postman=app.postman,

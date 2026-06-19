@@ -100,9 +100,6 @@ class Assign(Message):
     interface: str = Field(
         description="The registered interface, that the agent should use to run this assignation"
     )
-    reservation: Optional[str] = Field(
-        default=None, description="The reservation id if assigned through that"
-    )
     step: bool | None = Field(
         default=None,
         description="Whether to step the assignation or not (i.e. stop at the first breakpoint and wait for a step message from the rekuest backend to continue). If None don't step.",

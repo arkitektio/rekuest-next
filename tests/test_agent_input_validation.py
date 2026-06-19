@@ -83,6 +83,7 @@ def _implementation(
         dynamic=False,
         interface=interface,
         locks=locks or None,
+        needs_token=True,
     )
 
 

@@ -602,6 +602,7 @@ def convert_object_to_returnport(
             description=description,
             effects=tuple(effects),
             validators=tuple(validators),
+            provides=tuple(provides) if provides else None,
         )
 
     if is_union(cls):
@@ -624,6 +625,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     if is_dict(cls):
@@ -642,6 +644,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     if is_literal(cls):
@@ -672,6 +675,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )  # catch bool is subclass of int
 
     if is_int(cls) or (default is not None and isinstance(default, int)):
@@ -685,6 +689,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     if is_float(cls) or (default is not None and isinstance(default, float)):
@@ -698,6 +703,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     if is_datetime(cls) or (default is not None and isinstance(default, dt.datetime)):
@@ -711,6 +717,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     if is_str(cls) or (default is not None and isinstance(default, str)):
@@ -724,6 +731,7 @@ def convert_object_to_returnport(
             effects=tuple(effects),
             validators=tuple(validators),
             description=description,
+            provides=tuple(provides) if provides else None,
         )
 
     return registry.get_returnport_for_cls(

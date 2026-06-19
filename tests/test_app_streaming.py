@@ -25,7 +25,7 @@ from .conftest import build_fresh_rekuest
 async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
     """A sync generator action streams each yield to the caller."""
 
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
 
     def count_up(until: int) -> Generator[int, None, None]:
         """Count up to a number, yielding each value."""
@@ -55,7 +55,7 @@ async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
 async def test_iterate_async_generator_action(deployment: Deployment) -> None:
     """An async generator action streams each yield to the caller."""
 
-    app = build_fresh_rekuest(deployment)
+    app = build_fresh_rekuest(deployment, token="standalone_token")
 
     async def spell_out(word: str) -> AsyncGenerator[str, None]:
         """Yield each character of a word."""

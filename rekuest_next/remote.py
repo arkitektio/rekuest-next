@@ -32,7 +32,6 @@ from rekuest_next.api.schema import (
     HookInput,
     Action,
     afind as afind_node,
-    Reservation,
     Implementation,
 )
 from rekuest_next.messages import Assign, JSONSerializable
@@ -57,7 +56,7 @@ __all__ = [
 
 
 async def afind(
-    action_implementation_res: Union[ID, Action, Implementation, Reservation],
+    action_implementation_res: Union[ID, Action, Implementation],
 ) -> Action:
     """Find and return the assignation generator"""
     if isinstance(action_implementation_res, Action):
@@ -75,7 +74,7 @@ async def afind(
         return action_implementation_res
 
     raise ValueError(
-        "action_implementation_res must be an ID, Action, Implementation, Reservation, DeclaredFunction or DeclaredProtocol"
+        "action_implementation_res must be an ID, Action, Implementation, DeclaredFunction or DeclaredProtocol"
     )
 
 
@@ -84,7 +83,6 @@ def find(
         ID,
         Action,
         Implementation,
-        Reservation,
     ],
 ) -> Action:
     """Resolve an action reference into a concrete action model.
@@ -121,17 +119,15 @@ def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
 
 
 def _resolve_target(
-    target: Union[Action, Implementation, Reservation],
-) -> Tuple[Action, Optional[Implementation], Optional[Reservation]]:
-    """Resolve an action-like target into (action, implementation, reservation)."""
+    target: Union[Action, Implementation],
+) -> Tuple[Action, Optional[Implementation]]:
+    """Resolve an action-like target into (action, implementation)."""
     if isinstance(target, Implementation):
-        return target.action, target, None
-    if isinstance(target, Reservation):
-        return target.action, None, target
+        return target.action, target
     if isinstance(target, Action):
-        return target, None, None
+        return target, None
     raise ValueError(
-        "action_implementation_res must be a Action, Implementation or Reservation"
+        "action_implementation_res must be a Action or Implementation"
     )
 
 
@@ -154,7 +150,6 @@ def _build_assign_input(
     capture: bool,
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
-    reservation: Optional[Reservation] = None,
     dependency: Optional[ID] = None,
     method: Optional[str] = None,
 ) -> AssignInput:
@@ -172,7 +167,6 @@ def _build_assign_input(
     return AssignInput(
         action=action.id if action else None,
         implementation=implementation.id if implementation else None,
-        reservation=reservation,  # type: ignore
         dependency=dependency,
         method=method,  # type: ignore
         args=args or {},
@@ -215,7 +209,6 @@ async def aiterate_raw(
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
-    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -240,7 +233,6 @@ async def aiterate_raw(
         capture=capture,
         action=action,
         implementation=implementation,
-        reservation=reservation,
     )
 
     async for returns in _astream_raw(resolved_postman, assign_input):
@@ -252,7 +244,6 @@ async def acall_raw(
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
     parent: Optional[Assign] = None,
-    reservation: Optional[Reservation] = None,
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
     cached: bool = False,
@@ -279,7 +270,6 @@ async def acall_raw(
         action=action,
         implementation=implementation,
         parent=parent,
-        reservation=reservation,
         reference=reference,
         hooks=hooks,
         cached=cached,
@@ -327,7 +317,7 @@ async def acall_dependency_raw(
 
 
 async def acall(
-    action_implementation_res: Union[Action, Implementation, Reservation],
+    action_implementation_res: Union[Action, Implementation],
     *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
@@ -341,8 +331,8 @@ async def acall(
 ) -> Any:
     """Execute a remote action and return expanded Python values.
 
-    The helper accepts an :class:`Action`, :class:`Implementation`, or
-    :class:`Reservation`. It resolves the target action, shrinks Python
+    The helper accepts an :class:`Action` or :class:`Implementation`. It
+    resolves the target action, shrinks Python
     arguments with the structure registry, performs the remote call via
     :func:`acall_raw`, and expands the returned transport payload back into
     Python objects.
@@ -370,8 +360,7 @@ async def acall(
         actions.
 
     Raises:
-        ValueError: If the target object is not an action, implementation, or
-            reservation.
+        ValueError: If the target object is not an action or implementation.
         ErrorCallError: If the backend reports an assignation error.
         CriticalCallError: If the backend reports a critical assignation error.
 
@@ -380,7 +369,7 @@ async def acall(
 
             result = await acall(action, image=my_image, threshold=0.5)
     """
-    action, implementation, reservation = _resolve_target(action_implementation_res)
+    action, implementation = _resolve_target(action_implementation_res)
     structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_args(
@@ -391,7 +380,6 @@ async def acall(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
-        reservation=reservation,
         reference=reference,
         hooks=hooks,
         cached=cached,
@@ -410,7 +398,7 @@ async def acall(
 
 
 async def aiterate(
-    action_implementation_res: Union[Action, Implementation, Reservation],
+    action_implementation_res: Union[Action, Implementation],
     *args: Any,  # noqa: ANN401
     reference: Optional[str] = None,
     hooks: Optional[List[HookInput]] = None,
@@ -451,8 +439,7 @@ async def aiterate(
         Expanded yielded values from the remote assignation.
 
     Raises:
-        ValueError: If the target object is not an action, implementation, or
-            reservation.
+        ValueError: If the target object is not an action or implementation.
         ErrorCallError: If the backend reports an assignation error.
         CriticalCallError: If the backend reports a critical assignation error.
 
@@ -462,7 +449,7 @@ async def aiterate(
             async for chunk in aiterate(action, prompt="hello"):
                 print(chunk)
     """
-    action, implementation, reservation = _resolve_target(action_implementation_res)
+    action, implementation = _resolve_target(action_implementation_res)
     structure_registry = structure_registry or get_default_structure_registry()
 
     shrinked_args = await ashrink_args(
@@ -473,7 +460,6 @@ async def aiterate(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
-        reservation=reservation,
         reference=reference,
         hooks=hooks,
         cached=cached,
