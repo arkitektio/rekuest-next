@@ -156,14 +156,44 @@ class RekuestNext(Composition):
         """
         return unkoil_task(self.arun, context=context, force=force)
 
+    def _maybe_override_force(self, force: bool | None) -> None:
+        """Override the transport's build-time force policy for this run.
+
+        Guarded because ``force`` is a websocket-transport concept and the agent
+        only holds an abstract transport.
+        """
+        transport = getattr(self.agent, "transport", None)
+        if force is not None and transport is not None and hasattr(transport, "force"):
+            setattr(transport, "force", force)
+
     async def arun(self, context: Any | None = None, *, force: bool | None = None) -> None:
         """
         Run the application.
 
         If ``force`` is not None it overrides the transport's build-time force policy
-        for this run. The override is guarded as ``force`` is a websocket-transport
-        concept and the agent only holds an abstract transport.
+        for this run.
         """
-        if force is not None and hasattr(self.agent.transport, "force"):
-            self.agent.transport.force = force
+        self._maybe_override_force(force)
         await self.agent.aprovide(context=context)
+
+    async def aconnect(
+        self,
+        context: Any | None = None,
+        *,
+        force: bool | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        """Start the agent and connect, returning once the server acknowledges it.
+
+        This is the first phase of :meth:`arun`. Run :meth:`aloop` afterwards (e.g.
+        as a background task) to process incoming messages. If ``timeout`` is set
+        and the server does not acknowledge in time, ``asyncio.TimeoutError`` is
+        raised. See :meth:`arun` for the ``force`` override semantics.
+        """
+        self._maybe_override_force(force)
+        await self.agent.aconnect(context=context, timeout=timeout)
+
+    async def aloop(self) -> None:
+        """Process incoming messages after :meth:`aconnect`. The ongoing second
+        phase of :meth:`arun`."""
+        await self.agent.aloop()

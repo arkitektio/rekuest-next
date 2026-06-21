@@ -17,7 +17,7 @@ from dokker import Deployment
 from rekuest_next.api.schema import amy_implementation_at
 from rekuest_next.remote import aiterate
 
-from .conftest import build_fresh_rekuest
+from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 @pytest.mark.integration
@@ -35,8 +35,8 @@ async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
     app.register(count_up)
 
     async with app as app:
-        task = asyncio.create_task(app.arun())
-        await asyncio.sleep(5)  # Wait for the agent to provide
+        await app.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(app.aloop())
 
         impl = await amy_implementation_at("count_up")
 
@@ -65,8 +65,8 @@ async def test_iterate_async_generator_action(deployment: Deployment) -> None:
     app.register(spell_out)
 
     async with app as app:
-        task = asyncio.create_task(app.arun())
-        await asyncio.sleep(5)  # Wait for the agent to provide
+        await app.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(app.aloop())
 
         impl = await amy_implementation_at("spell_out")
 

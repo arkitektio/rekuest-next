@@ -23,6 +23,52 @@ import pytest_asyncio
 from rath.links.compose import compose
 
 
+# Maximum time (seconds) to wait for an agent to connect and be acknowledged by
+# the server before a test fails. Used with ``app.aconnect(timeout=...)``.
+CONNECT_TIMEOUT = 5
+
+
+def _dump_asyncio_tasks(signum: object, frame: object) -> None:
+    """SIGALRM handler: dump every pending asyncio task's stack to stderr.
+
+    Used to locate which coroutine is stuck when a test stalls. Enabled via the
+    ``STALL_DEBUG`` env var (seconds).
+    """
+    import asyncio
+    import sys
+
+    try:
+        loop = asyncio.get_event_loop()
+        tasks = asyncio.all_tasks(loop)
+    except Exception as exc:  # pragma: no cover - debug helper
+        sys.stderr.write(f"\n##### STALL DUMP failed: {exc} #####\n")
+        sys.stderr.flush()
+        return
+    sys.stderr.write(f"\n##### STALL DUMP: {len(tasks)} pending tasks #####\n")
+    for task in tasks:
+        sys.stderr.write(f"\n--- TASK {task!r}\n")
+        task.print_stack(file=sys.stderr)
+    sys.stderr.flush()
+
+
+@pytest.fixture(autouse=True)
+def _stall_watchdog():  # noqa: ANN202
+    """Dump asyncio task stacks if a test runs longer than ``STALL_DEBUG`` seconds."""
+    import os
+    import signal
+
+    seconds = os.environ.get("STALL_DEBUG")
+    if not seconds:
+        yield
+        return
+    signal.signal(signal.SIGALRM, _dump_asyncio_tasks)
+    signal.setitimer(signal.ITIMER_REAL, float(seconds))
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+
+
 class MockShelver:
     """A mock shelver that stores values in memory. This is used to test the
     shelver functionality without using a real shelver."""

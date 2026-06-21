@@ -27,7 +27,7 @@ lok:
       client_release: v0.0.1
       client_id: test
     atest_token:
-      sub: 1
+      sub: 2
       iss: lok
       org: test
       device_id: atest_device
@@ -35,7 +35,7 @@ lok:
       client_release: v0.0.1
       client_id: atest
     btest_token:
-      sub: 1
+      sub: 3
       iss: lok
       org: test
       device_id: btest_device
@@ -43,7 +43,7 @@ lok:
       client_release: v0.0.1
       client_id: btest
     workflow_token:
-      sub: 1
+      sub: 4
       iss: lok
       org: test
       device_id: workflow_device
@@ -51,7 +51,7 @@ lok:
       client_release: v0.0.1
       client_id: workflow
     standalone_token:
-      sub: 1
+      sub: 5
       iss: lok
       org: test
       device_id: standalone_device

@@ -30,7 +30,7 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next.remote import acall
 
-from .conftest import build_fresh_rekuest
+from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 # Input must be a TIFF filename -- a MATCHES constraint on the bound value.
 TiffFileName = Annotated[
@@ -91,8 +91,8 @@ async def test_server_respects_requires_and_provides(deployment: Deployment) -> 
     app.register(capture_image)
 
     async with app as app:
-        task = asyncio.create_task(app.arun())
-        await asyncio.sleep(5)  # Wait for the agent to register with the server.
+        await app.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(app.aloop())
 
         try:
             result = await app.rath.aquery(

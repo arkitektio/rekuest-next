@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Self, Sequence, Type, TypeVar
+from typing import Any, AsyncIterator, Dict, List, Optional, Self, Sequence, Type, TypeVar
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -148,6 +148,13 @@ class BaseAgent(KoiledModel):
     )
     _app_context: Optional[AppContext] = PrivateAttr(default=None)
 
+    _connected_event: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+    """Set when the server acknowledges the agent (an ``Init`` message is received)."""
+    _receiver: Optional[AsyncIterator[messages.ToAgentMessage]] = PrivateAttr(
+        default=None
+    )
+    """The live transport message stream, shared between ``aconnect`` and ``aloop``."""
+
     _interface_stateschema_input_map: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}  # typ
     )
@@ -176,6 +183,14 @@ class BaseAgent(KoiledModel):
     snapshot_interval: int = Field(
         default=60,
         description="How many persisted patches should elapse before all current shrunk states are checkpointed.",
+    )
+    teardown_join_timeout: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for queued state patches to flush during teardown before closing the patch queue anyway. Bounds teardown so it can never hang on an unconsumed patch.",
+    )
+    cancel_grace_period: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for the message-consumer task to unwind when the agent loop is cancelled before proceeding to teardown anyway. Bounds cancellation so it can never hang on a stream that ignores cancellation.",
     )
     started: bool = False
     running: bool = False
@@ -422,6 +437,10 @@ class BaseAgent(KoiledModel):
         logger.info(f"Agent received {message}")
 
         if isinstance(message, messages.Init):
+            # The Init message is the server's acknowledgement of our Register.
+            # Signal that the agent is connected so callers awaiting aconnect()
+            # can proceed.
+            self._connected_event.set()
             for inquiry in message.inquiries:
                 if inquiry.assignation in self.managed_assignments:
                     assignment = self.managed_assignments[inquiry.assignation]
@@ -554,6 +573,20 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
+        if self._event_queue is not None:
+            # Best-effort flush of queued patches before stopping the processor.
+            # Bounded by a timeout so teardown can never hang on a patch that was
+            # enqueued but will not be consumed (e.g. published during shutdown).
+            try:
+                await asyncio.wait_for(
+                    self._event_queue.async_q.join(), timeout=self.teardown_join_timeout
+                )
+            except (RuntimeError, asyncio.TimeoutError):
+                logger.warning(
+                    "Timed out flushing queued patches during teardown; "
+                    "closing the patch queue anyway"
+                )
+
         if self._patch_processor_task is not None:
             self._patch_processor_task.cancel()
             try:
@@ -562,10 +595,6 @@ class BaseAgent(KoiledModel):
                 pass
 
         if self._event_queue is not None:
-            try:
-                await self._event_queue.async_q.join()
-            except RuntimeError:
-                pass
             try:
                 await self._event_queue.aclose()
             except RuntimeError:
@@ -591,6 +620,11 @@ class BaseAgent(KoiledModel):
 
         await self.astop_background()
         await self.transport.adisconnect()
+
+        # Reset the connected signal and stored receiver so a subsequent run of a
+        # re-entered agent waits for a fresh Init instead of observing stale state.
+        self._connected_event.clear()
+        self._receiver = None
 
     async def aget_hash(self) -> str:
         """Get the hash of the agent. This is used to identify the agent in the system and to check if the agent has changed."""
@@ -816,35 +850,141 @@ class BaseAgent(KoiledModel):
 
         return actor
 
-    async def aloop(self) -> None:
-        """Async loop that runs the agent. This is used to run the agent"""
-        try:
-            self.running = True
-            await self.transport.aconnect()
+    async def _adrain_until_connected(self) -> None:
+        """Process incoming messages until the server acknowledges the agent.
 
-            async for message in self.transport.areceive():
-                await self.process(message)
-        except asyncio.CancelledError:
-            logger.info(f"Provisioning task cancelled. We are running {self.transport}")
-            self.running = False
-            await self.atear_down()
-            raise
-        except Exception as e:
-            logger.error(f"Error in agent loop: {str(e)}")
-            await self.atear_down()
-            raise e
+        Returns as soon as an ``Init`` message has been handled (which sets
+        ``_connected_event``), leaving the transport stream live for ``aloop``.
+        """
+        assert self._receiver is not None, "Receiver must be set before draining"
+        if self._connected_event.is_set():
+            return
+        async for message in self._receiver:
+            await self.process(message)
+            if self._connected_event.is_set():
+                return
 
-    async def aprovide(self, context: Optional[AppContext] = None) -> None:
-        """Provides the agent.
+    async def _await_acknowledged(self) -> None:
+        """Wait until the server has acknowledged the agent.
 
-        This starts the agents and connectes to the transport.
-        It also starts the agent and starts listening for messages from the transport.
+        For the websocket transport this drains the message stream until an
+        ``Init`` is received. Subclasses whose transport has no acknowledgement
+        handshake (e.g. the server-side FastAPI transport) override this.
+        """
+        await self._adrain_until_connected()
+
+    async def _aconnect_sequence(self, context: Optional[AppContext] = None) -> None:
+        """The startup + transport-open + acknowledge sequence, unbounded.
+
+        Each phase is logged so that a stall (when ``aconnect`` wraps this in a
+        timeout) points to the exact phase that hung.
+        """
+        logger.debug("aconnect: running astart")
+        await self.astart(app_context=context)
+        logger.debug("aconnect: opening transport")
+        self._receiver = self.transport.areceive().__aiter__()
+        await self.transport.aconnect()
+        logger.debug("aconnect: draining until acknowledged")
+        await self._await_acknowledged()
+        logger.info("Agent connected and acknowledged by the server")
+
+    async def aconnect(
+        self,
+        context: Optional[AppContext] = None,
+        timeout: float | None = None,
+    ) -> None:
+        """Starts the agent and connects to the transport.
+
+        This runs the startup phase, opens the transport, and returns once the
+        server has acknowledged the agent (an ``Init`` message is received). The
+        message stream is left live so that ``aloop`` can resume consuming it.
+
+        The whole sequence (including ``astart``) is bounded by ``timeout``: if it
+        does not complete within that many seconds, ``asyncio.TimeoutError`` is
+        raised and the agent is torn down.
         """
         self._app_context = context
 
         try:
+            sequence = self._aconnect_sequence(context=context)
+            if timeout is not None:
+                await asyncio.wait_for(sequence, timeout)
+            else:
+                await sequence
+        except BaseException:
+            logger.error("Agent failed to connect", exc_info=True)
+            await self.atear_down()
+            raise
+
+    async def _aconsume_messages(self) -> None:
+        """Resume the transport stream and process every message it yields."""
+        assert self._receiver is not None, "aconnect() must run before aloop()"
+        async for message in self._receiver:
+            await self.process(message)
+
+    async def aloop(self) -> None:
+        """Async loop that processes messages after the agent has connected.
+
+        The transport stream is consumed in a dedicated child task. This keeps
+        cancellation responsive: some streams (e.g. a websocket mid-close) do not
+        promptly honour cancellation, which would otherwise leave ``aloop`` stuck
+        in the "cancelling" state forever and never run teardown. On cancellation
+        we cancel the consumer, wait for it only up to ``cancel_grace_period``,
+        and then always tear down.
+        """
+        self.running = True
+        consume_task = asyncio.ensure_future(self._aconsume_messages())
+        try:
+            # Shield so that cancelling ``aloop`` returns control here immediately
+            # instead of blocking on ``consume_task`` (which may be stuck unwinding
+            # a stream that ignores cancellation). We then stop it with a bound.
+            await asyncio.shield(consume_task)
+        except asyncio.CancelledError:
+            logger.info(f"Provisioning task cancelled. We are running {self.transport}")
+            self.running = False
+            await self._astop_consume_task(consume_task)
+            await self.atear_down()
+            raise
+        except Exception as e:
+            logger.error(f"Error in agent loop: {str(e)}")
+            await self._astop_consume_task(consume_task)
+            await self.atear_down()
+            raise e
+
+    async def _astop_consume_task(self, consume_task: "asyncio.Task[None]") -> None:
+        """Stop the message-consumer task, bounded by ``cancel_grace_period``.
+
+        First disconnect the transport so a stream that ignores cancellation
+        (e.g. a websocket mid-handshake) is released and the server drops the
+        agent registration; then cancel the consumer. If it still refuses to
+        unwind in time we proceed anyway so teardown can never hang on it.
+        """
+        if consume_task.done():
+            return
+        try:
+            await self.transport.adisconnect()
+        except Exception:
+            logger.warning("Transport disconnect during shutdown failed", exc_info=True)
+        consume_task.cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(consume_task), timeout=self.cancel_grace_period
+            )
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        except Exception:
+            logger.warning("Message consumer errored during shutdown", exc_info=True)
+
+    async def aprovide(self, context: Optional[AppContext] = None) -> None:
+        """Provides the agent.
+
+        This starts the agent, connects to the transport, and then listens for
+        messages from the transport. It is simply ``aconnect`` followed by
+        ``aloop``.
+        """
+        try:
             logger.info("Launching provisioning task.")
-            await self.astart(app_context=self._app_context)
+            await self.aconnect(context=context)
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")

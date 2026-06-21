@@ -63,6 +63,6 @@ async def asubscribe(
 
     async for event in rath.asubscribe(
         operation.Meta.document,
-        operation.Arguments(**variables).model_dump(by_alias=True, exlude_unset=True),
+        operation.Arguments(**variables).model_dump(by_alias=True, exclude_unset=True),
     ):
         yield operation(**event.data)

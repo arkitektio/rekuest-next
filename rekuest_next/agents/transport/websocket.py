@@ -99,11 +99,11 @@ class WebsocketAgentTransport(AgentTransport):
     """If another connection is already registered for this agent, kick it and take over."""
 
     _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
-    _connected: ContextBool = False
     _healthy: ContextBool = False
+    _closing: ContextBool = False
     _send_queue: Contextual[asyncio.Queue[str]] = None
     _connection_task: Contextual[asyncio.Task[None]] = None
-    _connected_future: Contextual[asyncio.Future[bool]] = None
+    _client: Contextual["websockets.ClientConnection"] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -116,6 +116,8 @@ class WebsocketAgentTransport(AgentTransport):
         """
         self._futures = {}
         self._send_queue = asyncio.Queue()
+        self._closing = False
+        self._client = None
         return self
 
     async def aconnect(self) -> None:
@@ -142,6 +144,9 @@ class WebsocketAgentTransport(AgentTransport):
         retry = 0
 
         while True:
+            if self._closing:
+                # Disconnect was requested; stop the (re)connect loop cleanly.
+                return
             send_task = None
             try:
                 try:
@@ -155,6 +160,7 @@ class WebsocketAgentTransport(AgentTransport):
                         ),
                     ) as client:
                         retry = 0
+                        self._client = client
                         logger.info("Agent on Websockets connected")
 
                         await client.send(
@@ -237,6 +243,7 @@ class WebsocketAgentTransport(AgentTransport):
                     raise DefiniteConnectionFail(e) from e
 
                 finally:
+                    self._client = None
                     if send_task:
                         send_task.cancel()
                         try:
@@ -246,6 +253,9 @@ class WebsocketAgentTransport(AgentTransport):
                     self._healthy = False
 
             except CorrectableConnectionFail as e:
+                if self._closing:
+                    # Disconnect was requested while connected; do not reconnect.
+                    return
                 logger.info(f"Trying to Recover from Exception {e}")
                 if retry > self.max_retries or not self.allow_reconnect:
                     logger.error("Max retries reached. Giving up")
@@ -293,12 +303,20 @@ class WebsocketAgentTransport(AgentTransport):
         await self.delayaction(message)
 
     async def adisconnect(self) -> None:
-        """Explicit disconnect hook for the transport lifecycle.
+        """Explicit disconnect: stop reconnecting and close the active socket.
 
-        The current implementation relies on cancelling the receive loop and
-        leaving the async context, so there is no additional teardown here yet.
+        Setting ``_closing`` makes the receive loop exit instead of retrying, and
+        closing the live client unblocks a receive that is otherwise stuck (e.g.
+        ignoring task cancellation), so teardown can complete and the server
+        releases the agent registration promptly.
         """
-        pass
+        self._closing = True
+        client = self._client
+        if client is not None:
+            try:
+                await client.close()
+            except Exception:
+                logger.warning("Failed to close agent websocket", exc_info=True)
 
     async def __aexit__(
         self,

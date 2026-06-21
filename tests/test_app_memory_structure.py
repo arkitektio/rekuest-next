@@ -23,7 +23,7 @@ from dokker import Deployment
 from rekuest_next.api.schema import amy_implementation_at
 from rekuest_next.remote import acall
 
-from .conftest import build_fresh_rekuest
+from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 class Image:
@@ -73,8 +73,8 @@ async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> No
     app.register(count_pixels)
 
     async with app as app:
-        task = asyncio.create_task(app.arun())
-        await asyncio.sleep(5)  # Wait for the agent to provide
+        await app.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(app.aloop())
 
         make_impl = await amy_implementation_at("make_image")
         reference = await acall(make_impl, size=5)
@@ -115,9 +115,8 @@ async def test_three_stage_memory_pipeline(deployment: Deployment) -> None:
     app.register(measure_mask)
 
     async with app as app:
-        task = asyncio.create_task(app.arun())
-        await asyncio.sleep(5)  # Wait for the agent to provide
-
+        await app.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(app.aloop())
 
         make_impl = await amy_implementation_at("make_image")
         image_ref = await acall(make_impl, size=10)

@@ -198,6 +198,17 @@ class Agent(Protocol):
         """
         ...
 
+    async def aconnect(
+        self, context: Any = None, timeout: float | None = None
+    ) -> None:
+        """Start the agent and connect to the transport, returning once the
+        server has acknowledged the agent (or raising on timeout)."""
+        ...
+
+    async def aloop(self) -> None:
+        """Process incoming messages after the agent has connected."""
+        ...
+
     def publish_patch(
         self, interface: str, patch: Patch, assignation_id: str | None = None
     ) -> None:

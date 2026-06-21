@@ -661,14 +661,14 @@ wheels = [
 
 [[package]]
 name = "koil"
-version = "3.1.1"
+version = "3.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/13/4b8166c293abb99cb6723b70616ab45cd47252eb903c41dcead518d547f1/koil-3.1.1.tar.gz", hash = "sha256:6a2dc1d0644fa1df90880d4966445618a66a93edc1bf6b6b2da00f66ae4a6ec7", size = 27495, upload-time = "2026-06-09T15:16:44.304Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/f2/c803075854fda0c08201a280358a694206b4dcbc1c1f19981eec73b0f107/koil-3.3.1.tar.gz", hash = "sha256:18415e55b9f87651127db9aed284fca5bdfdd8d9c5fa9e44b0acdfdccf7fccf6", size = 40936, upload-time = "2026-06-11T14:59:26.835Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/76/b0f377b446677ded337e50812c2c6bdd00065780b057eca5fe07ae2055e8/koil-3.1.1-py3-none-any.whl", hash = "sha256:a8ef58298bdb813bfa6506833c6491651549c6cb7542ba247d82ddd0ebf0c30b", size = 32388, upload-time = "2026-06-09T15:16:43.19Z" },
+    { url = "https://files.pythonhosted.org/packages/64/0b/af9f50f28c16a5378f23096766a7983b0904026fad24eee09a1b1eb17265/koil-3.3.1-py3-none-any.whl", hash = "sha256:603bb640c85bb70e9c9f08bbb90b2bf3196c8e15a3f287d79525539d5e34c3ab", size = 47270, upload-time = "2026-06-11T14:59:27.885Z" },
 ]
 
 [[package]]
@@ -1283,7 +1283,7 @@ requires-dist = [
     { name = "inflection", specifier = ">=0.5.1" },
     { name = "janus", specifier = ">=2.0.0" },
     { name = "jsonpatch", specifier = ">=1.33" },
-    { name = "koil", specifier = ">=3.1.1" },
+    { name = "koil", specifier = ">=3.3.1" },
     { name = "pydantic", specifier = ">=2" },
     { name = "rath", specifier = ">=3.11.1" },
     { name = "websockets", specifier = ">=12.0" },

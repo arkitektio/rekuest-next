@@ -835,6 +835,15 @@ class FastApiAgent(BaseAgent):
                 self.sink_catch_up_timeout,
             )
 
+    async def _await_acknowledged(self) -> None:
+        """Mark the agent connected immediately.
+
+        The server-side FastAPI transport is queue-based and has no Init
+        handshake, so there is no acknowledgement to wait for. ``aloop`` then
+        drains the queue as messages are submitted via API routes.
+        """
+        self._connected_event.set()
+
     async def astart(self, app_context: Any = None) -> None:
         """Start the agent and initialize the sink and retriever."""
         await self.sink.ainitialize()

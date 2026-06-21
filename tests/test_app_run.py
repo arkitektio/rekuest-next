@@ -6,7 +6,7 @@ from rekuest_next.api.schema import (
 )
 import pytest
 from rekuest_next.structures.registry import StructureRegistry
-from .conftest import DeployedRekuest
+from .conftest import CONNECT_TIMEOUT, DeployedRekuest
 from rekuest_next.remote import acall
 
 
@@ -17,9 +17,8 @@ async def test_run_and_cancel_app(
 ) -> None:
     """Test if the hases of to equal definitions are the same."""
 
-    task = asyncio.create_task(async_deployed_app.rekuest.arun())
-
-    await asyncio.sleep(3)  # Wait for the app to start
+    await async_deployed_app.rekuest.aconnect(timeout=CONNECT_TIMEOUT)
+    task = asyncio.create_task(async_deployed_app.rekuest.aloop())
 
     task.cancel()
 
@@ -37,9 +36,8 @@ async def test_run_and_call_app(
     """Test if the hases of to equal definitions are the same."""
     """Test if the hases of to equal definitions are the same."""
 
-    task = asyncio.create_task(async_deployed_app.rekuest.arun())
-
-    await asyncio.sleep(5)  # Wait for the app to start
+    await async_deployed_app.rekuest.aconnect(timeout=CONNECT_TIMEOUT)
+    task = asyncio.create_task(async_deployed_app.rekuest.aloop())
 
     impl = await amy_implementation_at("most_basic_function")
 

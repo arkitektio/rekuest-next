@@ -26,7 +26,7 @@ from rekuest_next.api.schema import amy_implementation_at
 from rekuest_next.declare import declare
 from rekuest_next.remote import acall
 
-from .conftest import build_fresh_rekuest
+from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 @pytest.mark.integration
@@ -49,8 +49,8 @@ async def test_single_app_with_app_token(deployment: Deployment) -> None:
     provider.register(do_stuff)
 
     async with provider as provider:
-        task = asyncio.create_task(provider.arun())
-        await asyncio.sleep(5)
+        await provider.aconnect(timeout=CONNECT_TIMEOUT)
+        task = asyncio.create_task(provider.aloop())
 
         impl = await amy_implementation_at("do_stuff")
         answer = await acall(impl, printer="x")
@@ -101,14 +101,13 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
     workflow_app.register(single_workflow)
 
     async with provider as provider, workflow_app as workflow_app:
-        # Start the provider first and let it fully register before the workflow
-        # connects. All the static tokens map to the same user (``sub: 1`` ->
-        # ``lok_1``), so starting both agents at once races on first-time user
-        # creation; staggering the starts lets the user be created exactly once.
-        provider_task = asyncio.create_task(provider.arun())
-        await asyncio.sleep(5)
-        workflow_task = asyncio.create_task(workflow_app.arun())
-        await asyncio.sleep(5)
+        # Connect the provider first and let it be fully acknowledged before the
+        # workflow connects, so the workflow's dependency resolves to a live
+        # provider. Awaiting each ``aconnect`` makes that ordering deterministic.
+        await provider.aconnect(timeout=CONNECT_TIMEOUT)
+        provider_task = asyncio.create_task(provider.aloop())
+        await workflow_app.aconnect(timeout=CONNECT_TIMEOUT)
+        workflow_task = asyncio.create_task(workflow_app.aloop())
 
         # With two apps entered, the ambient rath/postman context is ambiguous,
         # so address every remote call explicitly to the workflow app.
@@ -192,18 +191,16 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
         btest_app as btest_app,
         workflow_app as workflow_app,
     ):
-        # Stagger the agent starts: all tokens map to the same user (``sub: 1``),
-        # so launching together races on first-time user creation. Start each
-        # provider in turn, then the workflow that depends on them.
-        atest_task = asyncio.create_task(atest_app.arun())
-        await asyncio.sleep(4)
-        btest_task = asyncio.create_task(btest_app.arun())
-        await asyncio.sleep(4)
-        workflow_task = asyncio.create_task(workflow_app.arun())
-        # Let all three agents fully settle. Each new agent for the same user
-        # briefly churns the others' registrations, so wait until things are
-        # stable before asking the server to resolve the dependencies.
-        await asyncio.sleep(10)
+        # Connect the providers before the workflow that depends on them, awaiting
+        # each acknowledgement so the ordering is deterministic. Once every agent
+        # is acknowledged its implementations are live and the dependency resolves
+        # with no extra settling.
+        await atest_app.aconnect(timeout=CONNECT_TIMEOUT)
+        atest_task = asyncio.create_task(atest_app.aloop())
+        await btest_app.aconnect(timeout=CONNECT_TIMEOUT)
+        btest_task = asyncio.create_task(btest_app.aloop())
+        await workflow_app.aconnect(timeout=CONNECT_TIMEOUT)
+        workflow_task = asyncio.create_task(workflow_app.aloop())
 
         # Address every remote call explicitly to the workflow app, since the
         # ambient rath/postman context is ambiguous with three apps entered.
@@ -307,12 +304,12 @@ async def test_workflow_cancel_propagates_to_dependency(
     workflow_app.register(cancel_workflow)
 
     async with provider as provider, workflow_app as workflow_app:
-        # Stagger the starts: all tokens map to the same user, so launching
-        # together races on first-time user creation (see the sibling tests).
-        provider_task = asyncio.create_task(provider.arun())
-        await asyncio.sleep(5)
-        workflow_task = asyncio.create_task(workflow_app.arun())
-        await asyncio.sleep(5)
+        # Connect the provider before the workflow that depends on it, awaiting
+        # each acknowledgement so the ordering is deterministic.
+        await provider.aconnect(timeout=CONNECT_TIMEOUT)
+        provider_task = asyncio.create_task(provider.aloop())
+        await workflow_app.aconnect(timeout=CONNECT_TIMEOUT)
+        workflow_task = asyncio.create_task(workflow_app.aloop())
 
         impl = await amy_implementation_at(
             "cancel_workflow",
@@ -432,18 +429,16 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
         btest_app as btest_app,
         workflow_app as workflow_app,
     ):
-        # Stagger the agent starts: all tokens map to the same user (``sub: 1``),
-        # so launching together races on first-time user creation. Start each
-        # provider in turn, then the workflow that depends on them.
-        atest_task = asyncio.create_task(atest_app.arun())
-        await asyncio.sleep(4)
-        btest_task = asyncio.create_task(btest_app.arun())
-        await asyncio.sleep(4)
-        workflow_task = asyncio.create_task(workflow_app.arun())
-        # Let all three agents fully settle. Each new agent for the same user
-        # briefly churns the others' registrations, so wait until things are
-        # stable before asking the server to resolve the dependencies.
-        await asyncio.sleep(10)
+        # Connect the providers before the workflow that depends on them, awaiting
+        # each acknowledgement so the ordering is deterministic. Once every agent
+        # is acknowledged its implementations are live and the dependency resolves
+        # with no extra settling.
+        await atest_app.aconnect(timeout=CONNECT_TIMEOUT)
+        atest_task = asyncio.create_task(atest_app.aloop())
+        await btest_app.aconnect(timeout=CONNECT_TIMEOUT)
+        btest_task = asyncio.create_task(btest_app.aloop())
+        await workflow_app.aconnect(timeout=CONNECT_TIMEOUT)
+        workflow_task = asyncio.create_task(workflow_app.aloop())
 
         # Address every remote call explicitly to the workflow app, since the
         # ambient rath/postman context is ambiguous with three apps entered.

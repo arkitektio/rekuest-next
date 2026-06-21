@@ -34,6 +34,10 @@ class GraphQLPostman(KoiledModel):
     rath: RekuestNextRath
     connected: bool = Field(default=False)
     assignations: Dict[str, Assignation] = Field(default_factory=dict)
+    cancel_timeout: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for the server to confirm cancellation of an assignation when an assign stream is cancelled. Bounds cancellation so cancelling a call can never hang.",
+    )
 
     _ass_update_queues: Dict[str, asyncio.Queue[AssignationEvent]] = PrivateAttr(
         default_factory=lambda: {}
@@ -78,9 +82,25 @@ class GraphQLPostman(KoiledModel):
                 queue.task_done()
 
         except asyncio.CancelledError as e:
-            await acancel(assignation=assignation.id, rath=self.rath)
-            # TODO: Wait for cancellation to succeed
-            del self._ass_update_queues[assign.reference]
+            # Best-effort: tell the server to cancel the assignation, but never let
+            # confirming the cancellation hang the caller. If the connection is in a
+            # bad state the mutation can stall indefinitely, so bound it.
+            try:
+                await asyncio.wait_for(
+                    acancel(assignation=assignation.id, rath=self.rath),
+                    timeout=self.cancel_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Timed out confirming cancellation of assignation %s",
+                    assignation.id,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to cancel assignation %s", assignation.id, exc_info=True
+                )
+            finally:
+                self._ass_update_queues.pop(assign.reference, None)
             raise e
 
     async def watch_assignations(self) -> None:
