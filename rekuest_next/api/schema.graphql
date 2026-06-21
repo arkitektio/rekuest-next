@@ -1,7 +1,5 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
-directive @oneOf on INPUT_OBJECT
-
 input AckInput {
   assignation: ID!
 }
@@ -199,6 +197,7 @@ input ActionFilter {
   search: String
   ids: [ID!]
   demands: [PortDemandInput!]
+  objectDemands: [ObjectDemandInput!]
   protocols: [String!]
   kind: ActionKind
   inCollection: String
@@ -221,7 +220,7 @@ enum ActionKind {
   GENERATOR
 }
 
-input ActionOrder {
+input ActionOrder @oneOf {
   definedAt: Ordering
   usedAt: Ordering
 }
@@ -281,9 +280,6 @@ type Agent {
   """Historical records of agent's hardware."""
   hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
 
-  """Device associated with the agent."""
-  device: Device!
-
   """Implementations the agent can run."""
   implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
@@ -331,6 +327,9 @@ type Agent {
 
   """Blok mappings associated with this agent."""
   agentMappings: [BlokAgentMapping!]!
+
+  """Device associated with the agent, via its client (if any)."""
+  device: Device
 
   """Fetch a specific implementation by interface."""
   implementation(interface: String!): Implementation
@@ -471,7 +470,7 @@ type AgentMapping {
   mappedImplementations: [ImplementationMapping!]!
 }
 
-input AgentOrder {
+input AgentOrder @oneOf {
   lastSeen: Ordering
 }
 
@@ -788,7 +787,7 @@ enum AssignationEventKind {
   CRITICAL
 }
 
-input AssignationEventOrder {
+input AssignationEventOrder @oneOf {
   createdAt: Ordering
 }
 
@@ -839,7 +838,7 @@ enum AssignationInstructKind {
   COLLECT
 }
 
-input AssignationOrder {
+input AssignationOrder @oneOf {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -1090,7 +1089,7 @@ input ClientFilter {
 }
 
 """A way to order apps"""
-input ClientOrder {
+input ClientOrder @oneOf {
   definedAt: Ordering
 }
 
@@ -1307,7 +1306,7 @@ input DashboardPlacementFilter {
   search: String
 }
 
-input DashboardPlacementOrder {
+input DashboardPlacementOrder @oneOf {
   role: Ordering
   createdAt: Ordering
 }
@@ -1514,6 +1513,17 @@ input DependencyFilter {
   NOT: DependencyFilter
   DISTINCT: Boolean
   ids: [ID!]
+}
+
+"""
+A single runtime descriptor key/value pair carried by a candidate object.
+"""
+input DescriptorInput {
+  """The descriptor key, e.g. 'axes'."""
+  key: String!
+
+  """The descriptor value. Any JSON-serializable value."""
+  value: Arg!
 }
 
 """Represents a device assigned to users within an organization."""
@@ -1831,7 +1841,7 @@ type ImplementationMapping {
   resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
-input ImplementationOrder {
+input ImplementationOrder @oneOf {
   createdAt: Ordering
   startedAt: Ordering
   finishedAt: Ordering
@@ -2034,7 +2044,7 @@ input MaterializedBlokFilter {
   search: String
 }
 
-input MaterializedBlokOrder {
+input MaterializedBlokOrder @oneOf {
   createdAt: Ordering
 }
 
@@ -2145,7 +2155,7 @@ input MemoryShelveFilter {
   ids: [ID!]
 }
 
-input MemoryShelveOrder {
+input MemoryShelveOrder @oneOf {
   name: Ordering
 }
 
@@ -2338,6 +2348,52 @@ type Mutation {
   deletePlacement(input: DeletePlacementInput!): ID!
 }
 
+"""
+A demand expressed as concrete runtime objects to find actions that accept them.
+"""
+input ObjectDemandInput {
+  """The kind of the demand. You can ask for args or returns."""
+  kind: DemandKind!
+
+  """The object matches of the demand."""
+  matches: [ObjectMatchInput!] = null
+
+  """Require that the action has a specific number of ports."""
+  forceLength: Int = null
+
+  """Require that the action has a specific number of non-nullable ports."""
+  forceNonNullableLength: Int = null
+
+  """Require that the action has a specific number of structure ports."""
+  forceStructureLength: Int = null
+}
+
+"A match against a concrete runtime object.\n\n    Mirrors the structural targeting of ``PortMatchInput`` (at / key / kind / identifier /\n    nullable / children) but additionally carries the object's runtime ``descriptors``. The\n    descriptors are evaluated against a port's compiled ``requires`` micro-constraint, so this\n    finds actions a concrete object can actually be passed to (not just structurally compatible).\n    "
+input ObjectMatchInput {
+  """The index of the port to match."""
+  at: Int = null
+
+  """The key of the port to match."""
+  key: String = null
+
+  """The kind of the port to match."""
+  kind: PortKind = null
+
+  """The identifier of the port to match."""
+  identifier: String = null
+
+  """Whether the port is nullable."""
+  nullable: Boolean = null
+
+  """
+  The runtime descriptors of the candidate object, matched against the port's compiled requires.
+  """
+  descriptors: [DescriptorInput!] = null
+
+  """The matches for the children of the port to match."""
+  children: [ObjectMatchInput!] = null
+}
+
 input OffsetPaginationInput {
   offset: Int! = 0
   limit: Int
@@ -2503,7 +2559,7 @@ input PlacementInput {
   agent: ID = null
 }
 
-input PlacementOrder {
+input PlacementOrder @oneOf {
   role: Ordering
   createdAt: Ordering
 }
@@ -2585,10 +2641,6 @@ A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
 """
 input PortMatchInput {
-  """
-  The object of the port to match. This is used for adanved pattern matching based on the exact object descriptors of the object. i.e { x: 1, y: 2} 
-  """
-  object: Arg = null
   at: Int = null
   key: String = null
   kind: PortKind = null
@@ -2622,7 +2674,7 @@ input ProtocolFilter {
   search: String
 }
 
-input ProtocolOrder {
+input ProtocolOrder @oneOf {
   name: Ordering
 }
 
@@ -3126,7 +3178,7 @@ input SessionFilter {
   agent: ID
 }
 
-input SessionOrder {
+input SessionOrder @oneOf {
   startedAt: Ordering
   endedAt: Ordering
 }
@@ -3219,7 +3271,7 @@ input ShortcutFilter {
   toolbox: ID
 }
 
-input ShortcutOrder {
+input ShortcutOrder @oneOf {
   name: Ordering
 }
 
@@ -3266,7 +3318,7 @@ input SpaceFilter {
   search: String
 }
 
-input SpaceOrder {
+input SpaceOrder @oneOf {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3636,7 +3688,7 @@ input ThreeDModelFilter {
   search: String
 }
 
-input ThreeDModelOrder {
+input ThreeDModelOrder @oneOf {
   createdAt: Ordering
   updatedAt: Ordering
   name: Ordering
@@ -3677,7 +3729,7 @@ input ToolboxFilter {
   search: String
 }
 
-input ToolboxOrder {
+input ToolboxOrder @oneOf {
   name: Ordering
 }
 
