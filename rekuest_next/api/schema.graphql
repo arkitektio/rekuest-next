@@ -106,25 +106,81 @@ type ActionArgument {
 
 """A JSON-serializable argument entry for a multi-agent action trigger."""
 input ActionArgumentInput {
+  """The argument property name."""
   key: String = null
+
+  """Static literal value if not dynamically bound."""
   valueLiteral: JSONSerializable = null
+
+  """
+  JSON Pointer referencing the shared Blok state to inject into this argument slot dynamically.
+  """
   valuePath: String = null
+
+  """
+  Defines a nested agent call if this argument should trigger an agent interaction.
+  """
   agentCall: AgentCallInput = null
+
+  """
+  Defines a nested utility call if this argument should trigger a system utility interaction.
+  """
   utilCall: UtilCallInput = null
+
+  """Defines a list of values if this argument should be an array."""
   valueList: [ActionArgumentInput!] = null
+
+  """
+  Defines a list of key-value pairs if this argument should be a dictionary.
+  """
   valueDict: [ActionArgumentInput!] = null
 }
 
 """Input model for action demand."""
 type ActionDemand {
+  """
+  The key of the action demand. This is used to identify the action in the system.
+  """
   key: String!
+
+  """
+  The hash of the action. This is used to identify the action in the system.
+  """
   hash: ActionHash
+
+  """
+  The name of the action. This is used to identify the action in the system.
+  """
   name: String
+
+  """
+  The description of the action. This can described the action and its purpose.
+  """
   description: String
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
   argMatches: [PortMatch!]
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
   returnMatches: [PortMatch!]
+
+  """
+  The protocols that the action has to implement. This is used to identify the demand in the system.
+  """
   protocols: [ID!]
+
+  """
+  Require that the action has a specific number of args. This is used to identify the demand in the system.
+  """
   forceArgLength: Int
+
+  """
+  Require that the action has a specific number of returns. This is used to identify the demand in the system.
+  """
   forceReturnLength: Int
 }
 
@@ -167,19 +223,64 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input ActionDependencyInput {
   """
+  The key of the action. This is used to identify the dependency in the system.
+  """
+  key: String!
+
+  """The version of the action this dependency corresponds to."""
+  version: String = null
+
+  """
+  The description of the action. This can describe the action and its purpose.
+  """
+  description: String = null
+
+  """
   The name of the action. This is used to identify the action in the system.
   """
   name: String = null
-  key: String!
-  description: String = null
+
+  """
+  The key of the state this dependency corresponds to. (i.e frame:acquireimage)
+  """
   actionKey: String = null
+
+  """
+  Which app this dependency corresponds to (i.e. do you want to use a stardist agent for that or imagej agents needs to be a world unique classsifier (reverse domain notation) that identifies the type of agent you want to use, and then we can have multiple agents of the same type running in the system, e.g. startdist could be the app for all agents that correpsond to a startdist instance)
+  """
   app: String = null
+
+  """
+  The demands for the action args, this can be additionaly specified so that when we loosen the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the args. This is used to identify the demand in the system.
+  """
   argMatches: [PortMatchInput!] = null
+
+  """
+  The demands for the action returns, this can be additionaly specified so that when we loosen the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the returns. This is used to identify the demand in the system.
+  """
   returnMatches: [PortMatchInput!] = null
+
+  """
+  The protocols that the action is implementing or relying on. This is used to identify the demand in the system, and can be used to match actions that are implementing the same protocol together.
+  """
   protocols: [ID!] = null
+
+  """
+  Require that the action has a specific number of args. When loosing the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the args. This is used to identify the demand in the system.
+  """
   forceArgLength: Int = null
+
+  """
+  Require that the action has a specific number of returns. This is used to identify the demand in the system.
+  """
   forceReturnLength: Int = null
+
+  """
+  Whether the dependency is optional or not. If the dependency is optional, the agent doesn't have to provide it to be potentially callable
+  """
   optional: Boolean! = false
+
+  """Allow inactive nodes, defaults to true"""
   allowInactive: Boolean = true
 }
 
@@ -362,8 +463,17 @@ type AgentCall {
 Defines a callback that routes user interactions directly to an Arkitekt Agent via Rekuest.
 """
 input AgentCallInput {
+  """
+  The abstract agent dependency key declared in the Blok manifest (e.g., 'stage_dep').
+  """
   dependency: String!
+
+  """
+  The target function name registered on that specific agent's worker thread loop.
+  """
   operation: String!
+
+  """Key-value arguments map compiled for the target agent call."""
   arguments: [ActionArgumentInput!] = null
 }
 
@@ -379,25 +489,70 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input AgentDependencyInput {
   """
+  The key of this dependency, when assigning you can reference this key to specify which agent_dependency you are assigning to.
+  """
+  key: String!
+
+  """
+  Which app this dependency corresponds to (i.e. do you want to use a stardist agent for that or imagej agents needs to be a world unique classsifier (reverse domain notation) that identifies the type of agent you want to use, and then we can have multiple agents of the same type running in the system, e.g. startdist could be the app for all agents that correpsond to a startdist instance)
+  """
+  app: String = null
+
+  """The version of the app this dependency corresponds to."""
+  version: String = null
+
+  """
   The name of the agent. This is used to identify the agent in the system.
   """
   name: String = null
 
   """
+  A description of the dependency, why it is needed and what it is used for. This can be used to provide more context to users when assigning dependencies.
+  """
+  description: String = null
+
+  """
+  Whether the dependency is optional or not. If the dependency is optional, users can choose to not provide it
+  """
+  optional: Boolean! = false
+
+  """
+  The action demands of the agent. This is used to identify the demand in the system.
+  """
+  actionDemands: [ActionDependencyInput!] = null
+
+  """
+  The state demands of the agent. This is used to identify the demand in the system.
+  """
+  stateDemands: [StateDependencyInput!] = null
+
+  """
+  Whether this dependency is auto resolvable or not. If so we will try to automatically resolve it based on the demands specified in the dependency and the capabilities of the available agents in the system. This is used to identify the demand in the system. Attention if any of the dependencies of this agent dependency is not auto resolvable, this dependency will also not be auto resolvable
+  """
+  autoResolvable: Boolean! = false
+
+  """
   A list of keys of other agent dependencies that are mutually exclusive with this one. This means two agent dependencies with mutually exclusive keys cannot be assigned to the same implementing agent. This is used to identify the demand in the system.
   """
   mutuallyExclusiveKeys: [String!] = null
-  key: String!
-  app: String = null
-  version: String = null
-  description: String = null
-  optional: Boolean! = false
-  actionDemands: [ActionDependencyInput!] = null
-  stateDemands: [StateDependencyInput!] = null
-  autoResolvable: Boolean! = false
+
+  """
+  The minimum amount of viable instances for the agent. This is used to identify the demand in the system.
+  """
   minViableInstances: Int = null
+
+  """
+  The maximum amount of viable instances for the agent. This is used to identify the demand in the system.
+  """
   maxViableInstances: Int = null
+
+  """
+  The prefered amount of instances for the agent. This is used to identify the demand in the system.
+  """
   preferedInstances: Int = null
+
+  """The policy used to pick which instance of the agent to assign to."""
+  assignPolicy: AssignPolicy! = BALANCED
 }
 
 """A way to filter agents"""
@@ -537,18 +692,53 @@ type ArgPort {
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input ArgPortInput {
+  """The validators for the port"""
   validators: [ValidatorInput!] = null
+
+  """The key of the port"""
   key: String!
+
+  """The label of the port. This is the text that is displayed in the UI"""
   label: String = null
+
+  """
+  The kind of the port. This is the type of the port. Can be either int, string, structure, list, bool, dict, float, date, union or model
+  """
   kind: PortKind!
+
+  """
+  The description of the port. This is the text that is displayed in the UI when the user hovers over the port
+  """
   description: String = null
+
+  """
+  The identifier of a structure port. This is used to uniquely identify a specific type of structure.
+  """
   identifier: String = null
+
+  """
+  Whether the port is nullable or not. If the port is nullable, it can be set to null. If the port is not nullable, it cannot be set to null
+  """
   nullable: Boolean! = false
+
+  """The effects of the port"""
   effects: [EffectInput!] = null
+
+  """The default value for the port."""
   default: AnyDefault = null
+
+  """The options for the port. This is used for dropdowns and text inputs"""
   choices: [ChoiceInput!] = null
+
+  """The assign widget to use for this port."""
   widget: AssignWidgetInput = null
+
+  """
+  The descriptors for the port. Descriptors are key-value pairs that can be used to add additional metadata to a port. When using rekuest's action search, you can filter actions based on their port descriptors
+  """
   requires: [RequiresInput!] = null
+
+  """The child ports (used for list, dict, union and model ports)."""
   children: [ArgPortInput!] = null
 }
 
@@ -557,33 +747,90 @@ scalar Args
 
 """The input for assigning args to a action."""
 input AssignInput {
+  """The action ID to assign to"""
+  action: ID = null
+
+  """
+  The dependency key.method to assign when running inside a resolved assignation
+  """
+  dependency: String = null
+
+  """
+  The resolution ID to assign to when assining to a implementation with dependencies
+  """
+  resolution: ID = null
+
+  """
+  The implementation ID to assign to when directly assingint to a implementation
+  """
+  implementation: ID = null
+
+  """The agent ID to assign to when directly assingint to a implementation"""
+  agent: ID = null
+
+  """
+  The hash of the action. This is used to identify the action in the system.
+  """
+  actionHash: ActionHash = null
+
+  """The method key to assign when running inside a resolved assignation"""
+  method: String = null
+
+  """
+  The interface of the implementation. Only ussable if you also set agent
+  """
+  interface: String = null
+
+  """
+  The hooks of the assignation. This is used to identify the assignation in the system.
+  """
+  hooks: [HookInput!] = null
+
+  """The args of the assignation. Its a dictionary of ports and values"""
+  args: Args!
+
+  """
+  The reference of the assignation. This is used to identify the assignation in the system.
+  """
+  reference: String = null
+
+  """
+  The parent ID of the assignation. This is used to identify the assignation in the system.
+  """
+  parent: ID = null
+
+  """Whether the assignation should be cached"""
+  cached: Boolean!
+
+  """Whether the assignation should be logged"""
+  log: Boolean!
+
+  """Whether to capture the assignation."""
+  capture: Boolean!
+
+  """Whether the assignation is ephemeral"""
+  ephemeral: Boolean!
+
+  """
+  The dependencies of the assignation. This maps dependency keys to implementation IDs.
+  """
+  dependencies: [ResolvedDependencyInput!] = null
+
+  """Whether the assignation is a hook"""
+  isHook: Boolean = null
+
+  """Whether the assignation should step. Ie. go to the next breakpoint"""
+  step: Boolean = null
+
   """
   The policy for the assignation. This defines how the assignation should be handled.
   """
   policy: AssignPolicy = null
-  action: ID = null
-  dependency: String = null
-  resolution: ID = null
-  implementation: ID = null
-  agent: ID = null
-  actionHash: ActionHash = null
-  method: String = null
-  interface: String = null
-  hooks: [HookInput!] = null
-  args: Args!
-  reference: String = null
-  parent: ID = null
-  cached: Boolean!
-  log: Boolean!
-  capture: Boolean!
-  ephemeral: Boolean!
-  dependencies: [ResolvedDependencyInput!] = null
-  isHook: Boolean = null
-  step: Boolean = null
 }
 
 enum AssignPolicy {
   AUTOMATIC
+  BALANCED
   ROUND_ROBIN
   LEAST_BUSY
   FASTEST_RESPONSE
@@ -596,26 +843,106 @@ interface AssignWidget {
 
 input AssignWidgetInput {
   """
+  The kind of the assign widget. Can be either dropdown, text, slider, checkbox, radio or custom
+  """
+  kind: AssignWidgetKind!
+
+  """
+  The query to run when searching for choices. This is used for dropdowns and text inputs
+  """
+  query: SearchQuery = null
+
+  """
+  The choices to display in the dropdown. This is used for dropdowns and text inputs
+  """
+  choices: [ChoiceInput!] = null
+
+  """
+  The key of a state whose value provides the choices for this widget (state-driven choices).
+  """
+  stateChoices: String = null
+
+  """
+  The key of another port whose value this widget should follow and mirror.
+  """
+  followValue: String = null
+
+  """
+  The minimum value of the slider (if a slider). This is used for sliders and text inputs
+  """
+  min: Float = null
+
+  """
+  The maximum value of the slider (if a slider). This is used for sliders and text inputs
+  """
+  max: Float = null
+
+  """
+  The step value of the slider (if a slider). This is used for sliders and text inputs
+  """
+  step: Float = null
+
+  """
+  The placeholder of the input. This is used for text inputs and dropdowns
+  """
+  placeholder: String = null
+
+  """
   Whether to display the input as a paragraph or not. This is used for text inputs and dropdowns
   """
   asParagraph: Boolean = null
-  kind: AssignWidgetKind!
-  query: SearchQuery = null
-  choices: [ChoiceInput!] = null
-  min: Float = null
-  max: Float = null
-  step: Float = null
-  placeholder: String = null
+
+  """
+  The hook to run when the input is changed. This is used for custom assign widgets
+  """
   hook: String = null
+
+  """The ward that is responsible for handling querying the choices"""
   ward: String = null
+
+  """
+  The fallback assign widget to use if the current one fails. This is used for custom assign widgets
+  """
   fallback: AssignWidgetInput = null
+
+  """
+  The filters to apply to a search widget. This is used for custom assign widgets
+  """
   filters: [ArgPortInput!] = null
+
+  """
+  The dependencies of the assign widget, which will be passed to the search or the hook widget. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  """
   dependencies: [String!] = []
+
+  """
+  The dependency that we are going to use to fullfill the state choices. If none is provided its the own state that will be queried
+  """
   dependency: String = null
+
+  """
+  The dependency that we are going to target with a proxy widget. This is used for proxy widgets
+  """
   targetDependency: String = null
+
+  """
+  The action that we are going to target with a proxy widget. This is used for proxy widgets
+  """
   targetAction: String = null
+
+  """
+  The port that we are going to target with a proxy widget. This is used for proxy widgets
+  """
   targetPort: String = null
+
+  """
+  The path to the state value that we are going to use to fullfill the state choices. Always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  """
   statePath: String = null
+
+  """
+  State accessors are used to specify how to access the state values that we are going to use to fullfill the state choices. This is used when the state value that we want to use is not the same as the one of the port, e.g. when we want to use a specific key of a state object, or when we want to use a dynamic key based on the other arguments. The option_key field is used to specify which part of the state accessor we want to use as the value for the assign widget (e.g. the key, the description, the logo, etc.)
+  """
   stateAccessors: [StateAccessorInput!] = null
 }
 
@@ -888,7 +1215,10 @@ input AutoResolveInput {
 
 """The input for bouncing an agent."""
 input BlockInput {
+  """The agent ID to bounce."""
   agent: ID!
+
+  """The reason for kicking the agent."""
   reason: String = null
 }
 
@@ -992,18 +1322,34 @@ input BlokDependencyFilter {
 
 """Which locks does the agent provide in general"""
 input BlokImplementationInput {
+  """The key of this Blok implementation."""
   key: String!
 
   """The dependencies required by this Blok."""
   dependencies: [AgentDependencyInput!]! = []
+
+  """The UI component tree blueprint for this Blok."""
   components: [ComponentNodeInput!]!
+
+  """
+  The optional catalog name if this Blok should be registered inside a specific namespace in your Electron app's UI component registry.
+  """
   catalog: String = null
+
+  """
+  A human-readable description about this Blok's purpose and functionality.
+  """
   description: String = null
+
+  """
+  An optional JSON-serializable object providing demo state values for this Blok's internal reactive data model, useful for testing and development purposes.
+  """
   demoState: JSONSerializable = null
 }
 
 """The input for bouncing an agent."""
 input BounceInput {
+  """The agent ID to bounce."""
   agent: ID!
 }
 
@@ -1024,6 +1370,7 @@ type Caller {
 
 """The input for canceling an assignation."""
 input CancelInput {
+  """The assignation ID to cancel"""
   assignation: ID!
 }
 
@@ -1047,9 +1394,22 @@ type ChoiceAssignWidget implements AssignWidget {
 
 "\nA choice is a value that can be selected in a dropdown.\n\nIt is composed of a value, a label, and a description. The value is the\nvalue that is returned when the choice is selected. The label is the\ntext that is displayed in the dropdown. The description is the text\nthat is displayed when the user hovers over the choice.\n\n    "
 input ChoiceInput {
+  """
+  The value of the choice. This is the value that is returned when the choice is selected
+  """
   value: AnyDefault!
+
+  """The label of the choice. This is the text that is displayed in the UI"""
   label: String!
+
+  """
+  The image of the choice. This is the image that is displayed in the UI (must be a URL)
+  """
   image: String = null
+
+  """
+  The description of the choice. This is the text that is displayed in the UI when the user hovers over the choice
+  """
   description: String = null
 }
 
@@ -1095,6 +1455,7 @@ input ClientOrder @oneOf {
 
 """The input for collecting a shelved item in a drawer."""
 input CollectInput {
+  """The drawer ID to collect"""
   drawers: [ID!]!
 }
 
@@ -1124,9 +1485,24 @@ type ComponentNode {
 An abstract structural visual element inside a Blok blueprint manifest.
 """
 input ComponentNodeInput {
+  """
+  Unique structural string identifying this node instance inside the flat workspace layout tree.
+  """
   id: String!
+
+  """
+  The type indicator token matching your Electron app's registered catalog specs (e.g. 'Slider').
+  """
   component: String!
+
+  """
+  The collection of static values, state pointers, or action endpoints assigned to this component.
+  """
   props: [ComponentPropInput!] = null
+
+  """
+  Flat adjacency pointer list mapping out IDs nested inside this specific component layer.
+  """
   children: [ComponentNodeInput!] = null
 }
 
@@ -1142,21 +1518,59 @@ type ComponentProp {
 
 """A single key-value prop configuration for a component layout node."""
 input ComponentPropInput {
+  """The prop key name matching the target UI catalog constraint."""
   key: String!
+
+  """
+  A raw scalar or JSON-stringified literal configuration parameter (e.g. '40x' or True).
+  """
   staticValue: JSONSerializable = null
+
+  """A reactive state data-binding rule."""
   dynamicValue: DynamicValueInput = null
+
+  """
+  If set, this prop declares a new 'value' in the Blok state that can be referenced by other props or actions. The value of this field should be the name of the declared value (e.g., 'selected_user').
+  """
   declaresValue: String = null
+
+  """
+  Defines an imperative interactive network action callback loop if this prop should trigger an agent interaction.
+  """
   agentCall: AgentCallInput = null
+
+  """
+  Defines an imperative interactive network action callback loop if this prop should trigger a system utility interaction.
+  """
   utilCall: UtilCallInput = null
 }
 
 """The input for creating a blok."""
 input CreateBlokInput {
+  """The name of the Blok, used for identification in the system."""
   name: String!
+
+  """
+  The dependencies of the blok. This is used to identify the blok in the system.
+  """
   dependencies: [AgentDependencyInput!] = null
+
+  """
+  The description of the blok. This can described the blok and its purpose.
+  """
   description: String = null
+
+  """The universal id"""
   catalog: String = null
+
+  """
+  The schema of the blok. This can be used to validate the blok input and output.
+  """
   components: [ComponentNodeInput!] = null
+
+  """
+  The initial state of the blok. This is used to set the initial state of the blok when it is materialized.
+  """
   demoState: Args = null
 }
 
@@ -1176,51 +1590,117 @@ input CreateDashboardInput {
 
 """The input for creating a implementation."""
 input CreateImplementationInput {
+  """
+  The implementation to create. This is used to identify the implementation in the system.
+  """
   implementation: ImplementationInput!
 }
 
 """The input for creating a placement."""
 input CreatePlacementInput {
   """
-  A specific blok that should be used to visualize the state of the placement
+  The role of the placement. This is used to identify the placement in the system.
+  """
+  role: String = null
+
+  """
+  The affine matrix for the placement. This is used to identify the placement in the system.
+  """
+  affineMatrix: [[Float!]!] = null
+
+  """
+  The 3D model ID for the placement. This is used to identify the 3D model in the system.
+  """
+  model: ID = null
+
+  """
+  The agent ID for the placement. This is used to identify the agent in the system.
+  """
+  agent: ID = null
+
+  """The ID of the space to create the placement in."""
+  space: String!
+
+  """
+  A specific blok that should be used to visualize the state of the placement.
   """
   materializedBlok: ID = null
-  role: String = null
-  affineMatrix: [[Float!]!] = null
-  model: ID = null
-  agent: ID = null
-  space: String!
 }
 
 """The input for creating a resolution."""
 input CreateResolutionInput {
   """
+  The key of the resolution. This is used to identify the resolution in the system.
+  """
+  key: String!
+
+  """
   The implementation ID of the resolution. This is used to identify the resolution in the system.
   """
   implementation: ID!
-  key: String!
+
+  """
+  The name of the resolution. This is used to identify the resolution in the system.
+  """
   name: String!
+
+  """
+  The resolved dependencies of the resolution. This is used to identify the resolution in the system.
+  """
   resolvedDependencies: [ResolvedDependencyInput!] = null
 }
 
 """The input for creating a shortcut."""
 input CreateShortcutInput {
   """
+  The name of the shortcut. This is used to identify the shortcut in the system.
+  """
+  name: String!
+
+  """
+  The description of the shortcut.This can described the shortcut and its purpose.
+  """
+  description: String = null
+
+  """The action ID to create a shortcut for"""
+  action: ID!
+
+  """
+  The arguments to pre-pass to the shortcut. This is used to identify the shortcut in the system.
+  """
+  args: Args!
+
+  """
+  Whether to allow quick shortcuts. Quick shorts are shortcuts that can be autorun without scpeific assignment
+  """
+  allowQuick: Boolean! = false
+
+  """
+  Whether when running the short the returns should be used further. Allows to create mini pipelines
+  """
+  useReturns: Boolean! = false
+
+  """
+  The bind number of the shortcut. This is used to identify the shortcut in the system.
+  """
+  bindNumber: Int = null
+
+  """
   The toolbox ID to create the shortcut in. If not provided, the shortcut will be created in the default toolbox.
   """
   toolbox: ID = null
-  name: String!
-  description: String = null
-  action: ID!
-  args: Args!
-  allowQuick: Boolean! = false
-  useReturns: Boolean! = false
-  bindNumber: Int = null
 }
 
 """The input for creating a space."""
 input CreateSpaceInput {
+  """
+  The name of the space. This is used to identify the space in the system.
+  """
   name: String!
+
+  """
+  The placements to create in the space. This is used to identify the placements in the system.
+  """
   placements: [PlacementInput!] = null
 }
 
@@ -1241,14 +1721,26 @@ input CreateTestResultInput {
 
 """The input for creating a 3D model."""
 input CreateThreeDModelInput {
+  """The name of the 3D model."""
   name: String!
+
+  """A description of the 3D model."""
   description: String = null
+
+  """The media store file for the 3D model."""
   media: MediaLike!
 }
 
 """The input for creating a toolbox."""
 input CreateToolboxInput {
+  """
+  The name of the toolbox. This is used to identify the toolbox in the system.
+  """
   name: String!
+
+  """
+  The description of the toolbox. This can described the toolbox and its purpose.
+  """
   description: String
 }
 
@@ -1414,6 +1906,9 @@ input DeleteDashboardInput {
 
 """The input for deleting a implementation."""
 input DeleteImplementationInput {
+  """
+  The implementation ID to delete. This is used to identify the implementation in the system.
+  """
   implementation: ID!
 }
 
@@ -1427,26 +1922,33 @@ input DeleteMaterializedBlokInput {
 
 """The input for deleting a placement."""
 input DeletePlacementInput {
+  """The ID of the placement to delete."""
   id: ID!
 }
 
 """The input for deleting a resolution."""
 input DeleteResolutionInput {
+  """The ID of the resolution to delete."""
   id: ID!
 }
 
 """The input for deleting a shortcut."""
 input DeleteShortcutInput {
+  """
+  The shortcut ID to delete. This is used to identify the shortcut in the system.
+  """
   id: ID!
 }
 
 """The input for deleting a space."""
 input DeleteSpaceInput {
+  """The ID of the space to delete."""
   id: ID!
 }
 
 """The input for deleting a 3D model."""
 input DeleteThreeDModelInput {
+  """The ID of the 3D model to delete."""
   id: ID!
 }
 
@@ -1547,6 +2049,9 @@ type DynamicValue {
 A bound state pointer referencing a variable inside a Blok state instance.
 """
 input DynamicValueInput {
+  """
+  JSON Pointer to a variable inside the Blok's isolated data model (e.g., '/microscope/exposure').
+  """
   path: String = null
 }
 
@@ -1558,12 +2063,31 @@ interface Effect {
 
 "\n                 An effect is a way to modify a port based on a condition. For example,\n    you could have an effect that sets a port to null if another port is null.\n\n    Or, you could have an effect that hides the port if another port meets a condition.\n    E.g when the user selects a certain option in a dropdown, another port is hidden.\n\n\n    "
 input EffectInput {
+  """The function to run to determine if the effect should be applied"""
   function: ValidatorFunction!
+
+  """
+  The dependencies of the effect. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  """
   dependencies: [String!] = []
+
+  """
+  The message to display when the effect is applied (if it is a message effect)
+  """
   message: String = null
+
+  """The kind of the effect. Can be either message, hide or custom"""
   kind: EffectKind!
+
+  """
+  Whether to fade out the port when the effect is applied (if it is a hide effect)
+  """
   fade: Boolean = true
+
+  """The hook to run when the effect is applied (if it is a custom effect)"""
   hook: String = null
+
+  """The ward to run when the effect is applied (if it is a custom effect)"""
   ward: String = null
 }
 
@@ -1677,7 +2201,10 @@ type HideEffect implements Effect {
 A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value.
 """
 input HookInput {
+  """The kind of the hook. This is used to identify the hook in the system."""
   kind: HookKind!
+
+  """The hash of the hook. This is used to identify the hook in the system."""
   hash: ActionHash!
 }
 
@@ -1695,11 +2222,34 @@ scalar Identifier
 Implement an agent with the given implementations, states and locks. This will create the agent if it doesn't exist and update it if it does exist.
 """
 input ImplementAgentInput {
+  """
+  The name of the agent. This is used to identify the agent in the system.
+  """
   name: String = null
+
+  """
+  The states of the agent. This is used to specify the initial states of the agent
+  """
   states: [StateImplementationInput!] = null
+
+  """
+  The implementations of the agent. This is used to specify the initial implementations of the agent
+  """
   implementations: [ImplementationInput!] = null
+
+  """
+  The locks of the agent. This is used to specify which resources the agent needs to run
+  """
   locks: [LockImplementationInput!] = null
+
+  """
+  The blocks of the agent. This is used to specify the initial blocks of the agent
+  """
   bloks: [BlokImplementationInput!] = null
+
+  """
+  A unique hash of the agent definition. An agent can use this hash to check if its definition has changed and if it needs to update its implementations and states. This is used to optimize the update process by only updating the implementations and states that have changed.
+  """
   hash: String = null
 }
 
@@ -1814,19 +2364,64 @@ A implementation is a blueprint for a action. It is composed of a definition, a 
 """
 input ImplementationInput {
   """
-  The optimistics of the definition. This is used to optimistically set state values when the action is assigned. This is used to provide a better user experience by optimistically setting state
+  The definition of the implementation. This is used to uniquely identify the implementation
+  """
+  definition: DefinitionInput!
+
+  """The agent dependencies required by this implementation."""
+  dependencies: [AgentDependencyInput!]! = []
+
+  """
+  The tracks of the definition. This is used to track values over time during the runtime of an action. This is the state of a dependency
+  """
+  tracks: [TrackInput!] = null
+
+  """
+  The interface of the implementation. This is used to group implementations together in the UI
+  """
+  interface: String
+
+  """
+  The params of the implementation. This is used to pass parameters to the implementation
+  """
+  params: AnyDefault = null
+
+  """The instance id of the agent this implementation is bound to."""
+  instanceId: String = null
+
+  """
+  Whether the implementation is dynamic or not. If the implementation is dynamic, it can be used to create a dynamic action. If the implementation is not dynamic, it cannot be used to create a dynamic action
+  """
+  dynamic: Boolean! = false
+
+  """
+  The logo of the implementation. This is used to display the logo in the UI either it should be 'custom:svg-paths' or a lucide icon name like 'lucide:activity' urls are not supported at the moment
+  """
+  logo: String = null
+
+  """
+  The locks of the implementation. This is used to specify which resources the implementation needs to run
+  """
+  locks: [String!] = null
+
+  """
+  The optimistics of the definition. This is used to optimistically set state values when the action is assigned, to provide a better user experience.
   """
   optimistics: [OptimisticInput!] = null
-  definition: DefinitionInput!
-  dependencies: [AgentDependencyInput!]! = []
-  tracks: [TrackInput!] = null
-  interface: String
-  params: AnyDefault = null
-  dynamic: Boolean! = false
-  logo: String = null
-  locks: [String!] = null
+
+  """
+  The states that the implementation manipulates. This is used to identify which states are manipulated by the implementation, and can be use to enhance state safety in the system
+  """
   manipulates: [String!] = null
+
+  """
+  Whether Rekuest should mint a signed provenance token when this implementation is assigned. Default true (provenance-by-default); set false for trivial/internal tasks that never produce external provenance.
+  """
   needsToken: Boolean! = true
+
+  """
+  The downstream service(s) the provenance token should be scoped to (the token's `aud`). If omitted, Rekuest derives the audience from the structures the assignment acts on.
+  """
   provenanceAudience: [String!] = null
 }
 
@@ -1921,6 +2516,7 @@ input InterfaceFilter {
 
 """The input for interrupting an assignation."""
 input InterruptInput {
+  """The assignation ID to interrupt"""
   assignation: ID!
 }
 
@@ -1951,19 +2547,28 @@ scalar JSONSerializable
 
 """The input for bouncing an agent."""
 input KickInput {
+  """The agent ID to bounce."""
   agent: ID!
+
+  """The reason for kicking the agent."""
   reason: String = null
 }
 
 """Which locks does the agent provide in general"""
 input LockDefinitionInput {
+  """The key of the lock. This is used to uniquely identify the lock"""
   key: String!
+
+  """Describe the lock a bit"""
   description: String = null
 }
 
 """Which locks does the agent provide in general"""
 input LockImplementationInput {
+  """The key of the lock implementation."""
   key: String!
+
+  """The lock definition this implementation fulfills."""
   definition: LockDefinitionInput!
 }
 
@@ -1977,17 +2582,33 @@ enum LogLevel {
 
 """The input for logging state patches."""
 input LogPatchesInput {
+  """
+  The list of patches applied to the state. This is used to log the changes made to the state.
+  """
   patches: [PatchInput!]!
 }
 
 """The input for logging state snapshots."""
 input LogSnapshotInput {
+  """The interface of the state to snapshot."""
+  interface: String!
+
+  """
+  The value of the state snapshot (index by state_keys). This is used to log the current state of the system.
+  """
   value: AnyDefault!
 }
 
 """The input for mapping actions to implementations in a agent."""
 input MappedAgentInput {
+  """
+  The key of the agent to map. This is used to identify the agent in the system.
+  """
   key: String!
+
+  """
+  The agent ID to map the actions to. This is used to identify the agent in the system.
+  """
   agent: ID!
 }
 
@@ -2401,8 +3022,17 @@ input OffsetPaginationInput {
 
 " An optimistic is used to optimistically set state values when the action is assigned. This is used to provide a better user experience by optimistically setting state values when the action is assigned, instead of waiting for the action to be executed and the state to be updated. This will only ever happen on the frontend.\n\n"
 input OptimisticInput {
+  """The state to optimistically set when the action is assigned"""
   state: String!
+
+  """
+  The path to the state.value to optimistically set the value, always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  """
   path: String!
+
+  """
+  The accessor to get the value to optimistically set. This is used when the value to optimistically set is not the same as the value of the port
+  """
   accessor: String = null
 }
 
@@ -2490,26 +3120,69 @@ type Patch {
 
 """The input for updating a state using JSON Patch operations."""
 input PatchInput {
+  """
+  The JSON Patch operation to perform. This can be add, remove, replace, move, copy, or test.
+  """
   op: String!
+
+  """
+  The JSON Pointer path to the target value to apply the patch operation on.
+  """
   path: String!
+
+  """
+  The value to be used in the patch operation. This is required for add, replace, and test operations, and should be null for remove, move, and copy operations.
+  """
   value: AnyDefault!
+
+  """
+  The name of the state to apply the patch to. This is used to identify the state in the system.
+  """
   stateName: String!
+
+  """
+  The current revision number of the state. This is used for optimistic concurrency control to ensure that the patch is applied to the correct version of the state.
+  """
   currentRev: Int!
+
+  """
+  The future revision number of the state after the patch is applied. This is used for optimistic concurrency control to ensure that the patch is applied to the correct version of the state.
+  """
   futureRev: Int!
+
+  """
+  The session ID of the client applying the patch. This is used for tracking and auditing purposes.
+  """
   sessionId: String!
+
+  """
+  An optional correlation ID to associate with the patch operation. This can be used for tracking and debugging purposes across distributed systems.
+  """
   correlationId: String = null
+
+  """
+  The global revision number of the state. This is used for conflict detection in distributed systems where multiple clients may be applying patches concurrently.
+  """
   globalCurrentRev: Int
+
+  """
+  The global future revision number of the state after the patch is applied. This is used for conflict detection in distributed systems where multiple clients may be applying patches concurrently.
+  """
   globalFutureRev: Int
 }
 
 """The input for pausing an assignation."""
 input PauseInput {
+  """The assignation ID to pause"""
   assignation: ID!
 }
 
 """The input for pinning an model."""
 input PinInput {
+  """The unique identifier of the item to pin."""
   id: ID!
+
+  """Boolean flag indicating whether to pin or unpin."""
   pin: Boolean!
 }
 
@@ -2550,13 +3223,29 @@ input PlacementFilter {
 """The input for creating or updating a placement."""
 input PlacementInput {
   """
-  A specific blok that should be used to visualize the state of the placement
+  The role of the placement. This is used to identify the placement in the system.
+  """
+  role: String = null
+
+  """
+  The affine matrix for the placement. This is used to identify the placement in the system.
+  """
+  affineMatrix: [[Float!]!] = null
+
+  """
+  The 3D model ID for the placement. This is used to identify the 3D model in the system.
+  """
+  model: ID = null
+
+  """
+  The agent ID for the placement. This is used to identify the agent in the system.
+  """
+  agent: ID = null
+
+  """
+  A specific blok that should be used to visualize the state of the placement.
   """
   blok: ID = null
-  role: String = null
-  affineMatrix: [[Float!]!] = null
-  model: ID = null
-  agent: ID = null
 }
 
 input PlacementOrder @oneOf {
@@ -2641,11 +3330,22 @@ A dependency for a implementation. By defining dependencies, you can
     create a dependency graph for your implementations and actions
 """
 input PortMatchInput {
+  """The index of the port to match."""
   at: Int = null
+
+  """The key of the port to match."""
   key: String = null
+
+  """The kind of the port to match."""
   kind: PortKind = null
+
+  """The identifier of the port to match."""
   identifier: String = null
+
+  """Whether the port is nullable."""
   nullable: Boolean = null
+
+  """The matches for the children of the port to match."""
   children: [PortMatchInput!] = null
 }
 
@@ -2685,8 +3385,15 @@ type Provides {
 }
 
 input ProvidesInput {
+  """
+  The key of the provision. This is used to uniquely identify the provision
+  """
   key: String!
+
+  """The operator for the provision"""
   operator: ProvidesOperator!
+
+  """The value of the provision. This can be any JSON serializable value"""
   value: Arg!
 }
 
@@ -2953,8 +3660,15 @@ type Requires {
 }
 
 input RequiresInput {
+  """
+  The key of the requirement. This is used to uniquely identify the requirement
+  """
   key: String!
+
+  """The operator for the requirement"""
   operator: RequiresOperator!
+
+  """The value of the requirement. This can be any JSON serializable value"""
   value: Arg!
 }
 
@@ -3048,13 +3762,25 @@ input ResolvedDependencyFilter {
 
 """The input for mapping dependencies to implementations in a agent."""
 input ResolvedDependencyInput {
+  """
+  The key of the dependency to map. This is used to identify the dependency in the system.
+  """
   key: String!
+
+  """
+  The list of mapped agents to map to implementations in agents. This is used to identify the mapped agents in the system.
+  """
   mappedAgents: [MappedAgentInput!]!
+
+  """
+  Whether this dependency should be automatically resolved by the system. If true, the system will attempt to find a agent that can resolve this dependency and assign it to the action when the action is assigned. This is used to enable automatic resolution of dependencies without requiring the user to specify a specific agent for the dependency.
+  """
   autoResolve: Boolean! = false
 }
 
 """The input for resuming an assignation."""
 input ResumeInput {
+  """The assignation ID to resume"""
   assignation: ID!
 }
 
@@ -3075,18 +3801,53 @@ type ReturnPort {
 
 "Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
 input ReturnPortInput {
+  """The validators for the port"""
   validators: [ValidatorInput!] = null
+
+  """The key of the port"""
   key: String!
+
+  """The label of the port. This is the text that is displayed in the UI"""
   label: String = null
+
+  """
+  The kind of the port. This is the type of the port. Can be either int, string, structure, list, bool, dict, float, date, union or model
+  """
   kind: PortKind!
+
+  """
+  The description of the port. This is the text that is displayed in the UI when the user hovers over the port
+  """
   description: String = null
+
+  """
+  The identifier of a structure port. This is used to uniquely identify a specific type of structure.
+  """
   identifier: String = null
+
+  """
+  Whether the port is nullable or not. If the port is nullable, it can be set to null. If the port is not nullable, it cannot be set to null
+  """
   nullable: Boolean! = false
+
+  """The effects of the port"""
   effects: [EffectInput!] = null
+
+  """The default value for the port."""
   default: AnyDefault = null
+
+  """The options for the port. This is used for dropdowns and text inputs"""
   choices: [ChoiceInput!] = null
+
+  """The return widget to use for this port."""
   widget: ReturnWidgetInput = null
+
+  """
+  The provisions for the port. Provisions are key-value pairs that can be used to add additional metadata to a port. When using rekuest's action search, you can filter actions based on their port provisions
+  """
   provides: [ProvidesInput!] = null
+
+  """The child ports (used for list, dict, union and model ports)."""
   children: [ReturnPortInput!] = null
 }
 
@@ -3096,14 +3857,37 @@ interface ReturnWidget {
 
 "A Return Widget is a UI element that is used to display the value of a port.\n\n    Return Widgets get displayed both if we show the return values of an assignment,\n    but also when we inspect the given arguments of a previous run task. Their primary\n    usecase is to adequately display the value of a port, in a user readable way.\n\n    Return Widgets are often overwriten by the underlying UI framework (e.g. Orkestrator)\n    to provide a better user experience. For example, a return widget that displays a\n    date could be overwriten to display a calendar widget.\n\n    Return Widgets provide more a way to customize this overwriten behavior.\n\n    "
 input ReturnWidgetInput {
+  """
+  The kind of the return widget. Can be either dropdown, text, slider, checkbox, radio or custom
+  """
   kind: ReturnWidgetKind!
+
+  """
+  The query to run when searching for choices. This is used for dropdowns and text inputs
+  """
   query: SearchQuery = null
+
+  """
+  The choices to display in the dropdown. This is used for dropdowns and text inputs
+  """
   choices: [ChoiceInput!] = null
+
+  """The minimum value to display (if a slider)."""
   min: Int = null
+
+  """The maximum value to display (if a slider)."""
   max: Int = null
+
+  """The step value to display (if a slider)."""
   step: Int = null
+
+  """The placeholder text of the return widget."""
   placeholder: String = null
+
+  """The hook to run (if it is a custom return widget)."""
   hook: String = null
+
+  """The ward responsible for handling the return widget."""
   ward: String = null
 }
 
@@ -3349,7 +4133,14 @@ type StateAccessor {
 }
 
 input StateAccessorInput {
+  """
+  The part of the state accessor to use as the value for the assign widget (e.g. the key, the description, the logo, etc.)
+  """
   optionKey: OptionKey!
+
+  """
+  The sub path to access a specific part of the state value. Always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  """
   subPath: String = null
 }
 
@@ -3372,15 +4163,35 @@ type StateDefinition {
 A state schema is a blueprint for a state. It is composed of a definition, a list of dependencies, and a list of params.
 """
 input StateDefinitionInput {
+  """
+  The ports of the state schema. This is used to define the structure of the state
+  """
   ports: [ReturnPortInput!]!
+
+  """
+  The name of the state schema. This is used to uniquely identify the state schema
+  """
   name: String!
 }
 
 """The input for creating a action demand."""
 type StateDemand {
+  """
+  The key of the action demand. This is used to identify the action in the system.
+  """
   key: String!
+
+  """The hash of the state."""
   hash: ActionHash
+
+  """
+  The demands for the action args and returns. This is used to identify the demand in the system.
+  """
   matches: [PortMatch!]
+
+  """
+  The protocols that the action has to implement. This is used to identify the demand in the system.
+  """
   protocols: [ID!]
 }
 
@@ -3390,20 +4201,47 @@ A dependency for a implementation. By defining dependencies, you can
 """
 input StateDependencyInput {
   """
-  The name of the state. This is used to identify the action in the system.
+  The key of the state. This is used to identify the dependency in the system.
+  """
+  key: String!
+
+  """The version of the state this dependency corresponds to."""
+  version: String = null
+
+  """
+  The description of the state. This can describe the state and its purpose.
+  """
+  description: String = null
+
+  """
+  The name of the state. This is used to identify the state in the system.
   """
   name: String = null
 
+  """The key of the state this dependency corresponds to. (i.e frame:count)"""
+  stateKey: String = null
+
   """
-  The protocols that the action is implementing or relying on. This is used to identify the demand in the system, and can be used to match actions that are implementing the same protocol together.
+  Which app this dependency corresponds to (i.e. do you want to use a stardist agent for that or imagej agents needs to be a world unique classsifier (reverse domain notation) that identifies the type of agent you want to use, and then we can have multiple agents of the same type running in the system, e.g. startdist could be the app for all agents that correpsond to a startdist instance)
+  """
+  app: String = null
+
+  """
+  The demands for the state ports, this can be additionaly specified so that when we loosen the matching criteria for a state in a resolver, we can still make sure to match the right state based on the demands for the ports. This is used to identify the demand in the system.
+  """
+  portMatches: [PortMatchInput!] = null
+
+  """
+  The protocols that the state is implementing or relying on. This is used to identify the demand in the system, and can be used to match states that are implementing the same protocol together.
   """
   protocols: [ID!] = null
-  key: String!
-  description: String = null
-  stateKey: String = null
-  app: String = null
-  portMatches: [PortMatchInput!] = null
+
+  """
+  Whether the dependency is optional or not. If the dependency is optional, the agent doesn't have to provide it to be potentially callable
+  """
   optional: Boolean! = false
+
+  """Allow inactive nodes, defaults to true"""
   allowInactive: Boolean = true
 }
 
@@ -3411,7 +4249,14 @@ input StateDependencyInput {
 A state implementation is a blueprint for a state. It is composed of a definition, a list of dependencies, and a list of params.
 """
 input StateImplementationInput {
+  """
+  The key of the state implementation. This is used to uniquely identify the state implementation
+  """
   interface: String!
+
+  """
+  The schema of the state implementation. This is used to define the structure of the state
+  """
   definition: StateDefinitionInput!
 }
 
@@ -3462,6 +4307,7 @@ type StateValue {
 The input for stepping an assignation. Stepping is used to go from one breakpoint to another.
 """
 input StepInput {
+  """The assignation ID to step"""
   assignation: ID!
 }
 
@@ -3749,11 +4595,22 @@ type Track {
 A value that is being tracked over time during the runtime of an action. This is the state of a dependency
 """
 input TrackInput {
+  """The key of the dependency whose state is being tracked."""
   dependencyKey: String = null
+
+  """The key of the state to track."""
   stateKey: String!
+
+  """The key of the value within the state to track."""
   valueKey: String!
+
+  """An optional human-readable label for the track."""
   label: String = null
+
+  """An optional description for the track."""
   description: String = null
+
+  """The windows (aggregations) computed over the tracked value."""
   windows: [WindowInput!] = null
 }
 
@@ -3765,6 +4622,7 @@ type UICatalog {
 
 """The input for bouncing an agent."""
 input UnblockInput {
+  """The agent ID to unblock."""
   agent: ID!
 }
 
@@ -3775,7 +4633,10 @@ input UnshelveMemoryDrawerInput {
 
 """The input for updating an agent."""
 input UpdateAgentInput {
+  """The ID of the agent to update."""
   id: ID!
+
+  """The new name for the agent."""
   name: String = null
 }
 
@@ -3829,31 +4690,67 @@ input UpdateMaterializedBlokInput {
 
 """The input for updating a placement."""
 input UpdatePlacementInput {
+  """
+  The role of the placement. This is used to identify the placement in the system.
+  """
   role: String = null
+
+  """
+  The affine matrix for the placement. This is used to identify the placement in the system.
+  """
   affineMatrix: [[Float!]!] = null
+
+  """
+  The 3D model ID for the placement. This is used to identify the 3D model in the system.
+  """
   model: ID = null
+
+  """The ID of the placement to update."""
   id: ID!
 }
 
 """The input for creating a resolution."""
 input UpdateResolutionInput {
+  """
+  The ID of the resolution. This is used to identify the resolution in the system.
+  """
   id: ID!
+
+  """
+  The name of the resolution. This is used to identify the resolution in the system.
+  """
   name: String!
+
+  """
+  The resolved dependencies of the resolution. All other fields will be replaced.
+  """
   resolvedDependencies: [ResolvedDependencyInput!] = null
 }
 
 """The input for updating a space."""
 input UpdateSpaceInput {
+  """The ID of the space to update."""
   id: ID!
+
+  """The new name of the space."""
   name: String = null
+
+  """The new description of the space."""
   description: String = null
 }
 
 """The input for updating a 3D model."""
 input UpdateThreeDModelInput {
+  """The ID of the 3D model to update."""
   id: ID!
+
+  """The new name of the 3D model."""
   name: String = null
+
+  """The new description of the 3D model."""
   description: String = null
+
+  """The new media store file ID for the 3D model."""
   media: ID = null
 }
 
@@ -3874,7 +4771,10 @@ type UtilCall {
 
 """Defines a utility call that can be invoked within the system."""
 input UtilCallInput {
+  """The utility function name to invoke."""
   operation: String!
+
+  """Key-value arguments map compiled for the target utility call."""
   arguments: [ActionArgumentInput!] = null
 }
 
@@ -3888,11 +4788,20 @@ type Validator {
 "\n    The `Validator` scalar represents a javascript function that should execute on the client side (inside a shadow realm)\n      to validate a value (or a set of values) before it is sent to the server.  The function has two parameters (value, otherValues) and should return a string if the value is invalid and undefined if the value is valid.\n        The otherValues parameter is an object with the other values in the form {fieldName: value}."
 scalar ValidatorFunction
 
-" \nA validating function for a port. Can specify a function that will run when validating values of the port.\nIf outside dependencies are needed they need to be specified in the dependencies field. With the .. syntax\nwhen transversing the tree of ports. \n\n"
+"\nA validating function for a port. Can specify a function that will run when validating values of the port.\nIf outside dependencies are needed they need to be specified in the dependencies field. With the .. syntax\nwhen transversing the tree of ports.\n\n"
 input ValidatorInput {
+  """The function to run when validating the port"""
   function: ValidatorFunction!
+
+  """
+  The dependencies of the function. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  """
   dependencies: [String!] = []
+
+  """An optional human-readable label for the validator."""
   label: String = null
+
+  """The error message to display when the validation fails"""
   errorMessage: String = null
 }
 
@@ -3904,7 +4813,10 @@ type Window {
 
 """A window that is calculated"""
 input WindowInput {
+  """The window function to apply over the tracked value."""
   windowFunction: String!
+
+  """An optional human-readable label for the window."""
   label: String = null
 }
 

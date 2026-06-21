@@ -39,6 +39,11 @@
                 "SearchQuery": "rekuest_next.scalars.SearchQuery",
                 "ValidatorFunction": "rekuest_next.scalars.ValidatorFunction"
             },
+            "graphql_default_class": null,
+            "deprecated_class": null,
+            "document_field_metadata": true,
+            "unset_type_class": null,
+            "unset_instance": null,
             "freeze": {
                 "enabled": true,
                 "types": [
