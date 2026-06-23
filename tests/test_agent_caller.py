@@ -28,7 +28,7 @@ from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_actor_internal_dependency_call_uses_agent(
     deployment: Deployment, monkeypatch: pytest.MonkeyPatch
 ) -> None:

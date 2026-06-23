@@ -80,7 +80,7 @@ query ImplWithDescriptors($interface: String) {
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_server_respects_requires_and_provides(deployment: Deployment) -> None:
     """Register a function carrying Requires/Provides and read them back.
 

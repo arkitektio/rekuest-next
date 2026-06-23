@@ -341,7 +341,6 @@ def build_fresh_rekuest(setup: Deployment, token: str = "test") -> RekuestNext:
 
 
 @pytest_asyncio.fixture(scope="session")
-@pytest.mark.asyncio(scope="session")
 async def deployment() -> AsyncGenerator[Deployment, None]:
     """Bring the rekuest stack up once per session and yield the dokker setup.
 
@@ -371,7 +370,6 @@ async def deployment() -> AsyncGenerator[Deployment, None]:
 
 
 @pytest_asyncio.fixture(scope="session")
-@pytest.mark.asyncio(scope="session")
 async def async_deployed_app(
     deployment: Deployment,
 ) -> AsyncGenerator[DeployedRekuest, None]:

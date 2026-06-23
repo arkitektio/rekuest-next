@@ -59,6 +59,17 @@ from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
 
+# Agent→backend terminal reports. These are retained until the backend acknowledges
+# them with an ``EventAck`` (persist-then-ack) and resent on reconnect, mirroring the
+# caller-side ``_TERMINAL_TYPES`` in ``agents/caller.py``.
+_TERMINAL_FROM_AGENT_TYPES = (
+    messages.Completed,
+    messages.Failed,
+    messages.Critical,
+    messages.Cancelled,
+    messages.Interrupted,
+)
+
 if TYPE_CHECKING:
     from rekuest_next.agents.caller import AgentPostman
 
@@ -196,6 +207,11 @@ class BaseAgent(KoiledModel):
     )
     _event_queue: janus.Queue[QueuedPatchEvent] | None = PrivateAttr(default=None)
     _patch_processor_task: asyncio.Task[None] | None = PrivateAttr(default=None)
+    _event_seq: int = PrivateAttr(default=0)
+    # message id -> retained terminal event awaiting its EventAck (insertion-ordered dict)
+    _unacked_events: Dict[str, messages.FromAgentMessage] = PrivateAttr(
+        default_factory=dict
+    )
     global_revision: int = 0
     snapshot_interval: int = Field(
         default=60,
@@ -472,6 +488,12 @@ class BaseAgent(KoiledModel):
             # Signal that the agent is connected so callers awaiting aconnect()
             # can proceed.
             self._connected_event.set()
+            # Reconnect (the backend re-sends Init after a transient drop): resend any
+            # terminal reports we retained but never saw acked. Sent as-is (not via
+            # _adispatch) so seq is preserved and they are not re-buffered; the backend
+            # dedups terminal reports by task id.
+            for retained in list(self._unacked_events.values()):
+                await self.transport.asend(retained)
             for inquiry in message.inquiries:
                 if inquiry.task in self.managed_assignments:
                     assignment = self.managed_assignments[inquiry.task]
@@ -480,7 +502,7 @@ class BaseAgent(KoiledModel):
                     # Checking status
                     status = await actor.acheck_task(assignment.task)
                     if status:
-                        await self.transport.asend(
+                        await self._adispatch(
                             messages.Progress(
                                 task=inquiry.task,
                                 message="Actor is still running",
@@ -488,14 +510,14 @@ class BaseAgent(KoiledModel):
                             )
                         )
                     else:
-                        await self.transport.asend(
+                        await self._adispatch(
                             messages.Critical(
                                 task=inquiry.task,
                                 error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                             )
                         )
                 else:
-                    await self.transport.asend(
+                    await self._adispatch(
                         messages.Critical(
                             task=inquiry.task,
                             error="After disconnect actor was no longer managed (probably the app was restarted)",
@@ -514,7 +536,7 @@ class BaseAgent(KoiledModel):
                     await actor.apass(message)
 
                 except Exception as e:
-                    await self.transport.asend(
+                    await self._adispatch(
                         messages.Critical(
                             task=message.task,
                             error=f"Not able to create actor through extensions {str(e)}",
@@ -539,7 +561,7 @@ class BaseAgent(KoiledModel):
                     "Received unassignation for a provision that is not running. "
                     f"Received: {message.task}"
                 )
-                await self.transport.asend(
+                await self._adispatch(
                     messages.Critical(
                         task=message.task,
                         error="Actors is no longer running and not managed. Probablry there was a restart",
@@ -575,26 +597,30 @@ class BaseAgent(KoiledModel):
                 # Checking status
                 status = await actor.acheck_task(assignment.task)
                 if status:
-                    await self.transport.asend(
+                    await self._adispatch(
                         messages.Progress(
                             task=message.task,
                             message="Actor is still running",
                         )
                     )
                 else:
-                    await self.transport.asend(
+                    await self._adispatch(
                         messages.Critical(
                             task=message.task,
                             error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                         )
                     )
             else:
-                await self.transport.asend(
+                await self._adispatch(
                     messages.Critical(
                         task=message.task,
                         error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
                 )
+
+        elif isinstance(message, messages.EventAck):
+            # Backend made the reported event durable; stop retaining it.
+            self._unacked_events.pop(message.event, None)
 
         else:
             raise AgentException(f"Unknown message type {type(message)}")
@@ -672,6 +698,22 @@ class BaseAgent(KoiledModel):
         # TODO: Actually perform the hashing based on the extensions and their implementations, state schemas, and other relevant information. For now, we just return a random hash to force the agent to register all implementations on every start.
         return random.randbytes(16).hex()
 
+    async def _adispatch(self, message: messages.FromAgentMessage) -> None:
+        """Assign a stream seq to events, retain terminal reports for ack, then send.
+
+        Every agent→backend event flows through here so it gets a monotonic ``seq``
+        and so terminal reports (completed/failed/critical/cancelled/interrupted) are
+        retained in ``_unacked_events`` until the backend confirms durability with an
+        ``EventAck`` (handled in ``process``) — the persist-then-ack contract.
+        """
+        if isinstance(message, messages.FromAgentEvent):
+            self._event_seq += 1
+            # Messages are frozen, so produce a copy carrying the assigned seq.
+            message = message.model_copy(update={"seq": self._event_seq})
+            if isinstance(message, _TERMINAL_FROM_AGENT_TYPES):
+                self._unacked_events[message.id] = message
+        await self.transport.asend(message)
+
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
         agent from the actor. The agent will then send the message to the transport.
@@ -679,7 +721,7 @@ class BaseAgent(KoiledModel):
         logger.debug(
             f"Agent forwarding {message.id} from actor {actor.__class__.__name__}"
         )
-        await self.transport.asend(message)
+        await self._adispatch(message)
 
     async def ashrink_state(self, interface: str, state: AnyState) -> Any:  # noqa: ANN401
         """Shrink the state to the schema. This will be called when the agent starts"""

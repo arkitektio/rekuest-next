@@ -11,7 +11,7 @@ from typing import (
     cast,
     overload,
 )
-from koil.helpers import run_spawned
+from koil.bridge import run_threaded
 from rekuest_next.agents.context import (
     prepare_context_variables,
 )
@@ -137,7 +137,7 @@ class ThreadedStartupHook(WithVariables):
             Optional[Dict[str, Any]]: The state variables and contexts
         """
 
-        parsed_returns = await run_spawned(self.run_func_with_context, app_context)
+        parsed_returns = await run_threaded(self.run_func_with_context, app_context)
 
         returns = ensure_return_as_tuple(parsed_returns)
 
@@ -204,7 +204,7 @@ def startup(
 
     Async startup hooks run directly in the event loop. Synchronous startup
     hooks are wrapped in ``ThreadedStartupHook`` and executed through
-    ``run_spawned`` so they do not block the loop.
+    ``run_threaded`` so they do not block the loop.
 
     Args:
         *args: Startup function to register when used as ``@startup`` without

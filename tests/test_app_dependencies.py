@@ -30,7 +30,7 @@ from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_single_app_with_app_token(deployment: Deployment) -> None:
     """Sanity check: one app authenticating with a non-default app token.
 
@@ -64,7 +64,7 @@ async def test_single_app_with_app_token(deployment: Deployment) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
     """A workflow app resolves and calls a single declared dependency.
 
@@ -132,7 +132,7 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
     """A workflow app calls two independent provider apps via declared deps.
 
@@ -227,7 +227,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_cancel_propagates_to_dependency(
     deployment: Deployment,
 ) -> None:
@@ -366,7 +366,7 @@ async def test_workflow_cancel_propagates_to_dependency(
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) -> None:
     """A workflow app calls two independent provider apps via declared deps.
 

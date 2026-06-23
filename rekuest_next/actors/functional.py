@@ -2,7 +2,7 @@
 
 import logging
 from typing import Any, AsyncGenerator, Callable, Dict, List, Self
-from koil.helpers import iterate_spawned, run_spawned  # type: ignore
+from koil.bridge import iterate_threaded, run_threaded  # type: ignore
 from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
 from rekuest_next.structures.serialization.actor import expand_inputs, shrink_outputs
@@ -173,14 +173,14 @@ async def _threaded_func_iterator(
     assign: Callable[..., Any], **params: Any
 ) -> AsyncGenerator[Any, None]:
     """Run a sync function in a worker thread and yield its result."""
-    yield await run_spawned(assign, **params)
+    yield await run_threaded(assign, **params)
 
 
 async def _threaded_gen_iterator(
     assign: Callable[..., Any], **params: Any
 ) -> AsyncGenerator[Any, None]:
     """Iterate a sync generator function from a worker thread."""
-    async for returns in iterate_spawned(assign, **params):
+    async for returns in iterate_threaded(assign, **params):
         yield returns
 
 

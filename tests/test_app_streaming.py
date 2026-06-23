@@ -21,7 +21,7 @@ from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
     """A sync generator action streams each yield to the caller."""
 
@@ -51,7 +51,7 @@ async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_iterate_async_generator_action(deployment: Deployment) -> None:
     """An async generator action streams each yield to the caller."""
 

@@ -1,7 +1,7 @@
 """The base client for rekuest next"""
 
 from typing import Optional, TypeVar
-from koil.helpers import unkoil_task
+from koil.bridge import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
 from rekuest_next.agents.hooks.background import background

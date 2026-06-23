@@ -55,7 +55,7 @@ def _drawer(reference: object) -> str:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> None:
     """Output of one call is piped into another, resolving the live instance."""
 
@@ -92,7 +92,7 @@ async def test_pipe_memory_structure_between_calls(deployment: Deployment) -> No
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_three_stage_memory_pipeline(deployment: Deployment) -> None:
     """Chain three calls, threading memory structures all the way through."""
 
@@ -138,7 +138,7 @@ async def test_three_stage_memory_pipeline(deployment: Deployment) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_each_test_gets_a_fresh_app_registry(deployment: Deployment) -> None:
     """A freshly built app starts with an empty registry, isolated from others.
 

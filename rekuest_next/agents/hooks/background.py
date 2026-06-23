@@ -13,7 +13,7 @@ from typing import (
 )
 import asyncio
 
-from koil.helpers import run_spawned
+from koil.bridge import run_threaded
 from rekuest_next.actors.types import Agent
 from rekuest_next.agents.context import (
     prepare_context_variables,
@@ -136,7 +136,7 @@ class WrappedThreadedBackgroundTask(WithVariables):
     ) -> None:
         """Run the background task in a thread pool"""
         kwargs = self.get_kwargs(contexts, states)
-        return await run_spawned(
+        return await run_threaded(
             self.run_with_publishing,
             agent,
             **kwargs,  # type: ignore[arg-type]
@@ -176,7 +176,7 @@ def background(  # noqa: ANN201
     so the runtime can inject matching values when the task is launched.
 
     Async background tasks run in the event loop. Synchronous ones are wrapped
-    in ``WrappedThreadedBackgroundTask`` and executed through ``run_spawned``.
+    in ``WrappedThreadedBackgroundTask`` and executed through ``run_threaded``.
     Both variants run inside ``direct_publishing`` so state mutations are
     propagated immediately.
 

@@ -11,7 +11,7 @@ from rekuest_next.remote import acall
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_run_and_cancel_app(
     simple_registry: StructureRegistry, async_deployed_app: DeployedRekuest
 ) -> None:
@@ -29,7 +29,7 @@ async def test_run_and_cancel_app(
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 async def test_run_and_call_app(
     simple_registry: StructureRegistry, async_deployed_app: DeployedRekuest
 ) -> None:
