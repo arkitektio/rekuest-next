@@ -32,7 +32,7 @@ def add_implementation_route(
             "args": args_schema,
             "policy": {
                 "type": "object",
-                "description": "The policy for the assignation",
+                "description": "The policy for the task",
             },
             "reference": {"type": "string", "description": "A reference string"},
             "cached": {"type": "boolean", "default": False},
@@ -41,7 +41,7 @@ def add_implementation_route(
             "ephemeral": {"type": "boolean", "default": False},
             "step": {
                 "type": "boolean",
-                "description": "Whether to step through the assignation",
+                "description": "Whether to step through the task",
             },
         },
         "required": ["args", "cached", "log", "capture", "ephemeral"],

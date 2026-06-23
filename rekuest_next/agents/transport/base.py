@@ -18,12 +18,12 @@ class AgentTransport(KoiledModel):
     and receiving messages from the backend. It needs to implement the following methods:
 
     list_provision: Getting the list of active provisions from the backend. (depends on the backend)
-    list_assignation: Getting the list of active assignations from the backend. (depends on the backend)
+    list_task: Getting the list of active tasks from the backend. (depends on the backend)
 
-    change_assignation: Changing the status of an assignation. (depends on the backend)
+    change_task: Changing the status of a task. (depends on the backend)
     change_provision: Changing the status of an provision. (depends on the backend)
 
-    broadcast: Configuring the callbacks for the transport on new assignation, unassignation provision and unprovison.
+    broadcast: Configuring the callbacks for the transport on new task, unassignation provision and unprovison.
 
     if it is a stateful connection it can also implement the following methods:
 

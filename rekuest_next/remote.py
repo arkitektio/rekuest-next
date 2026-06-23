@@ -24,10 +24,10 @@ from koil import unkoil, unkoil_gen
 from rath.scalars import ID
 from rekuest_next.actors.context import useAssign
 from rekuest_next.actors.vars import (
-    NotWithinAnAssignationError,
+    NotWithinATaskError,
 )
 from rekuest_next.api.schema import (
-    AssignationEventKind,
+    TaskEventKind,
     AssignInput,
     HookInput,
     Action,
@@ -58,7 +58,7 @@ __all__ = [
 async def afind(
     action_implementation_res: Union[ID, Action, Implementation],
 ) -> Action:
-    """Find and return the assignation generator"""
+    """Find and return the task generator"""
     if isinstance(action_implementation_res, Action):
         return action_implementation_res
 
@@ -156,12 +156,12 @@ def _build_assign_input(
     """Build the AssignInput for a remote call.
 
     When no ``parent`` is given and the call happens inside another
-    assignation, the current assignation is attached as the parent.
+    task, the current task is attached as the parent.
     """
     if parent is None:
         try:
             parent = useAssign()
-        except NotWithinAnAssignationError:
+        except NotWithinATaskError:
             parent = None
 
     return AssignInput(
@@ -174,7 +174,7 @@ def _build_assign_input(
         hooks=tuple(hooks or []),
         cached=cached,
         capture=capture,
-        parent=ID.validate(parent.assignation) if parent else None,
+        parent=ID.validate(parent.task) if parent else None,
         log=log,
         isHook=False,
         ephemeral=False,
@@ -184,23 +184,23 @@ def _build_assign_input(
 async def _astream_raw(
     postman: Postman, assign_input: AssignInput
 ) -> AsyncGenerator[Any, None]:
-    """Stream the YIELD payloads of an assignation, returning on DONE.
+    """Stream the YIELD payloads of a task, returning on DONE.
 
     Raises:
-        ErrorCallError: If the backend reports an assignation error.
-        CriticalCallError: If the backend reports a critical assignation error.
+        ErrorCallError: If the backend reports a task error.
+        CriticalCallError: If the backend reports a critical task error.
     """
     async for i in postman.aassign(assign_input):
-        if i.kind == AssignationEventKind.YIELD:
+        if i.kind == TaskEventKind.YIELD:
             yield i.returns
 
-        if i.kind == AssignationEventKind.DONE:
+        if i.kind == TaskEventKind.COMPLETED:
             return
 
-        if i.kind == AssignationEventKind.ERROR:
+        if i.kind == TaskEventKind.FAILED:
             raise ErrorCallError(i.message)
 
-        if i.kind == AssignationEventKind.CRITICAL:
+        if i.kind == TaskEventKind.CRITICAL:
             raise CriticalCallError(i.message)
 
 
@@ -253,15 +253,15 @@ async def acall_raw(
 ) -> Any:  # noqa: ANN401
     """Execute a low-level remote call with already serialized arguments.
 
-    Sends an assignation through the current postman and returns the raw
+    Sends a task through the current postman and returns the raw
     backend payload of the final ``YIELD`` event. It does not shrink Python
     arguments or expand returned structures; prefer :func:`acall` unless you
     are deliberately operating on transport-level payloads.
 
     Raises:
         ValueError: If no postman is available.
-        ErrorCallError: If the backend reports a recoverable assignation error.
-        CriticalCallError: If the backend reports a critical assignation error.
+        ErrorCallError: If the backend reports a recoverable task error.
+        CriticalCallError: If the backend reports a critical task error.
     """
     returns = tuple()
 
@@ -343,11 +343,11 @@ async def acall(
     Args:
         action_implementation_res: Action-like target to execute.
         *args: Positional Python arguments matching the action definition.
-        reference: Optional client-side reference for the assignation.
-        hooks: Hook inputs to attach to the assignation.
+        reference: Optional client-side reference for the task.
+        hooks: Hook inputs to attach to the task.
         cached: Whether cached results may be reused.
-        parent: Optional parent assignation. When omitted, the current
-            assignation is used if available.
+        parent: Optional parent task. When omitted, the current
+            task is used if available.
         log: Whether the remote execution should persist logs.
         capture: Whether outputs should be captured remotely.
         structure_registry: Structure registry used for shrinking and expanding
@@ -361,8 +361,8 @@ async def acall(
 
     Raises:
         ValueError: If the target object is not an action or implementation.
-        ErrorCallError: If the backend reports an assignation error.
-        CriticalCallError: If the backend reports a critical assignation error.
+        ErrorCallError: If the backend reports a task error.
+        CriticalCallError: If the backend reports a critical task error.
 
     Examples:
         Call an action asynchronously and receive expanded Python objects::
@@ -423,11 +423,11 @@ async def aiterate(
     Args:
         action_implementation_res: Action-like target to execute.
         *args: Positional Python arguments matching the action definition.
-        reference: Optional client-side reference for the assignation.
-        hooks: Hook inputs to attach to the assignation.
+        reference: Optional client-side reference for the task.
+        hooks: Hook inputs to attach to the task.
         cached: Whether cached results may be reused.
-        parent: Optional parent assignation. When omitted, the current
-            assignation is used if available.
+        parent: Optional parent task. When omitted, the current
+            task is used if available.
         log: Whether the remote execution should persist logs.
         capture: Whether outputs should be captured remotely.
         structure_registry: Structure registry used for shrinking and expanding
@@ -436,12 +436,12 @@ async def aiterate(
         **kwargs: Keyword Python arguments matching the action definition.
 
     Yields:
-        Expanded yielded values from the remote assignation.
+        Expanded yielded values from the remote task.
 
     Raises:
         ValueError: If the target object is not an action or implementation.
-        ErrorCallError: If the backend reports an assignation error.
-        CriticalCallError: If the backend reports a critical assignation error.
+        ErrorCallError: If the backend reports a task error.
+        CriticalCallError: If the backend reports a critical task error.
 
     Examples:
         Stream intermediate results from a remote generator-like action::

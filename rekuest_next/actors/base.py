@@ -20,7 +20,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from rekuest_next.actors.errors import UnknownMessageError
-from rekuest_next.actors.vars import get_current_assignation_helper
+from rekuest_next.actors.vars import get_current_task_helper
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.actors.types import Agent, AssignmentHook, PreparedDependencyVariables
@@ -80,18 +80,18 @@ class Actor(BaseModel):
     _serial_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
     def install_assignment_hook(
-        self, assignation_id: str, hook: AssignmentHook
+        self, task_id: str, hook: AssignmentHook
     ) -> None:
-        """Install an assignment hook for the given assignation ID.
+        """Install an assignment hook for the given task ID.
 
         Args:
-            assignation_id (str): The ID of the assignation to install the hook for.
+            task_id (str): The ID of the task to install the hook for.
             hook (AssignmentHook): The hook to install.
         """
-        self._running_assignment_hooks[assignation_id] = hook
+        self._running_assignment_hooks[task_id] = hook
 
     @contextlib.asynccontextmanager
-    async def sync_context(self: Self, assignation_id: str, interface: str):
+    async def sync_context(self: Self, task_id: str, interface: str):
         """Context manager that holds the actor's locks while an assignment runs.
 
         Acquisition order is fixed (see the deadlock invariants documented in
@@ -104,7 +104,7 @@ class Actor(BaseModel):
         of its keys will deadlock.
 
         Args:
-            assignation_id: The ID of the assignation.
+            task_id: The ID of the task.
             interface: The interface name for this actor.
 
         Yields:
@@ -117,7 +117,7 @@ class Actor(BaseModel):
             if self.locks:
                 lock_group = LockGroup(
                     locks=self.agent.get_locks_for_keys(self.locks),
-                    assignation_id=assignation_id,
+                    task_id=task_id,
                 )
                 await stack.enter_async_context(lock_group)
 
@@ -133,20 +133,20 @@ class Actor(BaseModel):
             resume (Resume): The resume message containing the information about the
                 actor that was resumed.
         """
-        if resume.assignation in self._running_assignment_hooks:
-            pause_hook = self._running_assignment_hooks[resume.assignation]
+        if resume.task in self._running_assignment_hooks:
+            pause_hook = self._running_assignment_hooks[resume.task]
             if pause_hook.kind == "resume":
                 logger.info(
-                    f"Calling pause hook {pause_hook.id} for assignation {resume.assignation}"
+                    f"Calling pause hook {pause_hook.id} for task {resume.task}"
                 )
                 await pause_hook.hook(resume)
 
-        if resume.assignation in self._break_futures:
-            self._break_futures[resume.assignation].set_result(True)
-            del self._break_futures[resume.assignation]
+        if resume.task in self._break_futures:
+            self._break_futures[resume.task].set_result(True)
+            del self._break_futures[resume.task]
         else:
             logger.warning(
-                f"Actor {self.id} was resumed but no break future was found for {resume.assignation}"
+                f"Actor {self.id} was resumed but no break future was found for {resume.task}"
             )
 
     async def asend(
@@ -170,21 +170,21 @@ class Actor(BaseModel):
             pause (Pause): The pause message containing the information about the
                 actor that was paused.
         """
-        if pause.assignation in self._running_assignment_hooks:
-            pause_hook = self._running_assignment_hooks[pause.assignation]
+        if pause.task in self._running_assignment_hooks:
+            pause_hook = self._running_assignment_hooks[pause.task]
             if pause_hook.kind == "pause":
                 logger.info(
-                    f"Calling pause hook {pause_hook.id} for assignation {pause.assignation}"
+                    f"Calling pause hook {pause_hook.id} for task {pause.task}"
                 )
                 await pause_hook.hook(pause)
 
-        if pause.assignation in self._break_futures:
+        if pause.task in self._break_futures:
             logger.warning(
-                f"Actor {self.id} was paused but a break future was already set for {pause.assignation}"
+                f"Actor {self.id} was paused but a break future was already set for {pause.task}"
             )
             return
 
-        self._break_futures[pause.assignation] = asyncio.Future()
+        self._break_futures[pause.task] = asyncio.Future()
 
     async def on_step(self: Self, step: messages.Step) -> None:
         """A function that is called once the actor is asked to do a step,
@@ -194,8 +194,8 @@ class Actor(BaseModel):
             step (Step): The step message containing the information about the
                 actor that was stepped.
         """
-        self._break_futures[step.assignation].set_result(True)
-        self._break_futures[step.assignation] = asyncio.Future()
+        self._break_futures[step.task].set_result(True)
+        self._break_futures[step.task] = asyncio.Future()
 
     async def on_assign(
         self: Self,
@@ -207,7 +207,7 @@ class Actor(BaseModel):
         Args:
             assignment (messages.Assign): The assignment message containing the information about the
              assignment.
-            collector (AssignationCollector): A collector that is used to collect the results of the assignment.
+            collector (TaskCollector): A collector that is used to collect the results of the assignment.
             transport (AssignTransport): A transport that is used to send the results of the assignment back to the agent (keeps ference to the original assignment)
 
         Raises:
@@ -246,34 +246,34 @@ class Actor(BaseModel):
                 await self.agent.asend(
                     self,
                     message=messages.CriticalEvent(
-                        assignation=key,
+                        task=key,
                         error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
                     ),
                 )
 
-    async def abreak(self: Self, assignation_id: str) -> bool:
+    async def abreak(self: Self, task_id: str) -> bool:
         """A function to pause the actor. This is used to instruct the actor to
         stop processing the assignment at the current time
         """
-        if assignation_id in self._break_futures:
-            logger.debug(f"Breaking on assignation_id {assignation_id}")
+        if task_id in self._break_futures:
+            logger.debug(f"Breaking on task_id {task_id}")
             await self.agent.asend(
                 self,
                 message=messages.PausedEvent(
-                    assignation=assignation_id,
+                    task=task_id,
                 ),
             )
-            await self._break_futures[assignation_id]
+            await self._break_futures[task_id]
             await self.agent.asend(
                 self,
                 message=messages.ResumedEvent(
-                    assignation=assignation_id,
+                    task=task_id,
                 ),
             )
             return True
         else:
             logger.debug(
-                f"Currently no break future for {assignation_id} was found. Wasn't paused"
+                f"Currently no break future for {task_id} was found. Wasn't paused"
             )
             return False
 
@@ -294,7 +294,7 @@ class Actor(BaseModel):
             logger.error(f"Assign task {task} failed with exception {e}", exc_info=True)
         pass
 
-    async def acheck_assignation(self: Self, assignation_id: str) -> bool:
+    async def acheck_task(self: Self, task_id: str) -> bool:
         """A function to check if the assignment is still running. This is used to
         check if the assignment is still running and if it is still valid.
 
@@ -303,7 +303,7 @@ class Actor(BaseModel):
         Returns:
             bool: True if the assignment is still running, False otherwise.
         """
-        if assignation_id in self._running_asyncio_tasks:
+        if task_id in self._running_asyncio_tasks:
             return True
         return False
 
@@ -322,9 +322,9 @@ class Actor(BaseModel):
             if message.step:
                 # We are creating a break future already
                 logger.debug(
-                    f"Creating break future for assignation {message.assignation} in step"
+                    f"Creating break future for task {message.task} in step"
                 )
-                self._break_futures[message.assignation] = asyncio.Future()
+                self._break_futures[message.task] = asyncio.Future()
 
             task = asyncio.create_task(
                 self.on_assign(
@@ -333,11 +333,11 @@ class Actor(BaseModel):
             )
 
             task.add_done_callback(self.assign_task_done)
-            self._running_asyncio_tasks[message.assignation] = task
+            self._running_asyncio_tasks[message.task] = task
 
         elif isinstance(message, messages.Cancel):
-            if message.assignation in self._running_asyncio_tasks:
-                task = self._running_asyncio_tasks[message.assignation]
+            if message.task in self._running_asyncio_tasks:
+                task = self._running_asyncio_tasks[message.task]
 
                 if not task.done():
                     task.cancel()
@@ -345,14 +345,14 @@ class Actor(BaseModel):
                         await task
                     except asyncio.CancelledError:
                         logger.info(
-                            f"Task {message.assignation} was cancelled through arkitekt. Setting Cancelled"
+                            f"Task {message.task} was cancelled through arkitekt. Setting Cancelled"
                         )
 
-                        del self._running_asyncio_tasks[message.assignation]
+                        del self._running_asyncio_tasks[message.task]
                         await self.agent.asend(
                             actor=self,
                             message=messages.CancelledEvent(
-                                assignation=message.assignation
+                                task=message.task
                             ),
                         )
 
@@ -363,13 +363,13 @@ class Actor(BaseModel):
                     await self.agent.asend(
                         self,
                         message=messages.CancelledEvent(
-                            assignation=message.assignation
+                            task=message.task
                         ),
                     )
 
             else:
                 logger.error(
-                    f"Actor for {self}: Received unassignment for unknown assignation {message.id}"
+                    f"Actor for {self}: Received unassignment for unknown task {message.id}"
                 )
 
         elif isinstance(message, messages.Pause):
@@ -400,7 +400,7 @@ class AgentMethodProxy:
     def call(self, *args: Any, **kwargs: Any) -> Any:
         """ "Call the actor's implementation."""
 
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
 
         return call_dependency(
             self.action_protocol.definition,
@@ -414,7 +414,7 @@ class AgentMethodProxy:
     async def acall(self, *args: Any, **kwargs: Any) -> Any:
         """ "Call the actor's implementation asynchronously."""
 
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
 
         return await acall_dependency(
             self.action_protocol.definition,
@@ -426,7 +426,7 @@ class AgentMethodProxy:
         )
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """ "Call the wrapped function directly if not within an assignation."""
+        """ "Call the wrapped function directly if not within a task."""
         if self.is_async:
             return self.acall(*args, **kwargs)
 

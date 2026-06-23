@@ -33,7 +33,7 @@ class StateHolder(Protocol):
     """Protocol for publisher functions"""
 
     def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
+        self, interface: str, patch: Patch, task_id: str | None = None
     ) -> None:
         """Method to publish a change to a specific field of the state
 

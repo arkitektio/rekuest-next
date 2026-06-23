@@ -60,7 +60,7 @@ def _task_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve a default task routing key from a task-scoped message."""
     if _is_state_message(message) or _is_lock_message(message):
         return None
-    return getattr(message, "assignation", None)
+    return getattr(message, "task", None)
 
 
 def _state_routing_key(message: messages.FromAgentMessage) -> str | None:
@@ -380,7 +380,7 @@ class FastApiTransport(AgentTransport):
             message: The message to send to the agent.
 
         Returns:
-            The assignation ID for tracking the request.
+            The task ID for tracking the request.
         """
         if self._receive_queue is None:
             raise RuntimeError("Transport not connected. Call aconnect first.")
@@ -389,10 +389,10 @@ class FastApiTransport(AgentTransport):
         await self._receive_queue.put(message)
         logger.info(f"Submitted message to agent: {message}")
 
-        # Return the assignation ID for tracking
+        # Return the task ID for tracking
         if isinstance(message, messages.Assign):
-            return message.assignation
-        return getattr(message, "assignation", getattr(message, "id", "unknown"))
+            return message.task
+        return getattr(message, "task", getattr(message, "id", "unknown"))
 
     async def asend(self, message: messages.FromAgentMessage) -> None:
         """Route an outgoing agent message by message type and subscriptions.
@@ -583,7 +583,7 @@ class FastApiAgent(BaseAgent):
         user: str,
         action: str = "api_call",
         app: str = "fastapi",
-        assignation: str | None = None,
+        task: str | None = None,
     ) -> messages.Assign:
         """Build an Assign message from a normalized FastAPI request payload."""
         if assign_input.interface is None:
@@ -591,7 +591,7 @@ class FastApiAgent(BaseAgent):
 
         return messages.Assign(
             interface=assign_input.interface,
-            assignation=assignation or str(uuid.uuid4()),
+            task=task or str(uuid.uuid4()),
             parent=assign_input.parent,
             reference=assign_input.reference,
             args=assign_input.args,
@@ -634,15 +634,15 @@ class FastApiAgent(BaseAgent):
         return (
             assign_message.interface
             or assign_message.action
-            or assign_message.assignation
+            or assign_message.task
         )
 
     def get_task_action_key_for_message(self, message: messages.Message) -> str | None:
         """Resolve the task action key for an outgoing message."""
-        assignation = getattr(message, "assignation", None)
-        if assignation is None:
+        task = getattr(message, "task", None)
+        if task is None:
             return None
-        assign_message = self.managed_assignments.get(assignation)
+        assign_message = self.managed_assignments.get(task)
         if assign_message is None:
             return None
         return self.build_task_action_key(assign_message)
@@ -655,7 +655,7 @@ class FastApiAgent(BaseAgent):
         normalized_action_keys = set(action_keys) if action_keys else None
         tasks: dict[str, TaskView] = {}
 
-        for assignation_id, assign_message in self.managed_assignments.items():
+        for task_id, assign_message in self.managed_assignments.items():
             action_key = self.build_task_action_key(assign_message)
             if (
                 normalized_action_keys is not None
@@ -663,15 +663,15 @@ class FastApiAgent(BaseAgent):
             ):
                 continue
 
-            tasks[assignation_id] = TaskView(
-                assignation=assignation_id,
+            tasks[task_id] = TaskView(
+                task=task_id,
                 action_key=action_key,
                 interface=assign_message.interface,
                 user=assign_message.user,
                 app=assign_message.app,
                 action=assign_message.action,
-                running=assignation_id in self.running_assignments,
-                actor_id=self.running_assignments.get(assignation_id),
+                running=task_id in self.running_assignments,
+                actor_id=self.running_assignments.get(task_id),
             )
 
         return TaskCollectionResponse(count=len(tasks), tasks=tasks)
@@ -774,11 +774,11 @@ class FastApiAgent(BaseAgent):
     ):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
-    async def alock(self, key: str, assignation: str):
+    async def alock(self, key: str, task: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
         message = messages.LockEvent(
             key=key,
-            assignation=assignation,
+            task=task,
         )
         await self.transport.asend(message)
 

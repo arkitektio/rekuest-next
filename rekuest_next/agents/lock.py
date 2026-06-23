@@ -54,16 +54,16 @@ class TaskLock:
         self.locking_task: str | None = None
         self.definition = lock.definition
 
-    async def acquire(self, assignation: str) -> None:
-        """Acquire the lock for an assignation and notify the agent.
+    async def acquire(self, task: str) -> None:
+        """Acquire the lock for a task and notify the agent.
 
         If notifying the agent fails, the local lock is released again so the
         key cannot be left held forever (deadlock invariant 4).
         """
         await self.lock.acquire()
         try:
-            self.locking_task = assignation
-            await self.agent.alock(self.definition.key, assignation)
+            self.locking_task = task
+            await self.agent.alock(self.definition.key, task)
         except BaseException:
             self.locking_task = None
             self.lock.release()
@@ -93,16 +93,16 @@ class LockGroup:
     def __init__(
         self,
         locks: list[TaskLock],
-        assignation_id: str,
+        task_id: str,
     ) -> None:
         """Initialize the LockGroup.
 
         Args:
             locks: The TaskLock instances to acquire.
-            assignation_id: The ID of the assignation acquiring them.
+            task_id: The ID of the task acquiring them.
         """
         self.locks = locks
-        self.assignation_id = assignation_id
+        self.task_id = task_id
         self._acquired_locks: list[TaskLock] = []
 
     async def acquire(self) -> Self:
@@ -112,7 +112,7 @@ class LockGroup:
             LockGroup: This group, with all locks held.
         """
         for lock in sorted(self.locks, key=lambda x: x.lock_key):
-            await lock.acquire(self.assignation_id)
+            await lock.acquire(self.task_id)
             self._acquired_locks.append(lock)
         return self
 

@@ -12,7 +12,7 @@ from rekuest_next.api.schema import (
     Shortcut,
     TestCase,
     TestResult,
-    AssignationEvent,
+    TaskEvent,
     aget_event,
     aget_shortcut,
     aget_test_case,
@@ -72,8 +72,8 @@ structure_reg.register_as_structure(
 )
 
 structure_reg.register_as_structure(
-    AssignationEvent,
-    identifier="@rekuest/assignationevent",
+    TaskEvent,
+    identifier="@rekuest/taskevent",
     aexpand=aget_event,
     ashrink=id_shrink,
 )

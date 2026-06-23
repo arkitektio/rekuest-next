@@ -2,7 +2,7 @@ import dataclasses
 from typing import Any, Generic, Iterable, TypeVar, overload, SupportsIndex
 
 from rekuest_next.actors.vars import (
-    get_current_assignation_id_or_none,
+    get_current_task_id_or_none,
 )
 from rekuest_next.api.schema import ReturnPortInput, StateDefinitionInput
 from rekuest_next.state.lock import get_acquired_locks
@@ -78,14 +78,14 @@ def _make_patch(
 ) -> Patch:
     """Create a patch carrying the already resolved schema port."""
 
-    assignation_id = get_current_assignation_id_or_none()
+    task_id = get_current_task_id_or_none()
     return Patch(
         op=op,
         path=path,
         value=value,
         old_value=old_value,
         port=port,
-        correlation_id=assignation_id,
+        correlation_id=task_id,
     )
 
 

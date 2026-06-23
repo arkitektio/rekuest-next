@@ -48,18 +48,18 @@ class FunctionalActor(SerializingActor):
         impl_id = (
             f"implementation '{self.definition.name}' "
             f"(interface={assignment.interface}, action={assignment.action}, "
-            f"assignation={assignment.assignation})"
+            f"task={assignment.task})"
         )
 
         await self.asend(
             message=messages.ProgressEvent(
-                assignation=assignment.assignation,
+                task=assignment.task,
                 progress=0,
                 message="Queued for running",
             )
         )
 
-        async with self.sync_context(assignment.assignation, assignment.interface):
+        async with self.sync_context(assignment.task, assignment.interface):
             try:
                 input_kwargs = await expand_inputs(
                     self.definition,
@@ -74,7 +74,7 @@ class FunctionalActor(SerializingActor):
                 )
                 await self.asend(
                     message=messages.ErrorEvent(
-                        assignation=assignment.assignation,
+                        task=assignment.task,
                         error=str(ex),
                     )
                 )
@@ -95,7 +95,7 @@ class FunctionalActor(SerializingActor):
                 if logs and assignment.capture:
                     await self.asend(
                         message=messages.LogEvent(
-                            assignation=assignment.assignation,
+                            task=assignment.task,
                             message="".join(logs),
                             level="INFO",
                         )
@@ -120,7 +120,7 @@ class FunctionalActor(SerializingActor):
                                 )
                                 await self.asend(
                                     message=messages.ErrorEvent(
-                                        assignation=assignment.assignation,
+                                        task=assignment.task,
                                         error=str(ex),
                                     )
                                 )
@@ -128,7 +128,7 @@ class FunctionalActor(SerializingActor):
 
                             await self.asend(
                                 message=messages.YieldEvent(
-                                    assignation=assignment.assignation,
+                                    task=assignment.task,
                                     returns=returns,
                                 )
                             )
@@ -137,17 +137,17 @@ class FunctionalActor(SerializingActor):
 
                 await self.asend(
                     message=messages.DoneEvent(
-                        assignation=assignment.assignation,
+                        task=assignment.task,
                     )
                 )
 
             except Exception as ex:
                 await aflush_captured_logs()
 
-                logger.critical(f"Assignation error in {impl_id}", exc_info=True)
+                logger.critical(f"Task error in {impl_id}", exc_info=True)
                 await self.asend(
                     message=messages.CriticalEvent(
-                        assignation=assignment.assignation,
+                        task=assignment.task,
                         error=str(ex),
                     )
                 )

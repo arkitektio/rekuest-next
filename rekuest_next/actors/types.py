@@ -141,7 +141,7 @@ class Agent(Protocol):
     capture_condition: asyncio.Condition
     capture_active: bool
 
-    async def alock(self, key: str, assignation: str) -> None:
+    async def alock(self, key: str, task: str) -> None:
         """A function to acquire a lock on the agent. This is used to acquire
         locks on the agent."""
         ...
@@ -210,7 +210,7 @@ class Agent(Protocol):
         ...
 
     def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
+        self, interface: str, patch: Patch, task_id: str | None = None
     ) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
@@ -224,17 +224,17 @@ class Actor(Protocol):
     agent: Agent
 
     def install_assignment_hook(
-        self, assignation_id: str, hook: AssignmentHook
+        self, task_id: str, hook: AssignmentHook
     ) -> None:
-        """Install an assignment hook for the current assignation.
+        """Install an assignment hook for the current task.
 
         Args:
-            assignation_id (str): The assignation to install the hook for.
+            task_id (str): The task to install the hook for.
             hook (AssignmentHook): The hook to install.
         """
         ...
 
-    async def abreak(self, assignation_id: str) -> bool:
+    async def abreak(self, task_id: str) -> bool:
         """Break the actor. This method will break the actor and return None.
         This is used to break the actor"""
         ...
@@ -257,11 +257,11 @@ class Actor(Protocol):
         """
         ...
 
-    async def acheck_assignation(
+    async def acheck_task(
         self: Self,
-        assignation_id: str,
+        task_id: str,
     ) -> bool:
-        """Check the assignation. This method will check the assignation and
+        """Check the task. This method will check the task and
         return None.
         """
         ...

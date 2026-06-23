@@ -128,7 +128,7 @@ def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> 
 
     async def capture_submit(message):
         captured.append(message)
-        return message.assignation
+        return message.task
 
     object.__setattr__(agent.transport, "asubmit", capture_submit)
 

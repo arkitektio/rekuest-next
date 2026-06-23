@@ -1,12 +1,12 @@
 query requests {
-  assignations {
-    ...Assignation
+  tasks {
+    ...Task
   }
 }
 
 
 query GetEvent($id: ID){
   event(id: $id){
-    ...AssignationEvent
+    ...TaskEvent
   }
 }

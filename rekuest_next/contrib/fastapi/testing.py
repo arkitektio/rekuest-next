@@ -30,13 +30,13 @@ class BufferedEvent:
         raw: The raw JSON string received from the WebSocket.
         data: The parsed JSON data as a dictionary.
         event_type: The type of the event (e.g., "DONE", "YIELD", "ERROR").
-        assignation: The assignation ID this event belongs to, if present.
+        task: The task ID this event belongs to, if present.
     """
 
     raw: str
     data: dict[str, Any]
     event_type: str
-    assignation: Optional[str] = None
+    task: Optional[str] = None
 
     @classmethod
     def from_json(cls, json_str: str) -> "BufferedEvent":
@@ -46,7 +46,7 @@ class BufferedEvent:
             raw=json_str,
             data=data,
             event_type=data.get("type", "UNKNOWN"),
-            assignation=data.get("assignation"),
+            task=data.get("task"),
         )
 
     def is_done(self) -> bool:
@@ -88,12 +88,12 @@ class AssignmentResult:
 
     Attributes:
         status: The status returned by the server (e.g., "submitted").
-        assignation_id: The unique ID assigned to this assignment.
+        task_id: The unique ID assigned to this assignment.
         response_data: The full response data from the server.
     """
 
     status: str
-    assignation_id: str
+    task_id: str
     response_data: dict[str, Any]
 
 
@@ -284,7 +284,7 @@ class AgentTestClient:
                 (e.g., /assign/my_function).
 
         Returns:
-            An AssignmentResult with the status and assignation ID.
+            An AssignmentResult with the status and task ID.
 
         Raises:
             RuntimeError: If the assignment request fails.
@@ -304,7 +304,7 @@ class AgentTestClient:
         data = response.json()
         return AssignmentResult(
             status=data.get("status", "unknown"),
-            assignation_id=data.get("assignation", ""),
+            task_id=data.get("task", ""),
             response_data=data,
         )
 
@@ -383,13 +383,13 @@ class AgentTestClient:
 
     def collect_until_done(
         self,
-        assignation_id: str,
+        task_id: str,
         timeout: float = 5.0,
     ) -> list[BufferedEvent]:
-        """Collect events until a DONE event is received for the assignation.
+        """Collect events until a DONE event is received for the task.
 
         Args:
-            assignation_id: The assignation ID to wait for.
+            task_id: The task ID to wait for.
             timeout: Maximum time to wait in seconds.
 
         Returns:
@@ -416,7 +416,7 @@ class AgentTestClient:
                             self._events.append(event)
                         collected.append(event)
 
-                        if event.assignation == assignation_id and event.is_done():
+                        if event.task == task_id and event.is_done():
                             done_received.set()
                             break
                     except Exception:
@@ -448,17 +448,17 @@ class AgentTestClient:
         with self._lock:
             return list(self._events)
 
-    def get_events_for_assignation(self, assignation_id: str) -> list[BufferedEvent]:
-        """Get all events for a specific assignation.
+    def get_events_for_task(self, task_id: str) -> list[BufferedEvent]:
+        """Get all events for a specific task.
 
         Args:
-            assignation_id: The assignation ID to filter by.
+            task_id: The task ID to filter by.
 
         Returns:
-            A list of events belonging to the given assignation.
+            A list of events belonging to the given task.
         """
         with self._lock:
-            return [e for e in self._events if e.assignation == assignation_id]
+            return [e for e in self._events if e.task == task_id]
 
     def get_done_events(self) -> list[BufferedEvent]:
         """Get all DONE events.
@@ -492,28 +492,28 @@ class AgentTestClient:
         with self._lock:
             self._events.clear()
 
-    def has_done_for(self, assignation_id: str) -> bool:
-        """Check if a DONE event was received for the given assignation.
+    def has_done_for(self, task_id: str) -> bool:
+        """Check if a DONE event was received for the given task.
 
         Args:
-            assignation_id: The assignation ID to check.
+            task_id: The task ID to check.
 
         Returns:
-            True if a DONE event exists for this assignation.
+            True if a DONE event exists for this task.
         """
-        events = self.get_events_for_assignation(assignation_id)
+        events = self.get_events_for_task(task_id)
         return any(e.is_done() for e in events)
 
-    def has_error_for(self, assignation_id: str) -> bool:
-        """Check if an ERROR event was received for the given assignation.
+    def has_error_for(self, task_id: str) -> bool:
+        """Check if an ERROR event was received for the given task.
 
         Args:
-            assignation_id: The assignation ID to check.
+            task_id: The task ID to check.
 
         Returns:
-            True if an ERROR event exists for this assignation.
+            True if an ERROR event exists for this task.
         """
-        events = self.get_events_for_assignation(assignation_id)
+        events = self.get_events_for_task(task_id)
         return any(e.is_error() for e in events)
 
 
@@ -533,7 +533,7 @@ class AsyncAgentTestClient:
             result = await client.assign("my_function", {"x": 1, "y": 2})
 
             # Wait for events
-            events = await client.collect_until_done(result.assignation_id)
+            events = await client.collect_until_done(result.task_id)
             assert any(e.is_done() for e in events)
         ```
 
@@ -752,7 +752,7 @@ class AsyncAgentTestClient:
             use_implementation_route: If True, uses the direct implementation route.
 
         Returns:
-            An AssignmentResult with the status and assignation ID.
+            An AssignmentResult with the status and task ID.
         """
         if use_implementation_route:
             path = f"/{interface}"
@@ -769,7 +769,7 @@ class AsyncAgentTestClient:
         data = response.json()
         return AssignmentResult(
             status=data.get("status", "unknown"),
-            assignation_id=data.get("assignation", ""),
+            task_id=data.get("task", ""),
             response_data=data,
         )
 
@@ -823,13 +823,13 @@ class AsyncAgentTestClient:
 
     async def collect_until_end_state(
         self,
-        assignation_id: str,
+        task_id: str,
         timeout: float = 5.0,
     ) -> list[BufferedEvent]:
-        """Collect events until a DONE or ERROR event is received for the assignation.
+        """Collect events until a DONE or ERROR event is received for the task.
 
         Args:
-            assignation_id: The assignation ID to wait for.
+            task_id: The task ID to wait for.
             timeout: Maximum time to wait in seconds.
 
         Returns:
@@ -849,7 +849,7 @@ class AsyncAgentTestClient:
                 )
                 collected.append(event)
 
-                if event.assignation == assignation_id and event.is_end_state():
+                if event.task == task_id and event.is_end_state():
                     break
             except asyncio.TimeoutError:
                 continue
@@ -858,13 +858,13 @@ class AsyncAgentTestClient:
 
     async def collect_until_done(
         self,
-        assignation_id: str,
+        task_id: str,
         timeout: float = 5.0,
     ) -> list[BufferedEvent]:
-        """Collect events until a DONE event is received for the assignation.
+        """Collect events until a DONE event is received for the task.
 
         Args:
-            assignation_id: The assignation ID to wait for.
+            task_id: The task ID to wait for.
             timeout: Maximum time to wait in seconds.
 
         Returns:
@@ -884,7 +884,7 @@ class AsyncAgentTestClient:
                 )
                 collected.append(event)
 
-                if event.assignation == assignation_id and event.is_done():
+                if event.task == task_id and event.is_done():
                     break
             except asyncio.TimeoutError:
                 continue
@@ -893,13 +893,13 @@ class AsyncAgentTestClient:
 
     async def collect_until_error(
         self,
-        assignation_id: str,
+        task_id: str,
         timeout: float = 5.0,
     ) -> list[BufferedEvent]:
-        """Collect events until an ERROR event is received for the assignation.
+        """Collect events until an ERROR event is received for the task.
 
         Args:
-            assignation_id: The assignation ID to wait for.
+            task_id: The task ID to wait for.
             timeout: Maximum time to wait in seconds.
 
         Returns:
@@ -919,7 +919,7 @@ class AsyncAgentTestClient:
                 )
                 collected.append(event)
 
-                if event.assignation == assignation_id and event.is_error():
+                if event.task == task_id and event.is_error():
                     break
             except asyncio.TimeoutError:
                 continue
@@ -934,9 +934,9 @@ class AsyncAgentTestClient:
         """Get all buffered events."""
         return list(self._events)
 
-    def get_events_for_assignation(self, assignation_id: str) -> list[BufferedEvent]:
-        """Get all events for a specific assignation."""
-        return [e for e in self._events if e.assignation == assignation_id]
+    def get_events_for_task(self, task_id: str) -> list[BufferedEvent]:
+        """Get all events for a specific task."""
+        return [e for e in self._events if e.task == task_id]
 
     def get_done_events(self) -> list[BufferedEvent]:
         """Get all DONE events."""
@@ -954,14 +954,14 @@ class AsyncAgentTestClient:
         """Clear all buffered events."""
         self._events.clear()
 
-    def has_done_for(self, assignation_id: str) -> bool:
-        """Check if a DONE event was received for the given assignation."""
-        events = self.get_events_for_assignation(assignation_id)
+    def has_done_for(self, task_id: str) -> bool:
+        """Check if a DONE event was received for the given task."""
+        events = self.get_events_for_task(task_id)
         return any(e.is_done() for e in events)
 
-    def has_error_for(self, assignation_id: str) -> bool:
-        """Check if an ERROR event was received for the given assignation."""
-        events = self.get_events_for_assignation(assignation_id)
+    def has_error_for(self, task_id: str) -> bool:
+        """Check if an ERROR event was received for the given task."""
+        events = self.get_events_for_task(task_id)
         return any(e.is_error() for e in events)
 
 
@@ -1020,7 +1020,7 @@ def create_test_app_and_agent(
         async with AsyncAgentTestClient(app, agent, as_user="test-user") as client:
             result = await client.assign("my_function", {"x": 5})
             # Collect events after assignment
-            events = await client.collect_until_done(result.assignation_id)
+            events = await client.collect_until_done(result.task_id)
             assert any(e.is_done() for e in events)
         ```
 

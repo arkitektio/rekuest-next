@@ -1,36 +1,30 @@
 mutation assign($input: AssignInput!) {
   assign(input: $input) {
-    ...Assignation
+    ...Task
   }
 }
 
 mutation cancel($input: CancelInput!) {
   cancel(input: $input) {
-    ...Assignation
+    ...Task
   }
 }
 
 mutation interrupt($input: InterruptInput!) {
   interrupt(input: $input) {
-    ...Assignation
+    ...Task
   }
 }
 
 mutation pause($input: PauseInput!) {
   pause(input: $input) {
-    ...Assignation
-  }
-}
-
-mutation step($input: StepInput!) {
-  step(input: $input) {
-    ...Assignation
+    ...Task
   }
 }
 
 mutation resume($input: ResumeInput!) {
   resume(input: $input) {
-    ...Assignation
+    ...Task
   }
 }
 

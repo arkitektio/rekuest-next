@@ -23,5 +23,5 @@ class RecoverableAssignException(AssignException):
 
 class IncorrectReserveState(AssignException):
     """
-    Raised when a assignation during an incorect reservation state for this contract
+    Raised when a task during an incorect reservation state for this contract
     """

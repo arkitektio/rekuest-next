@@ -51,9 +51,9 @@ async def test_overlapping_lock_groups_do_not_deadlock(
     agent = mock_rekuest.agent
     agent.collect_from_extensions()
 
-    async def hammer(keys: tuple[str, ...], assignation: str) -> None:
+    async def hammer(keys: tuple[str, ...], task: str) -> None:
         for _ in range(25):
-            group = LockGroup(agent.get_locks_for_keys(keys), assignation)
+            group = LockGroup(agent.get_locks_for_keys(keys), task)
             async with group:
                 await asyncio.sleep(0)
 
@@ -72,7 +72,7 @@ async def test_failed_lock_notification_releases_the_local_lock() -> None:
     """Deadlock invariant 4: a failing ``alock`` must not leave the key held."""
 
     class FailingAgent:
-        async def alock(self, key: str, assignation: str) -> None:
+        async def alock(self, key: str, task: str) -> None:
             raise RuntimeError("transport down")
 
         async def aunlock(self, key: str) -> None:
@@ -99,11 +99,11 @@ def _spawn_actor(mock_rekuest: RekuestNext, interface: str):
 
 
 async def _enter_twice(actor, events: list[str]) -> None:
-    async def run(assignation: str) -> None:
-        async with actor.sync_context(assignation, "iface"):
-            events.append(f"in-{assignation}")
+    async def run(task: str) -> None:
+        async with actor.sync_context(task, "iface"):
+            events.append(f"in-{task}")
             await asyncio.sleep(0.02)
-            events.append(f"out-{assignation}")
+            events.append(f"out-{task}")
 
     await asyncio.wait_for(asyncio.gather(run("1"), run("2")), timeout=5)
 
@@ -164,11 +164,11 @@ async def test_shared_lock_key_serializes_across_actors(
 
     events: list[str] = []
 
-    async def run(actor, assignation: str) -> None:
-        async with actor.sync_context(assignation, "iface"):
-            events.append(f"in-{assignation}")
+    async def run(actor, task: str) -> None:
+        async with actor.sync_context(task, "iface"):
+            events.append(f"in-{task}")
             await asyncio.sleep(0.02)
-            events.append(f"out-{assignation}")
+            events.append(f"out-{task}")
 
     await asyncio.wait_for(
         asyncio.gather(run(left_actor, "1"), run(right_actor, "2")), timeout=5

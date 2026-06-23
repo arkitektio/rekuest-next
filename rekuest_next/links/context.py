@@ -1,7 +1,7 @@
-"""ContextLink is a link that adds an assignation token to the context of a graphql operation.
+"""ContextLink is a link that adds a task token to the context of a graphql operation.
 
 Its used to give some correlation information to every operation that is executed within
-the context of an assignation.
+the context of a task.
 
 
 """
@@ -13,14 +13,14 @@ from urllib.parse import quote
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation
 from rath.errors import NotComposedError
-from rekuest_next.actors.vars import get_current_assignation_helper
+from rekuest_next.actors.vars import get_current_task_helper
 
 
 class ContextLink(ContinuationLink):
     """ContextLink is a link that adds an provnance token to the context.
 
     The provenance token is used to give some correlation information to every operation that is executed within
-    the context of an assignation. It is signed by the rekuest server and can be used to verify the provenance of the operation.
+    the context of a task. It is signed by the rekuest server and can be used to verify the provenance of the operation.
 
     """
 
@@ -47,7 +47,7 @@ class ContextLink(ContinuationLink):
             raise NotComposedError("No next link set")
 
         try:
-            helper = get_current_assignation_helper()
+            helper = get_current_task_helper()
 
             if helper.token is not None:
                 operation.context.headers["Rekuest-Task"] = helper.token

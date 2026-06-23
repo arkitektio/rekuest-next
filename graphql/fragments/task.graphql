@@ -1,4 +1,4 @@
-fragment Assignation on Assignation {
+fragment Task on Task {
   args
   id
   parent {
@@ -18,7 +18,7 @@ fragment Assignation on Assignation {
   updatedAt
 }
 
-fragment AssignationEvent on AssignationEvent {
+fragment TaskEvent on TaskEvent {
   id
   kind
   returns
@@ -27,11 +27,11 @@ fragment AssignationEvent on AssignationEvent {
   progress
 }
 
-fragment AssignationChangeEvent on AssignationChangeEvent {
+fragment TaskChangeEvent on TaskChangeEvent {
   create {
-    ...Assignation
+    ...Task
   }
   event {
-    ...AssignationEvent
+    ...TaskEvent
   }
 }

@@ -1,5 +1,5 @@
-subscription WatchAssignations {
-  assignations {
-    ...AssignationChangeEvent
+subscription WatchTasks {
+  tasks {
+    ...TaskChangeEvent
   }
 }

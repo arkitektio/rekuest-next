@@ -243,8 +243,8 @@ async def test_workflow_cancel_propagates_to_dependency(
     We launch the workflow, wait until the provider's threaded loop is actually
     spinning, then cancel the workflow call. Cancelling the consuming ``acall``
     task makes the postman issue a backend ``cancel`` for the workflow
-    assignation; the server fans that out to the workflow agent, which in turn
-    cancels the dependency assignation it spawned on the provider. We then assert
+    task; the server fans that out to the workflow agent, which in turn
+    cancels the dependency task it spawned on the provider. We then assert
     the provider's threaded task observed the cancellation (cancel propagated
     workflow -> dependency -> worker thread) instead of running to completion.
     """
@@ -270,7 +270,7 @@ async def test_workflow_cancel_propagates_to_dependency(
 
         Sync functions run in a koil worker thread, which cannot be force-killed.
         Polling ``check_cancelled()`` each iteration lets koil raise
-        ``ThreadCancelledError`` into the loop when the assignation is cancelled.
+        ``ThreadCancelledError`` into the loop when the task is cancelled.
         """
         started.set()
         try:
@@ -342,7 +342,7 @@ async def test_workflow_cancel_propagates_to_dependency(
             await call_task
 
         # Give the cancellation time to propagate down the chain:
-        # workflow assignation -> dependency assignation -> provider actor ->
+        # workflow task -> dependency task -> provider actor ->
         # threaded `check_cancelled()`.
         for _ in range(150):
             if tracker["cancelled"]:

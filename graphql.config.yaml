@@ -58,7 +58,6 @@ projects:
                 use: rekuest_next.funcs.execute
         processors:
           - type: turms.processors.disclaimer.DisclaimerProcessor
-          - type: turms.processors.ruff.RuffProcessor
         scalar_definitions:
           uuid: str
           Callback: str

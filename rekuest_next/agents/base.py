@@ -71,7 +71,7 @@ def app_context(
 class QueuedPatchEvent:
     interface: str
     patch: Patch
-    assignation_id: Optional[str] = None
+    task_id: Optional[str] = None
     event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -133,7 +133,7 @@ class BaseAgent(KoiledModel):
 
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
-        default_factory=dict, description="Maps assignation to actor id"
+        default_factory=dict, description="Maps task to actor id"
     )
 
     managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
@@ -199,12 +199,12 @@ class BaseAgent(KoiledModel):
     def model_post_init(self, __context: Any) -> None:
         pass
 
-    async def alock(self, key: str, assignation: str) -> None:
-        """Signal that an assignation has acquired a lock."""
+    async def alock(self, key: str, task: str) -> None:
+        """Signal that a task has acquired a lock."""
         return None
 
     async def aunlock(self, key: str) -> None:
-        """Signal that an assignation has released a lock."""
+        """Signal that a task has released a lock."""
         return None
 
     async def aget_read_only_proxy(self, key: str) -> AnyState:
@@ -233,7 +233,7 @@ class BaseAgent(KoiledModel):
             raise
 
     def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
+        self, interface: str, patch: Patch, task_id: str | None = None
     ) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
@@ -242,7 +242,7 @@ class BaseAgent(KoiledModel):
             raise AgentException("Patch queue is not initialized")
         self._event_queue.sync_q.put(
             QueuedPatchEvent(
-                interface=interface, patch=patch, assignation_id=assignation_id
+                interface=interface, patch=patch, task_id=task_id
             )
         )
 
@@ -442,16 +442,16 @@ class BaseAgent(KoiledModel):
             # can proceed.
             self._connected_event.set()
             for inquiry in message.inquiries:
-                if inquiry.assignation in self.managed_assignments:
-                    assignment = self.managed_assignments[inquiry.assignation]
+                if inquiry.task in self.managed_assignments:
+                    assignment = self.managed_assignments[inquiry.task]
                     actor = self.managed_actors[assignment.actor_id]
 
                     # Checking status
-                    status = await actor.acheck_assignation(assignment.assignation)
+                    status = await actor.acheck_task(assignment.task)
                     if status:
                         await self.transport.asend(
                             messages.ProgressEvent(
-                                assignation=inquiry.assignation,
+                                task=inquiry.task,
                                 message="Actor is still running",
                                 progress=0,
                             )
@@ -459,14 +459,14 @@ class BaseAgent(KoiledModel):
                     else:
                         await self.transport.asend(
                             messages.CriticalEvent(
-                                assignation=inquiry.assignation,
+                                task=inquiry.task,
                                 error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                             )
                         )
                 else:
                     await self.transport.asend(
                         messages.CriticalEvent(
-                            assignation=inquiry.assignation,
+                            task=inquiry.task,
                             error="After disconnect actor was no longer managed (probably the app was restarted)",
                         )
                     )
@@ -475,7 +475,7 @@ class BaseAgent(KoiledModel):
             if message.actor_id in self.managed_actors:
                 # The actor is already spawned
                 actor = self.managed_actors[message.actor_id]
-                self.managed_assignments[message.assignation] = message
+                self.managed_assignments[message.task] = message
                 await actor.apass(message)
             else:
                 try:
@@ -485,7 +485,7 @@ class BaseAgent(KoiledModel):
                 except Exception as e:
                     await self.transport.asend(
                         messages.CriticalEvent(
-                            assignation=message.assignation,
+                            task=message.task,
                             error=f"Not able to create actor through extensions {str(e)}",
                         )
                     )
@@ -500,18 +500,18 @@ class BaseAgent(KoiledModel):
                 messages.Resume,
             ),
         ):
-            if message.assignation in self.managed_assignments:
-                assignment = self.managed_assignments[message.assignation]
+            if message.task in self.managed_assignments:
+                assignment = self.managed_assignments[message.task]
                 actor = self.managed_actors[assignment.actor_id]
                 await actor.apass(message)
             else:
                 logger.warning(
                     "Received unassignation for a provision that is not running. "
-                    f"Received: {message.assignation}"
+                    f"Received: {message.task}"
                 )
                 await self.transport.asend(
                     messages.CriticalEvent(
-                        assignation=message.assignation,
+                        task=message.task,
                         error="Actors is no longer running and not managed. Probablry there was a restart",
                     )
                 )
@@ -527,30 +527,30 @@ class BaseAgent(KoiledModel):
                 await self.acollect(key)
 
         elif isinstance(message, messages.AssignInquiry):
-            if message.assignation in self.managed_assignments:
-                assignment = self.managed_assignments[message.assignation]
+            if message.task in self.managed_assignments:
+                assignment = self.managed_assignments[message.task]
                 actor = self.managed_actors[assignment.actor_id]
 
                 # Checking status
-                status = await actor.acheck_assignation(assignment.assignation)
+                status = await actor.acheck_task(assignment.task)
                 if status:
                     await self.transport.asend(
                         messages.ProgressEvent(
-                            assignation=message.assignation,
+                            task=message.task,
                             message="Actor is still running",
                         )
                     )
                 else:
                     await self.transport.asend(
                         messages.CriticalEvent(
-                            assignation=message.assignation,
+                            task=message.task,
                             error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                         )
                     )
             else:
                 await self.transport.asend(
                     messages.CriticalEvent(
-                        assignation=message.assignation,
+                        task=message.task,
                         error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
                 )
@@ -846,7 +846,7 @@ class BaseAgent(KoiledModel):
         actor = actor_builder(agent=self)
 
         self.managed_actors[assign.actor_id] = actor
-        self.managed_assignments[assign.assignation] = assign
+        self.managed_assignments[assign.task] = assign
 
         return actor
 

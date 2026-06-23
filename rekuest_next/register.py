@@ -26,7 +26,7 @@ from rekuest_next.coercible_types import (
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.types import Actifier, ActorBuilder, RegisterConfig
-from rekuest_next.actors.vars import get_current_assignation_helper
+from rekuest_next.actors.vars import get_current_task_helper
 from rekuest_next.definition.define import (
     dependency_to_dependency_input,
 )
@@ -87,7 +87,7 @@ class WrappedFunction(Generic[P, R]):
 
     def call(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Call the actor's implementation."""
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         implementation = my_implementation_at(self.interface)
 
         return call(
@@ -99,7 +99,7 @@ class WrappedFunction(Generic[P, R]):
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """ "Asynchronously call the actor's implementation."""
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         implementation = await amy_implementation_at(self.interface)
 
         return await acall(

@@ -1,7 +1,7 @@
 directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
 
 input AckInput {
-  assignation: ID!
+  task: ID!
 }
 
 """Represents an executable action in the system."""
@@ -71,14 +71,14 @@ type Action {
   """The organization that owns this action."""
   organization: Organization!
 
-  """Assignations created for this action."""
-  assignations(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
+  """Tasks created for this action."""
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
 
-  """Get the latest completed assignation for this action."""
-  latestAssignation: Assignation
+  """Get the latest completed task for this action."""
+  latestTask: Task
 
-  """Retrieve assignations where this action has run."""
-  runs: [Assignation!]
+  """Retrieve tasks where this action has run."""
+  runs: [Task!]
 
   """Input arguments (ports) for the action."""
   args: [ArgPort!]!
@@ -411,8 +411,8 @@ type Agent {
   """Webhook URL secret for this Agent (only if webhook)"""
   hookUrlSecret: String
 
-  """Assignations executed by this agent."""
-  assignations(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
+  """Tasks executed by this agent."""
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
 
   """The app this agent belongs to."""
   app: App!
@@ -562,9 +562,6 @@ input AgentFilter {
   NOT: AgentFilter
   DISTINCT: Boolean
 
-  """Filter by scope"""
-  scope: ScopeFilter
-
   """Filter by client ID of the app the agent is registered to"""
   clientId: String
 
@@ -607,6 +604,21 @@ input AgentInput {
   The name of the agent. This is used to identify the agent in the system.
   """
   name: String = null
+
+  """
+  The transport kind of the agent: WEBSOCKET (default) or WEBHOOK (a HookAgent the backend POSTs to).
+  """
+  kind: AgentKind = null
+
+  """
+  For a WEBHOOK agent: the URL the backend POSTs messages (Assign, Cancel, Caller* events) to.
+  """
+  hookUrl: String = null
+
+  """
+  For a WEBHOOK agent: the shared secret used to HMAC-sign messages in both directions (outbound delivery and POST intake).
+  """
+  hookUrlSecret: String = null
 }
 
 enum AgentKind {
@@ -751,7 +763,7 @@ input AssignInput {
   action: ID = null
 
   """
-  The dependency key.method to assign when running inside a resolved assignation
+  The dependency key.method to assign when running inside a resolved task
   """
   dependency: String = null
 
@@ -773,7 +785,7 @@ input AssignInput {
   """
   actionHash: ActionHash = null
 
-  """The method key to assign when running inside a resolved assignation"""
+  """The method key to assign when running inside a resolved task"""
   method: String = null
 
   """
@@ -782,49 +794,47 @@ input AssignInput {
   interface: String = null
 
   """
-  The hooks of the assignation. This is used to identify the assignation in the system.
+  The hooks of the task. This is used to identify the task in the system.
   """
   hooks: [HookInput!] = null
 
-  """The args of the assignation. Its a dictionary of ports and values"""
+  """The args of the task. Its a dictionary of ports and values"""
   args: Args!
 
   """
-  The reference of the assignation. This is used to identify the assignation in the system.
+  The reference of the task. This is used to identify the task in the system.
   """
   reference: String = null
 
   """
-  The parent ID of the assignation. This is used to identify the assignation in the system.
+  The parent ID of the task. This is used to identify the task in the system.
   """
   parent: ID = null
 
-  """Whether the assignation should be cached"""
+  """Whether the task should be cached"""
   cached: Boolean!
 
-  """Whether the assignation should be logged"""
+  """Whether the task should be logged"""
   log: Boolean!
 
-  """Whether to capture the assignation."""
+  """Whether to capture the task."""
   capture: Boolean!
 
-  """Whether the assignation is ephemeral"""
+  """Whether the task is ephemeral"""
   ephemeral: Boolean!
 
   """
-  The dependencies of the assignation. This maps dependency keys to implementation IDs.
+  The dependencies of the task. This maps dependency keys to implementation IDs.
   """
   dependencies: [ResolvedDependencyInput!] = null
 
-  """Whether the assignation is a hook"""
+  """Whether the task is a hook"""
   isHook: Boolean = null
 
-  """Whether the assignation should step. Ie. go to the next breakpoint"""
+  """Whether the task should step. Ie. go to the next breakpoint"""
   step: Boolean = null
 
-  """
-  The policy for the assignation. This defines how the assignation should be handled.
-  """
+  """The policy for the task. This defines how the task should be handled."""
   policy: AssignPolicy = null
 }
 
@@ -955,258 +965,6 @@ enum AssignWidgetKind {
   STRING
   STATE_CHOICE
   PROXY
-}
-
-"""Tracks the assignment of an implementation to a specific task."""
-type Assignation {
-  """Unique ID of the assignation."""
-  id: ID!
-
-  """Optional external reference for tracking."""
-  reference: String
-
-  """Indicates if the assignation is completed."""
-  isDone: Boolean!
-
-  """Arguments used in the assignation."""
-  args: AnyDefault!
-
-  """The used dependencies for this assignemnet"""
-  dependencies: AnyDefault!
-
-  """Resolution used to resolve dependencies for this assignation."""
-  resolution: Resolution
-
-  """Root assignation in the creation chain."""
-  root: Assignation
-
-  """Parent assignation that triggered this one."""
-  parent: Assignation
-
-  """Action assigned."""
-  action: Action!
-
-  """
-  Indicates if the assignation is being captured for logging or debugging.
-  """
-  capture: Boolean!
-
-  """Implementation assigned to execute."""
-  implementation: Implementation!
-
-  """Type of the latest event."""
-  latestEventKind: AssignationEventKind!
-
-  """Last instruction type."""
-  latestInstructKind: AssignationInstructKind!
-
-  """Caller that created this assignation."""
-  caller: Caller
-
-  """Creation timestamp."""
-  createdAt: DateTime!
-
-  """Last update timestamp."""
-  updatedAt: DateTime!
-
-  """Timestamp when the assignation was finished."""
-  finishedAt: DateTime
-
-  """List of resources or entities this assignation acted upon."""
-  actedOn: [String!]!
-
-  """Indicates if the assignation should be deleted after completion."""
-  ephemeral: Boolean!
-
-  """Child assignations spawned from this one."""
-  children(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
-
-  """Agent responsible for this assignation."""
-  agent: Agent
-
-  """The events"""
-  events(filters: AssignationEventFilter, ordering: [AssignationEventOrder!]! = [], pagination: OffsetPaginationInput): [AssignationEvent!]!
-
-  """The dependency thats linked to the parents execution if applicable."""
-  dependency: String
-
-  """
-  The method of the dependency that caused this assignation, if applicable.
-  """
-  dependencyMethod: String
-
-  """Get a specific dependency by key."""
-  resolvedDependencies: [ResolvedAgentDependency!]!
-
-  """List of recent instructions for this assignation."""
-  instructs: [AssignationInstruct!]!
-
-  """Get a specific argument by key."""
-  arg(key: String!): Args
-}
-
-type AssignationChangeEvent {
-  event: AssignationEvent
-  create: Assignation
-}
-
-"""An event that occurred during an assignation."""
-type AssignationEvent {
-  """Unique ID of the event."""
-  id: ID!
-
-  """Name of the event."""
-  name: String!
-
-  """Optional return values."""
-  returns: AnyDefault
-
-  """Associated assignation."""
-  assignation: Assignation!
-
-  """Kind of assignation event."""
-  kind: AssignationEventKind!
-
-  """Optional message associated with the event."""
-  message: String
-
-  """Progress percentage."""
-  progress: Int
-
-  """Time when event was created."""
-  createdAt: DateTime!
-
-  """If this event was delegated, the assignation it was delegated to."""
-  delegatedTo: Assignation
-
-  """Default log level."""
-  level: LogLevel!
-
-  """Reference string for the event."""
-  reference: String!
-}
-
-"""A way to filter assignation events"""
-input AssignationEventFilter {
-  AND: AssignationEventFilter
-  OR: AssignationEventFilter
-  NOT: AssignationEventFilter
-  DISTINCT: Boolean
-  kind: [AssignationEventKind!]
-}
-
-"""The event kind of the assignationevent"""
-enum AssignationEventKind {
-  BOUND
-  QUEUED
-  ASSIGN
-  PROGRESS
-  DELEGATE
-  DISCONNECTED
-  YIELD
-  DONE
-  LOG
-  CANCELING
-  CANCELLED
-  INTERUPTING
-  INTERUPTED
-  ERROR
-  CRITICAL
-}
-
-input AssignationEventOrder @oneOf {
-  createdAt: Ordering
-}
-
-"""Numeric/aggregatable fields of Assignation"""
-enum AssignationField {
-  CREATED_AT
-}
-
-input AssignationFilter {
-  AND: AssignationFilter
-  OR: AssignationFilter
-  NOT: AssignationFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  status: [AssignationStatus!]
-  clientId: ID
-  state: [AssignationEventKind!]
-  implementation: ID
-  actedOn: [String!]
-  createdBefore: DateTime
-  createdAfter: DateTime
-  agent: ID
-}
-
-"""An instruct event for a specific assignation."""
-type AssignationInstruct {
-  """Unique ID of the instruct event."""
-  id: ID!
-
-  """Assignation the instruction relates to."""
-  assignation: Assignation!
-
-  """Type of instruction."""
-  kind: AssignationInstructKind!
-
-  """Time when instruction was issued."""
-  createdAt: DateTime!
-}
-
-"""The event kind of the assignationevent"""
-enum AssignationInstructKind {
-  ASSIGN
-  CANCEL
-  STEP
-  RESUME
-  PAUSE
-  INTERRUPT
-  COLLECT
-}
-
-input AssignationOrder @oneOf {
-  createdAt: Ordering
-  startedAt: Ordering
-  finishedAt: Ordering
-  status: Ordering
-}
-
-type AssignationStats {
-  """Total number of items in the selection"""
-  count: Int!
-
-  """Number of distinct values for the field"""
-  distinctCount(field: AssignationField!): Int!
-
-  """Maximum"""
-  max(field: AssignationField!): Float
-
-  """Minimum"""
-  min(field: AssignationField!): Float
-
-  """Average"""
-  avg(field: AssignationField!): Float
-
-  """Sum"""
-  sum(field: AssignationField!): Float
-
-  """Time-bucketed stats over a datetime field."""
-  series(field: AssignationField!, timestampField: AssignationTimestampField!, by: Granularity!): [TimeBucket!]!
-}
-
-"""The event kind of the assignationevent"""
-enum AssignationStatus {
-  ASSIGNING
-  ONGOING
-  CRITICAL
-  CANCELLED
-  DONE
-}
-
-"""Datetime fields of Assignation for bucketing"""
-enum AssignationTimestampField {
-  CREATED_AT
 }
 
 input AutoResolveInput {
@@ -1368,15 +1126,15 @@ type Caller {
   organization: Organization!
 }
 
-"""The input for canceling an assignation."""
+"""The input for canceling a task."""
 input CancelInput {
-  """The assignation ID to cancel"""
-  assignation: ID!
+  """The task ID to cancel"""
+  task: ID!
 }
 
-type ChildAssignationEvent {
-  create: Assignation
-  update: Assignation
+type ChildTaskEvent {
+  create: Task
+  update: Task
 }
 
 type Choice {
@@ -2061,6 +1819,14 @@ interface Effect {
   dependencies: [String!]!
 }
 
+"""
+The effect class of an implementation — declared by the implementation, never the caller. NONE work is freely retryable/reclaimable; PHYSICAL work touches the real world (no UPSERT), so an ambiguous failure is terminal and must not be retried.
+"""
+enum EffectClass {
+  NONE
+  PHYSICAL
+}
+
 "\n                 An effect is a way to modify a port based on a condition. For example,\n    you could have an effect that sets a port to null if another port is null.\n\n    Or, you could have an effect that hides the port if another port meets a condition.\n    E.g when the user selects a certain option in a dropdown, another port is hidden.\n\n\n    "
 input EffectInput {
   """The function to run to determine if the effect should be applied"""
@@ -2198,7 +1964,7 @@ type HideEffect implements Effect {
 }
 
 """
-A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take an assignation as input and return a value.
+A hook is a function that is called when a action has reached a specific lifecycle point. Hooks are jsut actions that take a task as input and return a value.
 """
 input HookInput {
   """The kind of the hook. This is used to identify the hook in the system."""
@@ -2314,8 +2080,8 @@ type Implementation {
   """List of action demands"""
   tracks: [Track!]!
 
-  """Get the latest completed assignation created by the current user."""
-  myLatestAssignation: Assignation
+  """Get the latest completed task created by the current user."""
+  myLatestTask: Task
 }
 
 input ImplementationActionFilter {
@@ -2423,6 +2189,11 @@ input ImplementationInput {
   The downstream service(s) the provenance token should be scoped to (the token's `aud`). If omitted, Rekuest derives the audience from the structures the assignment acts on.
   """
   provenanceAudience: [String!] = null
+
+  """
+  The effect class of this implementation. NONE work is freely retryable/reclaimable; PHYSICAL work touches the real world and an ambiguous failure is terminal (never retried). Declared by the implementation here — never by the caller.
+  """
+  effect: EffectClass! = NONE
 }
 
 type ImplementationMapping {
@@ -2514,10 +2285,10 @@ input InterfaceFilter {
   search: String
 }
 
-"""The input for interrupting an assignation."""
+"""The input for interrupting a task."""
 input InterruptInput {
-  """The assignation ID to interrupt"""
-  assignation: ID!
+  """The task ID to interrupt"""
+  task: ID!
 }
 
 """
@@ -2792,8 +2563,8 @@ type Mutation {
   """Create a new implementation entry."""
   createImplementation(input: CreateImplementationInput!): Implementation!
 
-  """Acknowledge an assignation."""
-  ack(input: AckInput!): Assignation!
+  """Acknowledge a task."""
+  ack(input: AckInput!): Task!
 
   """Bounce an agent so it reconnects."""
   bounce(input: BounceInput!): Agent!
@@ -2802,27 +2573,24 @@ type Mutation {
   kick(input: KickInput!): Agent!
 
   """Assign a task to an agent."""
-  assign(input: AssignInput!): Assignation!
+  assign(input: AssignInput!): Task!
 
-  """Cancel an active assignation."""
-  cancel(input: CancelInput!): Assignation!
+  """Cancel an active task."""
+  cancel(input: CancelInput!): Task!
 
-  """Advance an assignation one step."""
-  step(input: StepInput!): Assignation!
+  """Pause an ongoing task."""
+  pause(input: PauseInput!): Task!
 
-  """Pause an ongoing assignation."""
-  pause(input: PauseInput!): Assignation!
+  """Resume a paused task."""
+  resume(input: ResumeInput!): Task!
 
-  """Resume a paused assignation."""
-  resume(input: ResumeInput!): Assignation!
-
-  """Collect results from an assignation."""
+  """Collect results from a task."""
   collect(input: CollectInput!): [String!]!
 
-  """Interrupt the execution of an assignation."""
-  interrupt(input: InterruptInput!): Assignation!
+  """Interrupt the execution of a task."""
+  interrupt(input: InterruptInput!): Task!
 
-  """Reinitialize the assignation or agent."""
+  """Reinitialize the task or agent."""
   reinit(input: ReInitInput!): String!
 
   """Block an agent from connecting."""
@@ -3112,7 +2880,7 @@ type Patch {
   globalCurrentRevision: Int!
   globalFutureRevision: Int!
   sessionId: String!
-  assignation: Assignation
+  task: Task
   state: State!
   interface: String!
   patch: JSONPatch!
@@ -3171,10 +2939,10 @@ input PatchInput {
   globalFutureRev: Int
 }
 
-"""The input for pausing an assignation."""
+"""The input for pausing a task."""
 input PauseInput {
-  """The assignation ID to pause"""
-  assignation: ID!
+  """The task ID to pause"""
+  task: ID!
 }
 
 """The input for pinning an model."""
@@ -3486,7 +3254,7 @@ type Query {
   interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
 
   """All tasks."""
-  tasks(filters: AssignationFilter, ordering: [AssignationOrder!]! = [], pagination: OffsetPaginationInput): [Assignation!]!
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
 
   """Fetch a specific agent by ID or by app, version and device_id."""
   agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null): Agent!
@@ -3518,8 +3286,8 @@ type Query {
   """Statistics about actions and their implementations."""
   actionStats(filters: ActionFilter = null): ActionStats!
 
-  """Statistics about assignations and their states."""
-  assignationStats(filters: AssignationFilter = null): AssignationStats!
+  """Statistics about tasks and their states."""
+  taskStats(filters: TaskFilter = null): TaskStats!
 
   """Get task boundaries."""
   taskBoundaries(correlationId: String!, stateId: ID = null): TaskBoundary
@@ -3543,13 +3311,10 @@ type Query {
   snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]!
 
   """Fetch a specific action."""
-  action(id: ID = null, assignation: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
-
-  """Fetch assignations."""
-  assignations: [Assignation!]!
+  action(id: ID = null, task: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
 
   """Fetch a specific event."""
-  event(id: ID = null): [AssignationEvent!]!
+  event(id: ID = null): [TaskEvent!]!
 
   """Find implementation at given interface."""
   implementationAt(agent: ID!, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
@@ -3623,8 +3388,8 @@ type Query {
   """Get implementation by ID."""
   implementation(id: ID!): Implementation!
 
-  """Fetch assignation by ID."""
-  assignation(id: ID!): Assignation!
+  """Fetch task by ID."""
+  task(id: ID!): Task!
 }
 
 input ReInitInput {
@@ -3778,10 +3543,13 @@ input ResolvedDependencyInput {
   autoResolve: Boolean! = false
 }
 
-"""The input for resuming an assignation."""
+"""The input for resuming a task."""
 input ResumeInput {
-  """The assignation ID to resume"""
-  assignation: ID!
+  """The task ID to resume"""
+  task: ID!
+
+  """Resume only until the next breakpoint instead of running on freely."""
+  step: Boolean! = false
 }
 
 type ReturnPort {
@@ -3904,14 +3672,6 @@ input SchemaDemandInput {
   The demands for the action args and returns. This is used to identify the demand in the system.
   """
   matches: [PortMatchInput!] = null
-}
-
-"""A way to filter by scope"""
-input ScopeFilter {
-  public: Boolean = null
-  org: Boolean = null
-  shared: Boolean = null
-  me: Boolean = null
 }
 
 type SearchAssignWidget implements AssignWidget {
@@ -4303,14 +4063,6 @@ type StateValue {
   backwardPatches: [Patch!]!
 }
 
-"""
-The input for stepping an assignation. Stepping is used to go from one breakpoint to another.
-"""
-input StepInput {
-  """The assignation ID to step"""
-  assignation: ID!
-}
-
 input StrFilterLookup {
   exact: String
   iExact: String
@@ -4401,11 +4153,11 @@ type Subscription {
   """Subscribe to notifications when new actions are created."""
   newActions(cage: ID!): Action!
 
-  """Subscribe to updates on assignations."""
-  assignations: AssignationChangeEvent!
+  """Subscribe to updates on tasks."""
+  tasks: TaskChangeEvent!
 
-  """Subscribe to events related to assignations."""
-  assignationEvents: AssignationEvent!
+  """Subscribe to events related to tasks."""
+  taskEvents: TaskEvent!
 
   """Subscribe to updates on agent connections and statuses."""
   agents: AgentChangeEvent!
@@ -4428,8 +4180,92 @@ type Subscription {
   """Watch an agent: yields snapshots for all states then streams patches."""
   watchAgent(agentId: ID!): AgentSnapshotEventStatePatchEvent!
 
-  """Subscribe to child assignation events."""
-  childAssignations(id: ID!): ChildAssignationEvent!
+  """Subscribe to child task events."""
+  childTasks(id: ID!): ChildTaskEvent!
+}
+
+"""Tracks the assignment of an implementation to a specific task."""
+type Task {
+  """Unique ID of the task."""
+  id: ID!
+
+  """Optional external reference for tracking."""
+  reference: String
+
+  """Indicates if the task is completed."""
+  isDone: Boolean!
+
+  """Arguments used in the task."""
+  args: AnyDefault!
+
+  """The used dependencies for this assignemnet"""
+  dependencies: AnyDefault!
+
+  """Resolution used to resolve dependencies for this task."""
+  resolution: Resolution
+
+  """Root task in the creation chain."""
+  root: Task
+
+  """Parent task that triggered this one."""
+  parent: Task
+
+  """Action assigned."""
+  action: Action!
+
+  """Indicates if the task is being captured for logging or debugging."""
+  capture: Boolean!
+
+  """Implementation assigned to execute."""
+  implementation: Implementation!
+
+  """Type of the latest event."""
+  latestEventKind: TaskEventKind!
+
+  """Last instruction type."""
+  latestInstructKind: TaskInstructKind!
+
+  """Caller that created this task."""
+  caller: Caller
+
+  """Creation timestamp."""
+  createdAt: DateTime!
+
+  """Last update timestamp."""
+  updatedAt: DateTime!
+
+  """Timestamp when the task was finished."""
+  finishedAt: DateTime
+
+  """List of resources or entities this task acted upon."""
+  actedOn: [String!]!
+
+  """Indicates if the task should be deleted after completion."""
+  ephemeral: Boolean!
+
+  """Child tasks spawned from this one."""
+  children(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
+
+  """Agent responsible for this task."""
+  agent: Agent
+
+  """The events"""
+  events(filters: TaskEventFilter, ordering: [TaskEventOrder!]! = [], pagination: OffsetPaginationInput): [TaskEvent!]!
+
+  """The dependency thats linked to the parents execution if applicable."""
+  dependency: String
+
+  """The method of the dependency that caused this task, if applicable."""
+  dependencyMethod: String
+
+  """Get a specific dependency by key."""
+  resolvedDependencies: [ResolvedAgentDependency!]!
+
+  """List of recent instructions for this task."""
+  instructs: [TaskInstruct!]!
+
+  """Get a specific argument by key."""
+  arg(key: String!): Args
 }
 
 type TaskBoundary {
@@ -4438,6 +4274,173 @@ type TaskBoundary {
   endGlobalRevision: Int
   startTime: DateTime
   endTime: DateTime
+}
+
+type TaskChangeEvent {
+  event: TaskEvent
+  create: Task
+}
+
+"""An event that occurred during a task."""
+type TaskEvent {
+  """Unique ID of the event."""
+  id: ID!
+
+  """Name of the event."""
+  name: String!
+
+  """Optional return values."""
+  returns: AnyDefault
+
+  """Associated task."""
+  task: Task!
+
+  """Kind of task event."""
+  kind: TaskEventKind!
+
+  """Optional message associated with the event."""
+  message: String
+
+  """Progress percentage."""
+  progress: Int
+
+  """Time when event was created."""
+  createdAt: DateTime!
+
+  """If this event was delegated, the task it was delegated to."""
+  delegatedTo: Task
+
+  """Default log level."""
+  level: LogLevel!
+
+  """Reference string for the event."""
+  reference: String!
+}
+
+"""A way to filter task events"""
+input TaskEventFilter {
+  AND: TaskEventFilter
+  OR: TaskEventFilter
+  NOT: TaskEventFilter
+  DISTINCT: Boolean
+  kind: [TaskEventKind!]
+}
+
+"""The event kind of the taskevent"""
+enum TaskEventKind {
+  BOUND
+  QUEUED
+  STARTED
+  PROGRESS
+  DELEGATE
+  DISCONNECTED
+  YIELD
+  COMPLETED
+  LOG
+  CANCELLING
+  CANCELLED
+  INTERRUPTING
+  INTERRUPTED
+  PAUSING
+  PAUSED
+  RESUMING
+  RESUMED
+  FAILED
+  CRITICAL
+}
+
+input TaskEventOrder @oneOf {
+  createdAt: Ordering
+}
+
+"""Numeric/aggregatable fields of Task"""
+enum TaskField {
+  CREATED_AT
+}
+
+input TaskFilter {
+  AND: TaskFilter
+  OR: TaskFilter
+  NOT: TaskFilter
+  DISTINCT: Boolean
+  ids: [ID!]
+  status: [TaskStatus!]
+  clientId: ID
+  state: [TaskEventKind!]
+  implementation: ID
+  actedOn: [String!]
+  createdBefore: DateTime
+  createdAfter: DateTime
+  agent: ID
+}
+
+"""An instruct event for a specific task."""
+type TaskInstruct {
+  """Unique ID of the instruct event."""
+  id: ID!
+
+  """Task the instruction relates to."""
+  task: Task!
+
+  """Type of instruction."""
+  kind: TaskInstructKind!
+
+  """Time when instruction was issued."""
+  createdAt: DateTime!
+}
+
+"""The event kind of the taskevent"""
+enum TaskInstructKind {
+  ASSIGN
+  CANCEL
+  RESUME
+  PAUSE
+  INTERRUPT
+  COLLECT
+}
+
+input TaskOrder @oneOf {
+  createdAt: Ordering
+  startedAt: Ordering
+  finishedAt: Ordering
+  status: Ordering
+}
+
+type TaskStats {
+  """Total number of items in the selection"""
+  count: Int!
+
+  """Number of distinct values for the field"""
+  distinctCount(field: TaskField!): Int!
+
+  """Maximum"""
+  max(field: TaskField!): Float
+
+  """Minimum"""
+  min(field: TaskField!): Float
+
+  """Average"""
+  avg(field: TaskField!): Float
+
+  """Sum"""
+  sum(field: TaskField!): Float
+
+  """Time-bucketed stats over a datetime field."""
+  series(field: TaskField!, timestampField: TaskTimestampField!, by: Granularity!): [TimeBucket!]!
+}
+
+"""The event kind of the taskevent"""
+enum TaskStatus {
+  ASSIGNING
+  ONGOING
+  CRITICAL
+  CANCELLED
+  DONE
+}
+
+"""Datetime fields of Task for bucketing"""
+enum TaskTimestampField {
+  CREATED_AT
 }
 
 """Defines a test case comparing expected behavior for actions."""

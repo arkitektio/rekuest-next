@@ -64,7 +64,7 @@ class StateSegmentsResponse(BaseModel):
 class TaskView(BaseModel):
     """Current view of a managed task."""
 
-    assignation: str
+    task: str
     action_key: str
     interface: str | None
     user: str | None

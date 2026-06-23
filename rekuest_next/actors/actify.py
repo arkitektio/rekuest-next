@@ -53,16 +53,16 @@ def derive_implementation_details(
     dependency_variables = prepare_dependency_variables(function)
 
     locks = config.locks
-    if not locks and config.auto_locks:
-        locks = []
+    if locks is None and config.auto_locks:
+        newlocks: list[str] = []
         for lock in context_variables.required_context_locks.values():
-            locks.extend(lock)
+            newlocks.extend(lock)
         for lock in state_variables.required_state_locks.values():
-            locks.extend(lock)
-        locks = list(set(locks))
+            newlocks.extend(lock)
+        locks = list(set(newlocks))
 
     manipulates = config.manipulates
-    if not manipulates:
+    if manipulates is None:
         manipulates = list(set(state_variables.write_state_variables.values()))
 
     return ImplementationDetails(

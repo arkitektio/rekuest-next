@@ -4,7 +4,7 @@ from types import TracebackType
 from typing import AsyncGenerator, Protocol, runtime_checkable
 from rekuest_next.api.schema import (
     AssignInput,
-    AssignationEvent,
+    TaskEvent,
 )
 
 
@@ -18,7 +18,7 @@ class Postman(Protocol):
 
     connected: bool
 
-    def aassign(self, assign: AssignInput) -> AsyncGenerator[AssignationEvent, None]:
+    def aassign(self, assign: AssignInput) -> AsyncGenerator[TaskEvent, None]:
         """Assign"""
         ...
 
