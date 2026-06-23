@@ -9,6 +9,7 @@ from rekuest_next.actors.vars import (
     current_task_helper,
 )
 from rekuest_next.actors.types import Actor, AssignmentHook
+from rekuest_next.postmans.vars import current_postman
 
 
 class AssignmentHelper(BaseModel):
@@ -21,6 +22,7 @@ class AssignmentHelper(BaseModel):
     actor: Actor
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
+    _postman_token = None
 
     async def alog(
         self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
@@ -32,7 +34,7 @@ class AssignmentHelper(BaseModel):
             message (str): The log message.
         """
         await self.actor.asend(
-            message=messages.LogEvent(
+            message=messages.Log(
                 task=self.assignment.task,
                 level=level.value if isinstance(level, LogLevel) else level,
                 message=message,
@@ -58,7 +60,7 @@ class AssignmentHelper(BaseModel):
             raise ValueError("Progress must be between 0 and 100")
 
         await self.actor.asend(
-            message=messages.ProgressEvent(
+            message=messages.Progress(
                 task=self.assignment.task,
                 progress=progress,
                 message=message,
@@ -142,6 +144,10 @@ class AssignmentHelper(BaseModel):
         """
 
         self._token = current_task_helper.set(self)
+        # Route actor-internal acall/acall_dependency over the agent socket (instead of the
+        # GraphQL postman) for the duration of this task body. Standalone callers outside an
+        # actor never enter here, so they keep the app's GraphQL postman.
+        self._postman_token = current_postman.set(self.actor.agent.caller_postman)
         return self
 
     def __exit__(
@@ -157,6 +163,8 @@ class AssignmentHelper(BaseModel):
             exc_val (Optional[Exception]): The exception value
             exc_tb (Optional[type]): The traceback
         """
+        if self._postman_token:
+            current_postman.reset(self._postman_token)
         if self._token:
             current_task_helper.reset(self._token)
 

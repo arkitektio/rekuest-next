@@ -14,7 +14,18 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, AsyncIterator, Dict, List, Optional, Self, Sequence, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Dict,
+    List,
+    Optional,
+    Self,
+    Sequence,
+    Type,
+    TypeVar,
+)
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -47,6 +58,9 @@ from rekuest_next.structures.serialization.actor import ashrink_return
 from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from rekuest_next.agents.caller import AgentPostman
 
 
 class AppContext:
@@ -147,6 +161,9 @@ class BaseAgent(KoiledModel):
         default_factory=lambda: {}  # type: ignore[return-value]
     )
     _app_context: Optional[AppContext] = PrivateAttr(default=None)
+    _caller_postman: Optional["AgentPostman"] = PrivateAttr(default=None)
+    """The agent-as-caller postman, lazily built. Bound as ``current_postman`` while an
+    actor body runs so actor-internal ``acall``/``acall_dependency`` route over this socket."""
 
     _connected_event: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
     """Set when the server acknowledges the agent (an ``Init`` message is received)."""
@@ -198,6 +215,20 @@ class BaseAgent(KoiledModel):
 
     def model_post_init(self, __context: Any) -> None:
         pass
+
+    @property
+    def caller_postman(self) -> "AgentPostman":
+        """The agent-as-caller postman (lazily built).
+
+        Bound as ``current_postman`` while an actor body runs so that actor-internal
+        ``acall``/``acall_dependency`` originate work over this agent's socket instead of
+        through the GraphQL postman.
+        """
+        if self._caller_postman is None:
+            from rekuest_next.agents.caller import AgentPostman
+
+            self._caller_postman = AgentPostman(self)
+        return self._caller_postman
 
     async def alock(self, key: str, task: str) -> None:
         """Signal that a task has acquired a lock."""
@@ -267,7 +298,7 @@ class BaseAgent(KoiledModel):
         self.global_revision = future_global_rev
         if self.global_revision % self.snapshot_interval == 0:
             await self.apublish_snapshot(
-                messages.StateSnapshotEvent(
+                messages.StateSnapshot(
                     session_id=self.current_session,
                     global_rev=self.global_revision,
                     snapshots={
@@ -278,7 +309,7 @@ class BaseAgent(KoiledModel):
             )
 
         await self.apublish_patch(
-            messages.StatePatchEvent(
+            messages.StatePatch(
                 global_rev=self.global_revision,
                 state_name=interface,
                 ts=queued_patch.event_time.timestamp(),
@@ -286,7 +317,7 @@ class BaseAgent(KoiledModel):
                 path=patch.path,
                 value=shrunk_value,
                 old_value=None,
-                correlation_id=patch.correlation_id,
+                task_id=patch.correlation_id,
                 session_id=self.current_session,
             ),
         )
@@ -444,13 +475,13 @@ class BaseAgent(KoiledModel):
             for inquiry in message.inquiries:
                 if inquiry.task in self.managed_assignments:
                     assignment = self.managed_assignments[inquiry.task]
-                    actor = self.managed_actors[assignment.actor_id]
+                    actor = self.managed_actors[assignment.interface]
 
                     # Checking status
                     status = await actor.acheck_task(assignment.task)
                     if status:
                         await self.transport.asend(
-                            messages.ProgressEvent(
+                            messages.Progress(
                                 task=inquiry.task,
                                 message="Actor is still running",
                                 progress=0,
@@ -458,23 +489,23 @@ class BaseAgent(KoiledModel):
                         )
                     else:
                         await self.transport.asend(
-                            messages.CriticalEvent(
+                            messages.Critical(
                                 task=inquiry.task,
                                 error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                             )
                         )
                 else:
                     await self.transport.asend(
-                        messages.CriticalEvent(
+                        messages.Critical(
                             task=inquiry.task,
                             error="After disconnect actor was no longer managed (probably the app was restarted)",
                         )
                     )
 
         elif isinstance(message, messages.Assign):
-            if message.actor_id in self.managed_actors:
+            if message.interface in self.managed_actors:
                 # The actor is already spawned
-                actor = self.managed_actors[message.actor_id]
+                actor = self.managed_actors[message.interface]
                 self.managed_assignments[message.task] = message
                 await actor.apass(message)
             else:
@@ -484,7 +515,7 @@ class BaseAgent(KoiledModel):
 
                 except Exception as e:
                     await self.transport.asend(
-                        messages.CriticalEvent(
+                        messages.Critical(
                             task=message.task,
                             error=f"Not able to create actor through extensions {str(e)}",
                         )
@@ -495,14 +526,13 @@ class BaseAgent(KoiledModel):
             message,
             (
                 messages.Cancel,
-                messages.Step,
                 messages.Pause,
                 messages.Resume,
             ),
         ):
             if message.task in self.managed_assignments:
                 assignment = self.managed_assignments[message.task]
-                actor = self.managed_actors[assignment.actor_id]
+                actor = self.managed_actors[assignment.interface]
                 await actor.apass(message)
             else:
                 logger.warning(
@@ -510,7 +540,7 @@ class BaseAgent(KoiledModel):
                     f"Received: {message.task}"
                 )
                 await self.transport.asend(
-                    messages.CriticalEvent(
+                    messages.Critical(
                         task=message.task,
                         error="Actors is no longer running and not managed. Probablry there was a restart",
                     )
@@ -522,6 +552,17 @@ class BaseAgent(KoiledModel):
                 f"the agent sent a message the backend could not process: {message.error}"
             )
 
+        elif isinstance(message, messages.AssignResponse):
+            self.caller_postman.handle_assign_response(message)
+
+        elif isinstance(message, messages.ControlResponse):
+            self.caller_postman.handle_control_response(message)
+
+        elif isinstance(message, messages.ExecutionEvent):
+            # Base of every backend→caller `…Event` mirror. Routed to the caller postman
+            # so an actor-internal acall/acall_dependency can observe the work it delegated.
+            self.caller_postman.handle_execution_event(message)
+
         elif isinstance(message, messages.Collect):
             for key in message.drawers:
                 await self.acollect(key)
@@ -529,27 +570,27 @@ class BaseAgent(KoiledModel):
         elif isinstance(message, messages.AssignInquiry):
             if message.task in self.managed_assignments:
                 assignment = self.managed_assignments[message.task]
-                actor = self.managed_actors[assignment.actor_id]
+                actor = self.managed_actors[assignment.interface]
 
                 # Checking status
                 status = await actor.acheck_task(assignment.task)
                 if status:
                     await self.transport.asend(
-                        messages.ProgressEvent(
+                        messages.Progress(
                             task=message.task,
                             message="Actor is still running",
                         )
                     )
                 else:
                     await self.transport.asend(
-                        messages.CriticalEvent(
+                        messages.Critical(
                             task=message.task,
                             error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                         )
                     )
             else:
                 await self.transport.asend(
-                    messages.CriticalEvent(
+                    messages.Critical(
                         task=message.task,
                         error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
@@ -692,7 +733,7 @@ class BaseAgent(KoiledModel):
 
         # TODO: Implement state initialization through dataclass
 
-        snapshot_event = messages.StateSnapshotEvent(
+        snapshot_event = messages.StateSnapshot(
             session_id=self.current_session,
             global_rev=self.global_revision,
             snapshots={
@@ -703,11 +744,11 @@ class BaseAgent(KoiledModel):
         logger.debug("Publishing initial snapshot event: %s ", snapshot_event)
         await self.apublish_snapshot(snapshot_event)
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
         raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         """Publish a snapshot to the agent.  Will forward the snapshot to the transport"""
         raise NotImplementedError("apublish_snapshot not implemented in BaseAgent")
 
@@ -845,7 +886,7 @@ class BaseAgent(KoiledModel):
 
         actor = actor_builder(agent=self)
 
-        self.managed_actors[assign.actor_id] = actor
+        self.managed_actors[assign.interface] = actor
         self.managed_assignments[assign.task] = assign
 
         return actor
@@ -1089,12 +1130,12 @@ class RekuestAgent(BaseAgent):
         del self.shelve[key]
         await aunshelve(id=key, rath=self.rath)
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         await self.transport.asend(snapshot)
         logger.debug("Published snapshot %s", snapshot)
         return None
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         await self.transport.asend(patch)
         logger.debug("Published patch %s", patch)
         return None

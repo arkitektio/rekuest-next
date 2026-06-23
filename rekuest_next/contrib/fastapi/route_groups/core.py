@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Request, WebSocket
 
-from rekuest_next.messages import Cancel, Pause, Resume, Step
+from rekuest_next.messages import Cancel, Pause, Resume
 from rekuest_next.api.schema import (
     CancelInput,
     PauseInput,
@@ -90,7 +90,7 @@ def build_core_router(
         """Request a single step for a stepping-capable task."""
         payload = await request.json()
         task = payload["task"]
-        await agent.transport.asubmit(Step(task=task))
+        await agent.transport.asubmit(Resume(task=task, step=True))
         return {"status": "stepping", "task": task}
 
     router.add_api_websocket_route(ws_path, websocket_endpoint)

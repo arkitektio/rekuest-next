@@ -20,11 +20,11 @@ class StateSink(Protocol):
         ...
 
     # --- WRITE METHODS ---
-    async def adump_snapshot(self, snapshot: messages.StateSnapshotEvent):
+    async def adump_snapshot(self, snapshot: messages.StateSnapshot):
         """Store a full snapshot of all states at a given revision."""
         ...
 
-    async def awrite_patch(self, patch: messages.StatePatchEvent):
+    async def awrite_patch(self, patch: messages.StatePatch):
         """Write a single patch event to the store."""
         ...
 

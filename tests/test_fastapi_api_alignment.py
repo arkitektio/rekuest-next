@@ -54,7 +54,8 @@ def test_fastapi_agent_build_assign_message_uses_normalized_assign_input() -> No
 
     assert assign_message.interface == "echo"
     assert assign_message.user == "alice"
-    assert assign_message.app == "fastapi"
+    assert assign_message.org == "fastapi"
+    assert assign_message.implementation == "fastapi"
     assert assign_message.action == "api_call"
     assert assign_message.reference == "ref-1"
     assert assign_message.capture is True
@@ -157,5 +158,6 @@ def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> 
     assert len(captured) == 1
     assert captured[0].interface == "echo"
     assert captured[0].user == "fastapi"
-    assert captured[0].app == "fastapi"
+    assert captured[0].org == "fastapi"
+    assert captured[0].implementation == "fastapi"
     assert captured[0].action == "api_call"

@@ -52,7 +52,7 @@ class FunctionalActor(SerializingActor):
         )
 
         await self.asend(
-            message=messages.ProgressEvent(
+            message=messages.Progress(
                 task=assignment.task,
                 progress=0,
                 message="Queued for running",
@@ -73,7 +73,7 @@ class FunctionalActor(SerializingActor):
                     f"Input serialization error in {impl_id}", exc_info=True
                 )
                 await self.asend(
-                    message=messages.ErrorEvent(
+                    message=messages.Failed(
                         task=assignment.task,
                         error=str(ex),
                     )
@@ -94,7 +94,7 @@ class FunctionalActor(SerializingActor):
             async def aflush_captured_logs() -> None:
                 if logs and assignment.capture:
                     await self.asend(
-                        message=messages.LogEvent(
+                        message=messages.Log(
                             task=assignment.task,
                             message="".join(logs),
                             level="INFO",
@@ -119,7 +119,7 @@ class FunctionalActor(SerializingActor):
                                     exc_info=True,
                                 )
                                 await self.asend(
-                                    message=messages.ErrorEvent(
+                                    message=messages.Failed(
                                         task=assignment.task,
                                         error=str(ex),
                                     )
@@ -127,7 +127,7 @@ class FunctionalActor(SerializingActor):
                                 return
 
                             await self.asend(
-                                message=messages.YieldEvent(
+                                message=messages.Yield(
                                     task=assignment.task,
                                     returns=returns,
                                 )
@@ -136,7 +136,7 @@ class FunctionalActor(SerializingActor):
                 await aflush_captured_logs()
 
                 await self.asend(
-                    message=messages.DoneEvent(
+                    message=messages.Completed(
                         task=assignment.task,
                     )
                 )
@@ -146,7 +146,7 @@ class FunctionalActor(SerializingActor):
 
                 logger.critical(f"Task error in {impl_id}", exc_info=True)
                 await self.asend(
-                    message=messages.CriticalEvent(
+                    message=messages.Critical(
                         task=assignment.task,
                         error=str(ex),
                     )

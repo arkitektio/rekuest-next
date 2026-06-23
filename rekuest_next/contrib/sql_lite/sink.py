@@ -60,7 +60,7 @@ class SQLLiteSink:
         return new_session
 
     # --- WRITE METHODS ---
-    async def adump_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def adump_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         """Store a full snapshot of all states at a given revision."""
         target_session = snapshot.session_id or self.current_session_id
         epoch_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
@@ -84,7 +84,7 @@ class SQLLiteSink:
                     )
                 await db.commit()
 
-    async def awrite_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def awrite_patch(self, patch: messages.StatePatch) -> None:
         """Write a single patch event to the store."""
         global_current_rev = patch.global_rev - 1
         global_future_rev = patch.global_rev
@@ -111,7 +111,7 @@ class SQLLiteSink:
                             global_current_rev,
                             global_future_rev,
                             epoch_ms,
-                            patch.correlation_id,
+                            patch.task_id,
                             target_session,
                             patch.op,
                             patch.path,

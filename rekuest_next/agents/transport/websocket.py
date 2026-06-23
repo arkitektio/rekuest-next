@@ -97,6 +97,10 @@ class WebsocketAgentTransport(AgentTransport):
     auto_connect: bool = True
     force: bool = False
     """If another connection is already registered for this agent, kick it and take over."""
+    mode: messages.AgentMode = messages.AgentMode.EXECUTOR
+    """How this participant intends to use the protocol. ``EXECUTOR`` is enough for
+    actor-internal (dependent) calls; set ``ORCHESTRATOR`` to also originate root tasks from
+    the agent. The mode is only granted if the token carries the matching capability scopes."""
 
     _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
     _healthy: ContextBool = False
@@ -167,6 +171,7 @@ class WebsocketAgentTransport(AgentTransport):
                             messages.Register(
                                 token=token,
                                 force=self.force,
+                                mode=self.mode,
                             ).model_dump_json()
                         )
 

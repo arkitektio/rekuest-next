@@ -143,7 +143,12 @@ class Actor(BaseModel):
 
         if resume.task in self._break_futures:
             self._break_futures[resume.task].set_result(True)
-            del self._break_futures[resume.task]
+            if resume.step:
+                # Step: resume only until the next breakpoint by re-arming the
+                # break future (the equivalent of the former standalone Step).
+                self._break_futures[resume.task] = asyncio.Future()
+            else:
+                del self._break_futures[resume.task]
         else:
             logger.warning(
                 f"Actor {self.id} was resumed but no break future was found for {resume.task}"
@@ -185,17 +190,6 @@ class Actor(BaseModel):
             return
 
         self._break_futures[pause.task] = asyncio.Future()
-
-    async def on_step(self: Self, step: messages.Step) -> None:
-        """A function that is called once the actor is asked to do a step,
-        normally this should handle a resume following an immediate resume.
-
-        Args:
-            step (Step): The step message containing the information about the
-                actor that was stepped.
-        """
-        self._break_futures[step.task].set_result(True)
-        self._break_futures[step.task] = asyncio.Future()
 
     async def on_assign(
         self: Self,
@@ -245,7 +239,7 @@ class Actor(BaseModel):
                 )
                 await self.agent.asend(
                     self,
-                    message=messages.CriticalEvent(
+                    message=messages.Critical(
                         task=key,
                         error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
                     ),
@@ -259,14 +253,14 @@ class Actor(BaseModel):
             logger.debug(f"Breaking on task_id {task_id}")
             await self.agent.asend(
                 self,
-                message=messages.PausedEvent(
+                message=messages.Paused(
                     task=task_id,
                 ),
             )
             await self._break_futures[task_id]
             await self.agent.asend(
                 self,
-                message=messages.ResumedEvent(
+                message=messages.Resumed(
                     task=task_id,
                 ),
             )
@@ -351,7 +345,7 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.task]
                         await self.agent.asend(
                             actor=self,
-                            message=messages.CancelledEvent(
+                            message=messages.Cancelled(
                                 task=message.task
                             ),
                         )
@@ -362,7 +356,7 @@ class Actor(BaseModel):
                     )
                     await self.agent.asend(
                         self,
-                        message=messages.CancelledEvent(
+                        message=messages.Cancelled(
                             task=message.task
                         ),
                     )
@@ -374,9 +368,6 @@ class Actor(BaseModel):
 
         elif isinstance(message, messages.Pause):
             await self.on_pause(message)
-
-        elif isinstance(message, messages.Step):
-            await self.on_step(message)
 
         elif isinstance(message, messages.Resume):
             await self.on_resume(message)

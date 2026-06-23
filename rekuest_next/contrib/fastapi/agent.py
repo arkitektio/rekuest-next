@@ -48,12 +48,12 @@ logger = logging.getLogger(__name__)
 
 def _is_state_message(message: messages.FromAgentMessage) -> bool:
     """Return whether a message belongs to the state update stream."""
-    return isinstance(message, messages.StatePatchEvent)
+    return isinstance(message, messages.StatePatch)
 
 
 def _is_lock_message(message: messages.FromAgentMessage) -> bool:
     """Return whether a message belongs to the lock update stream."""
-    return isinstance(message, (messages.LockEvent, messages.UnlockEvent))
+    return isinstance(message, (messages.Lock, messages.Unlock))
 
 
 def _task_routing_key(message: messages.FromAgentMessage) -> str | None:
@@ -65,14 +65,14 @@ def _task_routing_key(message: messages.FromAgentMessage) -> str | None:
 
 def _state_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve the state name used for state websocket subscriptions."""
-    if not isinstance(message, messages.StatePatchEvent):
+    if not isinstance(message, messages.StatePatch):
         return None
     return message.state_name
 
 
 def _lock_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve the lock key used for lock websocket subscriptions."""
-    if not isinstance(message, (messages.LockEvent, messages.UnlockEvent)):
+    if not isinstance(message, (messages.Lock, messages.Unlock)):
         return None
     return message.key
 
@@ -119,7 +119,7 @@ class _BufferedState:
     """Buffered state patch events for one connection and state."""
 
     state_name: str
-    patches: list[messages.StatePatchEvent] = dataclass_field(default_factory=list)
+    patches: list[messages.StatePatch] = dataclass_field(default_factory=list)
 
 
 @dataclass
@@ -214,7 +214,7 @@ class FastAPIConnectionManager:
 
     async def _buffer_or_broadcast_state_message(
         self,
-        message: messages.StatePatchEvent,
+        message: messages.StatePatch,
     ) -> None:
         """Batch or immediately forward a state patch event per connection."""
         state_name = message.state_name
@@ -268,7 +268,7 @@ class FastAPIConnectionManager:
         except asyncio.CancelledError:
             return
 
-        squashed_patches: list[messages.StatePatchEvent] = []
+        squashed_patches: list[messages.StatePatch] = []
         async with self._lock:
             connection_state = self._connections.get(websocket)
             if connection_state is None:
@@ -291,10 +291,10 @@ class FastAPIConnectionManager:
 
     def _squash_state_patches(
         self,
-        patches: list[messages.StatePatchEvent],
-    ) -> list[messages.StatePatchEvent]:
+        patches: list[messages.StatePatch],
+    ) -> list[messages.StatePatch]:
         """Squash repeated operations on the same JSON path within one batch."""
-        latest_by_path: dict[str, tuple[int, messages.StatePatchEvent]] = {}
+        latest_by_path: dict[str, tuple[int, messages.StatePatch]] = {}
         for index, patch in enumerate(patches):
             latest_by_path[patch.path] = (index, patch)
         return [
@@ -583,9 +583,16 @@ class FastApiAgent(BaseAgent):
         user: str,
         action: str = "api_call",
         app: str = "fastapi",
+        org: str = "fastapi",
+        implementation: str | None = None,
         task: str | None = None,
     ) -> messages.Assign:
-        """Build an Assign message from a normalized FastAPI request payload."""
+        """Build an Assign message from a normalized FastAPI request payload.
+
+        The in-process FastAPI agent has no real org/implementation routing, so it stamps
+        placeholder values (the ``org``/``implementation`` args) onto the Assign — the
+        message model requires both.
+        """
         if assign_input.interface is None:
             raise ValueError("FastAPI assign requests require an interface")
 
@@ -597,8 +604,9 @@ class FastApiAgent(BaseAgent):
             args=assign_input.args,
             capture=assign_input.capture,
             user=user,
-            app=app,
+            org=org,
             action=action,
+            implementation=implementation or assign_input.implementation or app,
             step=assign_input.step,
         )
 
@@ -668,7 +676,7 @@ class FastApiAgent(BaseAgent):
                 action_key=action_key,
                 interface=assign_message.interface,
                 user=assign_message.user,
-                app=assign_message.app,
+                app=assign_message.org,
                 action=assign_message.action,
                 running=task_id in self.running_assignments,
                 actor_id=self.running_assignments.get(task_id),
@@ -776,7 +784,7 @@ class FastApiAgent(BaseAgent):
 
     async def alock(self, key: str, task: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.LockEvent(
+        message = messages.Lock(
             key=key,
             task=task,
         )
@@ -784,17 +792,17 @@ class FastApiAgent(BaseAgent):
 
     async def aunlock(self, key: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.UnlockEvent(
+        message = messages.Unlock(
             key=key,
         )
         await self.transport.asend(message)
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         """Publish a state patch event: broadcast to websocket clients and persist to sink."""
         await self.transport.asend(patch)
         await self.sink.awrite_patch(patch)
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         await self.transport.asend(snapshot)
         return await self.sink.adump_snapshot(snapshot)
 
@@ -851,7 +859,7 @@ class FastApiAgent(BaseAgent):
         await super().astart(app_context=app_context)
         # Dump initial snapshots after states are initialized
         if self._current_shrunk_states:
-            snapshot = messages.StateSnapshotEvent(
+            snapshot = messages.StateSnapshot(
                 session_id=self.current_session,
                 global_rev=self.global_revision,
                 snapshots={
