@@ -13,6 +13,7 @@ from typing import (
 from rekuest_next import messages
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.coercible_types import OptimisticCoercible
+from rekuest_next.postmans.types import Postman
 from rekuest_next.protocols import AnyFunction, AnyState
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.publish import Patch
@@ -140,6 +141,7 @@ class Agent(Protocol):
     app_registry: "AppRegistry"
     capture_condition: asyncio.Condition
     capture_active: bool
+    caller_postman: Postman
 
     async def alock(self, key: str, task: str) -> None:
         """A function to acquire a lock on the agent. This is used to acquire
@@ -198,9 +200,7 @@ class Agent(Protocol):
         """
         ...
 
-    async def aconnect(
-        self, context: Any = None, timeout: float | None = None
-    ) -> None:
+    async def aconnect(self, context: Any = None, timeout: float | None = None) -> None:
         """Start the agent and connect to the transport, returning once the
         server has acknowledged the agent (or raising on timeout)."""
         ...
@@ -223,9 +223,7 @@ class Actor(Protocol):
 
     agent: Agent
 
-    def install_assignment_hook(
-        self, task_id: str, hook: AssignmentHook
-    ) -> None:
+    def install_assignment_hook(self, task_id: str, hook: AssignmentHook) -> None:
         """Install an assignment hook for the current task.
 
         Args:

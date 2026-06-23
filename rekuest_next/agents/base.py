@@ -229,9 +229,6 @@ class BaseAgent(KoiledModel):
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def model_post_init(self, __context: Any) -> None:
-        pass
-
     @property
     def caller_postman(self) -> "AgentPostman":
         """The agent-as-caller postman (lazily built).
@@ -288,9 +285,7 @@ class BaseAgent(KoiledModel):
         if self._event_queue is None:
             raise AgentException("Patch queue is not initialized")
         self._event_queue.sync_q.put(
-            QueuedPatchEvent(
-                interface=interface, patch=patch, task_id=task_id
-            )
+            QueuedPatchEvent(interface=interface, patch=patch, task_id=task_id)
         )
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
@@ -482,6 +477,8 @@ class BaseAgent(KoiledModel):
         then send the message to the actors.
         """
         logger.info(f"Agent received {message}")
+
+        # TODO: Should be a match statement, as we have dropepd support for python 3.9,
 
         if isinstance(message, messages.Init):
             # The Init message is the server's acknowledgement of our Register.
@@ -897,9 +894,11 @@ class BaseAgent(KoiledModel):
         self._event_queue = janus.Queue()
         self._patch_processor_task = asyncio.create_task(self.apatch_event_loop())
         self._patch_processor_task.add_done_callback(
-            lambda x: logger.error(f"Patch processor task failed: {x.exception()}")
-            if not x.cancelled() and x.exception() is not None
-            else None
+            lambda x: (
+                logger.error(f"Patch processor task failed: {x.exception()}")
+                if not x.cancelled() and x.exception() is not None
+                else None
+            )
         )
 
         for context_key, context_value in hook_return.contexts.items():

@@ -37,7 +37,7 @@ async def capture_to_list(
     None
     """
 
-    should_capture: bool = assignment.capture
+    should_capture: bool = False if assignment.capture is None else assignment.capture
 
     if should_capture:
         # ================================

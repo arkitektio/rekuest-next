@@ -19,6 +19,11 @@ def prepare_dependency_variables(
 ) -> PreparedDependencyVariables:
     """Prepares the context variables for a function.
 
+    Detects the dependency variables from the function's signature and returns them as a dictionary.
+
+    It also checks the return type of the function to ensure that dependency variables are not returned as tuples or single values, raising a NotImplementedError if they are.
+
+
     Args:
         function (Callable): The function to prepare the context variables for.
 
@@ -39,7 +44,7 @@ def prepare_dependency_variables(
 
     if hasattr(returns, "_name"):
         if is_tuple(returns):
-            for index, cls in enumerate(get_non_null_variants(returns)):
+            for _, cls in enumerate(get_non_null_variants(returns)):
                 if is_dependency_type(cls):
                     raise NotImplementedError(
                         "Dependency variables cannot be returned as tuples."
