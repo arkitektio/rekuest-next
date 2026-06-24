@@ -14,7 +14,7 @@ fixture) and a working executor path.
 """
 
 import asyncio
-from typing import List, Protocol
+from typing import Any, List, Protocol
 
 import pytest
 from dokker import Deployment
@@ -41,9 +41,9 @@ async def test_actor_internal_dependency_call_uses_agent(
     delegated: List[AssignInput] = []
     original_aassign = AgentPostman.aassign
 
-    def spy_aassign(self: AgentPostman, assign: AssignInput):
+    def spy_aassign(self: AgentPostman, assign: AssignInput, *args: Any, **kwargs: Any):
         delegated.append(assign)
-        return original_aassign(self, assign)
+        return original_aassign(self, assign, *args, **kwargs)
 
     monkeypatch.setattr(AgentPostman, "aassign", spy_aassign)
 

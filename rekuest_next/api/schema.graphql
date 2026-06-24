@@ -1133,8 +1133,8 @@ input CancelInput {
 }
 
 type ChildTaskEvent {
-  create: Task
-  update: Task
+  create: TaskChange
+  update: TaskChange
 }
 
 type Choice {
@@ -4153,11 +4153,11 @@ type Subscription {
   """Subscribe to notifications when new actions are created."""
   newActions(cage: ID!): Action!
 
-  """Subscribe to updates on tasks."""
-  tasks: TaskChangeEvent!
+  """Subscribe to root tasks created by this client (caller-scoped)."""
+  mytasks: TaskChangeEvent!
 
-  """Subscribe to events related to tasks."""
-  taskEvents: TaskEvent!
+  """Subscribe to root task changes across the whole organization."""
+  tasks: TaskChangeEvent!
 
   """Subscribe to updates on agent connections and statuses."""
   agents: AgentChangeEvent!
@@ -4180,7 +4180,7 @@ type Subscription {
   """Watch an agent: yields snapshots for all states then streams patches."""
   watchAgent(agentId: ID!): AgentSnapshotEventStatePatchEvent!
 
-  """Subscribe to child task events."""
+  """Subscribe to all descendant task changes of a task."""
   childTasks(id: ID!): ChildTaskEvent!
 }
 
@@ -4276,9 +4276,27 @@ type TaskBoundary {
   endTime: DateTime
 }
 
+"""Slim, non-traversable snapshot of a task for change feeds."""
+type TaskChange {
+  id: ID!
+  reference: String
+  isDone: Boolean!
+  latestEventKind: TaskEventKind!
+  latestInstructKind: TaskInstructKind!
+  statusMessage: String
+  action: ID!
+  implementation: ID
+  agent: ID
+  root: ID
+  parent: ID
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  finishedAt: DateTime
+}
+
 type TaskChangeEvent {
-  event: TaskEvent
-  create: Task
+  event: TaskEventChange
+  create: TaskChange
 }
 
 """An event that occurred during a task."""
@@ -4315,6 +4333,17 @@ type TaskEvent {
 
   """Reference string for the event."""
   reference: String!
+}
+
+"""Slim, non-traversable task event for change feeds."""
+type TaskEventChange {
+  id: ID!
+  task: ID!
+  kind: TaskEventKind!
+  message: String
+  progress: Int
+  returns: AnyDefault
+  createdAt: DateTime!
 }
 
 """A way to filter task events"""

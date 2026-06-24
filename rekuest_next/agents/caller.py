@@ -98,8 +98,11 @@ class AgentPostman:
     request id / task id, so concurrent calls never collide.
     """
 
-    def __init__(self, agent: "BaseAgent") -> None:
+    def __init__(self, agent: "BaseAgent", cancel_timeout: float = 5.0) -> None:
         self.agent = agent
+        # Max seconds to await a CANCELLED/INTERRUPTED confirmation when an assign
+        # stream is cancelled. Bounds cancellation so it can never hang.
+        self.cancel_timeout = cancel_timeout
         # request id -> future resolved with the AssignResponse
         self._pending_responses: Dict[str, "asyncio.Future[messages.AssignResponse]"] = {}
         # control request id -> future resolved with the ControlResponse
@@ -143,13 +146,18 @@ class AgentPostman:
         )
 
     async def aassign(
-        self, assign: AssignInput
+        self,
+        assign: AssignInput,
+        escalate_to_interrupt: bool = False,
+        cancel_timeout: Optional[float] = None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
         """Originate a task over the agent socket and stream its events.
 
         Sends an ``AssignRequest``, awaits the ``AssignResponse`` (to learn the durable task
         id), then yields a ``CallerTaskEvent`` for every surfaced mirror until a terminal one
-        arrives. On cancellation a ``CancelRequest`` is sent best-effort.
+        arrives. On cancellation a ``CancelRequest`` is sent and the ``CancelledEvent``
+        confirmation is awaited (bounded by ``cancel_timeout``); if ``escalate_to_interrupt``
+        is set and the cancel is not confirmed in time, an ``InterruptRequest`` follows.
         """
         reference = assign.reference or str(uuid.uuid4())
         request = self._build_request(assign, reference)
@@ -158,6 +166,7 @@ class AgentPostman:
         self._pending_responses[request.id] = response_future
 
         task: Optional[str] = None
+        queue: Optional["asyncio.Queue[messages.ExecutionEvent]"] = None
         try:
             await self.agent.transport.asend(request)
             response = await response_future
@@ -179,10 +188,21 @@ class AgentPostman:
                     yield adapted
                 if isinstance(event, _TERMINAL_TYPES):
                     return
-        except (asyncio.CancelledError, GeneratorExit):
-            # Best-effort: tell the backend to wind the delegated task down. Do NOT await a
-            # CancelledEvent — mirror delivery is best-effort and the loop that would deliver
-            # it may be the very task being torn down.
+        except asyncio.CancelledError:
+            # Tell the backend to wind the delegated task down and await its CANCELLED
+            # confirmation (escalating to an interrupt if requested) before re-raising.
+            # Bounded by the cancel timeout, so it can never hang the caller being torn down.
+            if task is not None and queue is not None:
+                await self._confirm_cancellation(
+                    task,
+                    queue,
+                    escalate_to_interrupt,
+                    cancel_timeout if cancel_timeout is not None else self.cancel_timeout,
+                )
+            raise
+        except GeneratorExit:
+            # Generator finalization (aclose): best-effort send only — awaiting event
+            # delivery while the async generator is being torn down is fragile.
             if task is not None:
                 try:
                     await self.agent.transport.asend(messages.CancelRequest(task=task))
@@ -208,6 +228,78 @@ class AgentPostman:
         for event in self._orphan_by_task.pop(task, []):
             queue.put_nowait(event)
         return queue
+
+    async def _confirm_cancellation(
+        self,
+        task: str,
+        queue: "asyncio.Queue[messages.ExecutionEvent]",
+        escalate_to_interrupt: bool,
+        timeout: float,
+    ) -> None:
+        """Cancel a delegated task and await its CANCELLED (or INTERRUPTED) mirror.
+
+        Sends a ``CancelRequest``, then waits up to ``timeout`` for a
+        ``CancelledEvent`` mirror. If that does not arrive and ``escalate_to_interrupt``
+        is set, sends an ``InterruptRequest`` and waits for the ``InterruptedEvent``.
+        Every wait is bounded, so this never hangs.
+        """
+        await self._send_control(messages.CancelRequest(task=task), task)
+        if await self._await_terminal(queue, (messages.CancelledEvent,), timeout):
+            return
+
+        if not escalate_to_interrupt:
+            logger.warning(
+                "Timed out awaiting CancelledEvent for task %s", task
+            )
+            return
+
+        await self._send_control(messages.InterruptRequest(task=task), task)
+        if not await self._await_terminal(
+            queue, (messages.CancelledEvent, messages.InterruptedEvent), timeout
+        ):
+            logger.warning(
+                "Timed out awaiting InterruptedEvent for task %s", task
+            )
+
+    async def _send_control(
+        self,
+        request: "messages.CancelRequest | messages.InterruptRequest",
+        task: str,
+    ) -> None:
+        """Send a lifecycle-control request over the socket (best-effort)."""
+        try:
+            await self.agent.transport.asend(request)
+        except Exception:
+            logger.warning(
+                "Failed to send %s for task %s",
+                type(request).__name__,
+                task,
+                exc_info=True,
+            )
+
+    async def _await_terminal(
+        self,
+        queue: "asyncio.Queue[messages.ExecutionEvent]",
+        types: tuple[type["messages.ExecutionEvent"], ...],
+        timeout: float,
+    ) -> bool:
+        """Drain ``queue`` until a mirror of one of ``types`` arrives.
+
+        Bounded by ``timeout`` overall. Returns ``True`` if a matching mirror was
+        seen, ``False`` on timeout.
+        """
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return False
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                return False
+            if isinstance(event, types):
+                return True
 
     # ------------------------------------------------------------------- inbound
 

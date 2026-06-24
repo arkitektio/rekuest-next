@@ -27,11 +27,32 @@ fragment TaskEvent on TaskEvent {
   progress
 }
 
+fragment TaskChange on TaskChange {
+  id
+  reference
+  isDone
+  latestEventKind
+  latestInstructKind
+  statusMessage
+  updatedAt
+  createdAt
+}
+
+fragment TaskEventChange on TaskEventChange {
+  id
+  task
+  kind
+  returns
+  message
+  progress
+  createdAt
+}
+
 fragment TaskChangeEvent on TaskChangeEvent {
   create {
-    ...Task
+    ...TaskChange
   }
   event {
-    ...TaskEvent
+    ...TaskEventChange
   }
 }

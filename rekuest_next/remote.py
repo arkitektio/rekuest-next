@@ -182,7 +182,10 @@ def _build_assign_input(
 
 
 async def _astream_raw(
-    postman: Postman, assign_input: AssignInput
+    postman: Postman,
+    assign_input: AssignInput,
+    escalate_to_interrupt: bool = False,
+    cancel_timeout: Optional[float] = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the YIELD payloads of a task, returning on DONE.
 
@@ -190,7 +193,11 @@ async def _astream_raw(
         ErrorCallError: If the backend reports a task error.
         CriticalCallError: If the backend reports a critical task error.
     """
-    async for i in postman.aassign(assign_input):
+    async for i in postman.aassign(
+        assign_input,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
+    ):
         if i.kind == TaskEventKind.YIELD:
             yield i.returns
 
@@ -215,6 +222,8 @@ async def aiterate_raw(
     capture: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
+    escalate_to_interrupt: bool = False,
+    cancel_timeout: Optional[float] = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the raw YIELD payloads of a remote call.
 
@@ -235,7 +244,12 @@ async def aiterate_raw(
         implementation=implementation,
     )
 
-    async for returns in _astream_raw(resolved_postman, assign_input):
+    async for returns in _astream_raw(
+        resolved_postman,
+        assign_input,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
+    ):
         yield returns
 
 
@@ -250,6 +264,8 @@ async def acall_raw(
     capture: bool = False,
     log: bool = False,
     postman: Optional[Postman] = None,
+    escalate_to_interrupt: bool = False,
+    cancel_timeout: Optional[float] = None,
 ) -> Any:  # noqa: ANN401
     """Execute a low-level remote call with already serialized arguments.
 
@@ -276,6 +292,8 @@ async def acall_raw(
         capture=capture,
         log=log,
         postman=postman,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
     ):
         returns = r
 
@@ -327,6 +345,8 @@ async def acall(
     capture: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
+    escalate_to_interrupt: bool = False,
+    cancel_timeout: Optional[float] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:
     """Execute a remote action and return expanded Python values.
@@ -387,6 +407,8 @@ async def acall(
         parent=parent,
         log=log,
         postman=postman,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
     )
 
     returns = await aexpand_returns(
@@ -408,6 +430,8 @@ async def aiterate(
     capture: bool = False,
     structure_registry: Optional[StructureRegistry] = None,
     postman: Optional[Postman] = None,
+    escalate_to_interrupt: bool = False,
+    cancel_timeout: Optional[float] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[Any, None]:
     """Stream expanded yield values from a remote action.
@@ -467,6 +491,8 @@ async def aiterate(
         parent=parent,
         log=log,
         postman=postman,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
     ):
         returns = await aexpand_returns(
             action, raw_returns, structure_registry=structure_registry
