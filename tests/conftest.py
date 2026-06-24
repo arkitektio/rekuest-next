@@ -149,8 +149,9 @@ async def token_loader() -> str:
     the user "test" in the test environment. In a real application, this function
     will return an oauth2 token or similar authentication token.
 
-    To change this mapping you can alter the static_token configuration in the
-    mikro configuration file (inside the integration folder).
+    To change this mapping you can alter the ``authentikate.static_tokens``
+    configuration in the rekuest configuration file (inside the integration
+    folder).
 
     """
     return "test"
@@ -159,9 +160,9 @@ async def token_loader() -> str:
 def make_token_loader(token: str = "test") -> Callable[[], Awaitable[str]]:
     """Build a token loader that always returns ``token``.
 
-    The integration deployment is configured (see
-    ``tests/integration/configs/rekuest.yaml``) with several static tokens, each
-    mapping to a *different* ``client_app``. Authenticating an app with a given
+    The integration deployment is configured (see ``authentikate.static_tokens``
+    in ``tests/integration/configs/rekuest.yaml``) with several static tokens,
+    each mapping to a *different* ``client_app``. Authenticating an app with a given
     token therefore makes the server treat it as that distinct application. This
     is what lets several :func:`build_fresh_rekuest` apps run side by side as
     genuinely separate apps (e.g. a workflow app calling a provider app).
@@ -298,6 +299,7 @@ def build_fresh_rekuest(setup: Deployment, token: str = "test") -> RekuestNext:
         setup: The running dokker deployment (from the ``deployment`` fixture).
         token: Static token to authenticate as. The deployment maps each
             configured token to a distinct ``client_app`` (see
+            ``authentikate.static_tokens`` in
             ``tests/integration/configs/rekuest.yaml``), so passing different
             tokens to different ``build_fresh_rekuest`` calls makes the server
             treat them as genuinely separate apps. The server binds the agent to

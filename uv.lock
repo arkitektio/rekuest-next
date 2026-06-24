@@ -392,7 +392,7 @@ wheels = [
 
 [[package]]
 name = "fakts-next"
-version = "2.0.0"
+version = "4.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -400,11 +400,10 @@ dependencies = [
     { name = "koil" },
     { name = "oauthlib" },
     { name = "pydantic" },
-    { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/23/fa15a113796e653190b809982b19fe9525da6d976740ba22c963e0c15ca3/fakts_next-2.0.0.tar.gz", hash = "sha256:239ad9db7b1576632bd55f2ea5a8890d5efc90aa8e78367cf92792cb5ddd3f39", size = 29639, upload-time = "2025-06-27T12:30:12.431Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5d/e00c1cab38721b7231bf80334af837d88ae480b7617abb642961a0726f0e/fakts_next-4.0.0.tar.gz", hash = "sha256:dd52d261d2fd26d516fb398e7299f7105d397105274c7663cd6f3866e032518d", size = 48718, upload-time = "2026-06-24T12:27:31.697Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/cd/d6a053449270b606225ca152c2513c1010a52159a7cd6b04a16a174550cb/fakts_next-2.0.0-py3-none-any.whl", hash = "sha256:7437c8a9a1a6565eed9af942cdbfb503ac67932dc2cdad39a94d4cbe497bd19f", size = 50439, upload-time = "2025-06-27T12:30:11.214Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/a6/b476a8fff622ae052bf8b4914e6b64d50b7ef84ad1bf59676953df1335da/fakts_next-4.0.0-py3-none-any.whl", hash = "sha256:28e92d81ed456c44789ee6180b906489ae6a295e4738144bb2c85a0894efb2d6", size = 69744, upload-time = "2026-06-24T12:27:30.417Z" },
 ]
 
 [[package]]
@@ -1297,7 +1296,7 @@ dev = [
     { name = "autoflake", specifier = ">=1.7.7,<2" },
     { name = "black", specifier = ">=23.1.0,<24" },
     { name = "dokker", specifier = ">=2.5" },
-    { name = "fakts-next", specifier = ">=2.0.0" },
+    { name = "fakts-next", specifier = ">=4" },
     { name = "fastapi", specifier = ">=0.128.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=8.3.5" },
