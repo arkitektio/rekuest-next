@@ -639,11 +639,7 @@ class FastApiAgent(BaseAgent):
 
     def build_task_action_key(self, assign_message: messages.Assign) -> str:
         """Build the routing key used for task websocket subscriptions."""
-        return (
-            assign_message.interface
-            or assign_message.action
-            or assign_message.task
-        )
+        return assign_message.interface or assign_message.action or assign_message.task
 
     def get_task_action_key_for_message(self, message: messages.Message) -> str | None:
         """Resolve the task action key for an outgoing message."""
@@ -777,9 +773,7 @@ class FastApiAgent(BaseAgent):
 
         return locks
 
-    async def ashelve(
-        self, identifier, resource_id, label=None, description=None
-    ):
+    async def ashelve(self, identifier, resource_id, label=None, description=None):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
     async def alock(self, key: str, task: str):

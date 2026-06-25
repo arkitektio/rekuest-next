@@ -38,9 +38,7 @@ async def test_single_app_with_app_token(deployment: Deployment) -> None:
     and that its single registered action is callable.
     """
 
-    provider = build_fresh_rekuest(
-        deployment, token="atest_token"
-    )
+    provider = build_fresh_rekuest(deployment, token="atest_token")
 
     def do_stuff(printer: str) -> str:
         """Stitch a list of images."""
@@ -73,9 +71,7 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
     """
 
     # --- Provider app: registers the concrete implementation -----------------
-    provider = build_fresh_rekuest(
-        deployment, token="atest_token"
-    )
+    provider = build_fresh_rekuest(deployment, token="atest_token")
 
     def do_stuff(printer: str) -> str:
         """Stitch a list of images."""
@@ -84,9 +80,7 @@ async def test_workflow_calls_single_dependency(deployment: Deployment) -> None:
     provider.register(do_stuff)
 
     # --- Workflow app: declares a dependency on the provider's protocol ------
-    workflow_app = build_fresh_rekuest(
-        deployment, token="workflow_token"
-    )
+    workflow_app = build_fresh_rekuest(deployment, token="workflow_token")
 
     @declare(app="atest", auto_resolvable=True, min=1)
     class ATestLike(Protocol):
@@ -142,9 +136,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
     """
 
     # --- Provider app A: atest -----------------------------------------------
-    atest_app = build_fresh_rekuest(
-        deployment, token="atest_token"
-    )
+    atest_app = build_fresh_rekuest(deployment, token="atest_token")
 
     def do_stuff(printer: str) -> str:
         """Stitch a list of images."""
@@ -153,9 +145,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
     atest_app.register(do_stuff)
 
     # --- Provider app B: btest -----------------------------------------------
-    btest_app = build_fresh_rekuest(
-        deployment, token="btest_token"
-    )
+    btest_app = build_fresh_rekuest(deployment, token="btest_token")
 
     def do_another_stuff(ptiner: str) -> str:
         """Segment an image."""
@@ -164,9 +154,7 @@ async def test_workflow_calls_two_separate_apps(deployment: Deployment) -> None:
     btest_app.register(do_another_stuff)
 
     # --- Workflow app: depends on both providers -----------------------------
-    workflow_app = build_fresh_rekuest(
-        deployment, token="workflow_token"
-    )
+    workflow_app = build_fresh_rekuest(deployment, token="workflow_token")
 
     @declare(app="atest", auto_resolvable=True, min=1)
     class ATestLike(Protocol):
@@ -261,9 +249,7 @@ async def test_workflow_cancel_propagates_to_dependency(
     }
 
     # --- Provider app: a long-running threaded (sync) action -----------------
-    provider = build_fresh_rekuest(
-        deployment, token="atest_token"
-    )
+    provider = build_fresh_rekuest(deployment, token="atest_token")
 
     def slow_stuff(printer: str) -> str:
         """Slowly stitch images, cooperating with cancellation.
@@ -287,9 +273,7 @@ async def test_workflow_cancel_propagates_to_dependency(
     provider.register(slow_stuff)
 
     # --- Workflow app: declares a dependency on the provider and awaits it ----
-    workflow_app = build_fresh_rekuest(
-        deployment, token="workflow_token"
-    )
+    workflow_app = build_fresh_rekuest(deployment, token="workflow_token")
 
     @declare(app="atest", auto_resolvable=True, min=1)
     class ATestLike(Protocol):
@@ -376,9 +360,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
     """
 
     # --- Provider app A: atest -----------------------------------------------
-    atest_app = build_fresh_rekuest(
-        deployment, token="atest_token"
-    )
+    atest_app = build_fresh_rekuest(deployment, token="atest_token")
 
     def do_stuff(printer: str) -> str:
         """Stitch a list of images."""
@@ -387,9 +369,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
     atest_app.register(do_stuff)
 
     # --- Provider app B: btest -----------------------------------------------
-    btest_app = build_fresh_rekuest(
-        deployment, token="btest_token"
-    )
+    btest_app = build_fresh_rekuest(deployment, token="btest_token")
 
     def do_another_stuff(ptiner: str) -> str:
         """Segment an image."""
@@ -398,9 +378,7 @@ async def test_workflow_calls_two_separate_apps_async(deployment: Deployment) ->
     btest_app.register(do_another_stuff)
 
     # --- Workflow app: depends on both providers -----------------------------
-    workflow_app = build_fresh_rekuest(
-        deployment, token="workflow_token"
-    )
+    workflow_app = build_fresh_rekuest(deployment, token="workflow_token")
 
     @declare(app="atest", auto_resolvable=True, min=1)
     class ATestLike(Protocol):

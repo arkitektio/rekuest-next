@@ -146,7 +146,9 @@ def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
 
     if all(isinstance(value, str) for value in values):
         base: Type[Enum] = StrEnum
-    elif all(isinstance(value, int) and not isinstance(value, bool) for value in values):
+    elif all(
+        isinstance(value, int) and not isinstance(value, bool) for value in values
+    ):
         base = IntEnum
     else:
         base = Enum

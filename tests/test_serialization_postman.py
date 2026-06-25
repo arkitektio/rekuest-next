@@ -23,7 +23,9 @@ async def test_shrinking_nullable(
     simple_registry: StructureRegistry, mock_shelver: Shelver
 ) -> None:
     """Test if we can shrink a nullable input."""
-    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
+    functional_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
 
     args = await ashrink_args(
         functional_definition,
@@ -44,7 +46,9 @@ async def test_shrinking_nullable(
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrinking_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_shrinking_basic(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a basic input."""
 
     functional_definition = prepare_definition(
@@ -82,7 +86,9 @@ async def test_rountdrip_structure(
 
 
 @pytest.mark.asyncio
-async def test_shrink_union(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_shrink_union(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a union input."""
     functional_definition = prepare_definition(
         union_structure_function, structure_registry=simple_registry
@@ -130,7 +136,9 @@ async def test_roundtrip_union_cross_path(
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_roundtrip(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_roundtrip(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a structure input and expand it back."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
@@ -194,7 +202,9 @@ async def test_shrinking_nested_structure(
     assert isinstance(args["name"]["hallo"], dict), (
         "Should be a dict with __identifier and object keys {args}"
     )
-    assert isinstance(args["rep"][0], dict), "Should be a dict with __identifier and object keys"
+    assert isinstance(args["rep"][0], dict), (
+        "Should be a dict with __identifier and object keys"
+    )
 
     assert args == {
         "name": {"hallo": {"__identifier": "mock/serializable", "object": "3"}},
@@ -204,7 +214,9 @@ async def test_shrinking_nested_structure(
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_expand_basic(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can expand a basic input."""
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry

@@ -49,8 +49,12 @@ def _drawer(reference: object) -> str:
     ``{"__identifier": ..., "object": <drawer-id>}``; to feed it into the next
     call we hand that next call only the drawer id string.
     """
-    assert isinstance(reference, dict), f"Expected a memory reference dict, got {reference!r}"
-    assert "object" in reference, f"Memory reference is missing its drawer id: {reference!r}"
+    assert isinstance(reference, dict), (
+        f"Expected a memory reference dict, got {reference!r}"
+    )
+    assert "object" in reference, (
+        f"Memory reference is missing its drawer id: {reference!r}"
+    )
     return str(reference["object"])
 
 

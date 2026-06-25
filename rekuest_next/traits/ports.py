@@ -31,7 +31,9 @@ class PortTrait(BaseModel):
             return v
 
         if not isinstance(v, (str, int, float, dict, list, bool)):
-            raise ValueError("Default value must be JSON serializable, got: " + str(v)) from None
+            raise ValueError(
+                "Default value must be JSON serializable, got: " + str(v)
+            ) from None
 
         return v  # type: ignore[return-value]
 
@@ -58,7 +60,9 @@ class PortTrait(BaseModel):
                 raise ValueError(
                     "When specifying a dict you need to provide a wrapped 'children' port"
                 )
-            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
+            assert len(self.children) == 1, (
+                "Dict can only one child (key is always strings)"
+            )
 
         return self
 
@@ -144,7 +148,9 @@ class ValidatorInputTrait(BaseModel):
         """Validate the function of the validator"""
         args_match = re.match(r"\((.*?)\)", self.function)
         if args_match:
-            args = [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
+            args = [
+                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
+            ]
             if not args:
                 raise ValueError("Function must have at least one argument")
 

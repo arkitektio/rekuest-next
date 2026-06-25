@@ -15,7 +15,9 @@ class StateSink(Protocol):
         """Cleans up resources, such as database connections."""
         ...
 
-    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
+    async def acreate_session(
+        self, states: List[AnyState], implementations: list
+    ) -> str:
         """Creates a new session and returns its ID."""
         ...
 

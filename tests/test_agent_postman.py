@@ -230,14 +230,31 @@ async def test_concurrent_calls_do_not_cross_deliver() -> None:
 
     ta = asyncio.create_task(consume(_assign(reference="ref-a"), out_a))
     tb = asyncio.create_task(consume(_assign(reference="ref-b"), out_b))
-    await _until(lambda: len([m for m in agent.transport.sent if isinstance(m, messages.AssignRequest)]) == 2)
+    await _until(
+        lambda: len(
+            [m for m in agent.transport.sent if isinstance(m, messages.AssignRequest)]
+        )
+        == 2
+    )
 
-    reqs = {m.reference: m for m in agent.transport.sent if isinstance(m, messages.AssignRequest)}
-    pm.handle_assign_response(messages.AssignResponse(request=reqs["ref-a"].id, reference="ref-a", task="ta"))
-    pm.handle_assign_response(messages.AssignResponse(request=reqs["ref-b"].id, reference="ref-b", task="tb"))
+    reqs = {
+        m.reference: m
+        for m in agent.transport.sent
+        if isinstance(m, messages.AssignRequest)
+    }
+    pm.handle_assign_response(
+        messages.AssignResponse(request=reqs["ref-a"].id, reference="ref-a", task="ta")
+    )
+    pm.handle_assign_response(
+        messages.AssignResponse(request=reqs["ref-b"].id, reference="ref-b", task="tb")
+    )
 
-    pm.handle_execution_event(messages.YieldEvent(task="tb", event="eb", seq=1, returns={"0": "B"}))
-    pm.handle_execution_event(messages.YieldEvent(task="ta", event="ea", seq=1, returns={"0": "A"}))
+    pm.handle_execution_event(
+        messages.YieldEvent(task="tb", event="eb", seq=1, returns={"0": "B"})
+    )
+    pm.handle_execution_event(
+        messages.YieldEvent(task="ta", event="ea", seq=1, returns={"0": "A"})
+    )
     pm.handle_execution_event(messages.CompletedEvent(task="ta", event="ea2", seq=2))
     pm.handle_execution_event(messages.CompletedEvent(task="tb", event="eb2", seq=2))
 

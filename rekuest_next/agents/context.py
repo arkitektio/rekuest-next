@@ -1,6 +1,15 @@
 """Context management for Rekuest Next."""
 
-from typing import Callable, Dict, Optional, Tuple, Type, TypeVar, overload, get_type_hints
+from typing import (
+    Callable,
+    Dict,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    overload,
+    get_type_hints,
+)
 import inspect
 from dataclasses import dataclass
 import inflection

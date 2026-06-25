@@ -67,7 +67,8 @@ def test_annotation_good(simple_registry: StructureRegistry) -> None:
     assert assign_widget.choices[0].value == Service.KABINET
     assert assign_widget.choices[1].value == Service.ELEKTRO
     assert (
-        functional_definition.args[0].validators[0].function == "(services) => services.length > 0"
+        functional_definition.args[0].validators[0].function
+        == "(services) => services.length > 0"
     )
 
 
@@ -100,7 +101,9 @@ def test_validator_func_wrong_deps() -> None:
 
 
 @pytest.mark.define
-def test_validator_should_alert_if_not_in_keys(simple_registry: StructureRegistry) -> None:
+def test_validator_should_alert_if_not_in_keys(
+    simple_registry: StructureRegistry,
+) -> None:
     """Test if value errors are raised when the dependces are not in the definition"""
     TheStr = Annotated[
         str,

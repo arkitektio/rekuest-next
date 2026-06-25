@@ -787,8 +787,7 @@ def resolve_state_reference(
 
     dependency_state_demands = {
         dep.key: {
-            state_demand.key: state_demand
-            for state_demand in dep.state_demands or ()
+            state_demand.key: state_demand for state_demand in dep.state_demands or ()
         }
         for dep in dependencies
     }

@@ -104,9 +104,13 @@ class AgentPostman:
         # stream is cancelled. Bounds cancellation so it can never hang.
         self.cancel_timeout = cancel_timeout
         # request id -> future resolved with the AssignResponse
-        self._pending_responses: Dict[str, "asyncio.Future[messages.AssignResponse]"] = {}
+        self._pending_responses: Dict[
+            str, "asyncio.Future[messages.AssignResponse]"
+        ] = {}
         # control request id -> future resolved with the ControlResponse
-        self._pending_control: Dict[str, "asyncio.Future[messages.ControlResponse]"] = {}
+        self._pending_control: Dict[
+            str, "asyncio.Future[messages.ControlResponse]"
+        ] = {}
         # durable task id -> queue of ExecutionEvent mirrors
         self._task_queues: Dict[str, "asyncio.Queue[messages.ExecutionEvent]"] = {}
         # task id -> mirrors that arrived before the AssignResponse was processed
@@ -162,7 +166,9 @@ class AgentPostman:
         reference = assign.reference or str(uuid.uuid4())
         request = self._build_request(assign, reference)
         loop = asyncio.get_event_loop()
-        response_future: "asyncio.Future[messages.AssignResponse]" = loop.create_future()
+        response_future: "asyncio.Future[messages.AssignResponse]" = (
+            loop.create_future()
+        )
         self._pending_responses[request.id] = response_future
 
         task: Optional[str] = None
@@ -197,7 +203,9 @@ class AgentPostman:
                     task,
                     queue,
                     escalate_to_interrupt,
-                    cancel_timeout if cancel_timeout is not None else self.cancel_timeout,
+                    cancel_timeout
+                    if cancel_timeout is not None
+                    else self.cancel_timeout,
                 )
             raise
         except GeneratorExit:
@@ -248,18 +256,14 @@ class AgentPostman:
             return
 
         if not escalate_to_interrupt:
-            logger.warning(
-                "Timed out awaiting CancelledEvent for task %s", task
-            )
+            logger.warning("Timed out awaiting CancelledEvent for task %s", task)
             return
 
         await self._send_control(messages.InterruptRequest(task=task), task)
         if not await self._await_terminal(
             queue, (messages.CancelledEvent, messages.InterruptedEvent), timeout
         ):
-            logger.warning(
-                "Timed out awaiting InterruptedEvent for task %s", task
-            )
+            logger.warning("Timed out awaiting InterruptedEvent for task %s", task)
 
     async def _send_control(
         self,

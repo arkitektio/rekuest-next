@@ -166,7 +166,9 @@ class RekuestNext(Composition):
         if force is not None and transport is not None and hasattr(transport, "force"):
             setattr(transport, "force", force)
 
-    async def arun(self, context: Any | None = None, *, force: bool | None = None) -> None:
+    async def arun(
+        self, context: Any | None = None, *, force: bool | None = None
+    ) -> None:
         """
         Run the application.
 

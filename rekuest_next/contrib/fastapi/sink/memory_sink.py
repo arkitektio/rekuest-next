@@ -25,7 +25,9 @@ class MemorySink:
     async def ateardown(self):
         return None
 
-    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
+    async def acreate_session(
+        self, states: List[AnyState], implementations: list
+    ) -> str:
         self._session_id = str(uuid.uuid4())
         return self._session_id
 

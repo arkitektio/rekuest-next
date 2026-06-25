@@ -371,7 +371,11 @@ async def aexpand_return(
                 f"Port {port.identifier} has not more than one child"
             )
 
-        if not isinstance(value, dict) or "__use" not in value or "__value" not in value:
+        if (
+            not isinstance(value, dict)
+            or "__use" not in value
+            or "__value" not in value
+        ):
             raise PortExpandingError(
                 "Union value needs to be a tagged "
                 '{"__use": index, "__value": ...} dict, got '

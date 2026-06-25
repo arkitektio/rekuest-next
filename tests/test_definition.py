@@ -21,16 +21,24 @@ from .funcs import (
 def assert_definition_hash(simple_registry: StructureRegistry) -> None:
     """Test if the hases of to equal definitions are the same."""
     """Test if the hases of to equal definitions are the same."""
-    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
-    function_two_definition = prepare_definition(null_function, structure_registry=simple_registry)
+    functional_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
+    function_two_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
 
-    assert hash(functional_definition) == hash(function_two_definition), "Hashes are not equal"
+    assert hash(functional_definition) == hash(function_two_definition), (
+        "Hashes are not equal"
+    )
 
 
 @pytest.mark.define
 def test_if_usable_as_hash(simple_registry: StructureRegistry) -> None:
     """Test if the function is usable as a hash."""
-    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
+    functional_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
     x = {}
     x[functional_definition] = "test"
 
@@ -38,8 +46,12 @@ def test_if_usable_as_hash(simple_registry: StructureRegistry) -> None:
 @pytest.mark.define
 def test_define_null(simple_registry: StructureRegistry) -> None:
     """Test if the function is correctly registered in the registry."""
-    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    functional_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Null Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
@@ -56,7 +68,9 @@ def test_define_basic(simple_registry: StructureRegistry) -> None:
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Plain Basic Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
@@ -68,7 +82,9 @@ def test_define_structure(simple_registry: StructureRegistry) -> None:
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Plain Structure Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
@@ -81,7 +97,9 @@ def test_nested_model_with_annotations(simple_registry: StructureRegistry) -> No
     functional_definition = prepare_definition(
         nested_model_with_annotations, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
 
     assert functional_definition.args[0].kind == PortKind.LIST
 
@@ -101,7 +119,9 @@ def test_define_union_structure(simple_registry: StructureRegistry) -> None:
     functional_definition = prepare_definition(
         union_structure_function, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Union Structure Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
@@ -118,13 +138,19 @@ def test_define_nested_basic_function(simple_registry: StructureRegistry) -> Non
     functional_definition = prepare_definition(
         nested_basic_function, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Nested Basic Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
     assert len(functional_definition.args) == 3, "Wrong amount of Arguments"
-    assert functional_definition.args[0].kind == PortKind.LIST, "Wasn't defined as a List"
-    assert functional_definition.args[1].kind == PortKind.DICT, "Wasn't defined as a Dict"
+    assert functional_definition.args[0].kind == PortKind.LIST, (
+        "Wasn't defined as a List"
+    )
+    assert functional_definition.args[1].kind == PortKind.DICT, (
+        "Wasn't defined as a Dict"
+    )
     assert functional_definition.args[1].children[0].kind == PortKind.INT, (
         "Child of List is not of type IntArgPort"
     )
@@ -135,7 +161,9 @@ def test_define_nested_basic_function(simple_registry: StructureRegistry) -> Non
         "Kwarg wasn't defined as a StringKwargPort"
     )
     assert len(functional_definition.returns) == 2, "Wrong amount of Returns"
-    assert functional_definition.returns[0].kind == PortKind.LIST, "Needs to Return List"
+    assert functional_definition.returns[0].kind == PortKind.LIST, (
+        "Needs to Return List"
+    )
 
 
 @pytest.mark.define
@@ -144,19 +172,25 @@ def test_define_nested_structure_function(simple_registry: StructureRegistry) ->
     functional_definition = prepare_definition(
         nested_structure_function, structure_registry=simple_registry
     )
-    assert isinstance(functional_definition, DefinitionInput), "output is not a definition"
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
     assert functional_definition.name == "Nested Structure Function", (
         "Name should be inferred from the function name, not the docstring title"
     )
     assert len(functional_definition.args) == 2, "Wrong amount of Arguments"
-    assert functional_definition.args[0].kind == PortKind.LIST, "Wasn't defined as a List"
-    assert functional_definition.args[1].kind == PortKind.DICT, "Wasn't defined as a Dict"
+    assert functional_definition.args[0].kind == PortKind.LIST, (
+        "Wasn't defined as a List"
+    )
+    assert functional_definition.args[1].kind == PortKind.DICT, (
+        "Wasn't defined as a Dict"
+    )
     assert functional_definition.args[0].children[0].kind == PortKind.STRUCTURE, (
         "Child of List is not of type IntArgPort"
     )
-    assert functional_definition.args[0].children[0].identifier == "mock/serializable", (
-        "Child of List is not of type IntArgPort"
-    )
+    assert (
+        functional_definition.args[0].children[0].identifier == "mock/serializable"
+    ), "Child of List is not of type IntArgPort"
     assert functional_definition.args[0].children[0].kind == PortKind.STRUCTURE, (
         "Child of Dict is not of type StringArgPort"
     )
@@ -164,7 +198,10 @@ def test_define_nested_structure_function(simple_registry: StructureRegistry) ->
     assert functional_definition.returns[0].kind == PortKind.STRING
     assert functional_definition.returns[1].kind == PortKind.DICT
     assert functional_definition.returns[1].children[0].kind == PortKind.STRUCTURE
-    assert functional_definition.returns[1].children[0].identifier == "mock/secondserializable"
+    assert (
+        functional_definition.returns[1].children[0].identifier
+        == "mock/secondserializable"
+    )
 
 
 @pytest.mark.define

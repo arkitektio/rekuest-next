@@ -97,7 +97,9 @@ class StateCollectionResponse(BaseModel):
     current_global_revision: int | None
     count: int
     states: dict[str, StateView]
-    recent_patches: list[RetrieverPatchEventResponse] = Field(default_factory=lambda: [])
+    recent_patches: list[RetrieverPatchEventResponse] = Field(
+        default_factory=lambda: []
+    )
 
 
 class LockView(BaseModel):

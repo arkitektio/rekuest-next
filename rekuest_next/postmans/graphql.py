@@ -122,7 +122,9 @@ class GraphQLPostman(KoiledModel):
                     task.id,
                     queue,
                     escalate_to_interrupt,
-                    cancel_timeout if cancel_timeout is not None else self.cancel_timeout,
+                    cancel_timeout
+                    if cancel_timeout is not None
+                    else self.cancel_timeout,
                 )
             finally:
                 self._cleanup_reference(assign.reference)

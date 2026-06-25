@@ -92,7 +92,9 @@ def test_self_state_choice_resolving_against_own_state_is_accepted(
 ) -> None:
     agent_input = ImplementAgentInput(
         implementations=(
-            _implementation(simple_registry, state_path="self.camera_state.exposure_ms"),
+            _implementation(
+                simple_registry, state_path="self.camera_state.exposure_ms"
+            ),
         ),
         states=(_camera_state(),),
     )
@@ -144,9 +146,7 @@ def test_lock_reference_without_lock_implementation_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError, match="references lock 'mylock'"):
         ImplementAgentInput(
-            implementations=(
-                _implementation(simple_registry, locks=("mylock",)),
-            ),
+            implementations=(_implementation(simple_registry, locks=("mylock",)),),
         )
 
 

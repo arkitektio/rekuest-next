@@ -51,9 +51,7 @@ def build_core_router(
         await agent.transport.asubmit(assign_message)
         return {"status": "submitted", "task": assign_message.task}
 
-    async def assign_action(
-        request: Request, interface: str
-    ) -> dict[str, str]:
+    async def assign_action(request: Request, interface: str) -> dict[str, str]:
         """Submit a task for a concrete interface path parameter."""
         user = get_user_from_request(request)
         payload = await request.json()

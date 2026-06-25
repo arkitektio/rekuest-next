@@ -79,9 +79,7 @@ class Actor(BaseModel):
     )
     _serial_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
 
-    def install_assignment_hook(
-        self, task_id: str, hook: AssignmentHook
-    ) -> None:
+    def install_assignment_hook(self, task_id: str, hook: AssignmentHook) -> None:
         """Install an assignment hook for the given task ID.
 
         Args:
@@ -178,9 +176,7 @@ class Actor(BaseModel):
         if pause.task in self._running_assignment_hooks:
             pause_hook = self._running_assignment_hooks[pause.task]
             if pause_hook.kind == "pause":
-                logger.info(
-                    f"Calling pause hook {pause_hook.id} for task {pause.task}"
-                )
+                logger.info(f"Calling pause hook {pause_hook.id} for task {pause.task}")
                 await pause_hook.hook(pause)
 
         if pause.task in self._break_futures:
@@ -315,9 +311,7 @@ class Actor(BaseModel):
         if isinstance(message, messages.Assign):
             if message.step:
                 # We are creating a break future already
-                logger.debug(
-                    f"Creating break future for task {message.task} in step"
-                )
+                logger.debug(f"Creating break future for task {message.task} in step")
                 self._break_futures[message.task] = asyncio.Future()
 
             task = asyncio.create_task(
@@ -345,9 +339,7 @@ class Actor(BaseModel):
                         del self._running_asyncio_tasks[message.task]
                         await self.agent.asend(
                             actor=self,
-                            message=messages.Cancelled(
-                                task=message.task
-                            ),
+                            message=messages.Cancelled(task=message.task),
                         )
 
                 else:
@@ -356,9 +348,7 @@ class Actor(BaseModel):
                     )
                     await self.agent.asend(
                         self,
-                        message=messages.Cancelled(
-                            task=message.task
-                        ),
+                        message=messages.Cancelled(task=message.task),
                     )
 
             else:

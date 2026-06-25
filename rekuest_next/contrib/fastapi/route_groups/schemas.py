@@ -24,9 +24,7 @@ def build_schema_router(
         return {"count": len(state_schemas), "states": state_schemas}
 
     async def get_lock_schemas() -> dict:
-        lock_schemas = {
-            lock.key: lock for lock in agent.app_registry.get_locks()
-        }
+        lock_schemas = {lock.key: lock for lock in agent.app_registry.get_locks()}
         return {"count": len(lock_schemas), "locks": lock_schemas}
 
     async def get_blok_schemas() -> dict:

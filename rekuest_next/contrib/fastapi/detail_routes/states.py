@@ -6,12 +6,18 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from rekuest_next.api.schema import StateImplementationInput
-from rekuest_next.contrib.fastapi.retriever.protocol import PatchEvent as RetrieverPatchEvent
+from rekuest_next.contrib.fastapi.retriever.protocol import (
+    PatchEvent as RetrieverPatchEvent,
+)
 from rekuest_next.contrib.fastapi.retriever.protocol import (
     SessionBoundary as RetrieverSessionBoundary,
 )
-from rekuest_next.contrib.fastapi.retriever.protocol import Snapshot as RetrieverSnapshot
-from rekuest_next.contrib.fastapi.retriever.protocol import TaskBoundary as RetrieverTaskBoundary
+from rekuest_next.contrib.fastapi.retriever.protocol import (
+    Snapshot as RetrieverSnapshot,
+)
+from rekuest_next.contrib.fastapi.retriever.protocol import (
+    TaskBoundary as RetrieverTaskBoundary,
+)
 
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.models import (
@@ -64,7 +70,9 @@ def _serialize_snapshot_result(
     result: RetrieverSnapshot | list[RetrieverSnapshot] | None,
 ) -> RetrieverSnapshotResponse | list[RetrieverSnapshotResponse]:
     if result is None:
-        raise HTTPException(status_code=404, detail="No state found for the requested revision")
+        raise HTTPException(
+            status_code=404, detail="No state found for the requested revision"
+        )
     if isinstance(result, list):
         return [_to_snapshot_response(snapshot) for snapshot in result]
     return _to_snapshot_response(result)
@@ -86,7 +94,9 @@ def build_state_detail_router(
         state_id: str | None = Query(default=None),
     ) -> RetrieverTaskBoundaryResponse:
         """Return task boundaries expressed in global revisions."""
-        boundary = await agent.retriever.aget_task_boundaries(correlation_id, state_id=state_id)
+        boundary = await agent.retriever.aget_task_boundaries(
+            correlation_id, state_id=state_id
+        )
         if boundary is None:
             raise HTTPException(status_code=404, detail="Task boundaries not found")
         return _to_task_boundary_response(boundary)
@@ -113,7 +123,9 @@ def build_state_detail_router(
         normalized_state_keys = normalize_filter_values(state_keys)
         if normalized_state_keys is not None:
             missing_state_keys = [
-                state_key for state_key in normalized_state_keys if state_key not in states
+                state_key
+                for state_key in normalized_state_keys
+                if state_key not in states
             ]
             if missing_state_keys:
                 normalized_state_keys = None
@@ -138,7 +150,8 @@ def build_state_detail_router(
             session_id=resolved_session_id,
         )
         state_response.recent_patches = [
-            _to_patch_event_response(event) for event in recent_events[-recent_patch_count:]
+            _to_patch_event_response(event)
+            for event in recent_events[-recent_patch_count:]
         ]
         return state_response
 
@@ -151,7 +164,9 @@ def build_state_detail_router(
         normalized_state_keys = normalize_filter_values(state_keys)
         if normalized_state_keys is not None:
             missing_state_keys = [
-                state_key for state_key in normalized_state_keys if state_key not in states
+                state_key
+                for state_key in normalized_state_keys
+                if state_key not in states
             ]
             if missing_state_keys:
                 normalized_state_keys = None
@@ -194,7 +209,9 @@ def build_state_detail_router(
         state_id: str | None = Query(default=None),
     ) -> RetrieverSessionBoundaryResponse:
         """Return session boundaries expressed in global revisions."""
-        boundary = await agent.retriever.aget_session_boundaries(session_id, state_id=state_id)
+        boundary = await agent.retriever.aget_session_boundaries(
+            session_id, state_id=state_id
+        )
         if boundary is None:
             raise HTTPException(status_code=404, detail="Session boundaries not found")
         return _to_session_boundary_response(boundary)
@@ -273,7 +290,9 @@ def build_state_detail_router(
     for interface, state_schema in states.items():
         response_schema_name = f"{state_schema.definition.name}State"
         router.__dict__.setdefault("_custom_schemas", {})[response_schema_name] = (
-            create_json_schema_from_ports(state_schema.definition.ports, response_schema_name)
+            create_json_schema_from_ports(
+                state_schema.definition.ports, response_schema_name
+            )
         )
         router.add_api_route(
             f"{states_path}/{interface}",

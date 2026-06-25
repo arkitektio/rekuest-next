@@ -90,7 +90,9 @@ async def test_actor_internal_dependency_call_uses_agent(
 
         assert answer == "stitched-printer", f"Unexpected workflow result: {answer!r}"
         # The INNER dependency call must have been delegated to the agent caller.
-        assert delegated, "the dependency call did not go through the agent caller postman"
+        assert delegated, (
+            "the dependency call did not go through the agent caller postman"
+        )
         assert any(a.dependency is not None for a in delegated), (
             "expected a dependency-resolving AssignRequest over the agent socket"
         )

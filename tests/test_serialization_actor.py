@@ -28,24 +28,36 @@ from typing import Any
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_nullable(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_expand_nullable(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a nullable input."""
-    functional_definition = prepare_definition(null_function, structure_registry=simple_registry)
+    functional_definition = prepare_definition(
+        null_function, structure_registry=simple_registry
+    )
 
     args = await expand_inputs(
-        functional_definition, {"x": None}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        {"x": None},
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
     assert args == {"x": None}
 
     args = await expand_inputs(
-        functional_definition, {"x": 1}, structure_registry=simple_registry, shelver=mock_shelver
+        functional_definition,
+        {"x": 1},
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
     assert args == {"x": 1}
 
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_expand_basic(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a basic input."""
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
@@ -62,7 +74,9 @@ async def test_expand_basic(simple_registry: StructureRegistry, mock_shelver: Sh
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_expand_structure(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_expand_structure(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a structure input."""
     functional_definition = prepare_definition(
         plain_structure_function, structure_registry=simple_registry
@@ -131,7 +145,9 @@ async def test_expand_nested_structure(
 
 @pytest.mark.shrink
 @pytest.mark.asyncio
-async def test_shrink_basic(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_shrink_basic(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a basic input."""
     functional_definition = prepare_definition(
         plain_basic_function, structure_registry=simple_registry
@@ -184,8 +200,13 @@ async def test_shrink_union_tagged(
         shelver=mock_shelver,
     )
 
-    assert args["return0"]["__use"] == 0, "First arm (SerializableObject) should be used"
-    assert args["return0"]["__value"] == {"__identifier": "mock/serializable", "object": 3}
+    assert args["return0"]["__use"] == 0, (
+        "First arm (SerializableObject) should be used"
+    )
+    assert args["return0"]["__value"] == {
+        "__identifier": "mock/serializable",
+        "object": 3,
+    }
 
 
 @pytest.mark.expand
@@ -200,7 +221,12 @@ async def test_expand_union_uses_index(
 
     first = await expand_inputs(
         definition,
-        {"rep": {"__use": 0, "__value": {"__identifier": "mock/serializable", "object": "3"}}},
+        {
+            "rep": {
+                "__use": 0,
+                "__value": {"__identifier": "mock/serializable", "object": "3"},
+            }
+        },
         structure_registry=simple_registry,
         shelver=mock_shelver,
     )
@@ -208,7 +234,12 @@ async def test_expand_union_uses_index(
 
     second = await expand_inputs(
         definition,
-        {"rep": {"__use": 1, "__value": {"__identifier": "mock/secondserializable", "object": "abc"}}},
+        {
+            "rep": {
+                "__use": 1,
+                "__value": {"__identifier": "mock/secondserializable", "object": "abc"},
+            }
+        },
         structure_registry=simple_registry,
         shelver=mock_shelver,
     )
@@ -254,7 +285,9 @@ async def test_union_index_authoritative_over_json_collapse(
 
     expanded = await expand_inputs(
         definition,
-        {"rep": {"__use": 1, "__value": 3}},  # __use=1 -> float arm, __value is a bare int
+        {
+            "rep": {"__use": 1, "__value": 3}
+        },  # __use=1 -> float arm, __value is a bare int
         structure_registry=simple_registry,
         shelver=mock_shelver,
     )
@@ -326,7 +359,10 @@ async def test_expand_custom_definition(
     # Test nullable input
     inputs_nullable = {"arg1": "world", "arg2": None, "arg3": False}
     expanded_nullable = await expand_inputs(
-        definition, inputs_nullable, structure_registry=simple_registry, shelver=mock_shelver
+        definition,
+        inputs_nullable,
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
 
     assert expanded_nullable["arg1"] == "world"
@@ -392,7 +428,9 @@ async def test_expand_custom_list_dict(
             ArgPortInput(
                 key="dict_arg",
                 kind=PortKind.DICT,
-                children=(ArgPortInput(key="val", kind=PortKind.STRING, nullable=False),),
+                children=(
+                    ArgPortInput(key="val", kind=PortKind.STRING, nullable=False),
+                ),
                 nullable=False,
             ),
         ),
@@ -445,7 +483,10 @@ async def test_expand_function_definition(
 
     inputs_explicit: dict[str, Any] = {"x": 20, "y": "explicit"}
     expanded_explicit = await expand_inputs(
-        definition, inputs_explicit, structure_registry=simple_registry, shelver=mock_shelver
+        definition,
+        inputs_explicit,
+        structure_registry=simple_registry,
+        shelver=mock_shelver,
     )
 
     assert expanded_explicit["x"] == 20

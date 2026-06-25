@@ -126,9 +126,7 @@ def _resolve_target(
         return target.action, target
     if isinstance(target, Action):
         return target, None
-    raise ValueError(
-        "action_implementation_res must be a Action or Implementation"
-    )
+    raise ValueError("action_implementation_res must be a Action or Implementation")
 
 
 def _resolve_postman(postman: Optional[Postman]) -> Postman:

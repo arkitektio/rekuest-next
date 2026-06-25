@@ -183,7 +183,11 @@ async def aexpand_arg(
                 depth=depth,
             )
 
-        if not isinstance(value, dict) or "__use" not in value or "__value" not in value:
+        if (
+            not isinstance(value, dict)
+            or "__use" not in value
+            or "__value" not in value
+        ):
             raise to_port_error(
                 port,
                 value,
@@ -1345,7 +1349,11 @@ async def aexpand_actor_return(
         if not port.children:
             raise PortExpandingError(f"Port {port.identifier} has no children")
 
-        if not isinstance(value, dict) or "__use" not in value or "__value" not in value:
+        if (
+            not isinstance(value, dict)
+            or "__use" not in value
+            or "__value" not in value
+        ):
             raise PortExpandingError(
                 "Union value needs to be a tagged "
                 '{"__use": index, "__value": ...} dict, got '

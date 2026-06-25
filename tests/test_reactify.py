@@ -6,7 +6,11 @@ from rekuest_next.actors.types import RegisterConfig
 from rekuest_next.api.schema import ActionKind
 from rekuest_next.structures.registry import StructureRegistry
 import pytest
-from .funcs import nested_basic_function, nested_structure_asyncgenerator, nested_structure_function
+from .funcs import (
+    nested_basic_function,
+    nested_structure_asyncgenerator,
+    nested_structure_function,
+)
 
 
 def test_actify_function(simple_registry: StructureRegistry) -> None:
@@ -64,7 +68,9 @@ def test_actify_generator(simple_registry: StructureRegistry) -> None:
         nested_basic_function,
     ],
 )
-def test_actify_matrix_functions(simple_registry: StructureRegistry, func: Callable) -> None:
+def test_actify_matrix_functions(
+    simple_registry: StructureRegistry, func: Callable
+) -> None:
     """Test if different function types are correctly buildable into actor definitions."""
 
     defi, impl_d, actor_builder = reactify(func, simple_registry)
