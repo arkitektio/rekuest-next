@@ -1,9 +1,9 @@
 query ListShortcuts(
   $pagination: OffsetPaginationInput
   $filters: ShortcutFilter
-  $order: ShortcutOrder
+  $ordering: [ShortcutOrder!]
 ) {
-  shortcuts(order: $order, pagination: $pagination, filters: $filters) {
+  shortcuts(ordering: $ordering, pagination: $pagination, filters: $filters) {
     ...ListShortcut
   }
 }
@@ -15,8 +15,11 @@ query GetShortcut($id: ID!) {
 }
 
 
-query SearchShortcuts($search: String, $values: [ID!], $pagination: OffsetPaginationInput) {
-  options: shortcuts(filters: {search: $search, ids: $values}, pagination: $pagination) {
+query SearchShortcuts($search: String, $values: [ID!], $limit: Int, $offset: Int) {
+  options: shortcuts(
+    filters: {search: $search, ids: $values}
+    pagination: {limit: $limit, offset: $offset}
+  ) {
     label: name
     value: id
   }

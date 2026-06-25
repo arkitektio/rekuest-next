@@ -64,10 +64,9 @@ class StateSegmentsResponse(BaseModel):
 class TaskView(BaseModel):
     """Current view of a managed task."""
 
-    assignation: str
+    task: str
     action_key: str
     interface: str | None
-    extension: str | None
     user: str | None
     app: str | None
     action: str | None
@@ -98,7 +97,9 @@ class StateCollectionResponse(BaseModel):
     current_global_revision: int | None
     count: int
     states: dict[str, StateView]
-    recent_patches: list[RetrieverPatchEventResponse] = Field(default_factory=lambda: [])
+    recent_patches: list[RetrieverPatchEventResponse] = Field(
+        default_factory=lambda: []
+    )
 
 
 class LockView(BaseModel):

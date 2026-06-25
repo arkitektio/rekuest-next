@@ -1,5 +1,0 @@
-subscription WatchAssignations($instanceId:  InstanceId!) {
-  assignations(instanceId: $instanceId) {
-    ...AssignationChangeEvent
-  }
-}

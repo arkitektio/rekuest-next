@@ -35,7 +35,7 @@ class MemoryRetriever:
         patches = [
             patch
             for patch in self._get_patches()
-            if patch.correlation_id == correlation_id
+            if patch.task_id == correlation_id
             and (state_id is None or patch.state_name == state_id)
         ]
         if not patches:
@@ -273,13 +273,13 @@ class MemoryRetriever:
             session_id=anchor_session,
         )
 
-    def _to_patch_event(self, patch: messages.StatePatchEvent) -> PatchEvent:
+    def _to_patch_event(self, patch: messages.StatePatch) -> PatchEvent:
         return PatchEvent(
             timepoint=datetime.fromtimestamp(patch.ts, tz=timezone.utc),
             state_id=patch.state_name,
             global_current_rev=patch.global_rev - 1,
             global_future_rev=patch.global_rev,
-            correlation_id=patch.correlation_id or "",
+            correlation_id=patch.task_id or "",
             session_id=patch.session_id or "",
             patch=self._to_patch_document(patch.op, patch.path, patch.value),
         )
@@ -292,12 +292,12 @@ class MemoryRetriever:
             patch_document["value"] = value
         return patch_document
 
-    def _get_patches(self) -> list[messages.StatePatchEvent]:
+    def _get_patches(self) -> list[messages.StatePatch]:
         if self.store is None:
             return []
         return list(self.store.patches)
 
-    def _get_snapshots(self) -> list[messages.StateSnapshotEvent]:
+    def _get_snapshots(self) -> list[messages.StateSnapshot]:
         if self.store is None:
             return []
         return list(self.store.snapshots)

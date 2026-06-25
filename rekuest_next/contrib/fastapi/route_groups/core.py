@@ -5,12 +5,11 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, Request, WebSocket
 
-from rekuest_next.messages import Cancel, Pause, Resume, Step
+from rekuest_next.messages import Cancel, Pause, Resume
 from rekuest_next.api.schema import (
     CancelInput,
     PauseInput,
     ResumeInput,
-    StepInput,
 )
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 
@@ -36,9 +35,7 @@ def build_core_router(
         """Serve the unified websocket endpoint for tasks, states, and locks."""
         await agent.handle_websocket(websocket)
 
-    async def assign_base_action(
-        request: Request, extension: str = "default"
-    ) -> dict[str, str]:
+    async def assign_base_action(request: Request) -> dict[str, str]:
         """Submit a task using the interface provided in the request body."""
         user = get_user_from_request(request)
         payload = await request.json()
@@ -50,14 +47,11 @@ def build_core_router(
         assign_message = agent.build_assign_message(
             assign_input,
             user=str(user),
-            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assign_message.assignation}
+        return {"status": "submitted", "task": assign_message.task}
 
-    async def assign_action(
-        request: Request, interface: str, extension: str = "default"
-    ) -> dict[str, str]:
+    async def assign_action(request: Request, interface: str) -> dict[str, str]:
         """Submit a task for a concrete interface path parameter."""
         user = get_user_from_request(request)
         payload = await request.json()
@@ -65,38 +59,37 @@ def build_core_router(
         assign_message = agent.build_assign_message(
             assign_input,
             user=str(user),
-            extension=extension,
         )
         await agent.transport.asubmit(assign_message)
-        return {"status": "submitted", "assignation": assign_message.assignation}
+        return {"status": "submitted", "task": assign_message.task}
 
     async def cancel_action(request: Request) -> dict[str, str]:
         """Request cancellation of a running task."""
         payload = await request.json()
         cancel_input = CancelInput(**payload)
-        await agent.transport.asubmit(Cancel(assignation=cancel_input.assignation))
-        return {"status": "cancelling", "assignation": cancel_input.assignation}
+        await agent.transport.asubmit(Cancel(task=cancel_input.task))
+        return {"status": "cancelling", "task": cancel_input.task}
 
     async def pause_action(request: Request) -> dict[str, str]:
         """Request pausing of a running task."""
         payload = await request.json()
         pause_input = PauseInput(**payload)
-        await agent.transport.asubmit(Pause(assignation=pause_input.assignation))
-        return {"status": "pausing", "assignation": pause_input.assignation}
+        await agent.transport.asubmit(Pause(task=pause_input.task))
+        return {"status": "pausing", "task": pause_input.task}
 
     async def resume_action(request: Request) -> dict[str, str]:
         """Request resuming of a paused task."""
         payload = await request.json()
         resume_input = ResumeInput(**payload)
-        await agent.transport.asubmit(Resume(assignation=resume_input.assignation))
-        return {"status": "resuming", "assignation": resume_input.assignation}
+        await agent.transport.asubmit(Resume(task=resume_input.task))
+        return {"status": "resuming", "task": resume_input.task}
 
     async def step_action(request: Request) -> dict[str, str]:
         """Request a single step for a stepping-capable task."""
         payload = await request.json()
-        step_input = StepInput(**payload)
-        await agent.transport.asubmit(Step(assignation=step_input.assignation))
-        return {"status": "stepping", "assignation": step_input.assignation}
+        task = payload["task"]
+        await agent.transport.asubmit(Resume(task=task, step=True))
+        return {"status": "stepping", "task": task}
 
     router.add_api_websocket_route(ws_path, websocket_endpoint)
     router.add_api_route(assign_path, assign_base_action, methods=["POST"])

@@ -39,11 +39,11 @@ query ListActions($filters: ActionFilter, $pagination: OffsetPaginationInput) {
 query PrimaryActions(
   $pagination: OffsetPaginationInput
   $identifier: String
-  $order: ActionOrder
+  $ordering: [ActionOrder!]
   $search: String
 ) {
   actions(
-    order: $order
+    ordering: $ordering
     pagination: $pagination
     filters: {
       demands: [

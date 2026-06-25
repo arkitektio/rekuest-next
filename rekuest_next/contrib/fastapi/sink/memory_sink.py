@@ -8,8 +8,8 @@ from rekuest_next.protocols import AnyState
 
 @dataclass
 class MemoryStore:
-    patches: List[messages.StatePatchEvent] = field(default_factory=list)
-    snapshots: List[messages.StateSnapshotEvent] = field(default_factory=list)
+    patches: List[messages.StatePatch] = field(default_factory=list)
+    snapshots: List[messages.StateSnapshot] = field(default_factory=list)
 
 
 class MemorySink:
@@ -25,14 +25,16 @@ class MemorySink:
     async def ateardown(self):
         return None
 
-    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
+    async def acreate_session(
+        self, states: List[AnyState], implementations: list
+    ) -> str:
         self._session_id = str(uuid.uuid4())
         return self._session_id
 
-    async def adump_snapshot(self, snapshot: messages.StateSnapshotEvent):
+    async def adump_snapshot(self, snapshot: messages.StateSnapshot):
         self.store.snapshots.append(snapshot)
 
-    async def awrite_patch(self, patch: messages.StatePatchEvent):
+    async def awrite_patch(self, patch: messages.StatePatch):
         self.store.patches.append(patch)
 
     async def is_cought_up_to(self, revision: int) -> bool:

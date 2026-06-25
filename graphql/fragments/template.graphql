@@ -1,14 +1,11 @@
 fragment Implementation on Implementation {
   id
   agent {
-    registry {
-      id
-    }
+    id
   }
   action {
     ...Action
   }
   params
-  extension
   interface
 }

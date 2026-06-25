@@ -13,11 +13,10 @@ dependencies = [
     "inflection>=0.5.1",
     "websockets>=12.0",
     "pydantic>=2",
-    "rath>=3.9.0",
+    "rath>=3.11.1",
     "fieldz>=0.0.2",
     "jsonpatch>=1.33",
-    "koil==3",
-    "dokker>=2.2",
+    "koil>=3.3.1",
     "janus>=2.0.0",
 ]
 
@@ -25,6 +24,8 @@ dependencies = [
 types = [
     "annotated-types>=0.5.0",
 ]
+# Installed inside the semantic-release Docker action so build_command has uv.
+build = ["uv>=0.7.12"]
 
 [tool.uv]
 dev-dependencies =  [
@@ -39,13 +40,19 @@ dev-dependencies =  [
     "pytest-aiohttp>=1.0.4,<2",
     "ruff>0.11",
     "qtpy>=2.4.3",
-    "fakts-next>=2.0.0",
+    "fakts-next>=4",
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
     "aiosqlite>=0.22.1",
+    "dokker>=2.5",
+    "turms>=0.11.0",
+    "basedpyright>=1.21",
 ]
 
-
+[tool.basedpyright]
+include = ["rekuest_next"]
+exclude = ["**/__pycache__", "tests"]
+typeCheckingMode = "standard"
 
 [tool.hatch.build.targets.sdist]
 include = ["rekuest_next"]
@@ -71,6 +78,9 @@ markers = [
 
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["rekuest_next"]
+
 [[tool.pydoc-markdown.loaders]]
 type = "python"
 search_path = ["arkitekt"]
@@ -82,7 +92,43 @@ docs_base_path = "website/docs"
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-upload_to_pypi = true
-branch = "main"
-build_command = "uv build"
+# The semantic-release GitHub Action runs in a Docker container without uv, so
+# install it first (the `build` extra). After PSR bumps the version in
+# pyproject.toml, re-sync just this package's entry in uv.lock and stage it so
+# the release commit carries a consistent lock. $PACKAGE_NAME is injected by PSR.
+build_command = """
+    python -m pip install -e '.[build]'
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+commit_message = "chore(release): v{version} [skip ci]"
+
+# main -> stable X.Y.Z. next -> prereleases X.Y.Z-rc.N. N.x -> maintenance.
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.next]
+match = "next"
+prerelease = true
+prerelease_token = "rc"
+
+# Maintenance branches (1.x, 2.x, ...) cut stable patch/minor releases for an
+# older major after a new major has shipped from main.
+[tool.semantic_release.branches.maintenance]
+match = '^\d+\.x$'
+prerelease = false
+
+# Keep the changelog focused on user-facing changes. These patterns only filter
+# what's rendered — they do not affect version bumps.
+[tool.semantic_release.changelog]
+exclude_commit_patterns = [
+    '^chore(?:\([^)]*\))?: ',
+    '^ci(?:\([^)]*\))?: ',
+    '^build(?:\([^)]*\))?: ',
+    '^style(?:\([^)]*\))?: ',
+    '^test(?:\([^)]*\))?: ',
+    '^Merge ',
+]
 

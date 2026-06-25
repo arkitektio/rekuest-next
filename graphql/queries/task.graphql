@@ -1,0 +1,12 @@
+query requests {
+  tasks {
+    ...Task
+  }
+}
+
+
+query GetEvent($id: ID){
+  event(id: $id){
+    ...TaskEvent
+  }
+}

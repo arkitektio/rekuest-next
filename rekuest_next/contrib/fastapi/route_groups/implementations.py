@@ -10,12 +10,11 @@ from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.openapi_utils import (
     create_json_schema_from_ports,
 )
-from typing import Any
 
 
 def add_implementation_route(
     router: APIRouter,
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     implementation: ImplementationInput,
 ) -> None:
     """Register a single implementation execution route."""
@@ -33,9 +32,8 @@ def add_implementation_route(
             "args": args_schema,
             "policy": {
                 "type": "object",
-                "description": "The policy for the assignation",
+                "description": "The policy for the task",
             },
-            "instanceId": {"type": "string", "description": "The instance ID"},
             "reference": {"type": "string", "description": "A reference string"},
             "cached": {"type": "boolean", "default": False},
             "log": {"type": "boolean", "default": False},
@@ -43,10 +41,10 @@ def add_implementation_route(
             "ephemeral": {"type": "boolean", "default": False},
             "step": {
                 "type": "boolean",
-                "description": "Whether to step through the assignation",
+                "description": "Whether to step through the task",
             },
         },
-        "required": ["args", "instanceId", "cached", "log", "capture", "ephemeral"],
+        "required": ["args", "cached", "log", "capture", "ephemeral"],
     }
     response_schema = create_json_schema_from_ports(
         implementation.definition.returns,
@@ -113,12 +111,9 @@ def add_implementation_route(
 
 def build_implementation_router(
     agent: FastApiAgent,
-    extension: str = "default",
 ) -> APIRouter:
     """Build routes for all static implementations."""
     router = APIRouter()
-    for implementation in agent.extension_registry.get(
-        extension
-    ).get_static_implementations():
+    for implementation in agent.app_registry.get_implementations():
         add_implementation_route(router, agent, implementation)
     return router

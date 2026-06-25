@@ -1,11 +1,3 @@
-db:
-  db_name: rekuest
-  dependency: db
-  engine: django.db.backends.postgresql
-  host: db
-  password: hello_django
-  port: 5432
-  username: hello_django
 django:
   admin:
     email: admin@admin.com
@@ -15,31 +7,89 @@ django:
   hosts:
     - "*"
   secret_key: 9be5ca4df71514f00a8f22719f788ad8
-force_script_name:
-lok:
+authentikate:
+  issuers:
+    - kind: rsa
+      iss: lok
+      kid: lok-key-1
+      public_key: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXx/g7dyiwmfIQvkBKvUAM+KBuL1KdvZfZMlYhbyrz9Auk2xao1gLYiQJ183joiXadUreL4BugUrasQVdR9JvBWXOBeqm2FD5Ehf9VvqXdzCOQ7/fUXkb9N8sqmz5YitQuheKGDh0weNmVcfdsCGU38sACEvFQg+5dv1tqLbm7EllT+vogntDVX16DmvpvFEX4HYHpT8qM/xuqSB6yQ8+wBuQd3K7WTFgUrUqQx6zFrSMUbSArPrrY5Z0GJAeDAHKp4+V+um4mSHpYM2nBJ5pn80wYpsf97KIL9P+UJzjb/indB8dCqpPkAk3HogBhj67Tp5JoqCMoaXHFU3tiYQCp
   static_tokens:
     test:
       sub: 1
       iss: lok
-      org: test 
-      device_id: ffff
+      active_org: test
+      client_device: ffff
+      client_app: test
+      client_release: v0.0.1
+      client_id: test
+    atest_token:
+      sub: 2
+      iss: lok
+      active_org: test
+      client_device: atest_device
+      client_app: atest
+      client_release: v0.0.1
+      client_id: atest
+    btest_token:
+      sub: 3
+      iss: lok
+      active_org: test
+      client_device: btest_device
+      client_app: btest
+      client_release: v0.0.1
+      client_id: btest
+    workflow_token:
+      sub: 4
+      iss: lok
+      active_org: test
+      client_device: workflow_device
+      client_app: workflow
+      client_release: v0.0.1
+      client_id: workflow
+    standalone_token:
+      sub: 5
+      iss: lok
+      active_org: test
+      client_device: standalone_device
+      client_app: standalone
+      client_release: v0.0.1
+      client_id: standalone
+lok:
   issuer: lok
   key_type: RS256
   public_key: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXx/g7dyiwmfIQvkBKvUAM+KBuL1KdvZfZMlYhbyrz9Auk2xao1gLYiQJ183joiXadUreL4BugUrasQVdR9JvBWXOBeqm2FD5Ehf9VvqXdzCOQ7/fUXkb9N8sqmz5YitQuheKGDh0weNmVcfdsCGU38sACEvFQg+5dv1tqLbm7EllT+vogntDVX16DmvpvFEX4HYHpT8qM/xuqSB6yQ8+wBuQd3K7WTFgUrUqQx6zFrSMUbSArPrrY5Z0GJAeDAHKp4+V+um4mSHpYM2nBJ5pn80wYpsf97KIL9P+UJzjb/indB8dCqpPkAk3HogBhj67Tp5JoqCMoaXHFU3tiYQCp
 redis:
-  dependency: redis
   host: redis
   port: 6379
-s3:
+datalayer:
   access_key: mikro_access_key
-  buckets:
-    media: media
-  dependency: minio
+  secret_key: mikro_secret_key
   host: minio
-  name: baggy-khaki-numbat
   port: 9000
   protocol: http
-  secret_key: mikro_secret_key
+  media:
+    bucket: media
+postgres:
+  db_name: rekuest
+  engine: django.db.backends.postgresql
+  host: db
+  password: hello_django
+  port: 5432
+  username: hello_django
+provenance:
+  issuer: rekuest
+  kid: rekuest-prov-1
+  token_ttl_seconds: 3600
+  human_roles: []
+  strict: false
+  private_key: |
+    -----BEGIN PRIVATE KEY-----
+    MC4CAQAwBQYDK2VwBCIEILK+rl9gVEjfKGiye+mLLjfEUGIdoP0WPC8lMZS3NYK2
+    -----END PRIVATE KEY-----
+  public_key: |
+    -----BEGIN PUBLIC KEY-----
+    MCowBQYDK2VwAyEA6lDpKZJ0ManLzreBg43+fZPoPP5lHOVk2E23pFDzNck=
+    -----END PUBLIC KEY-----
 scopes:
   rekuest_agent: Act as an agent
   rekuest_call: Call other apps with rekuest

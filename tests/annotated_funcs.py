@@ -14,7 +14,10 @@ def annotated_x(x: X) -> X:
 
 
 ChoiceX = Annotated[
-    list[str], withChoices("a", "b", "c"), withDefault("a"), withDescription("A choice list")
+    list[str],
+    withChoices("a", "b", "c"),
+    withDefault("a"),
+    withDescription("A choice list"),
 ]
 
 

@@ -83,6 +83,38 @@ def union_structure_function(
     )
 
 
+def basic_union_function(
+    rep: Union[int, SerializableObject],
+) -> Union[int, SerializableObject]:
+    """A union mixing a basic type with a structure.
+
+    Exercises the case that used to break: a bare ``int`` member of a union has
+    to round-trip through the tagged ``{"__use", "__value"}`` wire format.
+
+    Args:
+        rep (Union[int, SerializableObject]): Either a plain int or a structure.
+
+    Returns:
+        Union[int, SerializableObject]: The same value back.
+    """
+    return rep
+
+
+def numeric_union_function(rep: Union[int, float]) -> Union[int, float]:
+    """A union of two numeric types whose JSON encodings collapse.
+
+    Used to prove the ``use`` index is authoritative on expand: an int on the
+    wire tagged as the float arm must expand to a float.
+
+    Args:
+        rep (Union[int, float]): An int or a float.
+
+    Returns:
+        Union[int, float]: The same value back.
+    """
+    return rep
+
+
 def nested_basic_function(
     rep: List[str], nana: Dict[str, int], name: str | None = None
 ) -> Tuple[List[str], int]:

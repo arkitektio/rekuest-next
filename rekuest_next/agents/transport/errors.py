@@ -27,9 +27,9 @@ class ProvisionListDeniedError(AgentTransportException):
     """
 
 
-class AssignationListDeniedError(AgentTransportException):
+class TaskListDeniedError(AgentTransportException):
     """
-    Raised when the backend is not able to list the assignations.
+    Raised when the backend is not able to list the tasks.
     """
 
 

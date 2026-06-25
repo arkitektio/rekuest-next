@@ -22,4 +22,6 @@ def hash_definition(definition: DefinitionInput) -> str:
             "collections",
         ]
     }
-    return hashlib.sha256(json.dumps(hashable_definition, sort_keys=True).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(hashable_definition, sort_keys=True).encode()
+    ).hexdigest()

@@ -12,7 +12,9 @@ from .funcs import localized_structure_function, LocalizedStructure
 
 @pytest.mark.expand
 @pytest.mark.asyncio
-async def test_local_structures(simple_registry: StructureRegistry, mock_shelver: Shelver) -> None:
+async def test_local_structures(
+    simple_registry: StructureRegistry, mock_shelver: Shelver
+) -> None:
     """Test if we can shrink a nullable input."""
     functional_definition = prepare_definition(
         localized_structure_function, structure_registry=simple_registry

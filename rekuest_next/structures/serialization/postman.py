@@ -118,23 +118,21 @@ async def ashrink_arg(
 
         if port.kind == PortKind.UNION:
             if not port.children:
-                raise ShrinkingError(
-                    f"Port {port} has no children, but value is a dict"
-                )
+                raise ShrinkingError(f"Port {port} is a union but has no children")
 
             for index, possible_port in enumerate(port.children):
                 if predicate_serializable_port(
                     possible_port, value, structure_registry
                 ):
                     return {
-                        "use": index,
-                        "value": await ashrink_arg(
+                        "__use": index,
+                        "__value": await ashrink_arg(
                             possible_port, value, structure_registry
                         ),
                     }
 
             raise ShrinkingError(
-                f"Port is union butn none of the predicated for this port held true {port.children}"
+                f"Port is union but none of the predicates for this port held true {port.children}"
             )
 
         if port.kind == PortKind.DATE:
@@ -373,28 +371,33 @@ async def aexpand_return(
                 f"Port {port.identifier} has not more than one child"
             )
 
-        assert isinstance(value, dict), "Union value needs to be a dict"
-        assert "use" in value, "No use in vaalue"
-        index = value["use"]
-        true_value = value["value"]
-
-        if not isinstance(index, int):
+        if (
+            not isinstance(value, dict)
+            or "__use" not in value
+            or "__value" not in value
+        ):
             raise PortExpandingError(
-                f"Expected index to be an int, but got {type(index)}"
+                "Union value needs to be a tagged "
+                '{"__use": index, "__value": ...} dict, got '
+                f"{type(value).__name__}"
             )
 
-        for possible_port in port.children:
-            if predicate_serializable_port(
-                possible_port, true_value, structure_registry
-            ):
-                return await aexpand_return(
-                    possible_port,
-                    true_value,
-                    structure_registry=structure_registry,
-                )
+        index = value["__use"]
+        true_value = value["__value"]
 
-        raise PortExpandingError(
-            f"Port is union but none of the predicated for this port held true {port.children}"
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise PortExpandingError(
+                f"Expected '__use' to be an int index, but got {type(index)}"
+            )
+        if not 0 <= index < len(port.children):
+            raise PortExpandingError(
+                f"Union '__use' index {index} is out of range for {len(port.children)} children"
+            )
+
+        return await aexpand_return(
+            port.children[index],
+            true_value,
+            structure_registry=structure_registry,
         )
 
     if port.kind == PortKind.INT:

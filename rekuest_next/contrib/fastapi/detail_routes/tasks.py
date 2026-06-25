@@ -7,11 +7,10 @@ from fastapi.responses import JSONResponse
 
 from rekuest_next.contrib.fastapi.agent import FastApiAgent
 from rekuest_next.contrib.fastapi.models import TaskView
-from typing import Any
 
 
 def build_task_detail_router(
-    agent: FastApiAgent[Any],
+    agent: FastApiAgent,
     tasks_path: str = "/tasks",
 ) -> APIRouter:
     """Build detail routes for managed tasks."""

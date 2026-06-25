@@ -6,11 +6,10 @@ from rekuest_next.api.schema import LogLevel
 from koil import unkoil
 from rekuest_next import messages
 from rekuest_next.actors.vars import (
-    current_assignation_helper,
+    current_task_helper,
 )
 from rekuest_next.actors.types import Actor, AssignmentHook
-from rekuest_next.protocols import AnyState
-from rath.scalars import ID
+from rekuest_next.postmans.vars import current_postman
 
 
 class AssignmentHelper(BaseModel):
@@ -23,6 +22,7 @@ class AssignmentHelper(BaseModel):
     actor: Actor
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _token = None
+    _postman_token = None
 
     async def alog(
         self: Self, level: LogLevel | messages.LogLevelLiteral, message: str
@@ -34,24 +34,20 @@ class AssignmentHelper(BaseModel):
             message (str): The log message.
         """
         await self.actor.asend(
-            message=messages.LogEvent(
-                assignation=self.assignment.assignation,
+            message=messages.Log(
+                task=self.assignment.task,
                 level=level.value if isinstance(level, LogLevel) else level,
                 message=message,
             )
         )
 
-    def get_resolution(self) -> ID:
-        """Get a dependency by its reference."""
-        return self.assignment.resolution
-
     def install_hook(self, hook: "AssignmentHook") -> None:
-        """Install an assignment hook for the current assignation.
+        """Install an assignment hook for the current task.
 
         Args:
             hook (AssignmentHook): The hook to install.
         """
-        self.actor.install_assignment_hook(self.assignment.assignation, hook)
+        self.actor.install_assignment_hook(self.assignment.task, hook)
 
     async def aprogress(self, progress: int, message: Optional[str] = None) -> None:
         """Send a progress message to the actor.
@@ -64,24 +60,16 @@ class AssignmentHelper(BaseModel):
             raise ValueError("Progress must be between 0 and 100")
 
         await self.actor.asend(
-            message=messages.ProgressEvent(
-                assignation=self.assignment.assignation,
+            message=messages.Progress(
+                task=self.assignment.task,
                 progress=progress,
                 message=message,
             )
         )
 
-    async def apublish_state(self: Self, state: AnyState) -> None:
-        """Publish the state of the actor.
-
-        Args:
-            state (AnyState): The state to publish.
-        """
-        await self.actor.apublish_state(state)
-
     async def abreakpoint(self) -> bool:
         """Check if the actor needs to break"""
-        return await self.actor.abreak(self.assignment.assignation)
+        return await self.actor.abreak(self.assignment.task)
         # await self.actor.acheck_needs_break()
 
     def breakpoint(self) -> bool:
@@ -116,37 +104,50 @@ class AssignmentHelper(BaseModel):
 
     @property
     def user(self) -> str:
-        """Returns the user that caused the assignation"""
+        """Returns the user that caused the task"""
         return self.assignment.user
 
     @property
-    def assignation(self) -> str:
-        """Returns the governing assignation that cause the chained that lead to this execution"""
-        return self.assignment.assignation
+    def task(self) -> str:
+        """Returns the governing task that cause the chained that lead to this execution"""
+        return self.assignment.task
 
     @property
     def org(self) -> str:
-        """Returns the organization that caused the assignation"""
+        """Returns the organization that caused the task"""
         return self.assignment.org
 
     @property
     def action(self) -> str:
-        """Returns the node that caused the assignation"""
+        """Returns the node that caused the task"""
         return self.assignment.action
 
     @property
     def args(self) -> dict[str, Any]:
-        """Returns the args that caused the assignation"""
+        """Returns the args that caused the task"""
         return self.assignment.args
 
+    @property
+    def token(self) -> str | None:
+        """Returns the opaque provenance token of the task, if any.
+
+        The token is forwarded untouched to downstream services; it is None
+        when the implementation opted out of provenance (needs_token=False).
+        """
+        return self.assignment.token
+
     def __enter__(self) -> Self:
-        """Set the current assignation helper to this instance.
+        """Set the current task helper to this instance.
         This is used to send logs and progress messages to the actor.
 
-        Within this context all get_assignation_helper() calls will return this instance.
+        Within this context all get_task_helper() calls will return this instance.
         """
 
-        self._token = current_assignation_helper.set(self)
+        self._token = current_task_helper.set(self)
+        # Route actor-internal acall/acall_dependency over the agent socket (instead of the
+        # GraphQL postman) for the duration of this task body. Standalone callers outside an
+        # actor never enter here, so they keep the app's GraphQL postman.
+        self._postman_token = current_postman.set(self.actor.agent.caller_postman)
         return self
 
     def __exit__(
@@ -162,13 +163,15 @@ class AssignmentHelper(BaseModel):
             exc_val (Optional[Exception]): The exception value
             exc_tb (Optional[type]): The traceback
         """
+        if self._postman_token:
+            current_postman.reset(self._postman_token)
         if self._token:
-            current_assignation_helper.reset(self._token)
+            current_task_helper.reset(self._token)
 
     async def __aenter__(self) -> Self:
-        """Set the current assignation helper to this instance.
+        """Set the current task helper to this instance.
         This is used to send logs and progress messages to the actor.
-        Within this context all get_assignation_helper() calls will return this instance.
+        Within this context all get_task_helper() calls will return this instance.
         """
 
         return self.__enter__()

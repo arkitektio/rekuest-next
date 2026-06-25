@@ -14,32 +14,34 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, Dict, Generic, List, Optional, Self, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Dict,
+    List,
+    Optional,
+    Self,
+    Sequence,
+    Type,
+    TypeVar,
+)
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from koil import unkoil
 from koil.composition import KoiledModel
 from rekuest_next import messages
-from rekuest_next.actors.sync import SyncKeyManager
-from rekuest_next.actors.types import Actor, Passport
+from rekuest_next.actors.types import Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
 from rekuest_next.agents.hooks.registry import StartupHook, StartupHookReturns
 from rekuest_next.agents.lock import TaskLock
-from rekuest_next.agents.registry import (
-    ExtensionRegistry,
-    get_default_extension_registry,
-)
+from rekuest_next.app import AppRegistry, get_default_app_registry
 from rekuest_next.agents.transport.types import AgentTransport
 from rekuest_next.api.schema import (
     Agent,
-    BlokImplementationInput,
     Implementation,
     StateDefinitionInput,
-    LockImplementationInput,
-    ImplementationInput,
-    StateImplementationInput,
     aensure_agent,
     aimplement_agent,
     ashelve,
@@ -56,6 +58,20 @@ from rekuest_next.structures.serialization.actor import ashrink_return
 from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
+
+# Agent→backend terminal reports. These are retained until the backend acknowledges
+# them with an ``EventAck`` (persist-then-ack) and resent on reconnect, mirroring the
+# caller-side ``_TERMINAL_TYPES`` in ``agents/caller.py``.
+_TERMINAL_FROM_AGENT_TYPES = (
+    messages.Completed,
+    messages.Failed,
+    messages.Critical,
+    messages.Cancelled,
+    messages.Interrupted,
+)
+
+if TYPE_CHECKING:
+    from rekuest_next.agents.caller import AgentPostman
 
 
 class AppContext:
@@ -76,14 +92,11 @@ def app_context(
     return cls
 
 
-ContextType = TypeVar("ContextType", bound="AppContext")
-
-
 @dataclass
 class QueuedPatchEvent:
     interface: str
     patch: Patch
-    assignation_id: Optional[str] = None
+    task_id: Optional[str] = None
     event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -95,7 +108,7 @@ class RevisedState:
     data: JSONSerializable
 
 
-class BaseAgent(KoiledModel, Generic[ContextType]):
+class BaseAgent(KoiledModel):
     """Agent
 
     Agents are the governing entities for every app. They are responsible for
@@ -118,17 +131,11 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         default=None,
         description="The name of the agent. This is used to identify the agent in the system.",
     )
-    instance_id: str = Field(
-        default="default",
-        description="The instance id of the agent. This is used to identify the agent in the system.",
-    )
 
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
-    extension_registry: ExtensionRegistry = Field(
-        default_factory=get_default_extension_registry
-    )
+    app_registry: AppRegistry = Field(default_factory=get_default_app_registry)
 
     contexts: Dict[str, Any] = Field(
         default_factory=dict,
@@ -140,7 +147,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     )
     locks: Dict[str, TaskLock] = Field(default_factory=dict)
 
-    # TODO: Probably dead
     capture_condition: asyncio.Condition = Field(default_factory=asyncio.Condition)
     capture_active: bool = Field(default=False)
 
@@ -149,18 +155,10 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     interface_implementation_map: Dict[str, Implementation] = Field(
         default_factory=dict
     )
-    implementation_interface_map: Dict[str, str] = Field(default_factory=dict)
-    provision_passport_map: Dict[int, Passport] = Field(default_factory=lambda: {})
 
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
-        default_factory=dict, description="Maps assignation to actor id"
-    )
-
-    # TODO Delete
-    sync_key_manager: SyncKeyManager = Field(
-        default_factory=SyncKeyManager,
-        description="Manager for sync key locks across all implementations",
+        default_factory=dict, description="Maps task to actor id"
     )
 
     managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
@@ -174,11 +172,17 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         default_factory=lambda: {}  # type: ignore[return-value]
     )
     _app_context: Optional[AppContext] = PrivateAttr(default=None)
+    _caller_postman: Optional["AgentPostman"] = PrivateAttr(default=None)
+    """The agent-as-caller postman, lazily built. Bound as ``current_postman`` while an
+    actor body runs so actor-internal ``acall``/``acall_dependency`` route over this socket."""
 
-    _shrunk_states: Dict[str, Any] = PrivateAttr(default_factory=lambda: {})
-    _interface_stateschema_map: Dict[str, StateDefinitionInput] = PrivateAttr(
-        default_factory=lambda: {}  # typ
+    _connected_event: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+    """Set when the server acknowledges the agent (an ``Init`` message is received)."""
+    _receiver: Optional[AsyncIterator[messages.ToAgentMessage]] = PrivateAttr(
+        default=None
     )
+    """The live transport message stream, shared between ``aconnect`` and ``aloop``."""
+
     _interface_stateschema_input_map: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}  # typ
     )
@@ -189,17 +193,10 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     _collected_state_schemas: Dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}
     )
-
-    _collected_structure_registries: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
     _collected_startup_hooks: Dict[str, StartupHook] = PrivateAttr(
         default_factory=lambda: {}
     )
     _collected_background_workers: Dict[str, Any] = PrivateAttr(
-        default_factory=lambda: {}
-    )
-    _state_class_interface_map: Dict[type, str] = PrivateAttr(
         default_factory=lambda: {}
     )
 
@@ -210,37 +207,48 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     )
     _event_queue: janus.Queue[QueuedPatchEvent] | None = PrivateAttr(default=None)
     _patch_processor_task: asyncio.Task[None] | None = PrivateAttr(default=None)
+    _event_seq: int = PrivateAttr(default=0)
+    # message id -> retained terminal event awaiting its EventAck (insertion-ordered dict)
+    _unacked_events: Dict[str, messages.FromAgentMessage] = PrivateAttr(
+        default_factory=dict
+    )
     global_revision: int = 0
     snapshot_interval: int = Field(
         default=60,
         description="How many persisted patches should elapse before all current shrunk states are checkpointed.",
     )
+    teardown_join_timeout: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for queued state patches to flush during teardown before closing the patch queue anyway. Bounds teardown so it can never hang on an unconsumed patch.",
+    )
+    cancel_grace_period: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for the message-consumer task to unwind when the agent loop is cancelled before proceeding to teardown anyway. Bounds cancellation so it can never hang on a stream that ignores cancellation.",
+    )
     started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    _collected_implementations: List[ImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_states: list[StateImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_bloks: list[BlokImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
-    _collected_locks: list[LockImplementationInput] = PrivateAttr(
-        default_factory=lambda: []
-    )
+    @property
+    def caller_postman(self) -> "AgentPostman":
+        """The agent-as-caller postman (lazily built).
 
-    def model_post_init(self, __context: Any) -> None:
-        pass
+        Bound as ``current_postman`` while an actor body runs so that actor-internal
+        ``acall``/``acall_dependency`` originate work over this agent's socket instead of
+        through the GraphQL postman.
+        """
+        if self._caller_postman is None:
+            from rekuest_next.agents.caller import AgentPostman
 
-    async def alock(self, key: str, assignation: str) -> None:
-        """Signal that an assignation has acquired a lock."""
+            self._caller_postman = AgentPostman(self)
+        return self._caller_postman
+
+    async def alock(self, key: str, task: str) -> None:
+        """Signal that a task has acquired a lock."""
         return None
 
     async def aunlock(self, key: str) -> None:
-        """Signal that an assignation has released a lock."""
+        """Signal that a task has released a lock."""
         return None
 
     async def aget_read_only_proxy(self, key: str) -> AnyState:
@@ -269,7 +277,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             raise
 
     def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
+        self, interface: str, patch: Patch, task_id: str | None = None
     ) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
@@ -277,9 +285,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         if self._event_queue is None:
             raise AgentException("Patch queue is not initialized")
         self._event_queue.sync_q.put(
-            QueuedPatchEvent(
-                interface=interface, patch=patch, assignation_id=assignation_id
-            )
+            QueuedPatchEvent(interface=interface, patch=patch, task_id=task_id)
         )
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
@@ -303,7 +309,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         self.global_revision = future_global_rev
         if self.global_revision % self.snapshot_interval == 0:
             await self.apublish_snapshot(
-                messages.StateSnapshotEvent(
+                messages.StateSnapshot(
                     session_id=self.current_session,
                     global_rev=self.global_revision,
                     snapshots={
@@ -314,7 +320,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             )
 
         await self.apublish_patch(
-            messages.StatePatchEvent(
+            messages.StatePatch(
                 global_rev=self.global_revision,
                 state_name=interface,
                 ts=queued_patch.event_time.timestamp(),
@@ -322,7 +328,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                 path=patch.path,
                 value=shrunk_value,
                 old_value=None,
-                correlation_id=patch.correlation_id,
+                task_id=patch.correlation_id,
                 session_id=self.current_session,
             ),
         )
@@ -365,7 +371,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """Create a new session identifier. Returns a UUID by default; override in subclasses."""
         return str(uuid.uuid4())
 
-    def get_locks_for_keys(self, keys: List[str]) -> List[TaskLock]:
+    def get_locks_for_keys(self, keys: Sequence[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
 
         Args:
@@ -373,57 +379,31 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         Returns:
             The list of locks for the given keys.
         """
-        locks: List[TaskLock] = []
-        for key in keys:
-            for lock in self.locks.values():
-                if lock.lock_key == key:
-                    locks.append(lock)
-        return locks
+        return [self.locks[key] for key in keys if key in self.locks]
 
     def collect_from_extensions(self) -> None:
-        """Collect state schemas, startup hooks, background workers, and sync keys from all extensions.
+        """Collect state schemas, hooks, sync keys and locks from the app registry.
 
-        This method iterates through all registered extensions and collects their
-        state schemas, startup hooks, background workers, and sync keys into the agent's
-        internal collections.
+        The actual implementation/state/blok payload is assembled (and validated)
+        lazily by ``AppRegistry.to_implement_agent_input`` at registration time; this
+        only populates the runtime bookkeeping the agent needs while running.
         """
+        app_registry = self.app_registry
 
-        for extension in self.extension_registry.agent_extensions.values():
-            # Collect state schemas
-            state_schemas = extension.get_states()
-            for interface, schema in state_schemas.items():
-                self._collected_state_schemas[interface] = schema.definition
-                self._collected_states.append(schema)
+        # Collect state schemas
+        for interface, schema in app_registry.states.items():
+            self._collected_state_schemas[interface] = schema.definition
 
-            # Collect startup hooks
-            startup_hooks = extension.get_startup_hooks()
-            for name, hook in startup_hooks.items():
-                self._collected_startup_hooks[name] = hook
+        # Collect startup hooks and background workers
+        for name, hook in app_registry.hooks_registry.startup_hooks.items():
+            self._collected_startup_hooks[name] = hook
+        for name, worker in app_registry.hooks_registry.background_worker.items():
+            self._collected_background_workers[name] = worker
 
-            # Collect background workers
-            background_workers = extension.get_background_workers()
-            for name, worker in background_workers.items():
-                self._collected_background_workers[name] = worker
-
-            # Collect sync keys from implementations
-            implementations = extension.get_implementations()
-            for implementation in implementations:
-                if implementation.locks is not None:
-                    self.sync_key_manager.register_sync_keys(
-                        implementation.interface or implementation.definition.name,
-                        implementation.locks,
-                    )
-
-                self._collected_implementations.append(implementation)
-
-            locks = extension.get_lock_schemas()
-            for interface, lock_schema in locks.items():
-                if interface not in self.locks:
-                    self.locks[interface] = TaskLock(self, lock_schema)
-
-            blocks = extension.get_bloks()
-            for key, blok in blocks.items():
-                self._collected_bloks.append(blok)
+        # Build the runtime task locks
+        for lock_schema in app_registry.get_locks():
+            if lock_schema.key not in self.locks:
+                self.locks[lock_schema.key] = TaskLock(self, lock_schema)
 
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
         """Get the structure registry for a given interface from extensions.
@@ -435,33 +415,15 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             The structure registry for the interface.
         """
 
-        for extension in self.extension_registry.agent_extensions.values():
-            app_registry = getattr(extension, "app_registry", None)
-            if app_registry is not None:
-                return app_registry.state_registry.get_registry_for_interface(interface)
-        raise AgentException(f"No structure registry found for interface {interface}")
-
-    def get_interface_for_state_class(self, cls: type) -> str:
-        """Get the interface for a state class from extensions.
-
-        Args:
-            cls: The state class to get the interface for.
-
-        Returns:
-            The interface name for the state class.
-        """
-        for extension in self.extension_registry.agent_extensions.values():
-            app_registry = getattr(extension, "app_registry", None)
-            if app_registry is not None:
-                try:
-                    return app_registry.state_registry.get_interface_for_class(cls)
-                except (KeyError, AssertionError):
-                    continue
-        raise AgentException(f"No interface found for state class {cls}")
+        try:
+            return self.app_registry.get_registry_for_interface(interface)
+        except (KeyError, AssertionError):
+            raise AgentException(
+                f"No structure registry found for interface {interface}"
+            )
 
     async def ashelve(
         self,
-        instance_id: str,
         identifier: Identifier,
         resource_id: str,
         label: Optional[str] = None,
@@ -492,7 +454,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             label = str(value)
 
         drawer_id = await self.ashelve(
-            instance_id=self.instance_id,
             identifier=identifier,
             resource_id=uuid.uuid4().hex,
             label=label,
@@ -517,42 +478,54 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """
         logger.info(f"Agent received {message}")
 
+        # TODO: Should be a match statement, as we have dropepd support for python 3.9,
+
         if isinstance(message, messages.Init):
+            # The Init message is the server's acknowledgement of our Register.
+            # Signal that the agent is connected so callers awaiting aconnect()
+            # can proceed.
+            self._connected_event.set()
+            # Reconnect (the backend re-sends Init after a transient drop): resend any
+            # terminal reports we retained but never saw acked. Sent as-is (not via
+            # _adispatch) so seq is preserved and they are not re-buffered; the backend
+            # dedups terminal reports by task id.
+            for retained in list(self._unacked_events.values()):
+                await self.transport.asend(retained)
             for inquiry in message.inquiries:
-                if inquiry.assignation in self.managed_assignments:
-                    assignment = self.managed_assignments[inquiry.assignation]
-                    actor = self.managed_actors[assignment.actor_id]
+                if inquiry.task in self.managed_assignments:
+                    assignment = self.managed_assignments[inquiry.task]
+                    actor = self.managed_actors[assignment.interface]
 
                     # Checking status
-                    status = await actor.acheck_assignation(assignment.assignation)
+                    status = await actor.acheck_task(assignment.task)
                     if status:
-                        await self.transport.asend(
-                            messages.ProgressEvent(
-                                assignation=inquiry.assignation,
+                        await self._adispatch(
+                            messages.Progress(
+                                task=inquiry.task,
                                 message="Actor is still running",
                                 progress=0,
                             )
                         )
                     else:
-                        await self.transport.asend(
-                            messages.CriticalEvent(
-                                assignation=inquiry.assignation,
+                        await self._adispatch(
+                            messages.Critical(
+                                task=inquiry.task,
                                 error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                             )
                         )
                 else:
-                    await self.transport.asend(
-                        messages.CriticalEvent(
-                            assignation=inquiry.assignation,
+                    await self._adispatch(
+                        messages.Critical(
+                            task=inquiry.task,
                             error="After disconnect actor was no longer managed (probably the app was restarted)",
                         )
                     )
 
         elif isinstance(message, messages.Assign):
-            if message.actor_id in self.managed_actors:
+            if message.interface in self.managed_actors:
                 # The actor is already spawned
-                actor = self.managed_actors[message.actor_id]
-                self.managed_assignments[message.assignation] = message
+                actor = self.managed_actors[message.interface]
+                self.managed_assignments[message.task] = message
                 await actor.apass(message)
             else:
                 try:
@@ -560,9 +533,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                     await actor.apass(message)
 
                 except Exception as e:
-                    await self.transport.asend(
-                        messages.CriticalEvent(
-                            assignation=message.assignation,
+                    await self._adispatch(
+                        messages.Critical(
+                            task=message.task,
                             error=f"Not able to create actor through extensions {str(e)}",
                         )
                     )
@@ -572,59 +545,79 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             message,
             (
                 messages.Cancel,
-                messages.Step,
                 messages.Pause,
                 messages.Resume,
             ),
         ):
-            if message.assignation in self.managed_assignments:
-                assignment = self.managed_assignments[message.assignation]
-                actor = self.managed_actors[assignment.actor_id]
+            if message.task in self.managed_assignments:
+                assignment = self.managed_assignments[message.task]
+                actor = self.managed_actors[assignment.interface]
                 await actor.apass(message)
             else:
                 logger.warning(
-                    "Received unassignation for a provision that is not running"
-                    f"Managed: {self.provision_passport_map} Received: {message.assignation}"
+                    "Received unassignation for a provision that is not running. "
+                    f"Received: {message.task}"
                 )
-                await self.transport.asend(
-                    messages.CriticalEvent(
-                        assignation=message.assignation,
+                await self._adispatch(
+                    messages.Critical(
+                        task=message.task,
                         error="Actors is no longer running and not managed. Probablry there was a restart",
                     )
                 )
+
+        elif isinstance(message, messages.ProtocolError):
+            raise AgentException(
+                "Received a protocol error from the backend. This usually means "
+                f"the agent sent a message the backend could not process: {message.error}"
+            )
+
+        elif isinstance(message, messages.AssignResponse):
+            self.caller_postman.handle_assign_response(message)
+
+        elif isinstance(message, messages.ControlResponse):
+            self.caller_postman.handle_control_response(message)
+
+        elif isinstance(message, messages.ExecutionEvent):
+            # Base of every backend→caller `…Event` mirror. Routed to the caller postman
+            # so an actor-internal acall/acall_dependency can observe the work it delegated.
+            self.caller_postman.handle_execution_event(message)
 
         elif isinstance(message, messages.Collect):
             for key in message.drawers:
                 await self.acollect(key)
 
         elif isinstance(message, messages.AssignInquiry):
-            if message.assignation in self.managed_assignments:
-                assignment = self.managed_assignments[message.assignation]
-                actor = self.managed_actors[assignment.actor_id]
+            if message.task in self.managed_assignments:
+                assignment = self.managed_assignments[message.task]
+                actor = self.managed_actors[assignment.interface]
 
                 # Checking status
-                status = await actor.acheck_assignation(assignment.assignation)
+                status = await actor.acheck_task(assignment.task)
                 if status:
-                    await self.transport.asend(
-                        messages.ProgressEvent(
-                            assignation=message.assignation,
+                    await self._adispatch(
+                        messages.Progress(
+                            task=message.task,
                             message="Actor is still running",
                         )
                     )
                 else:
-                    await self.transport.asend(
-                        messages.CriticalEvent(
-                            assignation=message.assignation,
+                    await self._adispatch(
+                        messages.Critical(
+                            task=message.task,
                             error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
                         )
                     )
             else:
-                await self.transport.asend(
-                    messages.CriticalEvent(
-                        assignation=message.assignation,
+                await self._adispatch(
+                    messages.Critical(
+                        task=message.task,
                         error="After disconnect actor was no longer managed (probably the app was restarted)",
                     )
                 )
+
+        elif isinstance(message, messages.EventAck):
+            # Backend made the reported event durable; stop retaining it.
+            self._unacked_events.pop(message.event, None)
 
         else:
             raise AgentException(f"Unknown message type {type(message)}")
@@ -635,14 +628,28 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         """
         logger.info("Tearing down the agent")
 
-        for background_task in self._background_tasks.values():
+        for background_task in list(self._background_tasks.values()):
             background_task.cancel()
 
-        for background_task in self._background_tasks.values():
+        for background_task in list(self._background_tasks.values()):
             try:
                 await background_task
             except asyncio.CancelledError:
                 pass
+
+        if self._event_queue is not None:
+            # Best-effort flush of queued patches before stopping the processor.
+            # Bounded by a timeout so teardown can never hang on a patch that was
+            # enqueued but will not be consumed (e.g. published during shutdown).
+            try:
+                await asyncio.wait_for(
+                    self._event_queue.async_q.join(), timeout=self.teardown_join_timeout
+                )
+            except (RuntimeError, asyncio.TimeoutError):
+                logger.warning(
+                    "Timed out flushing queued patches during teardown; "
+                    "closing the patch queue anyway"
+                )
 
         if self._patch_processor_task is not None:
             self._patch_processor_task.cancel()
@@ -652,10 +659,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
                 pass
 
         if self._event_queue is not None:
-            try:
-                await self._event_queue.async_q.join()
-            except RuntimeError:
-                pass
             try:
                 await self._event_queue.aclose()
             except RuntimeError:
@@ -679,16 +682,34 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             except asyncio.CancelledError:
                 pass
 
-        for extension in self.extension_registry.agent_extensions.values():
-            await extension.atear_down()
-
         await self.astop_background()
         await self.transport.adisconnect()
+
+        # Reset the connected signal and stored receiver so a subsequent run of a
+        # re-entered agent waits for a fresh Init instead of observing stale state.
+        self._connected_event.clear()
+        self._receiver = None
 
     async def aget_hash(self) -> str:
         """Get the hash of the agent. This is used to identify the agent in the system and to check if the agent has changed."""
         # TODO: Actually perform the hashing based on the extensions and their implementations, state schemas, and other relevant information. For now, we just return a random hash to force the agent to register all implementations on every start.
         return random.randbytes(16).hex()
+
+    async def _adispatch(self, message: messages.FromAgentMessage) -> None:
+        """Assign a stream seq to events, retain terminal reports for ack, then send.
+
+        Every agent→backend event flows through here so it gets a monotonic ``seq``
+        and so terminal reports (completed/failed/critical/cancelled/interrupted) are
+        retained in ``_unacked_events`` until the backend confirms durability with an
+        ``EventAck`` (handled in ``process``) — the persist-then-ack contract.
+        """
+        if isinstance(message, messages.FromAgentEvent):
+            self._event_seq += 1
+            # Messages are frozen, so produce a copy carrying the assigned seq.
+            message = message.model_copy(update={"seq": self._event_seq})
+            if isinstance(message, _TERMINAL_FROM_AGENT_TYPES):
+                self._unacked_events[message.id] = message
+        await self.transport.asend(message)
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
@@ -697,7 +718,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         logger.debug(
             f"Agent forwarding {message.id} from actor {actor.__class__.__name__}"
         )
-        await self.transport.asend(message)
+        await self._adispatch(message)
 
     async def ashrink_state(self, interface: str, state: AnyState) -> Any:  # noqa: ANN401
         """Shrink the state to the schema. This will be called when the agent starts"""
@@ -720,9 +741,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         self, hook_return: StartupHookReturns, app_context: Any = None
     ) -> None:  # noqa: ANN401
         """Initialize the state of the agent. This will be called when the agent starts"""
-
-        if not self.instance_id:
-            raise AgentException("Instance id is not set. The agent is not initialized")
 
         state_schemas = self._collected_state_schemas
         missing_initializers = sorted(
@@ -754,7 +772,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         # TODO: Implement state initialization through dataclass
 
-        snapshot_event = messages.StateSnapshotEvent(
+        snapshot_event = messages.StateSnapshot(
             session_id=self.current_session,
             global_rev=self.global_revision,
             snapshots={
@@ -765,11 +783,11 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         logger.debug("Publishing initial snapshot event: %s ", snapshot_event)
         await self.apublish_snapshot(snapshot_event)
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         """Publish a patch to the agent.  Will forward the patch to the transport"""
         raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         """Publish a snapshot to the agent.  Will forward the snapshot to the transport"""
         raise NotImplementedError("apublish_snapshot not implemented in BaseAgent")
 
@@ -781,61 +799,6 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             raise AgentException(f"Context {context} not found in agent {self.name}")
         return self.contexts[context]
 
-    def get_context_for_type(self, context: Type[ContextType]) -> ContextType:  # noqa: ANN401
-        """Get a context from the agent. This is used to get contexts from the
-        agent from the actor."""
-        from rekuest_next.agents.context import get_context_name, is_context
-
-        if not self.running:
-            raise AgentException(
-                "Agent is not running. Contexts are not available yet."
-            )
-
-        if is_context(context):
-            context_name = get_context_name(context)
-            return self.contexts[context_name]
-
-        raise AgentException(
-            f"Context for type {context} not found in agent {self.name}"
-        )
-
-    async def aget_app_context(self) -> AppContext:
-        """Get the app context from the agent. This is used to get the
-        app context from the agent."""
-        if self._app_context is None:
-            raise AgentException("App context is not set in the agent")
-        return self._app_context
-
-    async def aget_state(self, interface: str) -> AnyState:
-        """Get the state of the extension. This will be called when"""
-        if interface not in self.states:
-            raise AgentException(f"State {interface} not found in agent {self.name}")
-        return self.states[interface]
-
-    def get_sync_keys_for_interface(self, interface: str) -> tuple[str, ...]:
-        """Get the sync keys for a given interface.
-
-        Args:
-            interface: The interface name.
-
-        Returns:
-            A tuple of sync key names, or empty tuple if none.
-        """
-        for extension in self.extension_registry.agent_extensions.values():
-            implementations = extension.get_implementations()
-            for impl in implementations:
-                if (impl.interface or impl.definition.name) == interface:
-                    return impl.locks or ()
-        return ()
-
-    def get_sync_key_status(self) -> list[dict]:
-        """Get the status of all sync keys.
-
-        Returns:
-            A list of status dictionaries for all sync key locks.
-        """
-        return self.sync_key_manager.get_all_status()
-
     async def arun_background(self) -> None:
         """Run the background tasks. This will be called when the agent starts."""
 
@@ -843,13 +806,20 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             task = asyncio.create_task(
                 worker.arun(self, contexts=self.contexts, states=self.states)
             )
-            task.add_done_callback(lambda x: self._background_tasks.pop(name))
             task.add_done_callback(
-                lambda x: logger.error(
-                    "Worker %s failed with exception: %s", name, x.exception()
-                )
+                lambda task, name=name: self._on_background_done(name, task)
             )
             self._background_tasks[name] = task
+
+    def _on_background_done(self, name: str, task: "asyncio.Task[None]") -> None:
+        """Done-callback for background worker tasks. Removes the task from the
+        registry and logs any genuine failure (ignoring cancellation)."""
+        self._background_tasks.pop(name, None)
+        if task.cancelled():
+            return
+        exception = task.exception()
+        if exception is not None:
+            logger.error("Worker %s failed with exception: %s", name, exception)
 
     async def astop_background(self) -> None:
         """Stop the background tasks. This will be called when the agent stops."""
@@ -864,12 +834,9 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
             pass
 
     async def arun_startup_hooks(
-        self, instance_id: str, app_context: Optional[ContextType] = None
+        self, app_context: Optional[AppContext] = None
     ) -> StartupHookReturns:
         """Run all startup hooks collected from extensions.
-
-        Args:
-            instance_id: The instance id of the agent.
 
         Returns:
             StartupHookReturns: The combined states and contexts from all hooks.
@@ -882,7 +849,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         for key, hook in self._collected_startup_hooks.items():
             try:
                 answer = await asyncio.wait_for(
-                    hook.arun(instance_id=instance_id, app_context=app_context),
+                    hook.arun(app_context=app_context),
                     timeout=20,
                 )
                 for i in answer.states:
@@ -903,9 +870,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
     async def aensure(self) -> None:
         """A function that gets called so that we create the agent with its definitions before we start the ooop"""
 
-    async def astart(
-        self, instance_id: str, app_context: Optional[ContextType] = None
-    ) -> None:
+    async def astart(self, app_context: Optional[AppContext] = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
@@ -922,22 +887,19 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         locks = [lock.lock_key for lock in self.locks.values()]
 
         with acquired_locks(*locks):
-            hook_return = await self.arun_startup_hooks(
-                instance_id=instance_id, app_context=app_context
-            )
+            hook_return = await self.arun_startup_hooks(app_context=app_context)
             await self.ainit_states(hook_return=hook_return, app_context=app_context)
 
         self.global_revision = 0
         self._event_queue = janus.Queue()
         self._patch_processor_task = asyncio.create_task(self.apatch_event_loop())
         self._patch_processor_task.add_done_callback(
-            lambda x: logger.error(f"Patch processor task failed: {x.exception()}")
-            if not x.cancelled() and x.exception() is not None
-            else None
+            lambda x: (
+                logger.error(f"Patch processor task failed: {x.exception()}")
+                if not x.cancelled() and x.exception() is not None
+                else None
+            )
         )
-
-        for extension in self.extension_registry.agent_extensions.values():
-            await extension.astart(instance_id=instance_id, app_context=app_context)
 
         for context_key, context_value in hook_return.contexts.items():
             self.contexts[context_key] = context_value
@@ -954,67 +916,157 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
 
         """
 
-        if assign.extension not in self.extension_registry.agent_extensions:
-            raise ProvisionException(
-                f"Extension {assign.extension} not found in agent {self.name}"
+        try:
+            actor_builder = self.app_registry.get_builder_for_interface(
+                assign.interface
             )
-        extension = self.extension_registry.agent_extensions[assign.extension]
+        except KeyError:
+            raise ProvisionException(
+                f"No actor builder found for interface {assign.interface} in agent {self.name}"
+            )
 
-        actor = await extension.aspawn_actor_for_interface(self, assign.interface)
+        actor = actor_builder(agent=self)
 
-        self.managed_actors[assign.actor_id] = actor
-        self.managed_assignments[assign.assignation] = assign
+        self.managed_actors[assign.interface] = actor
+        self.managed_assignments[assign.task] = assign
 
         return actor
 
-    async def await_errorfuture(self) -> Exception:
-        """Waits for the error future to be set. This is used to wait for"""
-        if self._errorfuture is None:
-            raise AgentException("Error future is not set")
+    async def _adrain_until_connected(self) -> None:
+        """Process incoming messages until the server acknowledges the agent.
 
-        return await self._errorfuture
+        Returns as soon as an ``Init`` message has been handled (which sets
+        ``_connected_event``), leaving the transport stream live for ``aloop``.
+        """
+        assert self._receiver is not None, "Receiver must be set before draining"
+        if self._connected_event.is_set():
+            return
+        async for message in self._receiver:
+            await self.process(message)
+            if self._connected_event.is_set():
+                return
 
-    def provide(self, context: Optional[ContextType] = None) -> None:
-        """Provides the agent. This starts the agents and
-        connected the transport."""
-        return unkoil(self.aprovide, context=context)
+    async def _await_acknowledged(self) -> None:
+        """Wait until the server has acknowledged the agent.
+
+        For the websocket transport this drains the message stream until an
+        ``Init`` is received. Subclasses whose transport has no acknowledgement
+        handshake (e.g. the server-side FastAPI transport) override this.
+        """
+        await self._adrain_until_connected()
+
+    async def _aconnect_sequence(self, context: Optional[AppContext] = None) -> None:
+        """The startup + transport-open + acknowledge sequence, unbounded.
+
+        Each phase is logged so that a stall (when ``aconnect`` wraps this in a
+        timeout) points to the exact phase that hung.
+        """
+        logger.debug("aconnect: running astart")
+        await self.astart(app_context=context)
+        logger.debug("aconnect: opening transport")
+        self._receiver = self.transport.areceive().__aiter__()
+        await self.transport.aconnect()
+        logger.debug("aconnect: draining until acknowledged")
+        await self._await_acknowledged()
+        logger.info("Agent connected and acknowledged by the server")
+
+    async def aconnect(
+        self,
+        context: Optional[AppContext] = None,
+        timeout: float | None = None,
+    ) -> None:
+        """Starts the agent and connects to the transport.
+
+        This runs the startup phase, opens the transport, and returns once the
+        server has acknowledged the agent (an ``Init`` message is received). The
+        message stream is left live so that ``aloop`` can resume consuming it.
+
+        The whole sequence (including ``astart``) is bounded by ``timeout``: if it
+        does not complete within that many seconds, ``asyncio.TimeoutError`` is
+        raised and the agent is torn down.
+        """
+        self._app_context = context
+
+        try:
+            sequence = self._aconnect_sequence(context=context)
+            if timeout is not None:
+                await asyncio.wait_for(sequence, timeout)
+            else:
+                await sequence
+        except BaseException:
+            logger.error("Agent failed to connect", exc_info=True)
+            await self.atear_down()
+            raise
+
+    async def _aconsume_messages(self) -> None:
+        """Resume the transport stream and process every message it yields."""
+        assert self._receiver is not None, "aconnect() must run before aloop()"
+        async for message in self._receiver:
+            await self.process(message)
 
     async def aloop(self) -> None:
-        """Async loop that runs the agent. This is used to run the agent"""
-        try:
-            self.running = True
-            await self.transport.aconnect(self.instance_id)
+        """Async loop that processes messages after the agent has connected.
 
-            async for message in self.transport.areceive():
-                await self.process(message)
+        The transport stream is consumed in a dedicated child task. This keeps
+        cancellation responsive: some streams (e.g. a websocket mid-close) do not
+        promptly honour cancellation, which would otherwise leave ``aloop`` stuck
+        in the "cancelling" state forever and never run teardown. On cancellation
+        we cancel the consumer, wait for it only up to ``cancel_grace_period``,
+        and then always tear down.
+        """
+        self.running = True
+        consume_task = asyncio.ensure_future(self._aconsume_messages())
+        try:
+            # Shield so that cancelling ``aloop`` returns control here immediately
+            # instead of blocking on ``consume_task`` (which may be stuck unwinding
+            # a stream that ignores cancellation). We then stop it with a bound.
+            await asyncio.shield(consume_task)
         except asyncio.CancelledError:
             logger.info(f"Provisioning task cancelled. We are running {self.transport}")
             self.running = False
+            await self._astop_consume_task(consume_task)
             await self.atear_down()
             raise
         except Exception as e:
             logger.error(f"Error in agent loop: {str(e)}")
+            await self._astop_consume_task(consume_task)
             await self.atear_down()
             raise e
 
-    async def aprovide(self, context: Optional[ContextType] = None) -> None:
+    async def _astop_consume_task(self, consume_task: "asyncio.Task[None]") -> None:
+        """Stop the message-consumer task, bounded by ``cancel_grace_period``.
+
+        First disconnect the transport so a stream that ignores cancellation
+        (e.g. a websocket mid-handshake) is released and the server drops the
+        agent registration; then cancel the consumer. If it still refuses to
+        unwind in time we proceed anyway so teardown can never hang on it.
+        """
+        if consume_task.done():
+            return
+        try:
+            await self.transport.adisconnect()
+        except Exception:
+            logger.warning("Transport disconnect during shutdown failed", exc_info=True)
+        consume_task.cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(consume_task), timeout=self.cancel_grace_period
+            )
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        except Exception:
+            logger.warning("Message consumer errored during shutdown", exc_info=True)
+
+    async def aprovide(self, context: Optional[AppContext] = None) -> None:
         """Provides the agent.
 
-        This starts the agents and connectes to the transport.
-        It also starts the agent and starts listening for messages from the transport.
+        This starts the agent, connects to the transport, and then listens for
+        messages from the transport. It is simply ``aconnect`` followed by
+        ``aloop``.
         """
-        if hasattr(context, "instance_id"):
-            self.instance_id = getattr(context, "instance_id", self.instance_id)
-
-        self._app_context = context
-
         try:
-            logger.info(
-                f"Launching provisioning task. We are running {self.instance_id}"
-            )
-            await self.astart(
-                instance_id=self.instance_id, app_context=self._app_context
-            )
+            logger.info("Launching provisioning task.")
+            await self.aconnect(context=context)
             await self.aloop()
         except asyncio.CancelledError:
             logger.info("Provisioning task cancelled. We are running")
@@ -1052,7 +1104,7 @@ class BaseAgent(KoiledModel, Generic[ContextType]):
         await self.transport.__aexit__(exc_type, exc_val, exc_tb)
 
 
-class RekuestAgent(BaseAgent[ContextType]):
+class RekuestAgent(BaseAgent):
     """The Rekuest Agent
 
     This is the default agent that is used by rekuest. It provides the basic
@@ -1075,35 +1127,38 @@ class RekuestAgent(BaseAgent[ContextType]):
         """
 
         self._agent = await aensure_agent(
-            instance_id=self.instance_id,
             name=self.name,
+            rath=self.rath,
         )
 
         if self._agent.hash != await self.aget_hash():
             logger.info(
                 "Agent hash does not match, registering implementations and states again"
             )
-            agent = await aimplement_agent(
-                instance_id=self.instance_id,
+            # Assemble + validate the whole agent input from the app registry
+            # (the ImplementAgentInput model validators fire on construction).
+            agent_input = self.app_registry.to_implement_agent_input(
                 name=self.name,
-                implementations=self._collected_implementations,
-                states=self._collected_states,
-                locks=self._collected_locks,
-                bloks=self._collected_bloks,
+            )
+            agent = await aimplement_agent(
+                name=agent_input.name,
+                implementations=agent_input.implementations,
+                states=agent_input.states,
+                locks=agent_input.locks,
+                bloks=agent_input.bloks,
+                rath=self.rath,
             )
 
             logger.info("Registered agent with id %s and hash %s", agent.id, agent.hash)
 
     async def ashelve(
         self,
-        instance_id: str,
         identifier: Identifier,
         resource_id: str,
         label: Optional[str] = None,
         description: Optional[str] = None,
     ) -> str:
         drawer = await ashelve(
-            instance_id=instance_id,
             identifier=identifier,
             resource_id=resource_id,
             label=label,
@@ -1114,14 +1169,14 @@ class RekuestAgent(BaseAgent[ContextType]):
 
     async def acollect(self, key: str) -> None:
         del self.shelve[key]
-        await aunshelve(instance_id=self.instance_id, id=key, rath=self.rath)
+        await aunshelve(id=key, rath=self.rath)
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         await self.transport.asend(snapshot)
         logger.debug("Published snapshot %s", snapshot)
         return None
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         await self.transport.asend(patch)
         logger.debug("Published patch %s", patch)
         return None

@@ -4,7 +4,6 @@ from contextvars import ContextVar
 from attr import dataclass
 
 from rekuest_next.api.schema import ReturnPortInput
-from rekuest_next.structures.types import JSONSerializable
 
 publish_context: ContextVar[Optional["Publisher"]] = ContextVar(
     "publish_context", default=None
@@ -28,20 +27,13 @@ class Patch:
             ")"
         )
 
-    def to_rfc_compliant_json_patch(self) -> dict[str, JSONSerializable]:
-        return {
-            "op": self.op,
-            "path": self.path,
-            "value": self.value,
-        }
-
 
 @runtime_checkable
 class StateHolder(Protocol):
     """Protocol for publisher functions"""
 
     def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
+        self, interface: str, patch: Patch, task_id: str | None = None
     ) -> None:
         """Method to publish a change to a specific field of the state
 
@@ -67,6 +59,32 @@ class Publisher(Protocol):
             interface: The state interface name (e.g., "StageState")
             patch: The patch containing op, path, value, and old_value
         """
+        ...
+
+    def __enter__(self) -> "Publisher":
+        """Enter the publisher as a synchronous context manager."""
+        ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[object],
+    ) -> None:
+        """Exit the synchronous context manager."""
+        ...
+
+    async def __aenter__(self) -> "Publisher":
+        """Enter the publisher as an asynchronous context manager."""
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[object],
+    ) -> None:
+        """Exit the asynchronous context manager."""
         ...
 
 
@@ -110,32 +128,6 @@ class BasePublisher:
 
 class DirectPublisher(BasePublisher):
     pass
-
-
-class BufferedPublisher(BasePublisher):
-    async def __aenter__(self) -> "BufferedPublisher":
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: Optional[type],
-        exc_value: Optional[BaseException],
-        traceback: Optional[object],
-    ) -> None:
-        pass
-
-
-class NoopPublisher(BasePublisher):
-    def publish_patch(
-        self, interface: str, patch: Patch, assignation_id: str | None = None
-    ) -> None:
-        pass
-
-
-def noop_publisher() -> Publisher:
-    """A no-op publisher that can be used to suppress publishing during intermediate steps."""
-
-    return NoopPublisher(state_holder=None)  # type: ignore
 
 
 def direct_publishing(state_holder: StateHolder) -> Publisher:

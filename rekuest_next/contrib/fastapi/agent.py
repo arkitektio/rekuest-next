@@ -19,11 +19,9 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Generic,
     List,
     Optional,
     Self,
-    TypeVar,
 )
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -50,31 +48,31 @@ logger = logging.getLogger(__name__)
 
 def _is_state_message(message: messages.FromAgentMessage) -> bool:
     """Return whether a message belongs to the state update stream."""
-    return isinstance(message, messages.StatePatchEvent)
+    return isinstance(message, messages.StatePatch)
 
 
 def _is_lock_message(message: messages.FromAgentMessage) -> bool:
     """Return whether a message belongs to the lock update stream."""
-    return isinstance(message, (messages.LockEvent, messages.UnlockEvent))
+    return isinstance(message, (messages.Lock, messages.Unlock))
 
 
 def _task_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve a default task routing key from a task-scoped message."""
     if _is_state_message(message) or _is_lock_message(message):
         return None
-    return getattr(message, "assignation", None)
+    return getattr(message, "task", None)
 
 
 def _state_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve the state name used for state websocket subscriptions."""
-    if not isinstance(message, messages.StatePatchEvent):
+    if not isinstance(message, messages.StatePatch):
         return None
     return message.state_name
 
 
 def _lock_routing_key(message: messages.FromAgentMessage) -> str | None:
     """Resolve the lock key used for lock websocket subscriptions."""
-    if not isinstance(message, (messages.LockEvent, messages.UnlockEvent)):
+    if not isinstance(message, (messages.Lock, messages.Unlock)):
         return None
     return message.key
 
@@ -121,7 +119,7 @@ class _BufferedState:
     """Buffered state patch events for one connection and state."""
 
     state_name: str
-    patches: list[messages.StatePatchEvent] = dataclass_field(default_factory=list)
+    patches: list[messages.StatePatch] = dataclass_field(default_factory=list)
 
 
 @dataclass
@@ -216,7 +214,7 @@ class FastAPIConnectionManager:
 
     async def _buffer_or_broadcast_state_message(
         self,
-        message: messages.StatePatchEvent,
+        message: messages.StatePatch,
     ) -> None:
         """Batch or immediately forward a state patch event per connection."""
         state_name = message.state_name
@@ -270,7 +268,7 @@ class FastAPIConnectionManager:
         except asyncio.CancelledError:
             return
 
-        squashed_patches: list[messages.StatePatchEvent] = []
+        squashed_patches: list[messages.StatePatch] = []
         async with self._lock:
             connection_state = self._connections.get(websocket)
             if connection_state is None:
@@ -293,10 +291,10 @@ class FastAPIConnectionManager:
 
     def _squash_state_patches(
         self,
-        patches: list[messages.StatePatchEvent],
-    ) -> list[messages.StatePatchEvent]:
+        patches: list[messages.StatePatch],
+    ) -> list[messages.StatePatch]:
         """Squash repeated operations on the same JSON path within one batch."""
-        latest_by_path: dict[str, tuple[int, messages.StatePatchEvent]] = {}
+        latest_by_path: dict[str, tuple[int, messages.StatePatch]] = {}
         for index, patch in enumerate(patches):
             latest_by_path[patch.path] = (index, patch)
         return [
@@ -364,7 +362,6 @@ class FastApiTransport(AgentTransport):
         default=None
     )
     _connected: bool = PrivateAttr(default=False)
-    _instance_id: Optional[str] = PrivateAttr(default=None)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -383,7 +380,7 @@ class FastApiTransport(AgentTransport):
             message: The message to send to the agent.
 
         Returns:
-            The assignation ID for tracking the request.
+            The task ID for tracking the request.
         """
         if self._receive_queue is None:
             raise RuntimeError("Transport not connected. Call aconnect first.")
@@ -392,10 +389,10 @@ class FastApiTransport(AgentTransport):
         await self._receive_queue.put(message)
         logger.info(f"Submitted message to agent: {message}")
 
-        # Return the assignation ID for tracking
+        # Return the task ID for tracking
         if isinstance(message, messages.Assign):
-            return message.assignation
-        return getattr(message, "assignation", getattr(message, "id", "unknown"))
+            return message.task
+        return getattr(message, "task", getattr(message, "id", "unknown"))
 
     async def asend(self, message: messages.FromAgentMessage) -> None:
         """Route an outgoing agent message by message type and subscriptions.
@@ -411,16 +408,11 @@ class FastApiTransport(AgentTransport):
         logger.info(f"Agent sending message: {message_json}")
         await self.connection_manager.broadcast_model(message)
 
-    async def aconnect(self, instance_id: str) -> None:
-        """Connect the transport.
-
-        Args:
-            instance_id: The instance ID for this agent.
-        """
-        self._instance_id = instance_id
+    async def aconnect(self) -> None:
+        """Connect the transport."""
         self._receive_queue = asyncio.Queue()
         self._connected = True
-        logger.info(f"FastAPI transport connected with instance_id: {instance_id}")
+        logger.info("FastAPI transport connected")
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
         """Receive messages from the queue.
@@ -508,10 +500,7 @@ class FastApiTransport(AgentTransport):
         await self.adisconnect()
 
 
-T = TypeVar("T", bound=Any)
-
-
-class FastApiAgent(BaseAgent[T], Generic[T]):
+class FastApiAgent(BaseAgent):
     """An Agent that uses FastAPI as its web framework.
 
     This agent uses `FastApiTransport` to receive messages from HTTP
@@ -568,12 +557,9 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         ):
             self.retriever.store = self.sink.store
 
-    def get_state_schemas(
-        self,
-        extension: str = "default",
-    ) -> dict[str, StateImplementationInput]:
-        """Return the registered state schemas for one FastAPI extension."""
-        return self.extension_registry.get(extension).get_states()
+    def get_state_schemas(self) -> dict[str, StateImplementationInput]:
+        """Return the registered state schemas from the app registry."""
+        return dict(self.app_registry.states)
 
     def build_assign_input(
         self,
@@ -586,16 +572,6 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         if interface is not None:
             normalized_payload["interface"] = interface
 
-        if (
-            "instanceID" in normalized_payload
-            and "instanceId" not in normalized_payload
-        ):
-            normalized_payload["instanceId"] = normalized_payload.pop("instanceID")
-
-        normalized_payload.setdefault(
-            "instanceId", self.instance_id or "fastapi_instance"
-        )
-
         for field_name in ("cached", "log", "capture", "ephemeral"):
             normalized_payload.setdefault(field_name, False)
 
@@ -605,27 +581,32 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         self,
         assign_input: AssignInput,
         user: str,
-        extension: str = "default",
         action: str = "api_call",
         app: str = "fastapi",
-        assignation: str | None = None,
+        org: str = "fastapi",
+        implementation: str | None = None,
+        task: str | None = None,
     ) -> messages.Assign:
-        """Build an Assign message from a normalized FastAPI request payload."""
+        """Build an Assign message from a normalized FastAPI request payload.
+
+        The in-process FastAPI agent has no real org/implementation routing, so it stamps
+        placeholder values (the ``org``/``implementation`` args) onto the Assign — the
+        message model requires both.
+        """
         if assign_input.interface is None:
             raise ValueError("FastAPI assign requests require an interface")
 
         return messages.Assign(
             interface=assign_input.interface,
-            extension=extension,
-            assignation=assignation or str(uuid.uuid4()),
-            reservation=assign_input.reservation,
+            task=task or str(uuid.uuid4()),
             parent=assign_input.parent,
             reference=assign_input.reference,
             args=assign_input.args,
             capture=assign_input.capture,
             user=user,
-            app=app,
+            org=org,
             action=action,
+            implementation=implementation or assign_input.implementation or app,
             step=assign_input.step,
         )
 
@@ -658,18 +639,14 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
 
     def build_task_action_key(self, assign_message: messages.Assign) -> str:
         """Build the routing key used for task websocket subscriptions."""
-        return (
-            assign_message.interface
-            or assign_message.action
-            or assign_message.assignation
-        )
+        return assign_message.interface or assign_message.action or assign_message.task
 
     def get_task_action_key_for_message(self, message: messages.Message) -> str | None:
         """Resolve the task action key for an outgoing message."""
-        assignation = getattr(message, "assignation", None)
-        if assignation is None:
+        task = getattr(message, "task", None)
+        if task is None:
             return None
-        assign_message = self.managed_assignments.get(assignation)
+        assign_message = self.managed_assignments.get(task)
         if assign_message is None:
             return None
         return self.build_task_action_key(assign_message)
@@ -682,7 +659,7 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
         normalized_action_keys = set(action_keys) if action_keys else None
         tasks: dict[str, TaskView] = {}
 
-        for assignation_id, assign_message in self.managed_assignments.items():
+        for task_id, assign_message in self.managed_assignments.items():
             action_key = self.build_task_action_key(assign_message)
             if (
                 normalized_action_keys is not None
@@ -690,16 +667,15 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
             ):
                 continue
 
-            tasks[assignation_id] = TaskView(
-                assignation=assignation_id,
+            tasks[task_id] = TaskView(
+                task=task_id,
                 action_key=action_key,
                 interface=assign_message.interface,
-                extension=assign_message.extension,
                 user=assign_message.user,
-                app=assign_message.app,
+                app=assign_message.org,
                 action=assign_message.action,
-                running=assignation_id in self.running_assignments,
-                actor_id=self.running_assignments.get(assignation_id),
+                running=task_id in self.running_assignments,
+                actor_id=self.running_assignments.get(task_id),
             )
 
         return TaskCollectionResponse(count=len(tasks), tasks=tasks)
@@ -797,32 +773,30 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
 
         return locks
 
-    async def ashelve(
-        self, instance_id, identifier, resource_id, label=None, description=None
-    ):
+    async def ashelve(self, identifier, resource_id, label=None, description=None):
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
 
-    async def alock(self, key: str, assignation: str):
+    async def alock(self, key: str, task: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.LockEvent(
+        message = messages.Lock(
             key=key,
-            assignation=assignation,
+            task=task,
         )
         await self.transport.asend(message)
 
     async def aunlock(self, key: str):
         """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.UnlockEvent(
+        message = messages.Unlock(
             key=key,
         )
         await self.transport.asend(message)
 
-    async def apublish_patch(self, patch: messages.StatePatchEvent) -> None:
+    async def apublish_patch(self, patch: messages.StatePatch) -> None:
         """Publish a state patch event: broadcast to websocket clients and persist to sink."""
         await self.transport.asend(patch)
         await self.sink.awrite_patch(patch)
 
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshotEvent) -> None:
+    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         await self.transport.asend(snapshot)
         return await self.sink.adump_snapshot(snapshot)
 
@@ -863,14 +837,23 @@ class FastApiAgent(BaseAgent[T], Generic[T]):
                 self.sink_catch_up_timeout,
             )
 
-    async def astart(self, instance_id: str, app_context: Any) -> None:
+    async def _await_acknowledged(self) -> None:
+        """Mark the agent connected immediately.
+
+        The server-side FastAPI transport is queue-based and has no Init
+        handshake, so there is no acknowledgement to wait for. ``aloop`` then
+        drains the queue as messages are submitted via API routes.
+        """
+        self._connected_event.set()
+
+    async def astart(self, app_context: Any = None) -> None:
         """Start the agent and initialize the sink and retriever."""
         await self.sink.ainitialize()
         await self.retriever.ainitialize()
-        await super().astart(instance_id=instance_id, app_context=app_context)
+        await super().astart(app_context=app_context)
         # Dump initial snapshots after states are initialized
         if self._current_shrunk_states:
-            snapshot = messages.StateSnapshotEvent(
+            snapshot = messages.StateSnapshot(
                 session_id=self.current_session,
                 global_rev=self.global_revision,
                 snapshots={

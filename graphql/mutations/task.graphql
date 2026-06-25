@@ -1,0 +1,34 @@
+mutation assign($input: AssignInput!) {
+  assign(input: $input) {
+    ...Task
+  }
+}
+
+mutation cancel($input: CancelInput!) {
+  cancel(input: $input) {
+    ...Task
+  }
+}
+
+mutation interrupt($input: InterruptInput!) {
+  interrupt(input: $input) {
+    ...Task
+  }
+}
+
+mutation pause($input: PauseInput!) {
+  pause(input: $input) {
+    ...Task
+  }
+}
+
+mutation resume($input: ResumeInput!) {
+  resume(input: $input) {
+    ...Task
+  }
+}
+
+
+mutation collect($input: CollectInput!) {
+  collect(input: $input) 
+}

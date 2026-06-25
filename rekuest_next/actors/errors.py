@@ -28,8 +28,8 @@ class ContextError(ActorException):
     pass
 
 
-class NotWithinAnAssignationError(ContextError):
-    """Indicates that an actors task is not within an assignation"""
+class NotWithinATaskError(ContextError):
+    """Indicates that an actors task is not within a task"""
 
     pass
 

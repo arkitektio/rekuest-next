@@ -1,37 +1,29 @@
 """The base client for rekuest next"""
 
 from typing import Optional, TypeVar
-from koil.helpers import unkoil_task
+from koil.bridge import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
 from rekuest_next.agents.hooks.background import background
 from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.agents.extensions.default import DefaultExtension
-from rekuest_next.actors.types import Actifier, Agent
+from rekuest_next.actors.types import Agent
 from rekuest_next.postmans.types import Postman
 from koil import unkoil
 from koil.composition import Composition
 
 from typing import (
     Dict,
-    List,
     Tuple,
     Any,
 )
-from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.types import ActorBuilder
-from rekuest_next.definition.registry import DefinitionRegistry
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.register import register, register_func
+from rekuest_next.register import register
 from rekuest_next.agents.hooks.startup import startup
 from rekuest_next.api.schema import (
-    AssignWidgetInput,
     DefinitionInput,
-    PortGroupInput,
-    EffectInput,
-    ValidatorInput,
 )
 
 
@@ -70,27 +62,22 @@ class RekuestNext(Composition):
             effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
             is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
             logo (Optional[str], optional): URL or identifier for the actor's logo.
-            on_provide (Optional[OnProvide], optional): Hook triggered when actor is provided.
-            on_unprovide (Optional[OnUnprovide], optional): Hook triggered when actor is unprovided.
             validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
             structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
             implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
             in_process (bool, optional): Execute actor in the same process.
             dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
-            sync (Optional[SyncGroup], optional): Optional synchronization group.
+            concurrency (Literal["parallel", "serial"], optional): Whether assignments to the actor
+                may run concurrently ("parallel") or one at a time ("serial", the default).
 
         Returns:
             function: A decorator that registers the given function or actor.
         """
 
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-
         return register(
             *args,
+            implementation_registry=self.agent.app_registry,
+            structure_registry=self.agent.app_registry.structure_registry,
             **kwargs,
         )
 
@@ -102,15 +89,10 @@ class RekuestNext(Composition):
         Args:
             function (AnyFunction): The startup function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         startup(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_background(
@@ -121,15 +103,10 @@ class RekuestNext(Composition):
         Args:
             function (BackgroundFunction): The background function to register.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
         background(
             function,
             name=name or function.__name__,
-            registry=default_extension.app_registry.hooks_registry,
+            registry=self.agent.app_registry.hooks_registry,
         )
 
     def register_blok(
@@ -147,12 +124,7 @@ class RekuestNext(Composition):
             description (Optional[str]): Optional description for the blok.
             demo_state (Dict[str, Any] | None): Optional demo state for the blok.
         """
-        default_extension = self.agent.extension_registry.get("default")
-        assert default_extension is not None, "Default extension not found"
-        assert isinstance(default_extension, DefaultExtension), (
-            "Default is not a DefaultExtension"
-        )
-        default_extension.app_registry.blok_registry.register_blok(
+        self.agent.app_registry.register_blok(
             name=name,
             component=component,
             description=description,
@@ -165,26 +137,65 @@ class RekuestNext(Composition):
 
         return state(*args, **kwargs)
 
-    def run(self, context: Any | None = None) -> None:
+    def run(self, context: Any | None = None, *, force: bool | None = None) -> None:
         """
         Run the application.
-        """
-        return unkoil(self.arun, context=context)
 
-    def run_detached(self, context: Any | None = None) -> KoilFuture[None]:
+        If ``force`` is set, it overrides the transport's build-time force policy for
+        this run (kicking any existing connection for this agent and taking over).
+        """
+        return unkoil(self.arun, context=context, force=force)
+
+    def run_detached(
+        self, context: Any | None = None, *, force: bool | None = None
+    ) -> KoilFuture[None]:
         """
         Run the application detached.
-        """
-        return unkoil_task(self.arun, context=context)
 
-    async def arun(self, context: Any | None = None) -> None:
+        See :meth:`run` for the ``force`` override semantics.
+        """
+        return unkoil_task(self.arun, context=context, force=force)
+
+    def _maybe_override_force(self, force: bool | None) -> None:
+        """Override the transport's build-time force policy for this run.
+
+        Guarded because ``force`` is a websocket-transport concept and the agent
+        only holds an abstract transport.
+        """
+        transport = getattr(self.agent, "transport", None)
+        if force is not None and transport is not None and hasattr(transport, "force"):
+            setattr(transport, "force", force)
+
+    async def arun(
+        self, context: Any | None = None, *, force: bool | None = None
+    ) -> None:
         """
         Run the application.
+
+        If ``force`` is not None it overrides the transport's build-time force policy
+        for this run.
         """
+        self._maybe_override_force(force)
         await self.agent.aprovide(context=context)
 
-    async def arun_tests(self, context: Any | None = None) -> None:
+    async def aconnect(
+        self,
+        context: Any | None = None,
+        *,
+        force: bool | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        """Start the agent and connect, returning once the server acknowledges it.
+
+        This is the first phase of :meth:`arun`. Run :meth:`aloop` afterwards (e.g.
+        as a background task) to process incoming messages. If ``timeout`` is set
+        and the server does not acknowledge in time, ``asyncio.TimeoutError`` is
+        raised. See :meth:`arun` for the ``force`` override semantics.
         """
-        Run the application tests.
-        """
-        await self.agent.atest(context=context)
+        self._maybe_override_force(force)
+        await self.agent.aconnect(context=context, timeout=timeout)
+
+    async def aloop(self) -> None:
+        """Process incoming messages after :meth:`aconnect`. The ongoing second
+        phase of :meth:`arun`."""
+        await self.agent.aloop()

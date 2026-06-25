@@ -12,14 +12,6 @@ def test_argport_input_errors() -> None:
         ArgPortInput(kind="lala")
 
     with pytest.raises(ValidationError):
-        # key and nullable are required
-        ArgPortInput(kind=PortKind.BOOL)
-
-    with pytest.raises(ValidationError):
-        # nullable is required
-        ArgPortInput(kind=PortKind.BOOL, key="search")
-
-    with pytest.raises(ValidationError):
         # identifier is required for STRUCTURE
         ArgPortInput(kind=PortKind.STRUCTURE, key="search")
 

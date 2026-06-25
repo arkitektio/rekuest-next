@@ -1,12 +1,13 @@
 """The structure registry is a registry for all structures that are used in the system."""
 
+import inspect
+from enum import Enum
 from typing import (
     Any,
     Callable,
     Dict,
     List,
     Optional,
-    OrderedDict,
     Type,
     TypeVar,
 )
@@ -25,16 +26,21 @@ from rekuest_next.api.schema import (
     PortKind,
     ValidatorInput,
 )
-from rekuest_next.structures.hooks.enum import make_enum_converter
+from rekuest_next.structures.convert import (
+    fullfilled_enum_from_cls,
+    fullfilled_enum_from_literal,
+    fullfilled_memory_structure_from_cls,
+    fullfilled_structure_from_cls,
+    is_global_structure,
+    is_literal,
+    make_enum_converter,
+)
 from rekuest_next.structures.utils import build_instance_predicate
 
 from .errors import (
     StructureDefinitionError,
     StructureRegistryError,
 )
-from .hooks.default import get_default_hooks
-from .hooks.errors import HookError
-from .hooks.types import RegistryHook
 from .types import (
     Expander,
     FullFilledStructure,
@@ -67,13 +73,6 @@ class StructureRegistry(BaseModel):
     copy_from_default: bool = False
     allow_overwrites: bool = True
     allow_auto_register: bool = True
-    registry_hooks: OrderedDict[str, RegistryHook] = Field(
-        default_factory=get_default_hooks,
-        description="""If the structure registry is challenged, 
-        with a new structure (i.e a python Object that is not yet registered, it will try to find a hook 
-        that is able to register this structure. If no hook is found, it will raise an error.
-        The default hooks are the enum and the dataclass hook. You can add your own hooks by adding them to this list.""",
-    )
     identifier_structure_map: Dict[str, FullFilledStructure] = Field(
         default_factory=dict, exclude=True
     )
@@ -113,38 +112,39 @@ class StructureRegistry(BaseModel):
     def auto_register(self, cls: Type[Any]) -> FullFilledType:
         """Auto register a class.
 
-        This uses the registry hooks to find a hook that is able to register the class.
-        If no hook is found, it will raise an error.
+        Enums become enums, classes implementing the global structure protocol
+        (get_identifier/ashrink/aexpand) become structures, and everything else
+        becomes a memory structure kept in the local shelve.
 
         Args:
             cls (Type): The class to register.
 
         Returns:
-            FullFilledStructure: The fullfilled structure that was created.
-
+            FullFilledType: The fullfilled type that was created.
 
         Raises:
-            StructureDefinitionError: If no hook was able to register the class.
+            StructureDefinitionError: If the class could not be converted.
         """
-        for key, hook in self.registry_hooks.items():
-            try:
-                if hook.is_applicable(cls):
-                    try:
-                        fullfilled_type = hook.apply(cls)
-                        self.fullfill_registration(fullfilled_type)
-                        return fullfilled_type
-                    except HookError as e:
-                        raise StructureDefinitionError(
-                            f"Hook {key} failed to apply to {cls}"
-                        ) from e
-            except Exception as e:
-                raise StructureDefinitionError(
-                    f"Hook {key} does not correctly implement its interface. Please contact the developer of this hook."
-                ) from e
+        fullfilled_type: FullFilledType
+        if is_literal(cls):
+            # typing.Literal[...] annotations are autoconverted to an enum so a
+            # bare Literal in a function signature gets a choice port. The
+            # dynamically built enum is keyed by its own class via
+            # fullfill_registration; we additionally alias the Literal itself so
+            # repeated lookups hit the cache instead of rebuilding the enum.
+            fullfilled_type = fullfilled_enum_from_literal(cls)
+            self.fullfill_registration(fullfilled_type)
+            self.cls_fullfilled_type_map[cls] = fullfilled_type
+            return fullfilled_type
+        if inspect.isclass(cls) and issubclass(cls, Enum):
+            fullfilled_type = fullfilled_enum_from_cls(cls)
+        elif is_global_structure(cls):
+            fullfilled_type = fullfilled_structure_from_cls(cls)
+        else:
+            fullfilled_type = fullfilled_memory_structure_from_cls(cls)
 
-        raise StructureDefinitionError(
-            f"No hook was able to register {cls}. Please make sure to register this type beforehand or set allow_auto_register to True"
-        )
+        self.fullfill_registration(fullfilled_type)
+        return fullfilled_type
 
     def get_identifier_for_cls(self, cls: Type[Any]) -> str:
         """Get the identifier for a given class.
@@ -498,6 +498,3 @@ class StructureRegistry(BaseModel):
                 f"Could not create port for {cls} as it is not a FullFilledStructure"
                 f" or a FullFilledEnum or a FullFilledMemoryStructure"
             )
-
-
-DEFAULT_STRUCTURE_REGISTRY: StructureRegistry | None = None

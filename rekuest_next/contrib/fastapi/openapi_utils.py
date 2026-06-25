@@ -38,7 +38,9 @@ def port_to_json_schema(port: ArgPortInput | ReturnPortInput) -> dict[str, Any]:
                 child.key: port_to_json_schema(child) for child in port.children
             }
             required = [
-                child.key for child in port.children if not child.nullable and child.default is None
+                child.key
+                for child in port.children
+                if not child.nullable and child.default is None
             ]
             if required:
                 schema["required"] = required

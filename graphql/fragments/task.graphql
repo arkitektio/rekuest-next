@@ -1,0 +1,58 @@
+fragment Task on Task {
+  args
+  id
+  parent {
+    id
+  }
+  id
+  latestEventKind
+  events(ordering: [{createdAt: ASC}]) {
+    id
+    returns
+    level
+  }
+  instructs {
+    id
+  }
+  reference
+  updatedAt
+}
+
+fragment TaskEvent on TaskEvent {
+  id
+  kind
+  returns
+  reference
+  message
+  progress
+}
+
+fragment TaskChange on TaskChange {
+  id
+  reference
+  isDone
+  latestEventKind
+  latestInstructKind
+  statusMessage
+  updatedAt
+  createdAt
+}
+
+fragment TaskEventChange on TaskEventChange {
+  id
+  task
+  kind
+  returns
+  message
+  progress
+  createdAt
+}
+
+fragment TaskChangeEvent on TaskChangeEvent {
+  create {
+    ...TaskChange
+  }
+  event {
+    ...TaskEventChange
+  }
+}

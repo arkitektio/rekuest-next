@@ -13,7 +13,7 @@ from typing import (
 )
 import asyncio
 
-from koil.helpers import run_spawned
+from koil.bridge import run_threaded
 from rekuest_next.actors.types import Agent
 from rekuest_next.agents.context import (
     prepare_context_variables,
@@ -24,6 +24,7 @@ from rekuest_next.agents.hooks.registry import (
     get_default_hook_registry,
 )
 from rekuest_next.protocols import (
+    AnyFunction,
     BackgroundFunction,
     ThreadedBackgroundFunction,
     AsyncBackgroundFunction,
@@ -33,7 +34,7 @@ from rekuest_next.state.utils import prepare_appcontext, prepare_state_variables
 
 
 class WithVariables:
-    def __init__(self, func: Callable[..., Any]) -> None:
+    def __init__(self, func: AnyFunction) -> None:
         self.func = func
         self.state_variables, self.state_returns = prepare_state_variables(func)
         self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
@@ -135,7 +136,7 @@ class WrappedThreadedBackgroundTask(WithVariables):
     ) -> None:
         """Run the background task in a thread pool"""
         kwargs = self.get_kwargs(contexts, states)
-        return await run_spawned(
+        return await run_threaded(
             self.run_with_publishing,
             agent,
             **kwargs,  # type: ignore[arg-type]
@@ -175,7 +176,7 @@ def background(  # noqa: ANN201
     so the runtime can inject matching values when the task is launched.
 
     Async background tasks run in the event loop. Synchronous ones are wrapped
-    in ``WrappedThreadedBackgroundTask`` and executed through ``run_spawned``.
+    in ``WrappedThreadedBackgroundTask`` and executed through ``run_threaded``.
     Both variants run inside ``direct_publishing`` so state mutations are
     propagated immediately.
 
@@ -210,7 +211,8 @@ def background(  # noqa: ANN201
         registry = registry or get_default_hook_registry()
         name = name or function.__name__
         if asyncio.iscoroutinefunction(function):
-            registry.register_background(name, WrappedBackgroundTask(function))
+            a = cast(AsyncBackgroundFunction, function)
+            registry.register_background(name, WrappedBackgroundTask(a))
         else:
             assert inspect.isfunction(function) or inspect.ismethod(function), (
                 "Function must be a async function or a sync function"
@@ -218,7 +220,7 @@ def background(  # noqa: ANN201
             t = cast(ThreadedBackgroundFunction, function)
             registry.register_background(name, WrappedThreadedBackgroundTask(t))
 
-        return function
+        return cast(TBackground, function)
 
     else:
 
@@ -228,7 +230,8 @@ def background(  # noqa: ANN201
             name = name or function.__name__
             registry = registry or get_default_hook_registry()
             if asyncio.iscoroutinefunction(function):
-                registry.register_background(name, WrappedBackgroundTask(function))
+                a = cast(AsyncBackgroundFunction, function)
+                registry.register_background(name, WrappedBackgroundTask(a))
             else:
                 assert inspect.isfunction(function), (
                     "Function must be a async function or a sync function"

@@ -1,9 +1,9 @@
 """This module contains the Context API for the actors."""
 
-from rekuest_next.actors.errors import NotWithinAnAssignationError
+from rekuest_next.actors.errors import NotWithinATaskError
 from rekuest_next.actors.types import AssignmentHook
 from rekuest_next.actors.vars import (
-    get_current_assignation_helper,
+    get_current_task_helper,
 )
 
 from rekuest_next.api.schema import LogLevel
@@ -38,14 +38,14 @@ def cast_log_level(level: LogLevel) -> int:
 
 
 def install_hook(hook: "AssignmentHook") -> None:
-    """Attach an assignment hook to the current running assignation.
+    """Attach an assignment hook to the current running task.
 
-    Hooks installed here are only attached to the current assignation helper.
-    If the function is called outside an assignation, the hook is ignored and a
+    Hooks installed here are only attached to the current task helper.
+    If the function is called outside a task, the hook is ignored and a
     warning is logged instead of raising.
 
     Args:
-        hook: Hook implementation to register on the current assignation.
+        hook: Hook implementation to register on the current task.
 
     Examples:
         Install a hook while handling an action::
@@ -54,19 +54,19 @@ def install_hook(hook: "AssignmentHook") -> None:
                 install_hook(my_hook)
     """
     try:
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         helper.install_hook(hook)
-    except NotWithinAnAssignationError:
+    except NotWithinATaskError:
         logger.warning(
-            "You installed an assignment hook outside of an assignation. This hook will not be called."
+            "You installed an assignment hook outside of a task. This hook will not be called."
         )
 
 
 async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
-    """Send an asynchronous log message for the current assignation.
+    """Send an asynchronous log message for the current task.
 
-    When called inside an assignation, the message is forwarded to the backend
-    through the current assignation helper. Outside an assignation, the message
+    When called inside a task, the message is forwarded to the backend
+    through the current task helper. Outside a task, the message
     falls back to the local Python logger.
 
     Args:
@@ -79,20 +79,20 @@ async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
             await alog("starting acquisition", level=LogLevel.INFO)
     """
     try:
-        await get_current_assignation_helper().alog(level, message)
+        await get_current_task_helper().alog(level, message)
     except Exception:  # pylint: disable=broad-except
         logger.debug(
-            "You attempted to log a message outside of an assignation. This message will not be sent to the rekuest server."
+            "You attempted to log a message outside of a task. This message will not be sent to the rekuest server."
         )
         logger.log(cast_log_level(level), f"[{level}] {message}")
         pass
 
 
 def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
-    """Send a synchronous log message for the current assignation.
+    """Send a synchronous log message for the current task.
 
     The helper coerces non-string values to strings before forwarding them to
-    the current assignation helper. Outside an assignation, the message is
+    the current task helper. Outside a task, the message is
     emitted through the local Python logger instead.
 
     Args:
@@ -109,35 +109,25 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
         message = str(message)
 
     try:
-        get_current_assignation_helper().log(level, message)
+        get_current_task_helper().log(level, message)
     except Exception:  # pylint: disable=broad-except
         logger.debug(
-            "You attempted to log a message outside of an assignation. This message will not be sent to the rekuest server."
+            "You attempted to log a message outside of a task. This message will not be sent to the rekuest server."
         )
         logger.log(cast_log_level(level), f"[{level}] {message}")
         pass
 
 
-def useUser() -> str:
-    """Returns the user id of the current assignation"""
-    return get_current_assignation_helper().user
-
-
 def useAssign() -> messages.Assign:
-    """Returns the assignation id of the current provision"""
-    return get_current_assignation_helper().assignment
-
-
-def useInstanceID() -> str:
-    """Returns the guardian id of the current provision"""
-    return get_current_assignation_helper().actor.agent.instance_id
+    """Returns the task id of the current provision"""
+    return get_current_task_helper().assignment
 
 
 def progress(percentage: int, message: Optional[str] = None) -> None:
-    """Publish a synchronous progress update for the current assignation.
+    """Publish a synchronous progress update for the current task.
 
-    The update is forwarded to the assignation helper when one is active. When
-    called outside an assignation, the update is ignored and a warning is
+    The update is forwarded to the task helper when one is active. When
+    called outside a task, the update is ignored and a warning is
     logged.
 
     Args:
@@ -150,19 +140,19 @@ def progress(percentage: int, message: Optional[str] = None) -> None:
             progress(50, "halfway done")
     """
     try:
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         helper.progress(int(percentage), message=message)
-    except NotWithinAnAssignationError:
+    except NotWithinATaskError:
         logger.warning(
-            "You attempted to send progress outside of an assignation. This progress update will not be sent to the rekuest server."
+            "You attempted to send progress outside of a task. This progress update will not be sent to the rekuest server."
         )
         pass
 
 
 async def aprogress(percentage: int, message: Optional[str] = None) -> None:
-    """Publish an asynchronous progress update for the current assignation.
+    """Publish an asynchronous progress update for the current task.
 
-    This is the async counterpart to :func:`progress`. Outside an assignation,
+    This is the async counterpart to :func:`progress`. Outside a task,
     the update is ignored and only a warning is logged.
 
     Args:
@@ -175,20 +165,20 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
             await aprogress(90, "almost finished")
     """
     try:
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         await helper.aprogress(int(percentage), message=message)
-    except NotWithinAnAssignationError:
+    except NotWithinATaskError:
         logger.warning(
-            "You attempted to send progress outside of an assignation. This progress update will not be sent to the rekuest server."
+            "You attempted to send progress outside of a task. This progress update will not be sent to the rekuest server."
         )
         pass
 
 
 async def apausepoint() -> None:
-    """Yield control at a cooperative pause point for the current assignation.
+    """Yield control at a cooperative pause point for the current task.
 
-    If the backend requests a pause or breakpoint, the current assignation
-    helper can suspend here. Outside an assignation, the call becomes a logged
+    If the backend requests a pause or breakpoint, the current task
+    helper can suspend here. Outside a task, the call becomes a logged
     no-op instead of failing the action.
 
     Examples:
@@ -197,21 +187,21 @@ async def apausepoint() -> None:
             await apausepoint()
     """
     try:
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         await helper.abreakpoint()
-    except NotWithinAnAssignationError:  # pylint: disable=broad-except
+    except NotWithinATaskError:  # pylint: disable=broad-except
         # We don't want breakpoints to fail the actor if not supported
         logger.warning(
-            "You attempted to await a breakpoint outside of an assignation. This breakpoint will not be awaited."
+            "You attempted to await a breakpoint outside of a task. This breakpoint will not be awaited."
         )
         pass
 
 
 def pausepoint() -> None:
-    """Yield control at a synchronous pause point for the current assignation.
+    """Yield control at a synchronous pause point for the current task.
 
     This is the synchronous counterpart to :func:`apausepoint`. Outside an
-    assignation, the call is ignored with a warning.
+    task, the call is ignored with a warning.
 
     Examples:
         Allow a long-running synchronous action to pause between steps::
@@ -219,16 +209,11 @@ def pausepoint() -> None:
             pausepoint()
     """
     try:
-        helper = get_current_assignation_helper()
+        helper = get_current_task_helper()
         helper.breakpoint()
-    except NotWithinAnAssignationError:  # pylint: disable=broad-except
+    except NotWithinATaskError:  # pylint: disable=broad-except
         # We don't want breakpoints to fail the actor if not supported
         logger.warning(
-            "You attempted to await a breakpoint outside of an assignation. This breakpoint will not be awaited."
+            "You attempted to await a breakpoint outside of a task. This breakpoint will not be awaited."
         )
         pass
-
-
-# Backwards-compatible aliases for arkitekt_next
-abreakpoint = apausepoint
-breakpoint = pausepoint

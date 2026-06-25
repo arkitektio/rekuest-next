@@ -15,16 +15,18 @@ class StateSink(Protocol):
         """Cleans up resources, such as database connections."""
         ...
 
-    async def acreate_session(self, states: List[AnyState], implementations: list) -> str:
+    async def acreate_session(
+        self, states: List[AnyState], implementations: list
+    ) -> str:
         """Creates a new session and returns its ID."""
         ...
 
     # --- WRITE METHODS ---
-    async def adump_snapshot(self, snapshot: messages.StateSnapshotEvent):
+    async def adump_snapshot(self, snapshot: messages.StateSnapshot):
         """Store a full snapshot of all states at a given revision."""
         ...
 
-    async def awrite_patch(self, patch: messages.StatePatchEvent):
+    async def awrite_patch(self, patch: messages.StatePatch):
         """Write a single patch event to the store."""
         ...
 

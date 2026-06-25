@@ -31,7 +31,9 @@ class PortTrait(BaseModel):
             return v
 
         if not isinstance(v, (str, int, float, dict, list, bool)):
-            raise ValueError("Default value must be JSON serializable, got: " + str(v)) from None
+            raise ValueError(
+                "Default value must be JSON serializable, got: " + str(v)
+            ) from None
 
         return v  # type: ignore[return-value]
 
@@ -58,7 +60,9 @@ class PortTrait(BaseModel):
                 raise ValueError(
                     "When specifying a dict you need to provide a wrapped 'children' port"
                 )
-            assert len(self.children) == 1, "Dict can only one child (key is always strings)"
+            assert len(self.children) == 1, (
+                "Dict can only one child (key is always strings)"
+            )
 
         return self
 
@@ -80,6 +84,25 @@ class WidgetInputTrait(BaseModel):
                 raise ValueError(
                     "When specifying a SearchWidget you need to provide an query parameter"
                 )
+
+            from rekuest_next.scalars import (
+                RESERVED_SEARCH_VARIABLES,
+                get_search_query_variables,
+            )
+
+            filter_keys = {f.key for f in (self.filters or [])}
+            dependency_keys = set(self.dependencies or [])
+            available = filter_keys | dependency_keys
+
+            for variable in get_search_query_variables(self.query):
+                if variable in RESERVED_SEARCH_VARIABLES:
+                    continue
+                if variable not in available:
+                    raise ValueError(
+                        f"Search query variable '${variable}' is not backed by a filter port"
+                        f" or a dependency. Available filters: {sorted(filter_keys)},"
+                        f" dependencies: {sorted(dependency_keys)}"
+                    )
 
         if self.kind == AssignWidgetKind.SLIDER:
             if self.min is None or self.max is None:
@@ -125,7 +148,9 @@ class ValidatorInputTrait(BaseModel):
         """Validate the function of the validator"""
         args_match = re.match(r"\((.*?)\)", self.function)
         if args_match:
-            args = [arg.strip() for arg in args_match.group(1).split(",") if arg.strip()]
+            args = [
+                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
+            ]
             if not args:
                 raise ValueError("Function must have at least one argument")
 
@@ -147,10 +172,24 @@ class DefinitionInputTrait(BaseModel):
     @model_validator(mode="after")  # type: ignore[override]
     def check_dependencies(self: "DefinitionInput") -> "DefinitionInput":
         """Ensure that all dependencies in ports are valid."""
+        from rekuest_next.api.schema import AssignWidgetKind
+
         all_arg_keys = [port.key for port in self.args]
         all_return_keys = [port.key for port in self.returns]
 
         for arg in self.args:
+            widget = arg.widget
+            if (
+                widget is not None
+                and widget.kind == AssignWidgetKind.SEARCH
+                and widget.dependencies
+            ):
+                for dep in widget.dependencies:
+                    if dep not in all_arg_keys and dep not in all_return_keys:
+                        raise ValueError(
+                            f"Search widget in port {arg.key} has invalid dependency: {dep}"
+                        )
+
             for validator in arg.validators or []:
                 if validator.dependencies:
                     for dep in validator.dependencies:
