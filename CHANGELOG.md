@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.6.4 (2026-06-08)
+
+### Bug Fixes
+
+- Remove of print
+  ([`dc33ecc`](https://github.com/arkitektio/rekuest-next/commit/dc33ecc9bb1db3f44c61ee9932904136fc12f79c))
+
+
 ## v1.6.3 (2026-06-08)
 
 ### Bug Fixes
