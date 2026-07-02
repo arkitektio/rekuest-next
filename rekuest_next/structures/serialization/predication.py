@@ -8,6 +8,7 @@ from rekuest_next.api.schema import (
 import datetime as dt
 
 from rekuest_next.structures.serialization.protocols import SerializablePort
+from rekuest_next.structures.quantities import matches_dimension
 
 
 def predicate_port_input(
@@ -60,6 +61,8 @@ def predicate_port_input(
         return isinstance(value, bool)
     if port.kind == PortKind.STRING:
         return isinstance(value, str)
+    if port.kind == PortKind.QUANTITY:
+        return matches_dimension(value, port.dimension)
     if port.kind == PortKind.STRUCTURE:
         if not port.identifier:
             raise ValueError(f"Port {port} has no identifier")
@@ -160,6 +163,8 @@ def predicate_serializable_port(
         return isinstance(value, bool)
     if port.kind == PortKind.STRING:
         return isinstance(value, str)
+    if port.kind == PortKind.QUANTITY:
+        return matches_dimension(value, port.dimension)
     if port.kind == PortKind.STRUCTURE:
         if not port.identifier:
             raise ValueError(f"Port {port} has no identifier")

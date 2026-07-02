@@ -136,144 +136,122 @@ input ActionArgumentInput {
   valueDict: [ActionArgumentInput!] = null
 }
 
-"""Input model for action demand."""
+"""
+Pure matching criteria for an action (app/key preferred; matches loosen).
+"""
 type ActionDemand {
   """
-  The key of the action demand. This is used to identify the action in the system.
-  """
-  key: String!
-
-  """
-  The hash of the action. This is used to identify the action in the system.
+  The exact hash of the action. When set, matching short-circuits on the hash.
   """
   hash: ActionHash
 
-  """
-  The name of the action. This is used to identify the action in the system.
-  """
+  """The action's key within its app, e.g. 'open_image'."""
+  key: String
+
+  """The identifier of the app providing the action, e.g. 'imagej'."""
+  app: String
+
+  """The exact version of the action."""
+  version: String
+
+  """The display name of the action to match."""
   name: String
 
-  """
-  The description of the action. This can described the action and its purpose.
-  """
-  description: String
-
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
+  """The matches the action's arg ports must satisfy."""
   argMatches: [PortMatch!]
 
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
+  """The matches the action's return ports must satisfy."""
   returnMatches: [PortMatch!]
 
-  """
-  The protocols that the action has to implement. This is used to identify the demand in the system.
-  """
-  protocols: [ID!]
+  """Protocols (by name) the action must implement."""
+  protocols: [String!]
 
-  """
-  Require that the action has a specific number of args. This is used to identify the demand in the system.
-  """
+  """Require that the action has exactly this number of root args."""
   forceArgLength: Int
 
-  """
-  Require that the action has a specific number of returns. This is used to identify the demand in the system.
-  """
+  """Require that the action has exactly this number of root returns."""
   forceReturnLength: Int
 }
 
-"""The input for creating a action demand."""
+"""
+Pure matching criteria for an action: hash or name short-circuits, arg/return
+    port matches, protocols and forced port counts. Used directly by query filters and, wrapped
+    in an ActionDependencyInput, by dependency declarations.
+"""
 input ActionDemandInput {
   """
-  The hash of the action. This is used to identify the action in the system.
+  The exact hash of the action. When set, matching short-circuits on the hash and everything else is ignored.
   """
-  hash: ActionHash = null
+  hash: String = null
 
   """
-  The name of the action. This is used to identify the action in the system.
+  The action's key within its app, e.g. 'open_image'. Together with `app` this is the preferred identification of the demanded action.
   """
+  key: String = null
+
+  """
+  The identifier of the app providing the action, e.g. 'imagej'. Omit (or drop when loosening) to allow equivalent actions from any app.
+  """
+  app: String = null
+
+  """The exact version of the action."""
+  version: String = null
+
+  """The display name of the action to match."""
   name: String = null
 
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
+  """The matches the action's arg ports must satisfy."""
   argMatches: [PortMatchInput!] = null
 
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
+  """The matches the action's return ports must satisfy."""
   returnMatches: [PortMatchInput!] = null
 
-  """
-  Require that the action has a specific number of args. This is used to identify the demand in the system.
-  """
+  """Protocols (by name) the action must implement, e.g. 'predicate'."""
+  protocols: [String!] = null
+
+  """Require that the action has exactly this number of root args."""
   forceArgLength: Int = null
 
-  """
-  Require that the action has a specific number of returns. This is used to identify the demand in the system.
-  """
+  """Require that the action has exactly this number of root returns."""
   forceReturnLength: Int = null
 }
 
 """
-A dependency for a implementation. By defining dependencies, you can
-    create a dependency graph for your implementations and actions
+A named action requirement of a dependency: a local slot key mapped to the demand the resolved action must satisfy.
+"""
+type ActionDependency {
+  """The local slot key of this action requirement."""
+  key: String!
+
+  """A description of the dependency."""
+  description: String
+
+  """Whether the dependency is optional."""
+  optional: Boolean!
+
+  """The matching criteria the resolved action must satisfy."""
+  demand: ActionDemand
+}
+
+"""
+A named action requirement of a dependency: a slot key plus the demand the
+    resolved action must satisfy, and resolution-lifecycle filters.
 """
 input ActionDependencyInput {
   """
-  The key of the action. This is used to identify the dependency in the system.
+  The local slot key of this action requirement — callers reference it when assigning.
   """
   key: String!
 
-  """The version of the action this dependency corresponds to."""
-  version: String = null
-
   """
-  The description of the action. This can describe the action and its purpose.
+  The description of the dependency, why it is needed and what it is used for.
   """
   description: String = null
 
   """
-  The name of the action. This is used to identify the action in the system.
+  The matching criteria the resolved action must satisfy (app/key preferred; matches loosen).
   """
-  name: String = null
-
-  """
-  The key of the state this dependency corresponds to. (i.e frame:acquireimage)
-  """
-  actionKey: String = null
-
-  """
-  Which app this dependency corresponds to (i.e. do you want to use a stardist agent for that or imagej agents needs to be a world unique classsifier (reverse domain notation) that identifies the type of agent you want to use, and then we can have multiple agents of the same type running in the system, e.g. startdist could be the app for all agents that correpsond to a startdist instance)
-  """
-  app: String = null
-
-  """
-  The demands for the action args, this can be additionaly specified so that when we loosen the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the args. This is used to identify the demand in the system.
-  """
-  argMatches: [PortMatchInput!] = null
-
-  """
-  The demands for the action returns, this can be additionaly specified so that when we loosen the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the returns. This is used to identify the demand in the system.
-  """
-  returnMatches: [PortMatchInput!] = null
-
-  """
-  The protocols that the action is implementing or relying on. This is used to identify the demand in the system, and can be used to match actions that are implementing the same protocol together.
-  """
-  protocols: [ID!] = null
-
-  """
-  Require that the action has a specific number of args. When loosing the matching criteria for an action in a resolver, we can still make sure to match the right action based on the demands for the args. This is used to identify the demand in the system.
-  """
-  forceArgLength: Int = null
-
-  """
-  Require that the action has a specific number of returns. This is used to identify the demand in the system.
-  """
-  forceReturnLength: Int = null
+  demand: ActionDemandInput = null
 
   """
   Whether the dependency is optional or not. If the dependency is optional, the agent doesn't have to provide it to be potentially callable
@@ -298,7 +276,7 @@ input ActionFilter {
   search: String
   ids: [ID!]
   demands: [PortDemandInput!]
-  objectDemands: [ObjectDemandInput!]
+  objectDemands: [PortDemandInput!]
   protocols: [String!]
   kind: ActionKind
   inCollection: String
@@ -477,9 +455,25 @@ input AgentCallInput {
   arguments: [ActionArgumentInput!] = null
 }
 
+"""Slim, non-traversable snapshot of an agent for change feeds."""
+type AgentChange {
+  id: ID!
+  name: String!
+  kind: AgentKind!
+  latestEvent: AgentEventKind!
+  connected: Boolean!
+  blocked: Boolean!
+  lastSeen: DateTime
+  client: ID!
+  user: ID!
+  organization: ID!
+  app: ID!
+  release: ID!
+}
+
 type AgentChangeEvent {
-  update: Agent
-  create: Agent
+  create: AgentChange
+  update: AgentChange
   delete: ID
 }
 
@@ -517,14 +511,14 @@ input AgentDependencyInput {
   optional: Boolean! = false
 
   """
-  The action demands of the agent. This is used to identify the demand in the system.
+  The named action requirements of the agent — each a slot key plus the demand the resolved action must satisfy.
   """
-  actionDemands: [ActionDependencyInput!] = null
+  actionDependencies: [ActionDependencyInput!] = null
 
   """
-  The state demands of the agent. This is used to identify the demand in the system.
+  The named state requirements of the agent — each a slot key plus the demand the agent's state must satisfy.
   """
-  stateDemands: [StateDependencyInput!] = null
+  stateDependencies: [StateDependencyInput!] = null
 
   """
   Whether this dependency is auto resolvable or not. If so we will try to automatically resolve it based on the demands specified in the dependency and the capabilities of the available agents in the system. This is used to identify the demand in the system. Attention if any of the dependencies of this agent dependency is not auto resolvable, this dependency will also not be auto resolvable
@@ -553,6 +547,12 @@ input AgentDependencyInput {
 
   """The policy used to pick which instance of the agent to assign to."""
   assignPolicy: AssignPolicy! = BALANCED
+}
+
+"""The event kind of the agentevent"""
+enum AgentEventKind {
+  DISCONNECT
+  CONNECT
 }
 
 """A way to filter agents"""
@@ -584,7 +584,7 @@ input AgentFilter {
   threeDModel: ID
   distinct: Boolean
   actionDemands: [ActionDemandInput!]
-  stateDemands: [SchemaDemandInput!]
+  stateDemands: [StateDemandInput!]
 
   """Filter by user ID"""
   user: ID
@@ -697,6 +697,9 @@ type ArgPort {
   default: AnyDefault
   children: [ArgPort!]
   choices: [Choice!]
+  referenceUnit: String
+  proposedUnits: [String!]
+  dimension: String
   validators: [Validator!]
   widget: AssignWidget
   requires: [Requires!]
@@ -742,6 +745,24 @@ input ArgPortInput {
   """The options for the port. This is used for dropdowns and text inputs"""
   choices: [ChoiceInput!] = null
 
+  """
+  For QUANTITY ports: the canonical/reference unit of the physical quantity, e.g. "volt" or "farad". It is the default selection and the key used to resolve the concrete quantity type; other units of the same dimension are still allowed.
+  """
+  referenceUnit: String = null
+
+  """
+  For QUANTITY ports: units offered as a dropdown in the UI, e.g. ["pF", "nF", "uF"]. Proposals only — any unit of the same dimension remains valid input.
+  """
+  proposedUnits: [String!] = null
+
+  """
+  For QUANTITY ports: the pint dimensionality string, e.g. "[mass] * [length] ** 2 / [time] ** 3 / [current]". This is the wiring-compatibility key between quantity ports.
+  """
+  dimension: String = null
+
+  """The child ports (used for list, dict, union and model ports)."""
+  children: [ArgPortInput!] = null
+
   """The assign widget to use for this port."""
   widget: AssignWidgetInput = null
 
@@ -749,9 +770,6 @@ input ArgPortInput {
   The descriptors for the port. Descriptors are key-value pairs that can be used to add additional metadata to a port. When using rekuest's action search, you can filter actions based on their port descriptors
   """
   requires: [RequiresInput!] = null
-
-  """The child ports (used for list, dict, union and model ports)."""
-  children: [ArgPortInput!] = null
 }
 
 """The `Args` scalar type represents a Dictionary of arguments"""
@@ -1063,11 +1081,11 @@ type BlokDependency {
   """List of action demands specified in this dependency."""
   singular: Boolean!
 
-  """List of action demands"""
-  actionDemands: [ActionDemand!]!
+  """The named action requirements of this dependency."""
+  actionDependencies: [ActionDependency!]!
 
-  """List of state demands"""
-  stateDemands: [StateDemand!]!
+  """The named state requirements of this dependency."""
+  stateDependencies: [StateDependency!]!
 }
 
 input BlokDependencyFilter {
@@ -1760,11 +1778,11 @@ type Dependency {
   """List of action demands specified in this dependency."""
   singular: Boolean!
 
-  """List of action demands"""
-  actionDemands: [ActionDemand!]!
+  """The named action requirements of this dependency."""
+  actionDependencies: [ActionDependency!]!
 
-  """List of state demands"""
-  stateDemands: [StateDemand!]!
+  """The named state requirements of this dependency."""
+  stateDependencies: [StateDependency!]!
 }
 
 input DependencyFilter {
@@ -2221,44 +2239,6 @@ type ImplementationUpdate {
   delete: ID!
 }
 
-"""Usage of an input interface in an action."""
-type InputInterfaceUsage {
-  id: ID!
-  interface: Interface!
-  action: Action!
-  portIndex: Int!
-  portKey: String!
-  modifiers: [String!]!
-}
-
-input InputInterfaceUsageFilter {
-  AND: InputInterfaceUsageFilter
-  OR: InputInterfaceUsageFilter
-  NOT: InputInterfaceUsageFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  interface: ID
-}
-
-"""Usage of an input structure in an action."""
-type InputStructureUsage {
-  id: ID!
-  structure: Structure!
-  action: Action!
-  portIndex: Int!
-  portKey: String!
-  modifiers: [String!]!
-}
-
-input InputStructureUsageFilter {
-  AND: InputStructureUsageFilter
-  OR: InputStructureUsageFilter
-  NOT: InputStructureUsageFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  structure: ID
-}
-
 """If this structure is the default in its package."""
 type Interface {
   id: ID!
@@ -2269,11 +2249,15 @@ type Interface {
   """Implementations that implement this interface."""
   implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
 
-  """Usages of this interface as an output in actions."""
-  outputUsages(filters: OutputInterfaceUsageFilter, pagination: OffsetPaginationInput): [OutputInterfaceUsage!]!
+  """
+  Usages of this interface as an input in actions (derived from the relational arg ports).
+  """
+  inputUsages: [PortUsage!]!
 
-  """Usages of this interface as an input in actions."""
-  inputUsages(filters: InputInterfaceUsageFilter, pagination: OffsetPaginationInput): [InputInterfaceUsage!]!
+  """
+  Usages of this interface as an output in actions (derived from the relational return ports).
+  """
+  outputUsages: [PortUsage!]!
 }
 
 input InterfaceFilter {
@@ -2737,52 +2721,6 @@ type Mutation {
   deletePlacement(input: DeletePlacementInput!): ID!
 }
 
-"""
-A demand expressed as concrete runtime objects to find actions that accept them.
-"""
-input ObjectDemandInput {
-  """The kind of the demand. You can ask for args or returns."""
-  kind: DemandKind!
-
-  """The object matches of the demand."""
-  matches: [ObjectMatchInput!] = null
-
-  """Require that the action has a specific number of ports."""
-  forceLength: Int = null
-
-  """Require that the action has a specific number of non-nullable ports."""
-  forceNonNullableLength: Int = null
-
-  """Require that the action has a specific number of structure ports."""
-  forceStructureLength: Int = null
-}
-
-"A match against a concrete runtime object.\n\n    Mirrors the structural targeting of ``PortMatchInput`` (at / key / kind / identifier /\n    nullable / children) but additionally carries the object's runtime ``descriptors``. The\n    descriptors are evaluated against a port's compiled ``requires`` micro-constraint, so this\n    finds actions a concrete object can actually be passed to (not just structurally compatible).\n    "
-input ObjectMatchInput {
-  """The index of the port to match."""
-  at: Int = null
-
-  """The key of the port to match."""
-  key: String = null
-
-  """The kind of the port to match."""
-  kind: PortKind = null
-
-  """The identifier of the port to match."""
-  identifier: String = null
-
-  """Whether the port is nullable."""
-  nullable: Boolean = null
-
-  """
-  The runtime descriptors of the candidate object, matched against the port's compiled requires.
-  """
-  descriptors: [DescriptorInput!] = null
-
-  """The matches for the children of the port to match."""
-  children: [ObjectMatchInput!] = null
-}
-
 input OffsetPaginationInput {
   offset: Int! = 0
   limit: Int
@@ -2824,44 +2762,6 @@ enum Ordering {
 type Organization {
   """Slug of the organization."""
   slug: String!
-}
-
-"""Usage of an output interface in an action."""
-type OutputInterfaceUsage {
-  id: ID!
-  interface: Interface!
-  action: Action!
-  portIndex: Int!
-  portKey: String!
-  modifiers: [String!]!
-}
-
-input OutputInterfaceUsageFilter {
-  AND: OutputInterfaceUsageFilter
-  OR: OutputInterfaceUsageFilter
-  NOT: OutputInterfaceUsageFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  interface: ID
-}
-
-"""Usage of an output structure in an action."""
-type OutputStructureUsage {
-  id: ID!
-  structure: Structure!
-  action: Action!
-  portIndex: Int!
-  portKey: String!
-  modifiers: [String!]!
-}
-
-input OutputStructureUsageFilter {
-  AND: OutputStructureUsageFilter
-  OR: OutputStructureUsageFilter
-  NOT: OutputStructureUsageFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  structure: ID
 }
 
 input ParamPair {
@@ -3082,6 +2982,7 @@ enum PortKind {
   MODEL
   MEMORY_STRUCTURE
   INTERFACE
+  QUANTITY
 }
 
 type PortMatch {
@@ -3091,11 +2992,14 @@ type PortMatch {
   identifier: String
   children: [PortMatch!]
   nullable: Boolean
+  dimension: String
 }
 
 """
-A dependency for a implementation. By defining dependencies, you can
-    create a dependency graph for your implementations and actions
+A structural (and optionally object-level) match against a port. Purely
+    structural fields target the port shape; the optional ``descriptors`` carry a concrete
+    runtime object's key/value pairs, evaluated against the port's compiled requires
+    micro-constraint to find actions the object can actually be passed to.
 """
 input PortMatchInput {
   """The index of the port to match."""
@@ -3113,8 +3017,39 @@ input PortMatchInput {
   """Whether the port is nullable."""
   nullable: Boolean = null
 
+  """
+  The canonical pint dimensionality the port must have (QUANTITY wiring-compatibility key).
+  """
+  dimension: String = null
+
+  """
+  Runtime descriptors of a candidate object, evaluated against the port's compiled requires micro-constraint. Omit for purely structural matching.
+  """
+  descriptors: [DescriptorInput!] = null
+
   """The matches for the children of the port to match."""
   children: [PortMatchInput!] = null
+}
+
+"""
+A usage of a structure or interface by an action's port, derived from the relational port rows.
+"""
+type PortUsage {
+  action: Action!
+
+  """The key of the root port this usage sits under."""
+  portKey: String!
+
+  """The index of the root port this usage sits under."""
+  index: Int!
+
+  """The full dot-notation path of the using port, e.g. 'masks.mask'."""
+  keyPath: String!
+
+  """
+  Container nesting between the root port and the using port, e.g. ['dict', 'list'].
+  """
+  modifiers: [String!]!
 }
 
 """The `Args` scalar type represents a Dictionary of arguments"""
@@ -3311,7 +3246,10 @@ type Query {
   snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]!
 
   """Fetch a specific action."""
-  action(id: ID = null, task: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDependencyInput = null): Action!
+  action(id: ID = null, task: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDemandInput = null): Action!
+
+  """Fetch the root tasks this client created (caller-scoped)."""
+  myTasks: [Task!]!
 
   """Fetch a specific event."""
   event(id: ID = null): [TaskEvent!]!
@@ -3332,7 +3270,7 @@ type Query {
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
 
   """Retrieve state for a specific context."""
-  stateFor(agent: ID!, stateHash: String = null, demand: SchemaDemandInput = null): State!
+  stateFor(agent: ID!, stateHash: String = null, demand: StateDemandInput = null): State!
 
   """Fetch a client by ID."""
   resolution(id: ID!): Resolution!
@@ -3563,6 +3501,9 @@ type ReturnPort {
   default: AnyDefault
   children: [ReturnPort!]
   choices: [Choice!]
+  referenceUnit: String
+  proposedUnits: [String!]
+  dimension: String
   widget: ReturnWidget
   provides: [Provides!]
 }
@@ -3607,6 +3548,24 @@ input ReturnPortInput {
   """The options for the port. This is used for dropdowns and text inputs"""
   choices: [ChoiceInput!] = null
 
+  """
+  For QUANTITY ports: the canonical/reference unit of the physical quantity, e.g. "volt" or "farad". It is the default selection and the key used to resolve the concrete quantity type; other units of the same dimension are still allowed.
+  """
+  referenceUnit: String = null
+
+  """
+  For QUANTITY ports: units offered as a dropdown in the UI, e.g. ["pF", "nF", "uF"]. Proposals only — any unit of the same dimension remains valid input.
+  """
+  proposedUnits: [String!] = null
+
+  """
+  For QUANTITY ports: the pint dimensionality string, e.g. "[mass] * [length] ** 2 / [time] ** 3 / [current]". This is the wiring-compatibility key between quantity ports.
+  """
+  dimension: String = null
+
+  """The child ports (used for list, dict, union and model ports)."""
+  children: [ReturnPortInput!] = null
+
   """The return widget to use for this port."""
   widget: ReturnWidgetInput = null
 
@@ -3614,9 +3573,6 @@ input ReturnPortInput {
   The provisions for the port. Provisions are key-value pairs that can be used to add additional metadata to a port. When using rekuest's action search, you can filter actions based on their port provisions
   """
   provides: [ProvidesInput!] = null
-
-  """The child ports (used for list, dict, union and model ports)."""
-  children: [ReturnPortInput!] = null
 }
 
 interface ReturnWidget {
@@ -3664,14 +3620,6 @@ enum ReturnWidgetKind {
   CHOICE
   CUSTOM
   PROXY
-}
-
-"""The input for creating a action demand."""
-input SchemaDemandInput {
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
-  matches: [PortMatchInput!] = null
 }
 
 type SearchAssignWidget implements AssignWidget {
@@ -3880,6 +3828,16 @@ type State {
   """The interface this state is associated with."""
   interface: String!
 
+  """
+  The stable identity key of this state, matched by state demands (defaults to the interface at registration).
+  """
+  key: String
+
+  """
+  The identifier of the app providing this state (defaults to the owning agent's app identifier).
+  """
+  appIdentifier: String
+
   """Timestamp when this state was created."""
   createdAt: DateTime!
 
@@ -3934,67 +3892,88 @@ input StateDefinitionInput {
   name: String!
 }
 
-"""The input for creating a action demand."""
+"""
+Pure matching criteria for a state (app/key preferred; matches loosen).
+"""
 type StateDemand {
-  """
-  The key of the action demand. This is used to identify the action in the system.
-  """
-  key: String!
-
-  """The hash of the state."""
+  """The exact hash of the state definition."""
   hash: ActionHash
 
-  """
-  The demands for the action args and returns. This is used to identify the demand in the system.
-  """
+  """The state's identity key on the agent."""
+  key: String
+
+  """The identifier of the app providing the state."""
+  app: String
+
+  """The matches the state definition's ports must satisfy."""
   matches: [PortMatch!]
 
-  """
-  The protocols that the action has to implement. This is used to identify the demand in the system.
-  """
-  protocols: [ID!]
+  """Protocols (by name) the state must implement."""
+  protocols: [String!]
 }
 
 """
-A dependency for a implementation. By defining dependencies, you can
-    create a dependency graph for your implementations and actions
+Pure matching criteria for a state definition: hash short-circuits, port
+    matches and protocols. Used directly by query filters and, wrapped in a
+    StateDependencyInput, by dependency declarations.
+"""
+input StateDemandInput {
+  """
+  The exact hash of the state definition. When set, matching short-circuits on the hash.
+  """
+  hash: String = null
+
+  """
+  The state's identity key on the agent (defaults to the interface at registration).
+  """
+  key: String = null
+
+  """The identifier of the app providing the state."""
+  app: String = null
+
+  """The matches the state definition's ports must satisfy."""
+  matches: [PortMatchInput!] = null
+
+  """Protocols (by name) the state must implement."""
+  protocols: [String!] = null
+}
+
+"""
+A named state requirement of a dependency: a local slot key mapped to the demand the agent's state must satisfy.
+"""
+type StateDependency {
+  """The local slot key of this state requirement."""
+  key: String!
+
+  """A description of the dependency."""
+  description: String
+
+  """Whether the dependency is optional."""
+  optional: Boolean!
+
+  """The matching criteria the agent's state must satisfy."""
+  demand: StateDemand
+}
+
+"""
+A named state requirement of a dependency: a slot key plus the demand the
+    agent's state must satisfy, and resolution-lifecycle filters.
 """
 input StateDependencyInput {
   """
-  The key of the state. This is used to identify the dependency in the system.
+  The local slot key of this state requirement — callers reference it when assigning.
   """
   key: String!
 
-  """The version of the state this dependency corresponds to."""
-  version: String = null
-
   """
-  The description of the state. This can describe the state and its purpose.
+  The description of the dependency, why it is needed and what it is used for.
   """
   description: String = null
 
   """
-  The name of the state. This is used to identify the state in the system.
+  The matching criteria the agent's state must satisfy (app/key preferred; matches loosen).
   """
-  name: String = null
-
-  """The key of the state this dependency corresponds to. (i.e frame:count)"""
-  stateKey: String = null
-
-  """
-  Which app this dependency corresponds to (i.e. do you want to use a stardist agent for that or imagej agents needs to be a world unique classsifier (reverse domain notation) that identifies the type of agent you want to use, and then we can have multiple agents of the same type running in the system, e.g. startdist could be the app for all agents that correpsond to a startdist instance)
-  """
-  app: String = null
-
-  """
-  The demands for the state ports, this can be additionaly specified so that when we loosen the matching criteria for a state in a resolver, we can still make sure to match the right state based on the demands for the ports. This is used to identify the demand in the system.
-  """
-  portMatches: [PortMatchInput!] = null
-
-  """
-  The protocols that the state is implementing or relying on. This is used to identify the demand in the system, and can be used to match states that are implementing the same protocol together.
-  """
-  protocols: [ID!] = null
+  demand: StateDemandInput = null
 
   """
   Whether the dependency is optional or not. If the dependency is optional, the agent doesn't have to provide it to be potentially callable
@@ -4013,6 +3992,16 @@ input StateImplementationInput {
   The key of the state implementation. This is used to uniquely identify the state implementation
   """
   interface: String!
+
+  """
+  The stable identity key of the state, matched by state demands. Defaults to the interface when omitted.
+  """
+  key: String = null
+
+  """
+  The identifier of the app providing this state. Defaults to the registering agent's app identifier when omitted.
+  """
+  app: String = null
 
   """
   The schema of the state implementation. This is used to define the structure of the state
@@ -4100,11 +4089,15 @@ type Structure {
   """Interfaces that this structure implements."""
   implements(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
 
-  """Usages of this structure as an output in actions."""
-  outputUsages(filters: OutputStructureUsageFilter, pagination: OffsetPaginationInput): [OutputStructureUsage!]!
+  """
+  Usages of this structure as an input in actions (derived from the relational arg ports).
+  """
+  inputUsages: [PortUsage!]!
 
-  """Usages of this structure as an input in actions."""
-  inputUsages(filters: InputStructureUsageFilter, pagination: OffsetPaginationInput): [InputStructureUsage!]!
+  """
+  Usages of this structure as an output in actions (derived from the relational return ports).
+  """
+  outputUsages: [PortUsage!]!
 
   """The object ID that this structure represents."""
   identifier: ID!
@@ -4130,7 +4123,6 @@ type StructurePackage {
   id: ID!
   key: String!
   description: String
-  version: String!
 
   """Structures that are part of this package."""
   structures(filters: StructureFilter, pagination: OffsetPaginationInput): [Structure!]!

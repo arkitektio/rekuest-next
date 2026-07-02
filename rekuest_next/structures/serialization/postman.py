@@ -20,6 +20,7 @@ from rekuest_next.structures.errors import (
 from rekuest_next.structures.serialization.protocols import SerializablePort
 from rekuest_next.structures.types import JSONSerializable
 from .predication import predicate_serializable_port
+from rekuest_next.structures.quantities import shrink_quantity, expand_quantity
 import datetime as dt
 import logging
 
@@ -199,6 +200,9 @@ async def ashrink_arg(
 
         if port.kind == PortKind.STRING:
             return str(value) if value is not None else None
+
+        if port.kind == PortKind.QUANTITY:
+            return shrink_quantity(value) if value is not None else None
 
         if port.kind == PortKind.MODEL:
             if not port.identifier:
@@ -480,6 +484,9 @@ async def aexpand_return(
 
     if port.kind == PortKind.STRING:
         return str(value)
+
+    if port.kind == PortKind.QUANTITY:
+        return expand_quantity(value, port.reference_unit)
 
     raise StructureExpandingError(f"No valid expander found for {port.kind}")
 

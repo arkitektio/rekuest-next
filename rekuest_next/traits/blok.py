@@ -20,7 +20,7 @@ def _validate_demo_state_against_dependencies(
             continue
 
         demo = demo_state[dep_key]
-        state_keys = {state_demand.key for state_demand in dep.state_demands or ()}
+        state_keys = {state_demand.key for state_demand in dep.state_dependencies or ()}
 
         for state_key in state_keys:
             if state_key not in demo:

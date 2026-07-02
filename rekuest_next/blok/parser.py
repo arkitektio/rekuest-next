@@ -281,13 +281,13 @@ def validate_blok(
     dependency_state_demands = {
         dependency.key: {
             state_demand.key: state_demand
-            for state_demand in dependency.state_demands or ()
+            for state_demand in dependency.state_dependencies or ()
         }
         for dependency in dependencies
     }
     state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]] = {}
     for dependency in dependencies:
-        for state_demand in dependency.state_demands or ():
+        for state_demand in dependency.state_dependencies or ():
             state_demand_index.setdefault(state_demand.key, []).append(
                 (dependency.key, state_demand)
             )
@@ -679,7 +679,7 @@ def _resolve_dependency_state_path(
 def _state_demand_root_match(state_demand: StateDependencyInput) -> PortMatchInput:
     return PortMatchInput(
         key=state_demand.key,
-        children=state_demand.port_matches,
+        children=state_demand.demand.matches if state_demand.demand else None,
     )
 
 
@@ -787,7 +787,8 @@ def resolve_state_reference(
 
     dependency_state_demands = {
         dep.key: {
-            state_demand.key: state_demand for state_demand in dep.state_demands or ()
+            state_demand.key: state_demand
+            for state_demand in dep.state_dependencies or ()
         }
         for dep in dependencies
     }

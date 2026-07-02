@@ -93,8 +93,8 @@ def _build_dependencies_for_component(
                 app=None,
                 optional=False,
                 auto_resolvable=False,
-                action_demands=action_demands or None,
-                state_demands=state_demands or None,
+                action_dependencies=action_demands or None,
+                state_dependencies=state_demands or None,
             )
         )
 
@@ -297,6 +297,7 @@ def _create_action_dependency(
     return build_action_dependency_input(
         key=action_key,
         definition=implementation.definition,
+        action_key=action_key,
     )
 
 
@@ -332,7 +333,7 @@ def _autogenerate_demo_state(
     for dependency in dependencies:
         dependency_demo_state: Dict[str, Any] = {}
 
-        for state_demand in dependency.state_demands or ():
+        for state_demand in dependency.state_dependencies or ():
             state_key = state_demand.key
             state_cls = app_registry.state_interface_classes.get(state_key)
             if state_cls is None:

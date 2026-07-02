@@ -7,7 +7,8 @@ from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
 )
-from .utils import extract_annotations, is_local_var
+from .utils import is_local_var
+from rekuest_next.annotations import extract_annotations, PortAnnotations
 from rekuest_next.api.schema import (
     AgentDependencyInput,
     ArgPortInput,
@@ -31,6 +32,11 @@ from rekuest_next.structures.registry import (
     StructureRegistry,
 )
 from rekuest_next.structures.convert import is_literal
+from rekuest_next.structures.quantities import (
+    is_pint_quantity,
+    dimension_of,
+    proposed_units_of,
+)
 from typing import Optional, Any, Dict, get_origin, get_args, Annotated
 import types
 import typing
@@ -199,6 +205,7 @@ def convert_object_to_argport(
     effects: Optional[List[EffectInput]] = None,
     requires: Optional[List[RequiresInput]] = None,
     provides: Optional[List[ProvidesInput]] = None,
+    proposed_units: Optional[List[str]] = None,
 ) -> ArgPortInput:
     """
     Convert a class to an Port
@@ -267,42 +274,36 @@ def convert_object_to_argport(
     if is_annotated(cls):
         real_type, *annotations = get_args(cls)
 
-        (
-            default,
-            label,
-            description,
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
-            requires,
-            provides,
-        ) = extract_annotations(
+        ann = extract_annotations(
             annotations,
-            default,
-            label,
-            description,
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
-            requires,
-            provides,
+            PortAnnotations(
+                default=default,
+                label=label,
+                description=description,
+                assign_widget=assign_widget,
+                return_widget=return_widget,
+                validators=validators,
+                effects=effects,
+                requires=requires,
+                provides=provides,
+                proposed_units=proposed_units,
+            ),
         )
 
         return convert_object_to_argport(
             real_type,
             key,
             registry,
-            assign_widget=assign_widget,
-            default=default,
-            label=label,
-            effects=effects,
+            assign_widget=ann.assign_widget,
+            default=ann.default,
+            label=ann.label,
+            effects=ann.effects,
             nullable=nullable,
-            validators=validators,
-            description=description,
-            requires=requires,
-            provides=provides,
+            validators=ann.validators,
+            description=ann.description,
+            requires=ann.requires,
+            provides=ann.provides,
+            proposed_units=ann.proposed_units,
         )
 
     if is_list(cls):
@@ -453,6 +454,26 @@ def convert_object_to_argport(
             requires=tuple(requires) if requires else None,
         )
 
+    if is_pint_quantity(cls):
+        # A kanne dimension type (Duration, ElectricPotential, ...). The wire form is a
+        # pint string; reference_unit is the canonical/default unit, proposed_units the
+        # UI dropdown, dimension the wiring key.
+        return ArgPortInput(
+            kind=PortKind.QUANTITY,
+            widget=assign_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            requires=tuple(requires) if requires else None,
+            reference_unit=cls.reference_unit,
+            proposed_units=list(proposed_units or proposed_units_of(cls)),
+            dimension=dimension_of(cls),
+        )
+
     return registry.get_argport_for_cls(
         cls,
         key,
@@ -481,6 +502,7 @@ def convert_object_to_returnport(
     effects: Optional[List[EffectInput]] = None,
     requires: Optional[List[RequiresInput]] = None,
     provides: Optional[List[ProvidesInput]] = None,
+    proposed_units: Optional[List[str]] = None,
 ) -> ReturnPortInput:
     """
     Convert a class to an Port
@@ -550,40 +572,36 @@ def convert_object_to_returnport(
     if is_annotated(cls):
         real_type, *annotations = get_args(cls)
 
-        (
-            default,
-            label,
-            description,
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
-            requires,
-            provides,
-        ) = extract_annotations(
+        ann = extract_annotations(
             annotations,
-            default,
-            label,
-            description,
-            assign_widget,
-            return_widget,
-            validators,
-            effects,
+            PortAnnotations(
+                default=default,
+                label=label,
+                description=description,
+                assign_widget=assign_widget,
+                return_widget=return_widget,
+                validators=validators,
+                effects=effects,
+                requires=requires,
+                provides=provides,
+                proposed_units=proposed_units,
+            ),
         )
 
         return convert_object_to_returnport(
             real_type,
             key,
             registry,
-            assign_widget=assign_widget,
-            default=default,
-            label=label,
-            effects=effects,
+            assign_widget=ann.assign_widget,
+            default=ann.default,
+            label=ann.label,
+            effects=ann.effects,
             nullable=nullable,
-            validators=validators,
-            description=description,
-            requires=requires,
-            provides=provides,
+            validators=ann.validators,
+            description=ann.description,
+            requires=ann.requires,
+            provides=ann.provides,
+            proposed_units=ann.proposed_units,
         )
 
     if is_list(cls):
@@ -732,6 +750,26 @@ def convert_object_to_returnport(
             validators=tuple(validators),
             description=description,
             provides=tuple(provides) if provides else None,
+        )
+
+    if is_pint_quantity(cls):
+        # A kanne dimension type produced as an output. Serializes to a pint string;
+        # reference_unit is the canonical/default unit, proposed_units the UI dropdown,
+        # dimension the wiring key.
+        return ReturnPortInput(
+            kind=PortKind.QUANTITY,
+            widget=return_widget,
+            key=key,
+            default=default,
+            label=label,
+            nullable=nullable,
+            effects=tuple(effects),
+            validators=tuple(validators),
+            description=description,
+            provides=tuple(provides) if provides else None,
+            reference_unit=cls.reference_unit,
+            proposed_units=list(proposed_units or proposed_units_of(cls)),
+            dimension=dimension_of(cls),
         )
 
     return registry.get_returnport_for_cls(

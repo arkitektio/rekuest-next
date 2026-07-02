@@ -6,9 +6,8 @@ the context of a task.
 
 """
 
-import json
 from typing import AsyncIterator
-from urllib.parse import quote
+
 
 from rath.links.base import ContinuationLink
 from rath.operation import GraphQLResult, Operation

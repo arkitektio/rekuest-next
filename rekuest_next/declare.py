@@ -11,7 +11,6 @@ from typing import (
     TypeVar,
     overload,
     get_type_hints,
-    Protocol,
 )
 import inflection
 from rekuest_next.api.schema import (
@@ -21,6 +20,13 @@ from rekuest_next.api.schema import (
 from rekuest_next.definition.dependencies import (
     build_action_dependency_input,
     build_state_dependency_input,
+)
+from rekuest_next.definition.demands import (
+    ActionDemandOverride,
+    StateDemandOverride,
+    get_action_demand_override,
+    get_state_demand_override,
+    unwrap_annotated,
 )
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.define import convert_object_to_returnport
@@ -55,11 +61,19 @@ R = TypeVar("R")
 class DeclaredAgentAction(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(self, func: AnyFunction, agent_interface: str, key: str) -> None:
+    def __init__(
+        self,
+        func: AnyFunction,
+        agent_interface: str,
+        key: str,
+        app: str | None = None,
+    ) -> None:
         """Initialize the wrapped function."""
         self.func = func
         self.agent_interface = agent_interface
         self.key = key
+        self.app = app
+        self.override: ActionDemandOverride | None = get_action_demand_override(func)
         self.definition = prepare_definition(
             func,
             omitfirst=True,  # Omit the first parameter, which is usually `self` in agent protocols
@@ -69,30 +83,76 @@ class DeclaredAgentAction(Generic[P, R]):
         self.interface = func.__name__
 
     def to_dependency_input(self, key: str) -> ActionDependencyInput:
-        """Convert the wrapped function to a DependencyInput."""
+        """Convert the wrapped function to a DependencyInput.
+
+        By default the demanded action inherits its ``app`` from the protocol's
+        core app and its ``key`` from the method name. A :func:`demand` override
+        on the method redirects it to another action instead.
+        """
+        override = self.override
         return build_action_dependency_input(
             key=self.interface,
             definition=self.definition,
+            app=override.app if override and override.app is not None else self.app,
+            action_key=(
+                override.key
+                if override and override.key is not None
+                else self.interface
+            ),
+            version=override.version if override else None,
+            hash=override.hash if override else None,
+            name=override.name if override else None,
+            protocols=override.protocols if override else None,
+            force_arg_length=override.force_arg_length if override else None,
+            force_return_length=override.force_return_length if override else None,
+            match_ports=override.match_ports if override else True,
+            optional=override.optional if override else False,
         )
 
 
 class DeclaredAgentState(Generic[P, R]):
     """A wrapped function that calls the actor's implementation."""
 
-    def __init__(self, stateclass: Type, agent_interface: str, key: str) -> None:
+    def __init__(
+        self,
+        stateclass: Type,
+        agent_interface: str,
+        key: str,
+        app: str | None = None,
+        override: "StateDemandOverride | None" = None,
+    ) -> None:
         """Initialize the wrapped function."""
         self.func = stateclass
         self.agent_interface = agent_interface
         self.key = key
         self.interface = key
+        self.app = app
+        self.override: StateDemandOverride | None = (
+            override if override is not None else get_state_demand_override(stateclass)
+        )
         self.definition = inspect_declared_state(stateclass)
 
     def to_dependency_input(self, key: str) -> StateDependencyInput:
-        """Convert the wrapped function to a DependencyInput."""
+        """Convert the wrapped function to a DependencyInput.
+
+        By default the demanded state inherits its ``app`` from the protocol's
+        core app and its ``key`` from the attribute name. A :func:`demand_state`
+        marker on the annotation redirects it to another state instead.
+        """
+        override = self.override
         return build_state_dependency_input(
             key=self.key,
-            state_key=self.interface,
             definition=self.definition,
+            state_key=(
+                override.key
+                if override and override.key is not None
+                else self.interface
+            ),
+            app=override.app if override and override.app is not None else self.app,
+            hash=override.hash if override else None,
+            protocols=override.protocols if override else None,
+            match_ports=override.match_ports if override else True,
+            optional=override.optional if override else False,
         )
 
 
@@ -185,22 +245,27 @@ class DeclaredAgentProtocol(Generic[Agent]):
         self.max = max
         self.version: str | None = version
 
-        type_hints = get_type_hints(func)
+        type_hints = get_type_hints(func, include_extras=True)
 
         for dependency_key, annotation in type_hints.items():
             if dependency_key.startswith("_"):
                 continue
 
-            if state_dep_like(annotation):
+            state_cls = unwrap_annotated(annotation)
+            if state_dep_like(state_cls):
                 state = DeclaredAgentState(
-                    annotation, self.interface, key=dependency_key
+                    state_cls,
+                    self.interface,
+                    key=dependency_key,
+                    app=self.app,
+                    override=get_state_demand_override(annotation),
                 )
                 self.states[dependency_key] = state
 
         for dependeny_key, method in inspect.getmembers(func):
             if not dependeny_key.startswith("_") and callable(method):
                 action: DeclaredAgentAction[Any, Any] = DeclaredAgentAction(
-                    method, self.interface, key=dependeny_key
+                    method, self.interface, key=dependeny_key, app=self.app
                 )
                 self.actions[dependeny_key] = action
 
@@ -211,12 +276,12 @@ class DeclaredAgentProtocol(Generic[Agent]):
             key=key,
             app=self.app,
             description=self.description or self.func.__doc__,
-            actionDemands=[
+            actionDependencies=tuple(
                 action.to_dependency_input(key) for key, action in self.actions.items()
-            ],
-            stateDemands=[
+            ),
+            stateDependencies=tuple(
                 state.to_dependency_input(key) for key, state in self.states.items()
-            ],
+            ),
             autoResolvable=self.auto_resolvable,
             optional=False,
             minViableInstances=self.min,
