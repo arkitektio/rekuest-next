@@ -48,6 +48,14 @@ class PortTrait(BaseModel):
                     "When specifying a structure you need to provide an arkitekt identifier got:"
                 )
 
+        if self.kind == PortKind.QUANTITY:
+            if not self.reference_unit:
+                raise ValueError(
+                    "When specifying a quantity you need to provide a 'reference_unit' "
+                    "(e.g. 'volt'). It is the default selection and other units of the same "
+                    "dimension are still allowed."
+                )
+
         if self.kind == PortKind.LIST:
             if self.children is None:
                 raise ValueError(

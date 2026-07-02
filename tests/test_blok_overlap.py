@@ -9,6 +9,7 @@ from rekuest_next.api.schema import (
     ImplementationInput,
     PortKind,
     ReturnPortInput,
+    StateDemandInput,
     StateDependencyInput,
     StateImplementationInput,
 )
@@ -125,7 +126,7 @@ def test_blok_models_reject_missing_demo_state_keys(model_cls, base_kwargs) -> N
         key="service",
         optional=False,
         auto_resolvable=False,
-        state_demands=(
+        state_dependencies=(
             StateDependencyInput(
                 key="status",
                 optional=False,
@@ -159,7 +160,7 @@ def test_blok_models_reject_extra_demo_state_keys(model_cls, base_kwargs) -> Non
         key="service",
         optional=False,
         auto_resolvable=False,
-        state_demands=(
+        state_dependencies=(
             StateDependencyInput(
                 key="status",
                 optional=False,
@@ -193,18 +194,20 @@ def test_blok_models_accept_matching_demo_state(model_cls, base_kwargs) -> None:
         key="service",
         optional=False,
         auto_resolvable=False,
-        state_demands=(
+        state_dependencies=(
             StateDependencyInput(
                 key="status",
                 optional=False,
-                port_matches=build_port_matches(
-                    (
-                        ReturnPortInput(
-                            key="value",
-                            kind=PortKind.STRING,
-                            nullable=False,
-                        ),
-                    )
+                demand=StateDemandInput(
+                    matches=build_port_matches(
+                        (
+                            ReturnPortInput(
+                                key="value",
+                                kind=PortKind.STRING,
+                                nullable=False,
+                            ),
+                        )
+                    ),
                 ),
             ),
         ),

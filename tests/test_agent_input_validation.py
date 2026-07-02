@@ -17,6 +17,7 @@ from rekuest_next.api.schema import (
     PortKind,
     ReturnPortInput,
     StateDefinitionInput,
+    StateDemandInput,
     StateDependencyInput,
     StateImplementationInput,
 )
@@ -208,18 +209,20 @@ def test_externally_dependent_agent_is_accepted(
         key="camera",
         optional=False,
         auto_resolvable=False,
-        state_demands=(
+        state_dependencies=(
             StateDependencyInput(
                 key="state",
                 optional=False,
-                port_matches=build_port_matches(
-                    (
-                        ReturnPortInput(
-                            key="exposure_ms",
-                            kind=PortKind.FLOAT,
-                            nullable=False,
-                        ),
-                    )
+                demand=StateDemandInput(
+                    matches=build_port_matches(
+                        (
+                            ReturnPortInput(
+                                key="exposure_ms",
+                                kind=PortKind.FLOAT,
+                                nullable=False,
+                            ),
+                        )
+                    ),
                 ),
             ),
         ),

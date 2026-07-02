@@ -2,7 +2,7 @@ query find(
   $id: ID
   $implementation: ID
   $hash: ActionHash
-  $matching: ActionDependencyInput
+  $matching: ActionDemandInput
 ) {
   action(
     id: $id

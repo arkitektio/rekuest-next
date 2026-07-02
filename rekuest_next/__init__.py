@@ -53,6 +53,7 @@ from .actors.context import (
     install_hook,
 )
 from .declare import declare, declare_state
+from .definition.demands import demand, demand_state
 from .structures.model import model, model_field
 from .structures.decorator import structure
 from .state.decorator import state
@@ -62,7 +63,13 @@ from .app import (
     set_default_app_registry,
     reset_default_app_registry,
 )
-from rekuest_next.annotations import Requires, Provides
+from rekuest_next.annotations import (
+    Requires,
+    Provides,
+    Description,
+    Default,
+    Units,
+)
 
 try:
     from .arkitekt import RekuestNextService
@@ -78,6 +85,8 @@ __all__ = [
     # registration decorators
     "declare",
     "declare_state",
+    "demand",
+    "demand_state",
     "state",
     "context",
     "startup",
@@ -114,5 +123,8 @@ __all__ = [
     "reset_default_app_registry",
     "Requires",
     "Provides",
+    "Description",
+    "Default",
+    "Units",
     "RekuestNextService",
 ]

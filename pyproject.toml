@@ -24,6 +24,12 @@ dependencies = [
 types = [
     "annotated-types>=0.5.0",
 ]
+# Physical-quantity ports (PortKind.QUANTITY): kanne provides the pint-backed
+# dimension types used to derive a port's unit/dimension and to expand wire
+# strings back into live quantities. Optional — quantity ports simply require it.
+units = [
+    "kanne>=2.2",
+]
 # Installed inside the semantic-release Docker action so build_command has uv.
 build = ["uv>=0.7.12"]
 

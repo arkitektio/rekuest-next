@@ -30,6 +30,7 @@ from rekuest_next.structures.errors import (
 )
 from .predication import predicate_serializable_port
 from rekuest_next.constants import UNSET
+from rekuest_next.structures.quantities import shrink_quantity, expand_quantity
 
 
 def _format_path_tree(path: Sequence[str] | None) -> str:
@@ -536,6 +537,12 @@ async def aexpand_arg(
     if port.kind == PortKind.STRING:
         return str(value)
 
+    if port.kind == PortKind.QUANTITY:
+        try:
+            return expand_quantity(value, port.reference_unit)
+        except ValueError as e:
+            raise to_port_error(port, value, str(e), path=path, depth=depth) from e
+
     raise StructureExpandingError(f"No shrinker for port kind {port.kind}")
 
 
@@ -914,6 +921,9 @@ async def ashrink_return(
                 )
             return str(value)
 
+        if port.kind == PortKind.QUANTITY:
+            return shrink_quantity(value)
+
         if port.kind == PortKind.ENUM:
             if isinstance(value, Enum):
                 return value.name
@@ -1175,6 +1185,9 @@ async def ashrink_actor_arg(
 
         if port.kind == PortKind.STRING:
             return str(value) if value is not None else None
+
+        if port.kind == PortKind.QUANTITY:
+            return shrink_quantity(value) if value is not None else None
 
         if port.kind == PortKind.MODEL:
             if not port.identifier:
@@ -1461,6 +1474,9 @@ async def aexpand_actor_return(
 
     if port.kind == PortKind.STRING:
         return str(value)
+
+    if port.kind == PortKind.QUANTITY:
+        return expand_quantity(value, port.reference_unit)
 
     raise StructureExpandingError(f"No valid expander found for {port.kind}")
 

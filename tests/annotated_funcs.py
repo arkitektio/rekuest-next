@@ -1,6 +1,7 @@
 """Functions for testing"""
 
-from rekuest_next.widgets import withChoices, withDescription, withDefault
+from rekuest_next.widgets import withChoices
+from rekuest_next import Description, Default
 from typing import Annotated
 from annotated_types import Len
 
@@ -16,8 +17,8 @@ def annotated_x(x: X) -> X:
 ChoiceX = Annotated[
     list[str],
     withChoices("a", "b", "c"),
-    withDefault("a"),
-    withDescription("A choice list"),
+    Default("a"),
+    Description("A choice list"),
 ]
 
 

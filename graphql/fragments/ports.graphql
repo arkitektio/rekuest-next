@@ -6,6 +6,9 @@ fragment ArgChildPortNested on ArgPort {
     identifier
     nullable
     kind
+    referenceUnit
+    proposedUnits
+    dimension
   }
   choices {
     value
@@ -15,6 +18,9 @@ fragment ArgChildPortNested on ArgPort {
   identifier
   nullable
   default
+  referenceUnit
+  proposedUnits
+  dimension
 }
 
 fragment ArgChildPort on ArgPort {
@@ -31,6 +37,9 @@ fragment ArgChildPort on ArgPort {
   }
   nullable
   default
+  referenceUnit
+  proposedUnits
+  dimension
 }
 
 
@@ -42,6 +51,9 @@ fragment ReturnChildPortNested on ReturnPort {
     identifier
     nullable
     kind
+    referenceUnit
+    proposedUnits
+    dimension
   }
   choices {
     value
@@ -51,6 +63,9 @@ fragment ReturnChildPortNested on ReturnPort {
   identifier
   nullable
   default
+  referenceUnit
+  proposedUnits
+  dimension
 }
 
 fragment ReturnChildPort on ReturnPort {
@@ -67,6 +82,9 @@ fragment ReturnChildPort on ReturnPort {
   }
   nullable
   default
+  referenceUnit
+  proposedUnits
+  dimension
 }
 
 fragment CustomEffect on CustomEffect {
@@ -172,6 +190,9 @@ fragment ArgPort on ArgPort {
   default
   kind
   identifier
+  referenceUnit
+  proposedUnits
+  dimension
   children {
     ...ArgChildPort
   }
@@ -204,6 +225,9 @@ fragment ReturnPort on ReturnPort {
   default
   kind
   identifier
+  referenceUnit
+  proposedUnits
+  dimension
   children {
     ...ReturnChildPort
   }
