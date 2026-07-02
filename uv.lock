@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <4.0"
 
 [[package]]
@@ -1314,7 +1314,7 @@ wheels = [
 
 [[package]]
 name = "rekuest-next"
-version = "1.6.4"
+version = "2.0.0rc4"
 source = { editable = "." }
 dependencies = [
     { name = "docstring-parser" },
