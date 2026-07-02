@@ -5,7 +5,7 @@ query requests {
 }
 
 
-query GetEvent($id: ID){
+query GetEvent($id: ID!){
   event(id: $id){
     ...TaskEvent
   }

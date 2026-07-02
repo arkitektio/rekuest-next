@@ -35,6 +35,16 @@ type Action {
   """Indicates whether the action maintains state."""
   stateful: Boolean!
 
+  """
+  Whether the action is pure: same args always produce the same result, no side effects — replayable.
+  """
+  pure: Boolean!
+
+  """
+  Whether the action is idempotent: safe to re-run with the same args — re-dispatchable on ambiguous executor loss.
+  """
+  idempotent: Boolean!
+
   """Optional description of the action."""
   description: String
 
@@ -171,6 +181,15 @@ type ActionDemand {
 
   """Require that the action has exactly this number of root returns."""
   forceReturnLength: Int
+
+  """Require the action to be (or not be) pure."""
+  pure: Boolean
+
+  """Require the action to be (or not be) idempotent."""
+  idempotent: Boolean
+
+  """Require the action to be (or not be) stateful."""
+  stateful: Boolean
 }
 
 """
@@ -214,6 +233,15 @@ input ActionDemandInput {
 
   """Require that the action has exactly this number of root returns."""
   forceReturnLength: Int = null
+
+  """Require the action to be (or not be) pure. Omit to match either."""
+  pure: Boolean = null
+
+  """Require the action to be (or not be) idempotent. Omit to match either."""
+  idempotent: Boolean = null
+
+  """Require the action to be (or not be) stateful. Omit to match either."""
+  stateful: Boolean = null
 }
 
 """
@@ -364,9 +392,6 @@ type Agent {
 
   """Agent's associated memory shelve."""
   memoryShelve: MemoryShelve
-
-  """Filesystem shelves available on the agent."""
-  fileSystemShelves(filters: FilesystemShelveFilter, pagination: OffsetPaginationInput): [FilesystemShelve!]!
 
   """Last timestamp this agent was seen."""
   lastSeen: DateTime
@@ -829,7 +854,9 @@ input AssignInput {
   """
   parent: ID = null
 
-  """Whether the task should be cached"""
+  """
+  Deprecated — has no effect. Replay decisions are caller-side: use the reusableTaskFor query and reference the prior task instead of re-assigning.
+  """
   cached: Boolean!
 
   """Whether the task should be logged"""
@@ -986,7 +1013,7 @@ enum AssignWidgetKind {
 }
 
 input AutoResolveInput {
-  action: ID!
+  implementation: ID!
 }
 
 """The input for bouncing an agent."""
@@ -1620,6 +1647,16 @@ input DefinitionInput {
   stateful: Boolean! = false
 
   """
+  Whether the action is pure: same args always produce the same result and no side effects — its results are replayable/cacheable. Implies idempotent. Incompatible with stateful and with a PHYSICAL effect class.
+  """
+  pure: Boolean! = false
+
+  """
+  Whether the action is idempotent: safe to run multiple times with the same args without changing the outcome — on ambiguous executor loss it may be freely re-dispatched.
+  """
+  idempotent: Boolean! = false
+
+  """
   The port groups of the definition. This is used to group ports together in the UI
   """
   portGroups: [PortGroupInput!]! = []
@@ -1725,6 +1762,14 @@ input DeleteSpaceInput {
 """The input for deleting a 3D model."""
 input DeleteThreeDModelInput {
   """The ID of the 3D model to delete."""
+  id: ID!
+}
+
+"""The input for deleting a toolbox."""
+input DeleteToolboxInput {
+  """
+  The toolbox ID to delete. This is used to identify the toolbox in the system.
+  """
   id: ID!
 }
 
@@ -1880,54 +1925,6 @@ enum EffectKind {
   MESSAGE
   HIDE
   CUSTOM
-}
-
-"""Represents a file-based drawer within a filesystem shelve."""
-type FileDrawer {
-  """ID of the file drawer."""
-  id: ID!
-
-  """External resource identifier."""
-  resourceId: String!
-
-  """Agent owning the drawer."""
-  agent: Agent!
-
-  """Unique string identifying the drawer."""
-  identifier: String!
-
-  """Creation timestamp of the drawer."""
-  createdAt: DateTime!
-}
-
-"""A way to filter shelved items"""
-input FileDrawerFilter {
-  shelve: ID
-  agent: ID
-  identifier: String
-  AND: FileDrawerFilter
-  OR: FileDrawerFilter
-  NOT: FileDrawerFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-}
-
-"""Shelve on an agent for filesystem-based resources."""
-type FilesystemShelve {
-  """ID of the filesystem shelve."""
-  id: ID!
-
-  """List of file drawers in the shelve."""
-  drawers(filters: FileDrawerFilter, pagination: OffsetPaginationInput): [FileDrawer!]!
-}
-
-"""A way to filter shelved items"""
-input FilesystemShelveFilter {
-  AND: FilesystemShelveFilter
-  OR: FilesystemShelveFilter
-  NOT: FilesystemShelveFilter
-  DISTINCT: Boolean
-  ids: [ID!]
 }
 
 input FinishMediaUploadInput {
@@ -2335,25 +2332,6 @@ enum LogLevel {
   CRITICAL
 }
 
-"""The input for logging state patches."""
-input LogPatchesInput {
-  """
-  The list of patches applied to the state. This is used to log the changes made to the state.
-  """
-  patches: [PatchInput!]!
-}
-
-"""The input for logging state snapshots."""
-input LogSnapshotInput {
-  """The interface of the state to snapshot."""
-  interface: String!
-
-  """
-  The value of the state snapshot (index by state_keys). This is used to log the current state of the system.
-  """
-  value: AnyDefault!
-}
-
 """The input for mapping actions to implementations in a agent."""
 input MappedAgentInput {
   """
@@ -2636,13 +2614,16 @@ type Mutation {
   """Create a new toolbox with shortcuts."""
   createToolbox(input: CreateToolboxInput!): Toolbox!
 
+  """Delete a toolbox by ID."""
+  deleteToolbox(input: DeleteToolboxInput!): ID!
+
   """Delete unreferenced actions from the system."""
   cleanupActions(actionIds: [ID!] = null): Int!
 
   """Automatically resolve dependencies for an implementation."""
   autoResolve(input: AutoResolveInput!): Resolution!
 
-  """Create sa resolution from"""
+  """Create a resolution for an implementation."""
   createResolution(input: CreateResolutionInput!): Resolution!
 
   """Update an existing resolution."""
@@ -2650,12 +2631,6 @@ type Mutation {
 
   """Delete a resolution by ID."""
   deleteResolution(input: DeleteResolutionInput!): ID!
-
-  """Log state patches"""
-  logPatches(input: LogPatchesInput!): ID!
-
-  """Log a state snapshot """
-  logSnapshot(input: LogSnapshotInput!): ID!
 
   """Upload media and return a URL for access"""
   requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant!
@@ -2670,7 +2645,7 @@ type Mutation {
   deleteDashboard(input: DeleteDashboardInput!): Boolean!
 
   """
-  Update properties of a    dashboard such as its name, associated bloks, or organization.
+  Update properties of a dashboard such as its name, associated bloks, or organization.
   """
   updateDashboard(input: UpdateDashboardInput!): Dashboard!
 
@@ -2784,59 +2759,6 @@ type Patch {
   state: State!
   interface: String!
   patch: JSONPatch!
-}
-
-"""The input for updating a state using JSON Patch operations."""
-input PatchInput {
-  """
-  The JSON Patch operation to perform. This can be add, remove, replace, move, copy, or test.
-  """
-  op: String!
-
-  """
-  The JSON Pointer path to the target value to apply the patch operation on.
-  """
-  path: String!
-
-  """
-  The value to be used in the patch operation. This is required for add, replace, and test operations, and should be null for remove, move, and copy operations.
-  """
-  value: AnyDefault!
-
-  """
-  The name of the state to apply the patch to. This is used to identify the state in the system.
-  """
-  stateName: String!
-
-  """
-  The current revision number of the state. This is used for optimistic concurrency control to ensure that the patch is applied to the correct version of the state.
-  """
-  currentRev: Int!
-
-  """
-  The future revision number of the state after the patch is applied. This is used for optimistic concurrency control to ensure that the patch is applied to the correct version of the state.
-  """
-  futureRev: Int!
-
-  """
-  The session ID of the client applying the patch. This is used for tracking and auditing purposes.
-  """
-  sessionId: String!
-
-  """
-  An optional correlation ID to associate with the patch operation. This can be used for tracking and debugging purposes across distributed systems.
-  """
-  correlationId: String = null
-
-  """
-  The global revision number of the state. This is used for conflict detection in distributed systems where multiple clients may be applying patches concurrently.
-  """
-  globalCurrentRev: Int
-
-  """
-  The global future revision number of the state after the patch is applied. This is used for conflict detection in distributed systems where multiple clients may be applying patches concurrently.
-  """
-  globalFutureRev: Int
 }
 
 """The input for pausing a task."""
@@ -3251,8 +3173,13 @@ type Query {
   """Fetch the root tasks this client created (caller-scoped)."""
   myTasks: [Task!]!
 
+  """
+  The latest completed run of a PURE action with these exact args, or null — the replay primitive. Reuse decisions belong to the orchestrator.
+  """
+  reusableTaskFor(actionHash: String!, args: Args!): Task
+
   """Fetch a specific event."""
-  event(id: ID = null): [TaskEvent!]!
+  event(id: ID!): TaskEvent!
 
   """Find implementation at given interface."""
   implementationAt(agent: ID!, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
@@ -4189,6 +4116,9 @@ type Task {
 
   """Arguments used in the task."""
   args: AnyDefault!
+
+  """Canonical sha256 of the assign args — the replay-discovery key."""
+  argsHash: String
 
   """The used dependencies for this assignemnet"""
   dependencies: AnyDefault!

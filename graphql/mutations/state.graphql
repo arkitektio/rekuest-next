@@ -1,9 +1,0 @@
-
-
-mutation LogPatches($input: LogPatchesInput!) {
-  logPatches(input: $input) 
-}
-
-mutation LogSnapshot($input: LogSnapshotInput!) {
-  logSnapshot(input: $input) 
-}

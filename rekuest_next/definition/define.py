@@ -36,6 +36,7 @@ from rekuest_next.structures.quantities import (
     is_pint_quantity,
     dimension_of,
     proposed_units_of,
+    shrink_quantity,
 )
 from typing import Optional, Any, Dict, get_origin, get_args, Annotated
 import types
@@ -462,7 +463,9 @@ def convert_object_to_argport(
             kind=PortKind.QUANTITY,
             widget=assign_widget,
             key=key,
-            default=default,
+            # A quantity default is a live pint/kanne value; shrink it to its wire
+            # string ("28.6 µm") so the port default stays JSON serializable.
+            default=shrink_quantity(default) if default is not None else None,
             label=label,
             nullable=nullable,
             effects=tuple(effects),
@@ -760,7 +763,9 @@ def convert_object_to_returnport(
             kind=PortKind.QUANTITY,
             widget=return_widget,
             key=key,
-            default=default,
+            # Shrink a live quantity default to its wire string so it stays JSON
+            # serializable (mirrors the arg-port branch above).
+            default=shrink_quantity(default) if default is not None else None,
             label=label,
             nullable=nullable,
             effects=tuple(effects),
