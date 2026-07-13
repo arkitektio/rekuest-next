@@ -5,7 +5,12 @@ from koil.bridge import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
 from rekuest_next.agents.hooks.background import background
-from rekuest_next.protocols import AnyFunction, BackgroundFunction, StartupFunction
+from rekuest_next.protocols import (
+    AnyFunction,
+    BackgroundFunction,
+    ShutdownFunction,
+    StartupFunction,
+)
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.actors.types import Agent
 from rekuest_next.postmans.types import Postman
@@ -22,6 +27,7 @@ from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.register import register
 from rekuest_next.agents.hooks.startup import startup
+from rekuest_next.agents.hooks.shutdown import shutdown
 from rekuest_next.api.schema import (
     DefinitionInput,
 )
@@ -90,6 +96,20 @@ class RekuestNext(Composition):
             function (AnyFunction): The startup function to register.
         """
         startup(
+            function,
+            name=name or function.__name__,
+            registry=self.agent.app_registry.hooks_registry,
+        )
+
+    def register_shutdown(
+        self, function: ShutdownFunction, name: str | None = None
+    ) -> None:
+        """Register a shutdown function that will be called when the agent tears down.
+
+        Args:
+            function (ShutdownFunction): The shutdown function to register.
+        """
+        shutdown(
             function,
             name=name or function.__name__,
             registry=self.agent.app_registry.hooks_registry,

@@ -25,6 +25,7 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    cast,
 )
 import janus
 import jsonpatch  # type: ignore[import-untyped]
@@ -33,8 +34,13 @@ from pydantic import ConfigDict, Field, PrivateAttr
 from koil.composition import KoiledModel
 from rekuest_next import messages
 from rekuest_next.actors.types import Actor
+from rekuest_next.actors.types import Agent as AgentProtocol
 from rekuest_next.agents.errors import AgentException, ProvisionException
-from rekuest_next.agents.hooks.registry import StartupHook, StartupHookReturns
+from rekuest_next.agents.hooks.registry import (
+    ShutdownHook,
+    StartupHook,
+    StartupHookReturns,
+)
 from rekuest_next.agents.lock import TaskLock
 from rekuest_next.app import AppRegistry, get_default_app_registry
 from rekuest_next.agents.transport.types import AgentTransport
@@ -196,9 +202,15 @@ class BaseAgent(KoiledModel):
     _collected_startup_hooks: Dict[str, StartupHook] = PrivateAttr(
         default_factory=lambda: {}
     )
+    _collected_shutdown_hooks: Dict[str, ShutdownHook] = PrivateAttr(
+        default_factory=lambda: {}
+    )
     _collected_background_workers: Dict[str, Any] = PrivateAttr(
         default_factory=lambda: {}
     )
+    _ran_startup_hooks: bool = PrivateAttr(default=False)
+    """Set once the startup hooks have run, so teardown only runs the shutdown hooks
+    for an agent that actually started (and only once per start)."""
 
     # Event based necessities
     current_session: str = Field(
@@ -224,6 +236,10 @@ class BaseAgent(KoiledModel):
     cancel_grace_period: float = Field(
         default=5.0,
         description="Maximum seconds to wait for the message-consumer task to unwind when the agent loop is cancelled before proceeding to teardown anyway. Bounds cancellation so it can never hang on a stream that ignores cancellation.",
+    )
+    shutdown_hook_timeout: float = Field(
+        default=20.0,
+        description="Maximum seconds a single shutdown hook may run during teardown before it is abandoned. Bounds teardown so it can never hang on a hook that does not return.",
     )
     started: bool = False
     running: bool = False
@@ -394,9 +410,11 @@ class BaseAgent(KoiledModel):
         for interface, schema in app_registry.states.items():
             self._collected_state_schemas[interface] = schema.definition
 
-        # Collect startup hooks and background workers
+        # Collect startup hooks, shutdown hooks and background workers
         for name, hook in app_registry.hooks_registry.startup_hooks.items():
             self._collected_startup_hooks[name] = hook
+        for name, shutdown_hook in app_registry.hooks_registry.shutdown_hooks.items():
+            self._collected_shutdown_hooks[name] = shutdown_hook
         for name, worker in app_registry.hooks_registry.background_worker.items():
             self._collected_background_workers[name] = worker
 
@@ -637,6 +655,11 @@ class BaseAgent(KoiledModel):
             except asyncio.CancelledError:
                 pass
 
+        # Runs while the patch processor, the queue and the transport are still
+        # alive, so a hook that touches state still gets its patches flushed by the
+        # bounded join below.
+        await self.arun_shutdown_hooks()
+
         if self._event_queue is not None:
             # Best-effort flush of queued patches before stopping the processor.
             # Bounded by a timeout so teardown can never hang on a patch that was
@@ -867,6 +890,37 @@ class BaseAgent(KoiledModel):
 
         return StartupHookReturns(states=states, contexts=contexts)
 
+    async def arun_shutdown_hooks(self) -> None:
+        """Run all shutdown hooks collected from extensions.
+
+        Runs in the reverse of the registration order, so teardown unwinds what
+        startup set up. Only runs for an agent that got as far as its startup
+        hooks, and only once per start. A hook that fails or times out is logged
+        and the remaining hooks still run: teardown must never fail because of a
+        shutdown hook.
+        """
+        from rekuest_next.agents.hooks.errors import ShutdownHookError
+
+        if not self._ran_startup_hooks:
+            return
+        self._ran_startup_hooks = False
+
+        for key, hook in reversed(list(self._collected_shutdown_hooks.items())):
+            try:
+                await asyncio.wait_for(
+                    hook.arun(
+                        agent=cast("AgentProtocol", self),
+                        contexts=self.contexts,
+                        states=self.states,
+                        app_context=self._app_context,
+                    ),
+                    timeout=self.shutdown_hook_timeout,
+                )
+            except Exception as e:
+                hook_error = ShutdownHookError(f"Shutdown hook {key} failed")
+                hook_error.__cause__ = e
+                logger.error(hook_error, exc_info=hook_error)
+
     async def aensure(self) -> None:
         """A function that gets called so that we create the agent with its definitions before we start the ooop"""
 
@@ -888,6 +942,9 @@ class BaseAgent(KoiledModel):
 
         with acquired_locks(*locks):
             hook_return = await self.arun_startup_hooks(app_context=app_context)
+            # From here on the app has set up resources, so teardown owes it the
+            # shutdown hooks (even if the rest of the startup fails).
+            self._ran_startup_hooks = True
             await self.ainit_states(hook_return=hook_return, app_context=app_context)
 
         self.global_revision = 0
@@ -1036,18 +1093,38 @@ class BaseAgent(KoiledModel):
     async def _astop_consume_task(self, consume_task: "asyncio.Task[None]") -> None:
         """Stop the message-consumer task, bounded by ``cancel_grace_period``.
 
-        First disconnect the transport so a stream that ignores cancellation
-        (e.g. a websocket mid-handshake) is released and the server drops the
-        agent registration; then cancel the consumer. If it still refuses to
-        unwind in time we proceed anyway so teardown can never hang on it.
+        The transport is deliberately left connected: teardown still publishes
+        (shutdown hooks, final state patches), and those messages need a live
+        socket. ``atear_down`` disconnects at the end, once everything is out.
+
+        Only if the consumer refuses to unwind do we disconnect early to release a
+        stream that ignores cancellation, so teardown can never hang on it.
         """
         if consume_task.done():
             return
+        consume_task.cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(consume_task), timeout=self.cancel_grace_period
+            )
+            return
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        except Exception:
+            logger.warning("Message consumer errored during shutdown", exc_info=True)
+            return
+
+        if consume_task.done():
+            return
+
+        logger.warning(
+            "Message consumer did not unwind in time; disconnecting the transport to "
+            "release it. Messages queued during teardown may be lost."
+        )
         try:
             await self.transport.adisconnect()
         except Exception:
             logger.warning("Transport disconnect during shutdown failed", exc_info=True)
-        consume_task.cancel()
         try:
             await asyncio.wait_for(
                 asyncio.shield(consume_task), timeout=self.cancel_grace_period

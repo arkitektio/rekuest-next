@@ -1,7 +1,7 @@
 """WebSocket transport used by agents to exchange messages with the backend."""
 
 from types import TracebackType
-from typing import Awaitable, Callable, Dict, Optional, Self, Type
+from typing import Awaitable, Callable, Dict, Optional, Self, Type, cast
 import pydantic
 import websockets
 from rekuest_next.agents.transport.base import AgentTransport
@@ -16,6 +16,7 @@ from websockets.exceptions import (
     ConnectionClosedError,
     InvalidHandshake,
 )
+from websockets.frames import CloseCode
 from pydantic import ConfigDict, Field
 import ssl
 import certifi
@@ -71,6 +72,13 @@ agent_error_message: Dict[int, str] = {
 }
 
 
+class _Closed:
+    """Sentinel pushed onto the inbound queue when the connection loop is done."""
+
+
+CLOSED = _Closed()
+
+
 class WebsocketAgentTransport(AgentTransport):
     """Reconnect-capable transport for the agent WebSocket protocol.
 
@@ -78,12 +86,19 @@ class WebsocketAgentTransport(AgentTransport):
 
     1. instantiate the transport with an endpoint URL and ``token_loader``
     2. enter it as an async context manager to initialize local state
-    3. call ``aconnect()`` before consuming ``areceive()``
-    4. call ``asend(...)`` to queue outbound agent messages
+    3. call ``aconnect()`` to open the socket and register the agent
+    4. consume ``areceive()`` for backend messages, ``asend(...)`` to queue outbound ones
+    5. call ``adisconnect()`` to flush and close
 
-    The receive loop is responsible for opening the socket, registering the
-    agent instance, replying to heartbeat messages, and retrying recoverable
-    connection failures.
+    The socket is owned by a background connection task started in ``aconnect()``,
+    not by the ``areceive()`` iterator. That is what lets an agent keep publishing
+    while it tears down: cancelling the consumer of ``areceive()`` (the agent loop)
+    leaves the connection up, so messages produced during teardown still reach the
+    backend, and the socket is closed only by ``adisconnect()``.
+
+    The connection task opens the socket, registers the agent instance, replies to
+    heartbeats, retries recoverable failures, and hands received messages (and any
+    terminal failure) to ``areceive()`` through an inbound queue.
     """
 
     endpoint_url: str
@@ -101,11 +116,15 @@ class WebsocketAgentTransport(AgentTransport):
     """How this participant intends to use the protocol. ``EXECUTOR`` is enough for
     actor-internal (dependent) calls; set ``ORCHESTRATOR`` to also originate root tasks from
     the agent. The mode is only granted if the token carries the matching capability scopes."""
+    flush_timeout: float = 5.0
+    """Maximum seconds to spend sending still-queued messages when disconnecting. Bounds
+    the flush so a dead socket cannot hang teardown."""
 
     _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
     _healthy: ContextBool = False
     _closing: ContextBool = False
     _send_queue: Contextual[asyncio.Queue[str]] = None
+    _in_queue: Contextual[asyncio.Queue[object]] = None
     _connection_task: Contextual[asyncio.Task[None]] = None
     _client: Contextual["websockets.ClientConnection"] = None
 
@@ -114,37 +133,72 @@ class WebsocketAgentTransport(AgentTransport):
     async def __aenter__(self) -> Self:
         """Initialize per-session state used by the transport context.
 
-        This prepares the outbound queue and pending-future registry. The actual
-        network connection is opened lazily by ``areceive()`` after
-        ``aconnect()`` has been called.
+        This prepares the inbound and outbound queues and the pending-future
+        registry. The network connection is opened by ``aconnect()``.
         """
         self._futures = {}
         self._send_queue = asyncio.Queue()
+        self._in_queue = asyncio.Queue()
         self._closing = False
         self._client = None
         return self
 
     async def aconnect(self) -> None:
-        """Mark the transport as ready to open the WebSocket.
+        """Start the connection task that owns the WebSocket.
 
-        The transport does not open the WebSocket immediately here; the receive
-        loop registers the agent once the socket is up. The backend binds the
-        agent to its instance based on the authentication token.
+        The task opens the socket and registers the agent; the backend binds the
+        agent to its instance based on the authentication token. Received messages
+        are handed to ``areceive()`` through the inbound queue.
         """
-        pass
+        if self._in_queue is None or self._send_queue is None:
+            raise AgentTransportException(
+                "Transport was not entered. Use it as an async context manager."
+            )
+
+        self._closing = False
+        if self._connection_task is None or self._connection_task.done():
+            self._connection_task = asyncio.create_task(self._aconnection_loop())
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:
-        """Yield backend messages from a live WebSocket connection.
+        """Yield the backend messages the connection task has received.
 
-        This method owns the connection lifecycle. It opens the socket,
-        authenticates with the current token, sends the initial register
-        message, starts the background sender task, and yields validated backend
-        messages to the caller.
-
-        Heartbeats are handled internally by sending a matching
-        ``HeartbeatEvent``. Recoverable failures trigger the retry policy,
-        while definite failures are raised to the caller.
+        Ends when the connection is closed, and raises whatever terminal failure
+        the connection task hit (``DefiniteConnectionFail``, ``AgentWasKicked``, …)
+        as if the socket were being read here.
         """
+        if self._in_queue is None:
+            raise AgentTransportException(
+                "Transport was not entered. Use it as an async context manager."
+            )
+
+        while True:
+            item = await self._in_queue.get()
+            if isinstance(item, _Closed):
+                return
+            if isinstance(item, BaseException):
+                raise item
+            yield cast(messages.ToAgentMessage, item)
+
+    async def _aconnection_loop(self) -> None:
+        """Own the socket: connect, register, receive, retry — until disconnected.
+
+        Terminal failures are handed to the ``areceive()`` consumer instead of
+        being raised here, since nobody awaits this task.
+        """
+        assert self._in_queue is not None, "Should be entered"
+        try:
+            await self._aconnect_and_receive()
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # noqa: BLE001 — forwarded to the consumer
+            self._in_queue.put_nowait(e)
+        finally:
+            # put_nowait so this still runs when the task is being cancelled.
+            self._in_queue.put_nowait(CLOSED)
+
+    async def _aconnect_and_receive(self) -> None:
+        """The connect/register/receive/retry loop itself."""
+        assert self._in_queue is not None, "Should be entered"
         retry = 0
 
         while True:
@@ -197,7 +251,7 @@ class WebsocketAgentTransport(AgentTransport):
                                         f"Agent was kicked by the server: {payload.message.reason or 'No reason provided'}"
                                     )
                                 else:
-                                    yield payload.message
+                                    self._in_queue.put_nowait(payload.message)
                             except pydantic.ValidationError:
                                 logger.error(
                                     f"Received non-json message: {message}",
@@ -230,10 +284,20 @@ class WebsocketAgentTransport(AgentTransport):
                 except ConnectionClosedError as e:
                     logger.warning("Websocket was closed", exc_info=True)
 
-                    if e.code in agent_error_codes:
-                        raise agent_error_codes[e.code](agent_error_message[e.code])
+                    # The close code the peer sent, or ABNORMAL_CLOSURE when it
+                    # never sent a close frame.
+                    close_code = (
+                        e.rcvd.code
+                        if e.rcvd is not None
+                        else CloseCode.ABNORMAL_CLOSURE
+                    )
 
-                    if e.code == BOUNCED_CODE:
+                    if close_code in agent_error_codes:
+                        raise agent_error_codes[close_code](
+                            agent_error_message[close_code]
+                        )
+
+                    if close_code == BOUNCED_CODE:
                         raise CorrectableConnectionFail(
                             "Was bounced. Debug call to reconnect"
                         ) from e
@@ -307,21 +371,63 @@ class WebsocketAgentTransport(AgentTransport):
         """Public send API used by the agent runtime to queue one message."""
         await self.delayaction(message)
 
-    async def adisconnect(self) -> None:
-        """Explicit disconnect: stop reconnecting and close the active socket.
+    async def aflush(self) -> None:
+        """Wait for the sender task to put everything still queued on the wire.
 
-        Setting ``_closing`` makes the receive loop exit instead of retrying, and
-        closing the live client unblocks a receive that is otherwise stuck (e.g.
-        ignoring task cancellation), so teardown can complete and the server
-        releases the agent registration promptly.
+        Messages produced during teardown (a shutdown hook's state patch, an
+        actor's last write) are queued while the socket is closing, so without
+        this the close can outrun the sender task and drop them. Waiting on the
+        queue rather than sending here keeps ``client.send`` single-writer.
+        """
+        if self._client is None or self._send_queue is None:
+            # The receive loop owns the socket and cancels the sender task with
+            # it, so with no client there is nobody left to drain the queue.
+            return
+
+        await self._send_queue.join()
+
+    async def adisconnect(self) -> None:
+        """Explicit disconnect: flush, stop reconnecting, and close the socket.
+
+        This is the only thing that closes the connection. Everything still queued
+        is put on the wire first (bounded by ``flush_timeout``), so messages an
+        agent produces while tearing down are not lost. Setting ``_closing`` makes
+        the connection task exit instead of retrying, and closing the live client
+        unblocks a receive that is otherwise stuck, so teardown can complete and
+        the server releases the agent registration promptly.
         """
         self._closing = True
         client = self._client
         if client is not None:
             try:
+                await asyncio.wait_for(self.aflush(), timeout=self.flush_timeout)
+            except Exception:
+                logger.warning(
+                    "Failed to flush queued agent messages before disconnecting",
+                    exc_info=True,
+                )
+            try:
                 await client.close()
             except Exception:
                 logger.warning("Failed to close agent websocket", exc_info=True)
+
+        task = self._connection_task
+        if task is not None:
+            # Closing the client makes the loop fall out on its own; only cancel if
+            # it ignores that, so a clean shutdown stays clean.
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=self.flush_timeout)
+            except asyncio.TimeoutError:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.warning("Agent connection task failed", exc_info=True)
+            self._connection_task = None
 
     async def __aexit__(
         self,
@@ -329,10 +435,6 @@ class WebsocketAgentTransport(AgentTransport):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        """Exit the transport context.
-
-        No explicit cleanup is needed beyond the caller-managed shutdown path at
-        the moment, but the hook remains part of the public async context-manager
-        contract.
-        """
-        pass
+        """Exit the transport context, closing the connection if it is still up."""
+        if self._connection_task is not None or self._client is not None:
+            await self.adisconnect()

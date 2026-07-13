@@ -7,8 +7,8 @@ agent applications.
 
 The exports are grouped loosely into four categories:
 
-- registration decorators such as ``declare``, ``state``, ``startup``, and
-    ``background``
+- registration decorators such as ``declare``, ``state``, ``startup``,
+    ``shutdown``, and ``background``
 - runtime helpers such as ``log``, ``progress``, ``pausepoint``, and ``context``
 - remote execution helpers such as ``find``, ``call``, ``acall``, and
     ``iterate``
@@ -42,6 +42,7 @@ from .remote import (
 )
 from .agents.context import context
 from .agents.hooks.startup import startup
+from .agents.hooks.shutdown import shutdown
 from .agents.hooks.background import background
 from .actors.context import (
     log,
@@ -90,6 +91,7 @@ __all__ = [
     "state",
     "context",
     "startup",
+    "shutdown",
     "background",
     "model",
     "model_field",

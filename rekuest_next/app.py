@@ -246,6 +246,22 @@ class AppRegistry(BaseModel):
 
         return decorator
 
+    def shutdown(
+        self,
+        *args: T,
+        name: Optional[str] = None,
+    ) -> T | Callable[[T], T]:
+        """Register a shutdown hook."""
+        from rekuest_next.agents.hooks.shutdown import shutdown as shutdown_decorator
+
+        if args:
+            return shutdown_decorator(*args, name=name, registry=self.hooks_registry)
+
+        def decorator(func: T) -> T:
+            return shutdown_decorator(func, name=name, registry=self.hooks_registry)
+
+        return decorator
+
     def context(
         self,
         *args: Type[T],

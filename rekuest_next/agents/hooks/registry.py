@@ -58,6 +58,24 @@ class StartupHook(Protocol):
         ...
 
 
+@runtime_checkable
+class ShutdownHook(Protocol):
+    """Shutdown hook that runs when the agent tears down.
+    This hook is used to release whatever the app acquired during its lifetime.
+    It is run in the reverse of the order they are registered.
+    """
+
+    async def arun(
+        self,
+        agent: "Agent",
+        contexts: Dict[str, Any],
+        states: Dict[str, Any],
+        app_context: Any,
+    ) -> None:
+        """Run the shutdown hook in the event loop"""
+        ...
+
+
 class HooksRegistry(BaseModel):
     """Hook Registry
 
@@ -69,6 +87,7 @@ class HooksRegistry(BaseModel):
 
     background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
     startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
+    shutdown_hooks: Dict[str, ShutdownHook] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -80,10 +99,15 @@ class HooksRegistry(BaseModel):
         """Register a startup hook in the registry."""
         self.startup_hooks[name] = hook
 
+    def register_shutdown(self, name: str, hook: ShutdownHook) -> None:
+        """Register a shutdown hook in the registry."""
+        self.shutdown_hooks[name] = hook
+
     def reset(self) -> None:
         """Reset the registry"""
         self.background_worker = {}
         self.startup_hooks = {}
+        self.shutdown_hooks = {}
 
 
 def get_default_hook_registry() -> HooksRegistry:

@@ -248,6 +248,34 @@ State is shared by all of an agent's actors and is *observable*: changes are pub
 live (at `publish_interval`), so dashboards and other apps can watch it in real time. Use
 `@state(local_only=True)` to keep a state on the agent without exposing it to the platform.
 
+## Shutdown
+
+Whatever a startup hook opens, a `@shutdown` hook closes. Shutdown hooks run when the
+agent tears down — on a clean exit as well as after an error or a cancellation — in the
+reverse of the order they were registered. Like actions, they take the live state and
+context objects by **type-hinting a parameter**, and they return nothing:
+
+```python
+from rekuest_next import shutdown
+
+
+@shutdown
+async def finalize(counter: CounterState) -> None:
+    await save_to_disk(counter.count)
+```
+
+A shutdown hook that raises is logged and the remaining hooks still run: teardown never
+fails because of a hook. Each hook is bounded by the agent's `shutdown_hook_timeout`
+(20s by default), so a hook that never returns cannot hang the shutdown.
+
+State a shutdown hook *mutates* is published like any other state change: the agent's
+connection outlives its message loop, so the resulting patch is flushed to the platform
+before the socket closes. A last write on the way out is durable.
+
+Generally, you can also do this with an asyncio.CancelledError handler in your asynchrouns
+background tasks.
+
+
 ## Dependencies
 
 An action can call out to functionality provided by **another** agent. You describe what
