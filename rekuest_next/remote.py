@@ -143,9 +143,9 @@ def _build_assign_input(
     reference: Optional[str],
     hooks: Optional[List[HookInput]],
     parent: Optional[Assign],
-    cached: bool,
-    log: bool,
     capture: bool,
+    cached: bool = False,
+    log: bool = False,
     action: Optional[Action] = None,
     implementation: Optional[Implementation] = None,
     dependency: Optional[ID] = None,
@@ -155,6 +155,11 @@ def _build_assign_input(
 
     When no ``parent`` is given and the call happens inside another
     task, the current task is attached as the parent.
+
+    ``cached`` and ``log`` are accepted but no longer sent: the backend dropped both
+    fields from ``AssignInput`` (``cached`` had already been documented there as having
+    no effect — replay is decided caller-side via ``reusableTaskFor``). They stay in the
+    signature so existing callers keep working.
     """
     if parent is None:
         try:
@@ -170,12 +175,9 @@ def _build_assign_input(
         args=args or {},
         reference=reference or str(uuid.uuid4()),
         hooks=tuple(hooks or []),
-        cached=cached,
         capture=capture,
         parent=ID.validate(parent.task) if parent else None,
-        log=log,
         isHook=False,
-        ephemeral=False,
     )
 
 

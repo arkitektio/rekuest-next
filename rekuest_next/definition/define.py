@@ -23,6 +23,7 @@ from rekuest_next.api.schema import (
     PortGroupInput,
     EffectInput,
     ValidatorInput,
+    TestTargetInput,
 )
 import inspect
 from docstring_parser import parse, DocstringStyle
@@ -826,16 +827,14 @@ def prepare_definition(
     port_groups: List[PortGroupInput] | None = None,
     allow_empty_doc: bool = True,
     collections: List[str] | None = None,
-    interfaces: Optional[List[str]] = None,
     description: str | None = None,
-    is_test_for: Optional[List[str]] = None,
+    is_test_for: Optional[List[TestTargetInput]] = None,
     port_label_map: Optional[Dict[str, str]] = None,
     port_description_map: Optional[Dict[str, str]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     name: str | None = None,
     omitfirst: int | None = None,
     omitlast: int | None = None,
-    logo: str | None = None,
     stateful: bool = False,
     omitkeys: list[str] | None = None,
     return_annotations: Optional[List[Any]] = None,
@@ -873,7 +872,6 @@ def prepare_definition(
     port_groups = port_groups or []
 
     return_widgets = return_widgets or {}
-    interfaces = interfaces or []
     collections = collections or []
     # Generate Args and Kwargs from the Annotation
     args: List[ArgPortInput] = []
@@ -1111,10 +1109,8 @@ def prepare_definition(
         args=tuple(args),
         returns=tuple(returns),
         kind=ActionKind.GENERATOR if is_generator else ActionKind.FUNCTION,
-        interfaces=tuple(interfaces),
         portGroups=tuple(port_groups),
         isDev=is_dev,
-        logo=logo,
         stateful=stateful,
         isTestFor=tuple(is_test_for or []),
     )

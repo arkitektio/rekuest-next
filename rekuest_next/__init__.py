@@ -53,6 +53,12 @@ from .actors.context import (
     pausepoint,
     install_hook,
 )
+from .actors.policy import (
+    CancelOnDisconnect,
+    DisconnectPolicy,
+    OnDisconnect,
+)
+from .agents.policy import Backoff, ConnectionPolicy
 from .declare import declare, declare_state
 from .definition.demands import demand, demand_state
 from .structures.model import model, model_field
@@ -83,6 +89,11 @@ from .builtin_structures import structure_reg
 __version__ = "0.4.1"
 
 __all__ = [
+    "Backoff",
+    "CancelOnDisconnect",
+    "ConnectionPolicy",
+    "DisconnectPolicy",
+    "OnDisconnect",
     # registration decorators
     "declare",
     "declare_state",

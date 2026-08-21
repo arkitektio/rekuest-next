@@ -17,6 +17,7 @@ from rekuest_next.state.predicate import (
     get_state_name,
     is_app_context,
     is_read_only_state,
+    get_read_only_state_type,
     is_state,
 )
 from typing import Tuple, Dict, get_type_hints
@@ -85,7 +86,11 @@ def prepare_state_variables(
             write_state_variables[key] = get_state_name(annotation)
             required_state_locks[key] = get_state_locks(annotation)
         elif is_read_only_state(annotation):
-            read_only_variables[key] = get_state_name(annotation)
+            # ReadOnly[SomeState] is an Annotated wrapper, so the state itself has to be
+            # unwrapped before its name and locks can be read off it.
+            real_state = get_read_only_state_type(annotation)
+            read_only_variables[key] = get_state_name(real_state)
+            required_state_locks[key] = get_state_locks(real_state)
 
     returns = hints.get("return", sig.return_annotation)
     if is_tuple(returns):

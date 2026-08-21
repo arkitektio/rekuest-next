@@ -29,14 +29,12 @@ import logging
 import uuid
 from dataclasses import dataclass
 from types import TracebackType
-from typing import TYPE_CHECKING, AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 from rekuest_next import messages
 from rekuest_next.api.schema import AssignInput, TaskEventKind
+from rekuest_next.agents.transport.types import MessageSink
 from rekuest_next.postmans.errors import AssignException
-
-if TYPE_CHECKING:
-    from rekuest_next.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +54,11 @@ class CallerTaskEvent:
     message: Optional[str] = None
 
 
-#: Mirror message types that map onto a streamed ``CallerTaskEvent``. Every other mirror
+#: Mirror message types that end a delegated task's stream. Every other mirror
 #: (Bound/Queued/Started/Progress/Log/Delegate/Disconnected/…ing/…ed) is consumed for
-#: bookkeeping only — ``_astream_raw`` would ignore it anyway.
-_TERMINAL_TYPES = (
-    messages.CompletedEvent,
-    messages.FailedEvent,
-    messages.CriticalEvent,
-    messages.CancelledEvent,
-    messages.InterruptedEvent,
-)
+#: bookkeeping only — ``_astream_raw`` would ignore it anyway. Defined alongside the
+#: reports it mirrors in :mod:`rekuest_next.messages`.
+_TERMINAL_TYPES = messages.TERMINAL_EVENT_MIRRORS
 
 
 def _adapt(event: "messages.ExecutionEvent") -> Optional[CallerTaskEvent]:
@@ -91,21 +84,38 @@ def _adapt(event: "messages.ExecutionEvent") -> Optional[CallerTaskEvent]:
     return None
 
 
+def _response_id(
+    response: "messages.AssignResponse | messages.ProbeResponse",
+) -> Optional[str]:
+    """The id the backend assigned, whichever kind of answer this is.
+
+    An assign is answered with a durable ``task`` id; a probe with an ephemeral ``probe``
+    id (``p-…``). Everything downstream — the event queues, cancellation, cleanup — keys
+    off this one value, which is why the two flows can share a single path.
+    """
+    if isinstance(response, messages.ProbeResponse):
+        return response.probe
+    return response.task
+
+
 class AgentPostman:
     """A :class:`Postman` that originates work over the agent's socket.
 
     A single instance is shared by every actor on the agent; all per-call state is keyed by
-    request id / task id, so concurrent calls never collide.
+    request id / task id, so concurrent calls never collide. It depends only on a
+    :class:`~rekuest_next.agents.transport.types.MessageSink` — somewhere to put a
+    message — rather than on the agent, so it cannot reach past the socket it was given.
     """
 
-    def __init__(self, agent: "BaseAgent", cancel_timeout: float = 5.0) -> None:
-        self.agent = agent
+    def __init__(self, sink: MessageSink, cancel_timeout: float = 5.0) -> None:
+        self.sink = sink
         # Max seconds to await a CANCELLED/INTERRUPTED confirmation when an assign
         # stream is cancelled. Bounds cancellation so it can never hang.
         self.cancel_timeout = cancel_timeout
-        # request id -> future resolved with the AssignResponse
+        # request id -> future resolved with the AssignResponse or ProbeResponse
         self._pending_responses: Dict[
-            str, "asyncio.Future[messages.AssignResponse]"
+            str,
+            "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]",
         ] = {}
         # control request id -> future resolved with the ControlResponse
         self._pending_control: Dict[
@@ -122,8 +132,8 @@ class AgentPostman:
 
     @property
     def connected(self) -> bool:
-        """Whether the underlying agent transport is connected."""
-        return getattr(self.agent.transport, "connected", False)
+        """Whether work can currently be originated over the socket."""
+        return self.sink.connected
 
     # ------------------------------------------------------------------ outbound
 
@@ -145,8 +155,23 @@ class AgentPostman:
             resolution=assign.resolution,
             hooks=[h.model_dump(by_alias=True) for h in (assign.hooks or [])],
             capture=assign.capture,
-            ephemeral=assign.ephemeral,
             step=assign.step,
+        )
+
+    def _build_probe_request(
+        self, assign: AssignInput, reference: str
+    ) -> messages.ProbeRequest:
+        """Translate an ``AssignInput`` into a ``ProbeRequest`` socket message.
+
+        A probe carries only what identifies the action and its arguments: it has no
+        parent, no dependency resolution and no hooks, because it never joins a task tree.
+        """
+        return messages.ProbeRequest(
+            reference=reference,
+            args=dict(assign.args or {}),
+            action=assign.action,
+            action_hash=assign.action_hash,
+            implementation=assign.implementation,
         )
 
     async def aassign(
@@ -164,27 +189,73 @@ class AgentPostman:
         is set and the cancel is not confirmed in time, an ``InterruptRequest`` follows.
         """
         reference = assign.reference or str(uuid.uuid4())
-        request = self._build_request(assign, reference)
+        async for event in self._astream(
+            self._build_request(assign, reference),
+            reference,
+            escalate_to_interrupt,
+            cancel_timeout,
+        ):
+            yield event
+
+    async def aprobe(
+        self,
+        assign: AssignInput,
+        escalate_to_interrupt: bool = False,
+        cancel_timeout: Optional[float] = None,
+    ) -> AsyncGenerator[CallerTaskEvent, None]:
+        """Fire a probe over the agent socket and stream its events.
+
+        A probe is an ephemeral, zero-persistence invocation under this agent's own
+        identity: no server-side history, no replay or recovery, and no task tree — probes
+        are always provenance roots. Only actions declaring ``allowProbe`` accept one.
+
+        The event stream is shaped exactly like :meth:`aassign`'s; the id it is keyed by is
+        the probe id (``p-…``) rather than a durable task id. Resends are *not* idempotent:
+        there is no durable row to dedupe against, so a resend after a lost response fires a
+        new probe.
+        """
+        reference = assign.reference or str(uuid.uuid4())
+        async for event in self._astream(
+            self._build_probe_request(assign, reference),
+            reference,
+            escalate_to_interrupt,
+            cancel_timeout,
+        ):
+            yield event
+
+    async def _astream(
+        self,
+        request: "messages.AssignRequest | messages.ProbeRequest",
+        reference: str,
+        escalate_to_interrupt: bool,
+        cancel_timeout: Optional[float],
+    ) -> AsyncGenerator[CallerTaskEvent, None]:
+        """Send one origination request and stream the resulting events until terminal.
+
+        Shared by assigns and probes: the two differ only in which request goes out and
+        which field of the answer carries the id, so the correlation, cancellation and
+        cleanup below are identical for both.
+        """
         loop = asyncio.get_event_loop()
-        response_future: "asyncio.Future[messages.AssignResponse]" = (
-            loop.create_future()
-        )
+        response_future: (
+            "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]"
+        ) = loop.create_future()
         self._pending_responses[request.id] = response_future
 
         task: Optional[str] = None
         queue: Optional["asyncio.Queue[messages.ExecutionEvent]"] = None
         try:
-            await self.agent.transport.asend(request)
+            await self.sink.asend(request)
             response = await response_future
 
             if response.error:
                 raise AssignException(response.error)
-            if not response.task:
+            task = _response_id(response)
+            if not task:
                 raise AssignException(
-                    "The backend acked the assign without a task id and without an error."
+                    "The backend acked the request without an id and without an error."
                 )
 
-            task = response.task
             queue = self._register_task(reference, task)
 
             while True:
@@ -195,7 +266,7 @@ class AgentPostman:
                 if isinstance(event, _TERMINAL_TYPES):
                     return
         except asyncio.CancelledError:
-            # Tell the backend to wind the delegated task down and await its CANCELLED
+            # Tell the backend to wind the delegated work down and await its CANCELLED
             # confirmation (escalating to an interrupt if requested) before re-raising.
             # Bounded by the cancel timeout, so it can never hang the caller being torn down.
             if task is not None and queue is not None:
@@ -212,12 +283,7 @@ class AgentPostman:
             # Generator finalization (aclose): best-effort send only — awaiting event
             # delivery while the async generator is being torn down is fragile.
             if task is not None:
-                try:
-                    await self.agent.transport.asend(messages.CancelRequest(task=task))
-                except Exception:
-                    logger.warning(
-                        "Failed to send CancelRequest for task %s", task, exc_info=True
-                    )
+                await self._send_control(messages.CancelRequest(task=task), task)
             raise
         finally:
             self._pending_responses.pop(request.id, None)
@@ -272,7 +338,7 @@ class AgentPostman:
     ) -> None:
         """Send a lifecycle-control request over the socket (best-effort)."""
         try:
-            await self.agent.transport.asend(request)
+            await self.sink.asend(request)
         except Exception:
             logger.warning(
                 "Failed to send %s for task %s",
@@ -314,6 +380,18 @@ class AgentPostman:
             # response are not lost (aassign reuses the same queue via setdefault).
             queue = self._task_queues.setdefault(message.task, asyncio.Queue())
             for event in self._orphan_by_task.pop(message.task, []):
+                queue.put_nowait(event)
+        future = self._pending_responses.get(message.request)
+        if future is not None and not future.done():
+            future.set_result(message)
+
+    def handle_probe_response(self, message: messages.ProbeResponse) -> None:
+        """Resolve the waiting ``aprobe`` with its ``ProbeResponse``."""
+        if message.probe and not message.error:
+            # Pre-create the queue and drain orphans so events that raced ahead of this
+            # response are not lost (the stream reuses the same queue via setdefault).
+            queue = self._task_queues.setdefault(message.probe, asyncio.Queue())
+            for event in self._orphan_by_task.pop(message.probe, []):
                 queue.put_nowait(event)
         future = self._pending_responses.get(message.request)
         if future is not None and not future.done():

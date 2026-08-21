@@ -4,7 +4,7 @@ from typing import Type, TypeVar
 
 from rekuest_next.definition.define import is_annotated, get_args
 from rekuest_next.protocols import AnyState
-from rekuest_next.state.types import ReadOnly
+from rekuest_next.state.types import ReadOnlyAnnotation
 
 T = TypeVar("T")
 
@@ -20,19 +20,26 @@ def is_app_context(cls: Type[T]) -> bool:
 
 
 def is_read_only_state(cls: Type[T]) -> bool:
-    """Check if a class is a read-only state."""
-    if is_annotated(cls):
-        real_type, *annotations = get_args(cls)
-        if is_state(real_type):
-            for annotation in annotations:
-                if annotation is ReadOnly:
-                    return True
-                return False
+    """Check if an annotation is a state marked read-only, i.e. ``ReadOnly[SomeState]``.
 
-            return True
-        else:
-            return False
-    return False
+    The marker is a :class:`~rekuest_next.state.types.ReadOnlyAnnotation` *instance*
+    carried in the ``Annotated`` extras, so it has to be matched with ``isinstance``.
+    Comparing it against the ``ReadOnly`` type alias itself never matches, which silently
+    classified such a parameter as neither writeable nor read-only — so it was dropped
+    from the actor's kwargs entirely and the call failed with a missing argument.
+    """
+    if not is_annotated(cls):
+        return False
+    real_type, *annotations = get_args(cls)
+    if not is_state(real_type):
+        return False
+    return any(isinstance(a, ReadOnlyAnnotation) for a in annotations)
+
+
+def get_read_only_state_type(cls: Type[T]) -> Type[AnyState]:
+    """Unwrap ``ReadOnly[SomeState]`` to ``SomeState``."""
+    real_type, *_ = get_args(cls)
+    return real_type
 
 
 def get_state_name(cls: Type[T]) -> str:

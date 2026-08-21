@@ -13,12 +13,6 @@ class ProvisionException(AgentException):
     """
 
 
-class ExtensionError(AgentException):
-    """
-    Base class for all exceptions raised by an Extension of the Agent.
-    """
-
-
 class StateRequirementsNotMet(AgentException):
     """
     Raised when the state requirements are not met

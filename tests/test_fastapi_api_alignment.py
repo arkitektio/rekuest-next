@@ -31,9 +31,27 @@ def test_fastapi_agent_build_assign_input_defaults_flags() -> None:
 
     assert assign_input.interface == "echo"
     assert assign_input.capture is True
-    assert assign_input.cached is False
-    assert assign_input.log is False
-    assert assign_input.ephemeral is False
+
+
+def test_fastapi_agent_build_assign_input_drops_retired_flags() -> None:
+    """`cached`, `log` and `ephemeral` were removed from AssignInput by the backend.
+
+    A stored or hand-written payload may still carry them, and AssignInput forbids extra
+    inputs, so the builder has to drop them rather than pass them through.
+    """
+    agent = FastApiAgent()
+    assign_input = agent.build_assign_input(
+        {
+            "args": {"value": "hello"},
+            "cached": False,
+            "log": True,
+            "ephemeral": True,
+        },
+        interface="echo",
+    )
+
+    assert assign_input.interface == "echo"
+    assert not hasattr(assign_input, "ephemeral")
 
 
 def test_fastapi_agent_build_assign_message_uses_normalized_assign_input() -> None:
@@ -139,7 +157,6 @@ def test_implementation_route_reuses_fastapi_assign_builder(simple_registry) -> 
     implementation = ImplementationInput(
         definition=prepare_definition(echo, structure_registry=simple_registry),
         dependencies=(),
-        dynamic=False,
         interface="echo",
         needs_token=True,
     )

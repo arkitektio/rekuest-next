@@ -81,7 +81,6 @@ def _implementation(
     return ImplementationInput(
         definition=definition,
         dependencies=dependencies,
-        dynamic=False,
         interface=interface,
         locks=locks or None,
         needs_token=True,

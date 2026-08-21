@@ -109,7 +109,7 @@ async def test_state_mutated_in_a_shutdown_hook_reaches_the_backend(
         task = asyncio.create_task(app.aloop())
 
         await asyncio.sleep(0.1)  # let the loop start and the socket come up
-        agent_id = app.agent._agent.id
+        agent_id = app.agent.registered_agent_id
 
         # The ordinary shutdown: cancelling the loop tears the agent down, which
         # runs the hook, publishes its mutation, and flushes it on disconnect.

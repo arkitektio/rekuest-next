@@ -17,9 +17,11 @@ from typing import (
     Tuple,
 )
 import uuid
+from functools import partial
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from rekuest_next.actors.errors import UnknownMessageError
+from rekuest_next.actors.policy import KEEP, DisconnectPolicy
 from rekuest_next.actors.vars import get_current_task_helper
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.agents.errors import StateRequirementsNotMet
@@ -67,6 +69,10 @@ class Actor(BaseModel):
         default="serial",
         description="Whether assignments to this actor may run concurrently ('parallel') or one at a time ('serial', the default).",
     )
+    policy: DisconnectPolicy = Field(
+        default=KEEP,
+        description="What happens to this actor's in-flight work when the agent loses its control channel. Defaults to keeping it running.",
+    )
 
     _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
         default_factory=lambda: {}
@@ -78,6 +84,10 @@ class Actor(BaseModel):
         default_factory=lambda: {},
     )
     _serial_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
+
+    def has_running_tasks(self) -> bool:
+        """Whether this actor currently has any assignment in flight."""
+        return bool(self._running_asyncio_tasks)
 
     def install_assignment_hook(self, task_id: str, hook: AssignmentHook) -> None:
         """Install an assignment hook for the given task ID.
@@ -160,7 +170,6 @@ class Actor(BaseModel):
         to the agent from the actor.
 
         Args:
-            transport (AssignTransport): The transport to use to send the message
             message (ToAgentMessage): The message to send
         """
         await self.agent.asend(self, message=message)
@@ -198,7 +207,6 @@ class Actor(BaseModel):
             assignment (messages.Assign): The assignment message containing the information about the
              assignment.
             collector (TaskCollector): A collector that is used to collect the results of the assignment.
-            transport (AssignTransport): A transport that is used to send the results of the assignment back to the agent (keeps ference to the original assignment)
 
         Raises:
             NotImplementedError: Needs to be overwritten in Actor subclass. Never use this class directly
@@ -224,9 +232,11 @@ class Actor(BaseModel):
         # Cancel Mnaged actors
         logger.info(f"Cancelling Actor {self.id}")
 
-        [i.cancel() for i in self._running_asyncio_tasks.values()]
+        running = list(self._running_asyncio_tasks.items())
+        for _, task in running:
+            task.cancel()
 
-        for key, task in self._running_asyncio_tasks.items():
+        for key, task in running:
             try:
                 await task
             except asyncio.CancelledError:
@@ -267,22 +277,81 @@ class Actor(BaseModel):
             )
             return False
 
-    def assign_task_done(self: Self, task: asyncio.Task[None]) -> None:
-        """A function that is called once the assignment task is done. This can be
-        used in debugging to check if the task was cancelled or if it was done successfully.
+    def assign_task_done(self: Self, task_id: str, task: asyncio.Task[None]) -> None:
+        """Called once an assignment task finishes, however it finished.
+
+        This prunes ``_running_asyncio_tasks``. Nothing used to: the map was only
+        ever cleared on the explicit Cancel/Interrupt paths, so a task that simply
+        ran to completion stayed in it forever. That made :meth:`acheck_task` answer
+        "still running" for work that had finished hours earlier — which is the
+        answer the agent gives the backend when it inquires about task liveness
+        after a reconnect — and leaked an entry per assignment besides.
 
         Args:
-            task (asyncio.Task): The task that was done.
+            task_id: The assignment this task was running.
+            task: The task that finished.
         """
-
         logger.info(f"Assign task is done: {task}")
+        # ``pop`` rather than ``del``: done callbacks run via ``call_soon``, so the
+        # Cancel/Interrupt paths can and do race this one, and either may get there
+        # first.
+        self._running_asyncio_tasks.pop(task_id, None)
+        self.running_assignments.pop(task_id, None)
         try:
             task.result()
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.error(f"Assign task {task} failed with exception {e}", exc_info=True)
-        pass
+
+    async def acancel_for_policy(self: Self, reason: str) -> int:
+        """Stop this actor's in-flight work because the disconnect policy says so.
+
+        Deliberately *not* :meth:`acancel`. That one reports ``Critical`` with "this
+        is not nice from the application", which is the right thing to say about a
+        teardown that interrupts work but the wrong thing to say about a deliberate
+        safety stop — and its wording is pinned by the teardown tests. This one also
+        prunes ``_running_asyncio_tasks``, which :meth:`acancel` does not: a policy
+        kill is followed by a reconnect, and a stale entry there would make the
+        agent answer "still running" to the backend's liveness inquiry about a task
+        it had just killed.
+
+        Args:
+            reason: Human-readable cause, reported to the backend.
+
+        Note the whole call is bounded by the agent's ``actor_cancel_timeout``, and
+        each task's terminal report is awaited in turn — so an actor holding many
+        assignments while the socket is mid-reconnect can exhaust that budget and
+        have the remainder abandoned.
+
+        Returns:
+            How many assignments were stopped.
+        """
+        running = list(self._running_asyncio_tasks.items())
+        if not running:
+            return 0
+
+        logger.warning(
+            "Actor %s stopping %d assignment(s): %s", self.id, len(running), reason
+        )
+        for _, task in running:
+            task.cancel()
+
+        stopped = 0
+        for key, task in running:
+            try:
+                await task
+            except asyncio.CancelledError:
+                stopped += 1
+            except Exception:  # noqa: BLE001 — the body failed on its way out
+                logger.error("Task %s errored while being stopped", key, exc_info=True)
+            self._running_asyncio_tasks.pop(key, None)
+            self.running_assignments.pop(key, None)
+            await self.agent.asend(
+                self,
+                message=messages.Critical(task=key, error=reason),
+            )
+        return stopped
 
     async def acheck_task(self: Self, task_id: str) -> bool:
         """A function to check if the assignment is still running. This is used to
@@ -320,7 +389,7 @@ class Actor(BaseModel):
                 )
             )
 
-            task.add_done_callback(self.assign_task_done)
+            task.add_done_callback(partial(self.assign_task_done, message.task))
             self._running_asyncio_tasks[message.task] = task
 
         elif isinstance(message, messages.Cancel):
@@ -336,7 +405,7 @@ class Actor(BaseModel):
                             f"Task {message.task} was cancelled through arkitekt. Setting Cancelled"
                         )
 
-                        del self._running_asyncio_tasks[message.task]
+                        self._running_asyncio_tasks.pop(message.task, None)
                         await self.agent.asend(
                             actor=self,
                             message=messages.Cancelled(task=message.task),
@@ -354,6 +423,39 @@ class Actor(BaseModel):
             else:
                 logger.error(
                     f"Actor for {self}: Received unassignment for unknown task {message.id}"
+                )
+
+        elif isinstance(message, messages.Interrupt):
+            if message.task in self._running_asyncio_tasks:
+                task = self._running_asyncio_tasks[message.task]
+
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        logger.info(
+                            f"Task {message.task} was interrupted through arkitekt. Setting Interrupted"
+                        )
+
+                        self._running_asyncio_tasks.pop(message.task, None)
+                        await self.agent.asend(
+                            actor=self,
+                            message=messages.Interrupted(task=message.task),
+                        )
+
+                else:
+                    logger.warning(
+                        "Race Condition: Task was already done before interruption"
+                    )
+                    await self.agent.asend(
+                        self,
+                        message=messages.Interrupted(task=message.task),
+                    )
+
+            else:
+                logger.error(
+                    f"Actor for {self}: Received interrupt for unknown task {message.task}"
                 )
 
         elif isinstance(message, messages.Pause):

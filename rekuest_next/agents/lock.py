@@ -35,7 +35,7 @@ from rekuest_next.api.schema import LockImplementationInput
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
-    from rekuest_next.actors.types import Agent
+    from rekuest_next.actors.types import LockHost
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class TaskLock:
     (``agent.alock``/``aunlock``) so the server can display lock state.
     """
 
-    def __init__(self, agent: "Agent", lock: "LockImplementationInput"):
+    def __init__(self, agent: "LockHost", lock: "LockImplementationInput"):
         self.agent = agent
         self.lock = asyncio.Lock()
         self.lock_key = lock.definition.key

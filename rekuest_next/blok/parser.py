@@ -7,8 +7,8 @@ from rekuest_next.api.schema import (
     ComponentNodeInput,
     ComponentPropInput,
     DynamicValueInput,
-    AgentCallInput,
-    UtilCallInput,
+    AgentProbeInput,
+    UtilProbeInput,
     ActionArgumentInput,
     PortMatchInput,
     StateDependencyInput,
@@ -136,7 +136,7 @@ class BlokParser:
 
                 parsed_call = cls._parse_ast_call(tree.body)
 
-                if isinstance(parsed_call, AgentCallInput):
+                if isinstance(parsed_call, AgentProbeInput):
                     return ComponentPropInput(key=key, agent_call=parsed_call)
                 else:
                     return ComponentPropInput(key=key, util_call=parsed_call)
@@ -157,7 +157,7 @@ class BlokParser:
             return ComponentPropInput(key=key, static_value=value)
 
     @classmethod
-    def _parse_ast_call(cls, node: ast.Call) -> Union[AgentCallInput, UtilCallInput]:
+    def _parse_ast_call(cls, node: ast.Call) -> Union[AgentProbeInput, UtilProbeInput]:
         full_path = cls._extract_path(node.func)
         path_parts = full_path.split(".")
 
@@ -173,7 +173,7 @@ class BlokParser:
             if len(path_parts) < 2:
                 raise ValueError(f"Invalid utils namespace: '{full_path}'.")
 
-            return UtilCallInput(
+            return UtilProbeInput(
                 operation=".".join(path_parts[1:]),
                 arguments=arguments if arguments else None,
             )
@@ -184,7 +184,7 @@ class BlokParser:
                     f"Invalid action namespace: '{full_path}'. Expected: actions.dependency.operation"
                 )
 
-            return AgentCallInput(
+            return AgentProbeInput(
                 dependency=path_parts[1],
                 operation=".".join(path_parts[2:]),
                 arguments=arguments if arguments else None,
@@ -195,7 +195,7 @@ class BlokParser:
                 f"Action calls must begin with a dependency key or 'utils.'. Got: '{full_path}'"
             )
 
-        return AgentCallInput(
+        return AgentProbeInput(
             dependency=path_parts[0],
             operation=".".join(path_parts[1:]),
             arguments=arguments if arguments else None,
@@ -219,7 +219,7 @@ class BlokParser:
         # Nested Action or Util Calls
         elif isinstance(node, ast.Call):
             parsed_call = cls._parse_ast_call(node)
-            if isinstance(parsed_call, AgentCallInput):
+            if isinstance(parsed_call, AgentProbeInput):
                 return ActionArgumentInput(key=key, agent_call=parsed_call)
             else:
                 return ActionArgumentInput(key=key, util_call=parsed_call)
@@ -434,7 +434,7 @@ def _validate_prop(
 
 
 def _validate_agent_call(
-    agent_call: AgentCallInput,
+    agent_call: AgentProbeInput,
     dependency_keys: set[str],
     dependency_aliases: dict[str, str],
     dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
@@ -462,7 +462,7 @@ def _validate_agent_call(
 
 
 def _validate_util_call(
-    util_call: UtilCallInput,
+    util_call: UtilProbeInput,
     dependency_keys: set[str],
     dependency_aliases: dict[str, str],
     dependency_state_demands: dict[str, dict[str, StateDependencyInput]],

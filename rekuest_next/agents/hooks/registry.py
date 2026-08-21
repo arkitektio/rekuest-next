@@ -11,7 +11,7 @@ from typing import (
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    from rekuest_next.actors.types import Agent
+    from rekuest_next.state.publish import StateHolder
 
 
 @runtime_checkable
@@ -22,7 +22,7 @@ class BackgroundTask(Protocol):
     """
 
     async def arun(
-        self, agent: "Agent", contexts: Dict[str, Any], states: Dict[str, Any]
+        self, agent: "StateHolder", contexts: Dict[str, Any], states: Dict[str, Any]
     ) -> None:
         """Run the background task in the event loop
         Args:
@@ -67,7 +67,7 @@ class ShutdownHook(Protocol):
 
     async def arun(
         self,
-        agent: "Agent",
+        agent: "StateHolder",
         contexts: Dict[str, Any],
         states: Dict[str, Any],
         app_context: Any,
@@ -79,7 +79,7 @@ class ShutdownHook(Protocol):
 class HooksRegistry(BaseModel):
     """Hook Registry
 
-    Hooks are functions that are run when the default extension starts up.
+    Hooks are functions that are run as the agent starts up.
     They can setup the state variables and contexts that are used by the agent.
     They are run in the order they are registered.
 

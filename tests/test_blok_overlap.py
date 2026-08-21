@@ -71,7 +71,6 @@ def test_declared_action_and_blok_registry_build_same_action_dependency(
                 omitfirst=1,
             ),
             dependencies=(),
-            dynamic=False,
             interface="run",
             needs_token=True,
         ),

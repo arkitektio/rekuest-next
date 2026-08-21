@@ -21,11 +21,6 @@ type Action {
   """The app this action belongs to."""
   app: App!
 
-  """
-  An optional icon identifier to represent this Action in the UI (e.g. 'fa-solid fa-dog')
-  """
-  logo: String
-
   """Version string of the action."""
   version: String!
 
@@ -44,6 +39,11 @@ type Action {
   Whether the action is idempotent: safe to re-run with the same args — re-dispatchable on ambiguous executor loss.
   """
   idempotent: Boolean!
+
+  """
+  Whether the action may be invoked as a probe (zero persistence, no history/replay/recovery). Declared by the action author.
+  """
+  allowProbe: Boolean!
 
   """Optional description of the action."""
   description: String
@@ -65,9 +65,6 @@ type Action {
 
   """List of tests associated with the action."""
   tests(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
-
-  """Interfaces implemented by the action."""
-  interfaces: [String!]!
 
   """Protocols associated with the action."""
   protocols(filters: ProtocolFilter, ordering: [ProtocolOrder!]! = [], pagination: OffsetPaginationInput): [Protocol!]!
@@ -130,12 +127,12 @@ input ActionArgumentInput {
   """
   Defines a nested agent call if this argument should trigger an agent interaction.
   """
-  agentCall: AgentCallInput = null
+  agentCall: AgentProbeInput = null
 
   """
   Defines a nested utility call if this argument should trigger a system utility interaction.
   """
-  utilCall: UtilCallInput = null
+  utilCall: UtilProbeInput = null
 
   """Defines a list of values if this argument should be an array."""
   valueList: [ActionArgumentInput!] = null
@@ -462,24 +459,6 @@ type AgentCall {
   arguments: [ActionArgument!]
 }
 
-"""
-Defines a callback that routes user interactions directly to an Arkitekt Agent via Rekuest.
-"""
-input AgentCallInput {
-  """
-  The abstract agent dependency key declared in the Blok manifest (e.g., 'stage_dep').
-  """
-  dependency: String!
-
-  """
-  The target function name registered on that specific agent's worker thread loop.
-  """
-  operation: String!
-
-  """Key-value arguments map compiled for the target agent call."""
-  arguments: [ActionArgumentInput!] = null
-}
-
 """Slim, non-traversable snapshot of an agent for change feeds."""
 type AgentChange {
   id: ID!
@@ -666,6 +645,24 @@ input AgentOrder @oneOf {
   lastSeen: Ordering
 }
 
+"""
+Defines a callback that routes user interactions directly to an Arkitekt Agent via Rekuest.
+"""
+input AgentProbeInput {
+  """
+  The abstract agent dependency key declared in the Blok manifest (e.g., 'stage_dep').
+  """
+  dependency: String!
+
+  """
+  The target function name registered on that specific agent's worker thread loop.
+  """
+  operation: String!
+
+  """Key-value arguments map compiled for the target agent call."""
+  arguments: [ActionArgumentInput!] = null
+}
+
 """A plain snapshot of a state's current value."""
 type AgentSnapshotEvent {
   agentId: ID!
@@ -676,6 +673,11 @@ type AgentSnapshotEvent {
 }
 
 union AgentSnapshotEventStatePatchEvent = AgentSnapshotEvent | StatePatchEvent
+
+type AgentTaskUpdate {
+  create: TaskChange
+  update: TaskChange
+}
 
 type AgentWithValues {
   """The ID of the agent this state belongs to"""
@@ -854,19 +856,8 @@ input AssignInput {
   """
   parent: ID = null
 
-  """
-  Deprecated — has no effect. Replay decisions are caller-side: use the reusableTaskFor query and reference the prior task instead of re-assigning.
-  """
-  cached: Boolean!
-
-  """Whether the task should be logged"""
-  log: Boolean!
-
   """Whether to capture the task."""
   capture: Boolean!
-
-  """Whether the task is ephemeral"""
-  ephemeral: Boolean!
 
   """
   The dependencies of the task. This maps dependency keys to implementation IDs.
@@ -1177,6 +1168,14 @@ input CancelInput {
   task: ID!
 }
 
+"""
+The input for cancelling a probe. Idempotent: cancelling a finished probe is a no-op.
+"""
+input CancelProbeInput {
+  """The probe ID to cancel"""
+  probe: ID!
+}
+
 type ChildTaskEvent {
   create: TaskChange
   update: TaskChange
@@ -1340,12 +1339,12 @@ input ComponentPropInput {
   """
   Defines an imperative interactive network action callback loop if this prop should trigger an agent interaction.
   """
-  agentCall: AgentCallInput = null
+  agentCall: AgentProbeInput = null
 
   """
   Defines an imperative interactive network action callback loop if this prop should trigger a system utility interaction.
   """
-  utilCall: UtilCallInput = null
+  utilCall: UtilProbeInput = null
 }
 
 """The input for creating a blok."""
@@ -1627,11 +1626,6 @@ input DefinitionInput {
   key: String!
 
   """
-  The package of the function. Will default to the currents agent's app if not specified. This is used to group definitions together in the UI and provide a better user experience
-  """
-  package: String = null
-
-  """
   The version of the definition. This is used to differentiate if the underyling algorithm has changed, i.e we would expect different results for the same input
   """
   version: String!
@@ -1657,6 +1651,11 @@ input DefinitionInput {
   idempotent: Boolean! = false
 
   """
+  Whether the action may be invoked as a probe: zero persistence, redis-held state, no history/replay/recovery. Only actions declaring this are callable via the call mutation.
+  """
+  allowProbe: Boolean! = false
+
+  """
   The port groups of the definition. This is used to group ports together in the UI
   """
   portGroups: [PortGroupInput!]! = []
@@ -1668,7 +1667,6 @@ input DefinitionInput {
   The returns of the definition. This is the output ports of the definition
   """
   returns: [ReturnPortInput!]! = []
-  tests: ActionDependencyInput = null
 
   """
   The kind of the definition. This is the type of the definition. Can be either a function or a generator
@@ -1676,22 +1674,14 @@ input DefinitionInput {
   kind: ActionKind!
 
   """
-  The tests for the definition. This is used to group definitions together in the UI
+  The actions this definition is a test for, each identified by hash or by (app, key, version).
   """
-  isTestFor: [String!]! = []
-
-  """
-  The interfaces of the definition. This is used to group definitions together in the UI
-  """
-  interfaces: [String!]! = []
+  isTestFor: [TestTargetInput!]! = []
 
   """
   Whether the definition is a dev definition or not. If the definition is a dev definition, it can be used to create a dev action. If the definition is not a dev definition, it cannot be used to create a dev action
   """
   isDev: Boolean! = false
-
-  """The logo of the definition. This is used to display the logo in the UI"""
-  logo: String = null
 }
 
 input DeleteAgentInput {
@@ -2089,7 +2079,9 @@ type Implementation {
   """Check if this implementation is pinned by the current user."""
   pinned: Boolean!
 
-  """Tests"""
+  """
+  Implementations on this agent whose action is a test for this implementation's action.
+  """
   tests: [Implementation!]!
 
   """List of action demands"""
@@ -2171,16 +2163,6 @@ input ImplementationInput {
   instanceId: String = null
 
   """
-  Whether the implementation is dynamic or not. If the implementation is dynamic, it can be used to create a dynamic action. If the implementation is not dynamic, it cannot be used to create a dynamic action
-  """
-  dynamic: Boolean! = false
-
-  """
-  The logo of the implementation. This is used to display the logo in the UI either it should be 'custom:svg-paths' or a lucide icon name like 'lucide:activity' urls are not supported at the moment
-  """
-  logo: String = null
-
-  """
   The locks of the implementation. This is used to specify which resources the implementation needs to run
   """
   locks: [String!] = null
@@ -2224,9 +2206,6 @@ type ImplementationMapping {
 
 input ImplementationOrder @oneOf {
   createdAt: Ordering
-  startedAt: Ordering
-  finishedAt: Ordering
-  status: Ordering
   active: Ordering
 }
 
@@ -2236,15 +2215,18 @@ type ImplementationUpdate {
   delete: ID!
 }
 
-"""If this structure is the default in its package."""
+"""
+An interface referenced by an action's port, derived from the relational port rows.
+"""
 type Interface {
-  id: ID!
-  key: String!
-  description: String
-  package: StructurePackage!
+  """The full identifier, e.g. '@rekuest/taskevent'."""
+  identifier: ID!
 
-  """Implementations that implement this interface."""
-  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
+  """The local key (the part after '/')."""
+  key: String!
+
+  """The package this interface belongs to."""
+  package: StructurePackage!
 
   """
   Usages of this interface as an input in actions (derived from the relational arg ports).
@@ -2255,15 +2237,6 @@ type Interface {
   Usages of this interface as an output in actions (derived from the relational return ports).
   """
   outputUsages: [PortUsage!]!
-}
-
-input InterfaceFilter {
-  AND: InterfaceFilter
-  OR: InterfaceFilter
-  NOT: InterfaceFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  search: String
 }
 
 """The input for interrupting a task."""
@@ -2537,6 +2510,26 @@ type Mutation {
   """Assign a task to an agent."""
   assign(input: AssignInput!): Task!
 
+  """
+  Fire a probe at an agent — zero persistence, redis-held state under a TTL, never appears in task history. For high-frequency interactive work (previews, live parameter tweaks).
+  """
+  probe(input: ProbeInput!): Probe!
+
+  """
+  Cancel a probe. Idempotent: cancelling a finished probe is a no-op returning its terminal state.
+  """
+  cancelProbe(input: CancelProbeInput!): Probe!
+
+  """
+  Pause a probe. Idempotent on finished probes; the agent's Paused report settles the state.
+  """
+  pauseProbe(input: PauseProbeInput!): Probe!
+
+  """
+  Resume a paused probe. Idempotent on finished probes; the agent's Resumed report settles the state.
+  """
+  resumeProbe(input: ResumeProbeInput!): Probe!
+
   """Cancel an active task."""
   cancel(input: CancelInput!): Task!
 
@@ -2767,6 +2760,14 @@ input PauseInput {
   task: ID!
 }
 
+"""
+The input for pausing a probe. Idempotent: pausing a finished probe is a no-op.
+"""
+input PauseProbeInput {
+  """The probe ID to pause"""
+  probe: ID!
+}
+
 """The input for pinning an model."""
 input PinInput {
   """The unique identifier of the item to pin."""
@@ -2974,6 +2975,93 @@ type PortUsage {
   modifiers: [String!]!
 }
 
+"""
+A probe — a zero-persistence invocation. Redis-held under a TTL; never appears in task history.
+"""
+type Probe {
+  id: ID!
+
+  """The agent executing this probe."""
+  agent: ID!
+
+  """The called action."""
+  action: ID!
+
+  """The resolved implementation."""
+  implementation: ID!
+
+  """The implementation interface the agent runs."""
+  interface: String!
+
+  """The caller-side reference, if any."""
+  reference: String
+
+  """Kind of the latest event."""
+  kind: TaskEventKind!
+
+  """Per-probe monotonic sequence of the latest event."""
+  seq: Int!
+
+  """Whether the probe reached a terminal state."""
+  isDone: Boolean!
+
+  """The latest YIELD payload, if any."""
+  returns: AnyDefault
+
+  """The terminal error, if the probe failed."""
+  error: String
+
+  """When the probe was created."""
+  createdAt: DateTime
+}
+
+"""
+A single event of a probe, relayed payload-carrying (no lookups). `seq` orders the stream.
+"""
+type ProbeEvent {
+  probe: ID!
+  kind: TaskEventKind!
+  seq: Int!
+  message: String
+  progress: Int
+  returns: AnyDefault
+  createdAt: DateTime!
+}
+
+"""The input for a probe — a zero-persistence invocation."""
+input ProbeInput {
+  """The action ID to probe"""
+  action: ID = null
+
+  """The implementation ID to probe directly"""
+  implementation: ID = null
+
+  """The hash of the action to probe"""
+  actionHash: ActionHash = null
+
+  """The args of the probe. A dictionary of ports and values"""
+  args: Args!
+
+  """An optional caller-side reference echoed to the agent"""
+  reference: String = null
+}
+
+"""
+Live probe counts from redis — probes have no rows, so stats come from the TTL keyspace.
+"""
+type ProbeStats {
+  """
+  Live (non-expired) probes across the whole instance — a bare count, not scoped.
+  """
+  totalLive: Int!
+
+  """The requesting caller's in-flight probes."""
+  myInflight: Int!
+
+  """The per-caller in-flight cap (PROBE_MAX_INFLIGHT_PER_CALLER)."""
+  maxInflight: Int!
+}
+
 """The `Args` scalar type represents a Dictionary of arguments"""
 scalar Props
 
@@ -3101,15 +3189,6 @@ type Query {
   """All memory drawers."""
   memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
 
-  """All registered structures."""
-  structures(filters: StructureFilter, pagination: OffsetPaginationInput): [Structure!]!
-
-  """All registered structure packages."""
-  structurePackages(filters: StructurePackageFilter, pagination: OffsetPaginationInput): [StructurePackage!]!
-
-  """All registered interfaces."""
-  interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
-
   """All tasks."""
   tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
 
@@ -3174,6 +3253,16 @@ type Query {
   myTasks: [Task!]!
 
   """
+  Fetch a live (or lingering) probe by ID. Expired probes are gone — probes are never persisted.
+  """
+  probe(id: ID!): Probe!
+
+  """
+  Live probe counts: instance-wide total plus your in-flight count and cap.
+  """
+  probeStats: ProbeStats!
+
+  """
   The latest completed run of a PURE action with these exact args, or null — the replay primitive. Reuse decisions belong to the orchestrator.
   """
   reusableTaskFor(actionHash: String!, args: Args!): Task
@@ -3193,6 +3282,21 @@ type Query {
   """Materialize the latest states for a specific agent"""
   checkoutAgent(agent: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): AgentWithValues!
 
+  """
+  All structures referenced by the org's action ports (derived, not registered).
+  """
+  structures(search: String = null): [Structure!]!
+
+  """
+  All structure packages referenced by the org's action ports (derived, not registered).
+  """
+  structurePackages(search: String = null): [StructurePackage!]!
+
+  """
+  All interfaces referenced by the org's action ports (derived, not registered).
+  """
+  interfaces(search: String = null): [Interface!]!
+
   """Fetch resolved dependencies for a resolution."""
   resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
 
@@ -3205,14 +3309,18 @@ type Query {
   """Get a specific state by ID."""
   state(id: ID!): State!
 
-  """Fetch a client by ID."""
-  structurePackage(id: ID!): StructurePackage!
+  """Fetch a structure package by its key (derived from port identifiers)."""
+  structurePackage(key: ID!): StructurePackage!
 
-  """Fetch an interface by ID."""
-  interface(id: ID!): Interface!
+  """
+  Fetch an interface by its '@package/key' identifier (derived from port identifiers).
+  """
+  interface(identifier: ID!): Interface!
 
-  """Fetch a structure by ID."""
-  structure(id: ID!): Structure!
+  """
+  Fetch a structure by its '@package/key' identifier (derived from port identifiers).
+  """
+  structure(identifier: ID!): Structure!
 
   """Fetch a memory shelve by ID."""
   memoryShelve(id: ID!): MemoryShelve!
@@ -3415,6 +3523,14 @@ input ResumeInput {
 
   """Resume only until the next breakpoint instead of running on freely."""
   step: Boolean! = false
+}
+
+"""
+The input for resuming a paused probe. Idempotent: resuming a finished probe is a no-op.
+"""
+input ResumeProbeInput {
+  """The probe ID to resume"""
+  probe: ID!
 }
 
 type ReturnPort {
@@ -4006,15 +4122,18 @@ type StringAssignWidget implements AssignWidget {
   asParagraph: Boolean!
 }
 
-"""A strucssture representing a data schema or type."""
+"""
+A structure (data type) referenced by an action's port, derived from the relational port rows.
+"""
 type Structure {
-  id: ID!
-  key: ID!
-  package: StructurePackage!
-  description: String
+  """The full identifier, e.g. '@mikro/image'."""
+  identifier: ID!
 
-  """Interfaces that this structure implements."""
-  implements(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
+  """The local key (the part after '/')."""
+  key: String!
+
+  """The package this structure belongs to."""
+  package: StructurePackage!
 
   """
   Usages of this structure as an input in actions (derived from the relational arg ports).
@@ -4025,46 +4144,20 @@ type Structure {
   Usages of this structure as an output in actions (derived from the relational return ports).
   """
   outputUsages: [PortUsage!]!
-
-  """The object ID that this structure represents."""
-  identifier: ID!
-
-  """Get the query to retrieve data for this structure."""
-  getQuery: String
-
-  """Get the query to describe the schema of this structure."""
-  describeQuery: String
 }
 
-input StructureFilter {
-  AND: StructureFilter
-  OR: StructureFilter
-  NOT: StructureFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  search: String
-}
-
-"""A package of structures."""
+"""
+A package of structures/interfaces, derived from the '@package/' prefix of port identifiers.
+"""
 type StructurePackage {
-  id: ID!
-  key: String!
-  description: String
+  """The package key (the part between '@' and '/')."""
+  key: ID!
 
-  """Structures that are part of this package."""
-  structures(filters: StructureFilter, pagination: OffsetPaginationInput): [Structure!]!
+  """Structures of this package referenced by the org's ports."""
+  structures: [Structure!]!
 
-  """Interfaces that are part of this package."""
-  interfaces(filters: InterfaceFilter, pagination: OffsetPaginationInput): [Interface!]!
-}
-
-input StructurePackageFilter {
-  AND: StructurePackageFilter
-  OR: StructurePackageFilter
-  NOT: StructurePackageFilter
-  DISTINCT: Boolean
-  ids: [ID!]
-  search: String
+  """Interfaces of this package referenced by the org's ports."""
+  interfaces: [Interface!]!
 }
 
 """Root subscription type for real-time event streams from the system."""
@@ -4101,6 +4194,14 @@ type Subscription {
 
   """Subscribe to all descendant task changes of a task."""
   childTasks(id: ID!): ChildTaskEvent!
+
+  """Subscribe to task create/update for a specific agent."""
+  agentTasks(agent: ID!): AgentTaskUpdate!
+
+  """
+  Stream the events of one probe (caller-scoped, payload-carrying). Emits a state snapshot first when events already happened.
+  """
+  probeEvents(probe: ID!): ProbeEvent!
 }
 
 """Tracks the assignment of an implementation to a specific task."""
@@ -4138,8 +4239,10 @@ type Task {
   """Indicates if the task is being captured for logging or debugging."""
   capture: Boolean!
 
-  """Implementation assigned to execute."""
-  implementation: Implementation!
+  """
+  Implementation assigned to execute. Null until the task is mapped to one.
+  """
+  implementation: Implementation
 
   """Type of the latest event."""
   latestEventKind: TaskEventKind!
@@ -4161,9 +4264,6 @@ type Task {
 
   """List of resources or entities this task acted upon."""
   actedOn: [String!]!
-
-  """Indicates if the task should be deleted after completion."""
-  ephemeral: Boolean!
 
   """Child tasks spawned from this one."""
   children(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
@@ -4274,6 +4374,11 @@ input TaskEventFilter {
   OR: TaskEventFilter
   NOT: TaskEventFilter
   DISTINCT: Boolean
+
+  """Filter by IDs of the task events"""
+  ids: [ID!]
+
+  """Filter by the kind of the event"""
   kind: [TaskEventKind!]
 }
 
@@ -4309,20 +4414,62 @@ enum TaskField {
   CREATED_AT
 }
 
+"""A way to filter tasks"""
 input TaskFilter {
   AND: TaskFilter
   OR: TaskFilter
   NOT: TaskFilter
   DISTINCT: Boolean
+
+  """Filter by IDs of the tasks"""
   ids: [ID!]
-  status: [TaskStatus!]
+
+  """
+  Filter by the client ID of the app the executing agent is registered to
+  """
   clientId: ID
+
+  """Filter by the latest lifecycle event of the task"""
   state: [TaskEventKind!]
+
+  """Filter by the implementation the task is currently mapped to"""
   implementation: ID
-  actedOn: [String!]
-  createdBefore: DateTime
-  createdAfter: DateTime
+
+  """Filter by the action the task was assigned to"""
+  action: ID
+
+  """Filter by the agent executing the task"""
   agent: ID
+
+  """Filter by the caller (client/user/organization) that created the task"""
+  caller: ID
+
+  """Filter by the direct parent task"""
+  parent: ID
+
+  """Filter by the root task of the execution tree"""
+  root: ID
+
+  """Keep only root tasks (true) or only descendants of a root (false)"""
+  rootIsnull: Boolean
+
+  """Filter by whether the task has finished"""
+  isDone: Boolean
+
+  """Filter by the structures this task acted on"""
+  actedOn: [String!]
+
+  """Filter by the canonical args hash (the replay-discovery key)"""
+  argsHash: String
+
+  """Filter by the caller-supplied reference of the task"""
+  reference: String
+
+  """Only tasks created before this timestamp"""
+  createdBefore: DateTime
+
+  """Only tasks created after this timestamp"""
+  createdAfter: DateTime
 }
 
 """An instruct event for a specific task."""
@@ -4352,9 +4499,7 @@ enum TaskInstructKind {
 
 input TaskOrder @oneOf {
   createdAt: Ordering
-  startedAt: Ordering
   finishedAt: Ordering
-  status: Ordering
 }
 
 type TaskStats {
@@ -4378,15 +4523,6 @@ type TaskStats {
 
   """Time-bucketed stats over a datetime field."""
   series(field: TaskField!, timestampField: TaskTimestampField!, by: Granularity!): [TimeBucket!]!
-}
-
-"""The event kind of the taskevent"""
-enum TaskStatus {
-  ASSIGNING
-  ONGOING
-  CRITICAL
-  CANCELLED
-  DONE
 }
 
 """Datetime fields of Task for bucketing"""
@@ -4460,6 +4596,27 @@ input TestResultFilter {
   NOT: TestResultFilter
   DISTINCT: Boolean
   ids: [ID!]
+}
+
+"""
+A test target: the action a test action tests, identified by exact hash or by an (app, key, version) coordinate. app defaults to the registering agent's app; omitting version matches every version.
+"""
+input TestTargetInput {
+  """The exact hash of the target action."""
+  hash: String = null
+
+  """
+  The app identifier owning the target action. Defaults to the registering agent's app.
+  """
+  app: String = null
+
+  """
+  The key of the target action. Matches every version unless version is given.
+  """
+  key: String = null
+
+  """Restrict a key target to one specific version."""
+  version: String = null
 }
 
 """A 3D model file."""
@@ -4724,7 +4881,7 @@ type UtilCall {
 }
 
 """Defines a utility call that can be invoked within the system."""
-input UtilCallInput {
+input UtilProbeInput {
   """The utility function name to invoke."""
   operation: String!
 

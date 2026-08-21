@@ -40,6 +40,7 @@
                 "ValidatorFunction": "rekuest_next.scalars.ValidatorFunction"
             },
             "coercible_scalars": {},
+            "coercible_inputs": {},
             "graphql_default_class": null,
             "deprecated_class": null,
             "document_field_metadata": true,

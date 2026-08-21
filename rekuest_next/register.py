@@ -25,6 +25,7 @@ from rekuest_next.coercible_types import (
 )
 from rekuest_next.remote import acall, call
 from rekuest_next.actors.actify import reactify
+from rekuest_next.actors.policy import KEEP, DisconnectPolicy
 from rekuest_next.actors.types import Actifier, ActorBuilder, RegisterConfig
 from rekuest_next.actors.vars import get_current_task_helper
 from rekuest_next.definition.define import (
@@ -47,6 +48,7 @@ from rekuest_next.api.schema import (
     ValidatorInput,
     AgentDependencyInput,
     OptimisticInput,
+    TestTargetInput,
     my_implementation_at,
 )
 import logging
@@ -175,8 +177,6 @@ def register_func(
         ImplementationInput(
             interface=interface,
             definition=definition,
-            logo=config.logo,
-            dynamic=config.dynamic,
             locks=tuple(implementation_details.locks or []),
             optimistics=tuple(optimistics),
             dependencies=tuple(dependencies),
@@ -208,21 +208,19 @@ def register(
     interface: Optional[str] = None,
     stateful: bool = False,
     widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    interfaces: Optional[List[str]] = None,
     collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     effects: Optional[Dict[str, List[EffectInput]]] = None,
-    is_test_for: Optional[List[str]] = None,
-    logo: Optional[str] = None,
+    is_test_for: Optional[List[TestTargetInput]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     implementation_registry: Optional["AppRegistry"] = None,
     optimistics: Optional[List[OptimisticCoercible]] = None,
     in_process: bool = False,
     tracks: Optional[List[TrackInput]] = None,
-    dynamic: bool = False,
     locks: Optional[List[str]] = None,
     concurrency: Literal["parallel", "serial"] = "serial",
+    policy: DisconnectPolicy = KEEP,
     version: Optional[str] = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with configuration: ``@register(...)``."""
@@ -237,21 +235,19 @@ def register(  # type: ignore[valid-type]
     stateful: bool = False,
     description: Optional[str] = None,
     widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    interfaces: Optional[List[str]] = None,
     collections: Optional[List[str]] = None,
     port_groups: Optional[List[PortGroupInput]] = None,
     effects: Optional[Dict[str, List[EffectInput]]] = None,
-    is_test_for: Optional[List[str]] = None,
-    logo: Optional[str] = None,
+    is_test_for: Optional[List[TestTargetInput]] = None,
     optimistics: Optional[List[OptimisticCoercible]] = None,
     validators: Optional[Dict[str, List[ValidatorInput]]] = None,
     structure_registry: Optional[StructureRegistry] = None,
     tracks: Optional[List[TrackInput]] = None,
     implementation_registry: Optional["AppRegistry"] = None,
     in_process: bool = False,
-    dynamic: bool = False,
     locks: Optional[List[str]] = None,
     concurrency: Literal["parallel", "serial"] = "serial",
+    policy: DisconnectPolicy = KEEP,
     version: Optional[str] = None,
 ) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
     """Register a function or actor with an app registry.
@@ -279,12 +275,11 @@ def register(  # type: ignore[valid-type]
         stateful (bool): Mark the definition stateful (auto-set when the
             function uses state variables).
         widgets (Optional[Dict[str, AssignWidgetInput]]): Widgets per argument.
-        interfaces (Optional[List[str]]): Additional interfaces implemented.
         collections (Optional[List[str]]): Organizational groupings.
         port_groups (Optional[List[PortGroupInput]]): Port group assignments.
         effects (Optional[Dict[str, List[EffectInput]]]): Effects per port.
-        is_test_for (Optional[List[str]]): Interfaces this function tests.
-        logo (Optional[str]): URL or identifier of the action's logo.
+        is_test_for (Optional[List[TestTargetInput]]): Actions this function is a
+            test for, each identified by hash or by (app, key, version).
         validators (Optional[Dict[str, List[ValidatorInput]]]): Input validation
             rules per argument.
         structure_registry (Optional[StructureRegistry]): Overrides the default
@@ -294,7 +289,6 @@ def register(  # type: ignore[valid-type]
         optimistics (Optional[List[OptimisticCoercible]]): Optimistic outputs.
         in_process (bool): Run the actor in the event loop instead of a thread.
         tracks (Optional[List[TrackInput]]): Tracks the implementation follows.
-        dynamic (bool): Whether the definition may change dynamically.
         locks (Optional[List[str]]): Resource locks held during assignment
             (auto-inferred from state/context locks when omitted).
         concurrency (Literal["parallel", "serial"]): Whether assignments to the
@@ -319,15 +313,13 @@ def register(  # type: ignore[valid-type]
         validators=validators,
         collections=collections,
         port_groups=port_groups,
-        interfaces=interfaces,
         is_test_for=is_test_for,
-        logo=logo,
         stateful=stateful,
         version=version,
-        dynamic=dynamic,
         optimistics=optimistics,
         locks=locks,
         concurrency=concurrency,
+        policy=policy,
         tracks=tracks,
         in_process=in_process,
     )

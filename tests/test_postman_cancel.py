@@ -8,7 +8,7 @@ with hand-written test doubles (no mocks, no socket/GraphQL backend):
 
 - ``GraphQLPostman``: a recording subclass overrides the ``acancel``/``ainterrupt``
   send seams, and ``_confirm_cancellation`` is driven against a real ``asyncio.Queue``.
-- ``AgentPostman``: the full ``aassign`` is exercised over a ``FakeTransport`` and an
+- ``AgentPostman``: the full ``aassign`` is exercised over a ``MemoryAgentTransport`` and an
   ``asyncio.Task`` is cancelled, with confirmation mirrors fed back in.
 - ``remote.aiterate_raw``: a recording postman asserts both flags are threaded through.
 """
@@ -22,6 +22,8 @@ import pytest
 from pydantic import PrivateAttr
 
 from rekuest_next import messages
+
+from .memory_transport import MemoryAgentTransport
 from rekuest_next.agents.caller import AgentPostman
 from rekuest_next.api.schema import AssignInput, TaskEventChange, TaskEventKind
 from rekuest_next.postmans.graphql import GraphQLPostman
@@ -136,50 +138,31 @@ async def test_graphql_no_escalation_when_disabled() -> None:
 # ------------------------------------------------------------------ AgentPostman tests
 
 
-class FakeTransport:
-    """Records every outbound message instead of touching a socket."""
-
-    connected = True
-
-    def __init__(self) -> None:
-        self.sent: List[messages.FromAgentMessage] = []
-
-    async def asend(self, message: messages.FromAgentMessage) -> None:
-        self.sent.append(message)
-
-
-class FakeAgent:
-    def __init__(self) -> None:
-        self.transport = FakeTransport()
-
-
 def _assign(**kwargs: object) -> AssignInput:
     base = dict(
         args={"x": 1},
         reference="ref-1",
         hooks=None,
         parent=None,
-        cached=False,
-        log=False,
         capture=False,
     )
     base.update(kwargs)
     return _build_assign_input(**base)  # type: ignore[arg-type]
 
 
-def _last_request(agent: FakeAgent) -> messages.AssignRequest:
-    for msg in reversed(agent.transport.sent):
+def _last_request(sink: MemoryAgentTransport) -> messages.AssignRequest:
+    for msg in reversed(sink.sent):
         if isinstance(msg, messages.AssignRequest):
             return msg
     raise AssertionError("no AssignRequest was sent")
 
 
-def _has(agent: FakeAgent, typ: type) -> bool:
-    return any(isinstance(m, typ) for m in agent.transport.sent)
+def _has(sink: MemoryAgentTransport, typ: type) -> bool:
+    return any(isinstance(m, typ) for m in sink.sent)
 
 
 async def _start_and_assign(
-    pm: AgentPostman, agent: FakeAgent, escalate_to_interrupt: bool = False
+    pm: AgentPostman, sink: MemoryAgentTransport, escalate_to_interrupt: bool = False
 ) -> "asyncio.Task[None]":
     """Start aassign, deliver the AssignResponse, and drive it into its event loop.
 
@@ -197,8 +180,8 @@ async def _start_and_assign(
             out.append(ev)
 
     task = asyncio.create_task(consume())
-    await _until(lambda: agent.transport.sent)
-    req = _last_request(agent)
+    await _until(lambda: sink.sent)
+    req = _last_request(sink)
     pm.handle_assign_response(
         messages.AssignResponse(request=req.id, reference=req.reference, task="t1")
     )
@@ -212,13 +195,13 @@ async def _start_and_assign(
 @pytest.mark.asyncio
 async def test_agent_awaits_cancelled_before_reraising() -> None:
     """aassign sends a CancelRequest and awaits the CancelledEvent before re-raising."""
-    agent = FakeAgent()
-    pm = AgentPostman(agent, cancel_timeout=1.0)
+    sink = MemoryAgentTransport()
+    pm = AgentPostman(sink, cancel_timeout=1.0)
 
-    task = await _start_and_assign(pm, agent)
+    task = await _start_and_assign(pm, sink)
     task.cancel()
 
-    await _until(lambda: _has(agent, messages.CancelRequest))
+    await _until(lambda: _has(sink, messages.CancelRequest))
     await asyncio.sleep(0)
     assert not task.done(), "re-raised before awaiting the CancelledEvent"
 
@@ -226,21 +209,21 @@ async def test_agent_awaits_cancelled_before_reraising() -> None:
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, timeout=1.0)
 
-    assert _has(agent, messages.CancelRequest)
-    assert not _has(agent, messages.InterruptRequest)
+    assert _has(sink, messages.CancelRequest)
+    assert not _has(sink, messages.InterruptRequest)
 
 
 @pytest.mark.asyncio
 async def test_agent_escalates_to_interrupt_on_timeout() -> None:
     """With escalation on, an unconfirmed cancel is followed by an InterruptRequest."""
-    agent = FakeAgent()
-    pm = AgentPostman(agent, cancel_timeout=0.05)
+    sink = MemoryAgentTransport()
+    pm = AgentPostman(sink, cancel_timeout=0.05)
 
-    task = await _start_and_assign(pm, agent, escalate_to_interrupt=True)
+    task = await _start_and_assign(pm, sink, escalate_to_interrupt=True)
     task.cancel()
 
-    await _until(lambda: _has(agent, messages.InterruptRequest))
-    assert _has(agent, messages.CancelRequest)
+    await _until(lambda: _has(sink, messages.InterruptRequest))
+    assert _has(sink, messages.CancelRequest)
 
     pm.handle_execution_event(messages.InterruptedEvent(task="t1", event="e2", seq=3))
     with pytest.raises(asyncio.CancelledError):
@@ -250,17 +233,17 @@ async def test_agent_escalates_to_interrupt_on_timeout() -> None:
 @pytest.mark.asyncio
 async def test_agent_no_escalation_when_disabled() -> None:
     """Without escalation, a cancel timeout re-raises without sending an interrupt."""
-    agent = FakeAgent()
-    pm = AgentPostman(agent, cancel_timeout=0.05)
+    sink = MemoryAgentTransport()
+    pm = AgentPostman(sink, cancel_timeout=0.05)
 
-    task = await _start_and_assign(pm, agent)
+    task = await _start_and_assign(pm, sink)
     task.cancel()
 
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, timeout=1.0)
 
-    assert _has(agent, messages.CancelRequest)
-    assert not _has(agent, messages.InterruptRequest)
+    assert _has(sink, messages.CancelRequest)
+    assert not _has(sink, messages.InterruptRequest)
 
 
 # ------------------------------------------------------------- remote threading test

@@ -49,9 +49,9 @@ class LogLevel(str, Enum):
 class AgentMode(str, Enum):
     """How a participant intends to use the single agent protocol.
 
-    The mode is requested on ``Register`` but only *granted* if the token carries the
-    matching capability scopes (see ``facade.capabilities``). It maps onto the two
-    independent capability axes ``executes_work`` and ``can_assign_root``:
+    Not currently carried on the wire: the mode is derived server-side from the
+    capability scopes the token carries (see ``facade.capabilities``). Kept as the
+    vocabulary for those two independent axes, ``executes_work`` and ``can_assign_root``:
 
     - ``EXECUTOR``     — runs tasks (executes_work), may not originate roots.
     - ``CALLER``       — originates root tasks (can_assign_root), does not execute.
@@ -83,6 +83,7 @@ class ToAgentMessageType(str, Enum):
     PROTOCOL_ERROR = "PROTOCOL_ERROR"
     EVENT_ACK = "EVENT_ACK"
     ASSIGN_RESPONSE = "ASSIGN_RESPONSE"
+    PROBE_RESPONSE = "PROBE_RESPONSE"
     # Caller-bound event-stream mirrors — one per TaskEventKind — streamed back to the
     # participant that originated the task (see ``ExecutionEvent`` and subclasses).
     BOUND_EVENT = "BOUND_EVENT"
@@ -131,6 +132,7 @@ class FromAgentMessageType(str, Enum):
     STATE_SNAPSHOT = "STATE_SNAPSHOT"
     SESSION_INIT = "SESSION_INIT"
     ASSIGN_REQUEST = "ASSIGN_REQUEST"
+    PROBE_REQUEST = "PROBE_REQUEST"
     # Caller-issued lifecycle control requests over the socket (mirroring ASSIGN_REQUEST).
     CANCEL_REQUEST = "CANCEL_REQUEST"
     INTERRUPT_REQUEST = "INTERRUPT_REQUEST"
@@ -193,6 +195,10 @@ class Assign(Message):
     """ The parent s"""
     resolution: Optional[str] = Field(
         default=None, description="The resolution id this task has dependencies"
+    )
+    probe: bool = Field(
+        default=False,
+        description="Whether this is a probe (p-… id): an ephemeral invocation with no server-side history, no replay/recovery; sub-assignment and locks are unavailable. Agents may adapt (e.g. skip audit side effects).",
     )
     capture: Optional[bool] = Field(
         default=None, description="Whether to run in debug mode, false by default"
@@ -564,10 +570,6 @@ class Register(Message):
 
     Only honoured for participants that ``executes_work`` (the executor singleton). A
     non-executor (frontend/observer) never force-displaces — its other connections coexist."""
-    mode: AgentMode = Field(
-        default=AgentMode.EXECUTOR,
-        description="How this participant intends to use the protocol. Granted only if the token carries the matching capability scopes; otherwise the connection is closed with MODE_NOT_AUTHORIZED_CODE.",
-    )
     session_id: Optional[str] = Field(
         default=None,
         description="Per-process identifier minted in-memory by the executor at start-up (never persisted). Its volatility is the reclaim signal: a reconnect with the SAME session_id means the process survived (reclaim in-flight work); a DIFFERENT session_id means a fresh process (fail-and-cascade). Omitted by non-executors.",
@@ -651,9 +653,6 @@ class AssignRequest(Message):
     capture: Optional[bool] = Field(
         default=None, description="Whether to run in debug capture mode."
     )
-    ephemeral: Optional[bool] = Field(
-        default=None, description="Whether the task is ephemeral."
-    )
     step: Optional[bool] = Field(
         default=None, description="Whether to step to breakpoints."
     )
@@ -683,6 +682,51 @@ class AssignResponse(Message):
     error: Optional[str] = Field(
         default=None,
         description="A human-readable error if the assign was rejected (e.g. missing can_assign_root).",
+    )
+
+
+class ProbeRequest(Message):
+    """An agent's request to fire a probe over the socket.
+
+    The socket twin of the GraphQL ``probe`` mutation: an ephemeral, zero-persistence
+    invocation under the requesting agent's own identity. Unlike ``AssignRequest`` no
+    ``parent`` exists — probes are always provenance roots and cannot join a task tree.
+    Best-effort: there is no durable row to dedupe resends against, so a resend after a
+    lost ``ProbeResponse`` fires a NEW probe (probes are cheap and TTL-bounded).
+    """
+
+    type: Literal[FromAgentMessageType.PROBE_REQUEST] = FromAgentMessageType.PROBE_REQUEST
+    reference: Optional[str] = Field(
+        default=None,
+        description="An optional requester-side reference echoed to the executor.",
+    )
+    args: Dict[str, ShallowJSONSerializable] = Field(
+        default_factory=dict, description="The args of the probe (ports → values)."
+    )
+    action: Optional[str] = Field(default=None, description="The action ID to probe.")
+    action_hash: Optional[str] = Field(
+        default=None, description="The action hash to probe."
+    )
+    implementation: Optional[str] = Field(
+        default=None, description="A direct implementation ID to probe."
+    )
+
+
+class ProbeResponse(Message):
+    """The backend's answer to a ``ProbeRequest``: the probe id, or a refusal.
+
+    Events of the probe then stream to the requester as ``…Event`` mirrors whose
+    ``task`` is the probe id (``p-…``) and whose ``seq`` is the per-probe counter.
+    """
+
+    type: Literal[ToAgentMessageType.PROBE_RESPONSE] = ToAgentMessageType.PROBE_RESPONSE
+    request: str = Field(description="The id of the ProbeRequest this answers.")
+    probe: Optional[str] = Field(
+        default=None, description="The probe id (p-…), or None when error is set."
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="A human-readable error if the probe was refused (allow_probe not declared, cap exceeded, …).",
     )
 
 
@@ -967,6 +1011,28 @@ ExecutionEventMessage = Union[
 ]
 
 
+#: Terminal agent→backend reports. Retained until the backend acknowledges them with an
+#: ``EventAck`` (persist-then-ack) and resent on reconnect.
+TERMINAL_REPORTS = (
+    Completed,
+    Failed,
+    Critical,
+    Cancelled,
+    Interrupted,
+)
+
+#: The backend→caller mirrors of exactly those reports, in the same order. Kept adjacent
+#: to ``TERMINAL_REPORTS`` so the pairing is visible and the two cannot drift apart: the
+#: caller side ends a delegated task's stream on these.
+TERMINAL_EVENT_MIRRORS = (
+    CompletedEvent,
+    FailedEvent,
+    CriticalEvent,
+    CancelledEvent,
+    InterruptedEvent,
+)
+
+
 ToAgentMessage = Union[
     Init,
     Assign,
@@ -981,6 +1047,7 @@ ToAgentMessage = Union[
     Kick,
     EventAck,
     AssignResponse,
+    ProbeResponse,
     ControlResponse,
     BoundEvent,
     QueuedEvent,
@@ -1022,6 +1089,7 @@ FromAgentMessage = Union[
     Unlock,
     SessionInit,
     AssignRequest,
+    ProbeRequest,
     CancelRequest,
     InterruptRequest,
     PauseRequest,

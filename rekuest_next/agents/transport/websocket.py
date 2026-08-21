@@ -1,10 +1,14 @@
 """WebSocket transport used by agents to exchange messages with the backend."""
 
+import time
+import warnings
 from types import TracebackType
-from typing import Awaitable, Callable, Dict, Optional, Self, Type, cast
+from typing import Awaitable, Callable, Dict, List, Optional, Self, Type, cast
 import pydantic
 import websockets
+from rekuest_next.agents.policy import Backoff, ConnectionPolicy
 from rekuest_next.agents.transport.base import AgentTransport
+from rekuest_next.agents.transport.types import HandshakeParams
 import asyncio
 import json
 from rekuest_next.agents.transport.errors import (
@@ -106,23 +110,82 @@ class WebsocketAgentTransport(AgentTransport):
         default_factory=lambda: ssl.create_default_context(cafile=certifi.where())
     )
     token_loader: Callable[[], Awaitable[str]] = Field(exclude=True)
-    max_retries: int = 5
-    time_between_retries: float = 3
-    allow_reconnect: bool = True
+    max_retries: Optional[int] = None
+    """Deprecated. Set ``ConnectionPolicy.max_retries`` on the agent instead."""
+    time_between_retries: Optional[float] = None
+    """Deprecated. Set ``ConnectionPolicy.backoff`` on the agent instead. When given it
+    pins a flat (non-exponential) delay, reproducing the old behaviour exactly."""
+    allow_reconnect: Optional[bool] = None
+    """Deprecated. ``False`` is equivalent to ``ConnectionPolicy(max_retries=0)``."""
     auto_connect: bool = True
     force: bool = False
     """If another connection is already registered for this agent, kick it and take over."""
-    mode: messages.AgentMode = messages.AgentMode.EXECUTOR
-    """How this participant intends to use the protocol. ``EXECUTOR`` is enough for
-    actor-internal (dependent) calls; set ``ORCHESTRATOR`` to also originate root tasks from
-    the agent. The mode is only granted if the token carries the matching capability scopes."""
     flush_timeout: float = 5.0
     """Maximum seconds to spend sending still-queued messages when disconnecting. Bounds
     the flush so a dead socket cannot hang teardown."""
 
-    _futures: Contextual[Dict[str, asyncio.Future[str]]] = None
     _healthy: ContextBool = False
     _closing: ContextBool = False
+    _drop_times: List[float] = pydantic.PrivateAttr(default_factory=list)
+
+    @pydantic.model_validator(mode="after")
+    def _warn_on_deprecated_retry_knobs(self) -> "WebsocketAgentTransport":
+        """Nudge callers towards the agent-level policy without breaking them."""
+        if (
+            self.max_retries is not None
+            or self.time_between_retries is not None
+            or self.allow_reconnect is not None
+        ):
+            warnings.warn(
+                "max_retries/time_between_retries/allow_reconnect on "
+                "WebsocketAgentTransport are deprecated; set ConnectionPolicy on the "
+                "agent instead. They still work, and override the agent's policy.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return self
+
+    @property
+    def connection_policy(self) -> ConnectionPolicy:
+        """The agent's policy, with any deprecated per-transport knob layered on top.
+
+        The knobs win where they are set: someone who explicitly built a transport
+        with ``time_between_retries=0`` means it, and should not have it quietly
+        replaced by the agent's default backoff.
+        """
+        policy = super().connection_policy
+        overrides: Dict[str, object] = {}
+        if self.max_retries is not None:
+            overrides["max_retries"] = self.max_retries
+        if self.time_between_retries is not None:
+            overrides["backoff"] = Backoff(
+                initial=self.time_between_retries,
+                factor=1.0,
+                max=self.time_between_retries,
+                jitter=0.0,
+            )
+        if self.allow_reconnect is False:
+            overrides["max_retries"] = 0
+        return policy.model_copy(update=overrides) if overrides else policy
+
+    def _is_flapping(self, policy: ConnectionPolicy) -> bool:
+        """Whether the link has dropped too often lately to be worth chasing.
+
+        The backstop for the case ``reset_after`` cannot see: a link that stays up
+        just long enough to refund the retry budget on every cycle would otherwise
+        reconnect forever.
+        """
+        if policy.flap_limit is None:
+            return False
+        cutoff = time.monotonic() - policy.flap_window
+        self._drop_times = [t for t in self._drop_times if t >= cutoff]
+        return len(self._drop_times) >= policy.flap_limit
+
+    @property
+    def connected(self) -> bool:
+        """Whether a socket is live right now (set while the receive loop is running)."""
+        return bool(self._healthy)
+
     _send_queue: Contextual[asyncio.Queue[str]] = None
     _in_queue: Contextual[asyncio.Queue[object]] = None
     _connection_task: Contextual[asyncio.Task[None]] = None
@@ -136,11 +199,13 @@ class WebsocketAgentTransport(AgentTransport):
         This prepares the inbound and outbound queues and the pending-future
         registry. The network connection is opened by ``aconnect()``.
         """
-        self._futures = {}
         self._send_queue = asyncio.Queue()
         self._in_queue = asyncio.Queue()
         self._closing = False
         self._client = None
+        # Per-session, like everything above it: drops from a previous session must
+        # not count towards this one's flap budget.
+        self._drop_times.clear()
         return self
 
     async def aconnect(self) -> None:
@@ -179,6 +244,22 @@ class WebsocketAgentTransport(AgentTransport):
                 raise item
             yield cast(messages.ToAgentMessage, item)
 
+    async def _aget_handshake(self) -> HandshakeParams:
+        """Resolve the handshake for one connect attempt.
+
+        The agent's host is what makes the ``session_id`` identifying this process
+        reach ``Register`` at all. With no host installed the transport still works
+        on its own (as the transport tests use it), registering with its build-time
+        ``force`` policy and no session id.
+        """
+        if self._host is None:
+            return HandshakeParams(force=self.force)
+        params = await self._host.aget_handshake_params()
+        # "No opinion" from the agent leaves the build-time policy in place.
+        if params.force is None:
+            params = params.model_copy(update={"force": self.force})
+        return params
+
     async def _aconnection_loop(self) -> None:
         """Own the socket: connect, register, receive, retry — until disconnected.
 
@@ -206,9 +287,13 @@ class WebsocketAgentTransport(AgentTransport):
                 # Disconnect was requested; stop the (re)connect loop cleanly.
                 return
             send_task = None
+            connected_at: Optional[float] = None
             try:
                 try:
+                    # The credential is the transport's to load, and is reloaded per
+                    # attempt so a reconnect never presents a stale token.
                     token = await self.token_loader()
+                    handshake = await self._aget_handshake()
                     async with websockets.connect(
                         f"{self.endpoint_url}",
                         ssl=(
@@ -217,20 +302,21 @@ class WebsocketAgentTransport(AgentTransport):
                             else None
                         ),
                     ) as client:
-                        retry = 0
+                        connected_at = time.monotonic()
                         self._client = client
                         logger.info("Agent on Websockets connected")
 
                         await client.send(
                             messages.Register(
                                 token=token,
-                                force=self.force,
-                                mode=self.mode,
+                                force=bool(handshake.force),
+                                session_id=handshake.session_id,
                             ).model_dump_json()
                         )
 
                         send_task = asyncio.create_task(self.sending(client))
                         self._healthy = True
+                        await self.anotify_connection_change(True)
 
                         async for message in client:
                             assert isinstance(message, str), (
@@ -319,21 +405,44 @@ class WebsocketAgentTransport(AgentTransport):
                             await send_task
                         except asyncio.CancelledError:
                             pass
+                    was_healthy = bool(self._healthy)
                     self._healthy = False
+                    if was_healthy:
+                        self._drop_times.append(time.monotonic())
+                    # The budget is refunded only by a connection that stood up long
+                    # enough to count as a recovery. Refunding it on every successful
+                    # connect (as this used to) makes ``max_retries`` meaningless
+                    # against a link that connects and immediately drops.
+                    if (
+                        connected_at is not None
+                        and (time.monotonic() - connected_at)
+                        >= self.connection_policy.reset_after
+                    ):
+                        retry = 0
 
             except CorrectableConnectionFail as e:
                 if self._closing:
                     # Disconnect was requested while connected; do not reconnect.
                     return
                 logger.info(f"Trying to Recover from Exception {e}")
-                if retry > self.max_retries or not self.allow_reconnect:
+                # The agent could not see this window before: the drop is real, but
+                # ``areceive()`` will not end because we are about to retry.
+                await self.anotify_connection_change(False)
+
+                policy = self.connection_policy
+                if retry >= policy.max_retries:
                     logger.error("Max retries reached. Giving up")
                     raise DefiniteConnectionFail("Exceeded Number of Retries")
+                if self._is_flapping(policy):
+                    logger.error("Connection is flapping. Giving up")
+                    raise DefiniteConnectionFail(
+                        f"Connection dropped {len(self._drop_times)} times within "
+                        f"{policy.flap_window}s"
+                    )
 
-                logger.info(
-                    f"Waiting for some time before retrying: {self.time_between_retries}"
-                )
-                await asyncio.sleep(self.time_between_retries)
+                delay = policy.backoff.delay_for(retry)
+                logger.info(f"Waiting for some time before retrying: {delay}")
+                await asyncio.sleep(delay)
                 logger.info("Retrying to connect")
                 retry += 1
                 continue
@@ -348,12 +457,51 @@ class WebsocketAgentTransport(AgentTransport):
             raise AgentTransportException(
                 "No send queue set. Can't send messages to the agent transport"
             )
+        # The message currently taken off the queue but not yet acknowledged. If this
+        # task dies holding one — either because the send failed or because the
+        # receive loop noticed the drop first and cancelled us mid-send — that
+        # message has to go back, or it is simply lost. Only terminal reports are
+        # retained elsewhere; a Progress, Log or Yield popped here would vanish.
+        in_flight: Optional[str] = None
+
+        def requeue() -> None:
+            """Put the held message back, then close out the get that took it.
+
+            Order matters: putting first keeps the queue's unfinished count above
+            zero throughout, so a concurrent ``aflush`` join() can never observe a
+            transiently drained queue and return early.
+            """
+            nonlocal in_flight
+            if in_flight is None:
+                return
+            assert self._send_queue is not None
+            self._send_queue.put_nowait(in_flight)
+            self._send_queue.task_done()
+            in_flight = None
+
         try:
             while True:
-                message = await self._send_queue.get()
-                await client.send(message)
+                in_flight = await self._send_queue.get()
+                try:
+                    await client.send(in_flight)
+                except Exception:  # noqa: BLE001 — the socket died under us
+                    # Return cleanly rather than letting this propagate. The connect
+                    # loop's ``finally`` awaits this task, so an exception stored
+                    # here would surface there, replace the in-flight
+                    # CorrectableConnectionFail, escape the retry handler, and turn a
+                    # recoverable drop into a full agent teardown.
+                    requeue()
+                    logger.info(
+                        "Send failed; message requeued for the next connection",
+                        exc_info=True,
+                    )
+                    return
                 self._send_queue.task_done()
+                in_flight = None
         except asyncio.CancelledError:
+            # The usual path for a dropped socket: the receive loop sees the close
+            # first and cancels this task while it is still inside client.send().
+            requeue()
             logger.info("Sending Task sucessfully Cancelled")
 
     async def delayaction(self, action: messages.FromAgentMessage) -> None:

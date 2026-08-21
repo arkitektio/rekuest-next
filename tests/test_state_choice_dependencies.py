@@ -69,7 +69,6 @@ def _build_implementation(
     return ImplementationInput(
         definition=definition,
         dependencies=dependencies,
-        dynamic=False,
         interface="adjust",
         needs_token=True,
     )

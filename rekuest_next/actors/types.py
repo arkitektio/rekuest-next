@@ -11,6 +11,7 @@ from typing import (
     Literal,
 )
 from rekuest_next import messages
+from rekuest_next.actors.policy import KEEP, DisconnectPolicy
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
 from rekuest_next.coercible_types import OptimisticCoercible
 from rekuest_next.postmans.types import Postman
@@ -20,6 +21,7 @@ from rekuest_next.state.publish import Patch
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.api.schema import (
     PortGroupInput,
+    TestTargetInput,
     TrackInput,
     ValidatorInput,
 )
@@ -135,93 +137,131 @@ class Shelver(Protocol):
 
 
 @runtime_checkable
-class Agent(Protocol):
-    """A protocol for the agent that is used to send messages to the agent."""
+class Capturable(Protocol):
+    """The capture gate an actor's debug tooling coordinates on.
 
-    app_registry: "AppRegistry"
+    Only :mod:`rekuest_next.actors.debug` touches this, which is why it is its own slice
+    rather than part of what every actor sees.
+    """
+
     capture_condition: asyncio.Condition
     capture_active: bool
-    caller_postman: Postman
+
+
+@runtime_checkable
+class LockHost(Protocol):
+    """Reports lock acquisition, and resolves an actor's declared lock keys.
+
+    Implemented by the agent and used by :class:`~rekuest_next.agents.lock.TaskLock`.
+    """
 
     async def alock(self, key: str, task: str) -> None:
-        """A function to acquire a lock on the agent. This is used to acquire
-        locks on the agent."""
+        """Report that a task has acquired a lock."""
         ...
 
     async def aunlock(self, key: str) -> None:
-        """A function to release a lock on the agent. This is used to release
-        locks on the agent."""
+        """Report that a task has released a lock."""
         ...
 
     def get_locks_for_keys(self, keys: Sequence[str]) -> List["TaskLock"]:
         """Resolve the agent's task locks for the given lock keys."""
         ...
 
-    async def asend(
-        self: "Agent", actor: "Actor", message: messages.FromAgentMessage
-    ) -> None:
-        """A function to send a message to the agent. This is used to send messages
-        to the agent from the actor."""
 
-        ...
+@runtime_checkable
+class ActorContext(Shelver, LockHost, Capturable, Protocol):
+    """Everything a running actor needs from the agent above it — and nothing more.
 
-    async def aget_read_only_proxy(self, interface: str) -> AnyState:  # noqa: ANN401
-        """Get a readonly state from the agent. This is used to get readonly states from the
-        agent from the actor."""
-        ...
+    Deliberately excludes the agent's own lifecycle (``aprovide`` / ``aconnect`` /
+    ``aloop``): no actor calls those, and having them in one flat protocol made it read as
+    though an actor could drive the agent it runs inside.
+    """
 
-    async def aget_write_proxy(self, interface: str) -> AnyState:  # noqa: ANN401
-        """Get a writeable state from the agent. This is used to get writeable states from the
-        agent from the actor."""
-        ...
+    app_registry: "AppRegistry"
 
-    async def aput_on_shelve(
-        self,
-        identifier: Identifier,
-        value: Any,  # noqa: ANN401
-    ) -> str:  # noqa: ANN401
-        """Put a value on the shelve and return the key. This is used to store
-        values on the shelve."""
-        ...
+    @property
+    def caller_postman(self) -> Postman:
+        """The agent-as-caller postman, bound as ``current_postman`` while an actor runs.
 
-    async def aget_from_shelve(self, key: str) -> Any:  # noqa: ANN401
-        """Get a value from the shelve. This is used to get values from the
-        shelve."""
-        ...
-
-    async def aget_context(self, context: str) -> Any:  # noqa: ANN401
-        """Get a context from the agent. This is used to get contexts from the
-        agent from the actor."""
-        ...
-
-    async def aprovide(self, context: Any) -> None:
-        """Provide the provision. This method will provide the provision and
-        return None.
+        Declared as a property, not an attribute: implementations build it lazily, and a
+        mutable protocol attribute is invariant, so a read-only property would not satisfy it.
         """
         ...
 
+    async def asend(
+        self, actor: "Actor", message: messages.FromAgentMessage
+    ) -> None:
+        """Send a message from an actor up to the agent, which forwards it onward."""
+        ...
+
+    async def aget_read_only_proxy(self, key: str) -> AnyState:  # noqa: ANN401
+        """Get a state an actor only reads. See the note on the agent implementation:
+        read-only is declarative, not enforced."""
+        ...
+
+    async def aget_write_proxy(self, key: str) -> AnyState:  # noqa: ANN401
+        """Get a state an actor writes to."""
+        ...
+
+    async def aget_context(self, context: str) -> Any:  # noqa: ANN401
+        """Get a context value registered with ``@context``."""
+        ...
+
+    def publish_patch(
+        self, interface: str, patch: Patch, task_id: str | None = None
+    ) -> None:
+        """Publish a state patch. Satisfies ``state.publish.StateHolder``."""
+        ...
+
+
+@runtime_checkable
+class AgentLifecycle(Protocol):
+    """Driving the agent itself — what the composition root uses, not what actors use.
+
+    Called only from :class:`~rekuest_next.rekuest.RekuestNext` and the FastAPI routes.
+    """
+
+    force: Optional[bool]
+    """Kick any connection already registered for this agent and take over. ``None``
+    defers to the transport's own build-time policy. Settable per run."""
+
+    async def aprovide(self, context: Any) -> None:  # noqa: ANN401
+        """Connect, then process messages until cancelled."""
+        ...
+
     async def aconnect(self, context: Any = None, timeout: float | None = None) -> None:
-        """Start the agent and connect to the transport, returning once the
-        server has acknowledged the agent (or raising on timeout)."""
+        """Start the agent and connect, returning once the server acknowledges it."""
         ...
 
     async def aloop(self) -> None:
         """Process incoming messages after the agent has connected."""
         ...
 
-    def publish_patch(
-        self, interface: str, patch: Patch, task_id: str | None = None
-    ) -> None:
-        """Publish a patch to the agent. This is used to publish patches to the
-        agent from the actor."""
-        ...
+
+@runtime_checkable
+class Agent(ActorContext, AgentLifecycle, Protocol):
+    """The whole agent surface: what actors need plus what drives it.
+
+    Kept as the union of the slices above so every existing annotation and import keeps
+    working. Prefer the narrowest slice that fits when writing new code —
+    :class:`ActorContext` for anything an actor reaches, :class:`AgentLifecycle` for
+    anything that starts or stops the agent.
+    """
 
 
 @runtime_checkable
 class Actor(Protocol):
     """An actor is a function that takes a passport and a transport"""
 
+    id: str
+    """Stable identifier for this actor, recorded against the tasks it is running."""
     agent: Agent
+    policy: DisconnectPolicy
+    """What happens to this actor's work when the agent loses its control channel."""
+
+    def has_running_tasks(self) -> bool:
+        """Whether this actor currently has any assignment in flight."""
+        ...
 
     def install_assignment_hook(self, task_id: str, hook: AssignmentHook) -> None:
         """Install an assignment hook for the current task.
@@ -229,6 +269,24 @@ class Actor(Protocol):
         Args:
             task_id (str): The task to install the hook for.
             hook (AssignmentHook): The hook to install.
+        """
+        ...
+
+    async def acancel(self) -> None:
+        """Stop every assignment this actor is running.
+
+        Called by the agent as it tears down, so in-flight work does not outlive the
+        agent that owns it. Each cancelled task is reported to the backend.
+        """
+        ...
+
+    async def acancel_for_policy(self, reason: str) -> int:
+        """Stop every assignment this actor is running, per the disconnect policy.
+
+        Distinct from :meth:`acancel`: it reports the given reason rather than the
+        teardown wording, and prunes its task bookkeeping so a later liveness
+        inquiry does not claim the killed work is still running. Returns how many
+        assignments were stopped.
         """
         ...
 
@@ -294,12 +352,13 @@ class RegisterConfig:
 
     * **definition-shaping** — unpacked by the actifier into ``prepare_definition``:
       ``name``, ``description``, ``widgets``, ``return_widgets``, ``effects``,
-      ``validators``, ``collections``, ``port_groups``, ``interfaces``,
-      ``is_test_for``, ``logo``, ``stateful``, ``version``, ``key``.
+      ``validators``, ``collections``, ``port_groups``,
+      ``is_test_for``, ``stateful``, ``version``, ``key``.
     * **implementation/actor-shaping** — used by the actifier's actor build and by
-      ``register_func`` when constructing the ``ImplementationInput``: ``dynamic``,
+      ``register_func`` when constructing the ``ImplementationInput``:
       ``optimistics``, ``locks``, ``tracks``, ``manipulates``, ``in_process``,
-      ``bypass_shrink``, ``bypass_expand``, ``auto_locks``, ``concurrency``.
+      ``bypass_shrink``, ``bypass_expand``, ``auto_locks``, ``concurrency``,
+      ``policy``.
     """
 
     # definition-shaping
@@ -312,14 +371,11 @@ class RegisterConfig:
     validators: Optional[Dict[str, List[ValidatorInput]]] = None
     collections: Optional[List[str]] = None
     port_groups: Optional[List[PortGroupInput]] = None
-    interfaces: Optional[List[str]] = None
-    is_test_for: Optional[List[str]] = None
-    logo: Optional[str] = None
+    is_test_for: Optional[List[TestTargetInput]] = None
     stateful: bool = False
     version: Optional[str] = None
     key: Optional[str] = None
     # implementation / actor-shaping
-    dynamic: bool = False
     optimistics: Optional[List[OptimisticCoercible]] = None
     locks: Optional[List[str]] = None
     tracks: Optional[List[TrackInput]] = None
@@ -329,6 +385,7 @@ class RegisterConfig:
     bypass_expand: bool = False
     auto_locks: bool = True
     concurrency: Literal["parallel", "serial"] = "serial"
+    policy: DisconnectPolicy = KEEP
 
 
 @runtime_checkable

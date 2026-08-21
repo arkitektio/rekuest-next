@@ -8,7 +8,6 @@ fragment Definition on Action {
   kind
   name
   description
-  interfaces
   collections {
     name
   }

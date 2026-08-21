@@ -5,12 +5,12 @@ import threading
 from typing import AsyncGenerator
 
 from rekuest_next import messages
-from rekuest_next.actors.types import Agent
+from rekuest_next.actors.types import Capturable
 
 
 @contextlib.asynccontextmanager
 async def capture_to_list(
-    logs: list[str], agent: Agent, assignment: messages.Assign
+    logs: list[str], agent: Capturable, assignment: messages.Assign
 ) -> AsyncGenerator[None, None]:
     """
     Unified context manager that:

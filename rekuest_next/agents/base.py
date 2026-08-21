@@ -5,11 +5,14 @@ for managing the lifecycle of the actors that are spawned from it.
 
 """
 
-import random
+import hashlib
+import json
 
 import asyncio
+import contextlib
 import copy
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,7 +28,6 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
-    cast,
 )
 import janus
 import jsonpatch  # type: ignore[import-untyped]
@@ -34,8 +36,8 @@ from pydantic import ConfigDict, Field, PrivateAttr
 from koil.composition import KoiledModel
 from rekuest_next import messages
 from rekuest_next.actors.types import Actor
-from rekuest_next.actors.types import Agent as AgentProtocol
 from rekuest_next.agents.errors import AgentException, ProvisionException
+from rekuest_next.agents.policy import ConnectionPolicy
 from rekuest_next.agents.hooks.registry import (
     ShutdownHook,
     StartupHook,
@@ -43,21 +45,21 @@ from rekuest_next.agents.hooks.registry import (
 )
 from rekuest_next.agents.lock import TaskLock
 from rekuest_next.app import AppRegistry, get_default_app_registry
-from rekuest_next.agents.transport.types import AgentTransport
+from rekuest_next.agents.transport.types import AgentTransport, HandshakeParams
+from rekuest_next.agents.backend import (
+    AgentBackend,
+    LocalAgentBackend,
+    RathAgentBackend,
+)
 from rekuest_next.api.schema import (
-    Agent,
-    Implementation,
     StateDefinitionInput,
-    aensure_agent,
-    aimplement_agent,
-    ashelve,
-    aunshelve,
 )
 from rekuest_next.protocols import AnyState
 from rekuest_next.rath import RekuestNextRath
 from rekuest_next.scalars import Identifier
 from rekuest_next.state.lock import acquired_locks
 from rekuest_next.state.publish import Patch
+from rekuest_next.state.readonly import read_only_view
 from rekuest_next.state.shrink import ashrink_state
 from rekuest_next.structures.registry import StructureRegistry
 from rekuest_next.structures.serialization.actor import ashrink_return
@@ -65,16 +67,6 @@ from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
 
-# Agent→backend terminal reports. These are retained until the backend acknowledges
-# them with an ``EventAck`` (persist-then-ack) and resent on reconnect, mirroring the
-# caller-side ``_TERMINAL_TYPES`` in ``agents/caller.py``.
-_TERMINAL_FROM_AGENT_TYPES = (
-    messages.Completed,
-    messages.Failed,
-    messages.Critical,
-    messages.Cancelled,
-    messages.Interrupted,
-)
 
 if TYPE_CHECKING:
     from rekuest_next.agents.caller import AgentPostman
@@ -141,6 +133,10 @@ class BaseAgent(KoiledModel):
     # TODO: KV Store
     shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
+    backend: AgentBackend = Field(
+        default_factory=LocalAgentBackend,
+        description="Where this agent registers itself, mints sessions and shelves values. Off the message socket; see rekuest_next.agents.backend.",
+    )
     app_registry: AppRegistry = Field(default_factory=get_default_app_registry)
 
     contexts: Dict[str, Any] = Field(
@@ -158,21 +154,11 @@ class BaseAgent(KoiledModel):
 
     managed_actors: Dict[str, Actor] = Field(default_factory=dict)
 
-    interface_implementation_map: Dict[str, Implementation] = Field(
-        default_factory=dict
-    )
-
     managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps task to actor id"
     )
 
-    managed_actor_tasks: Dict[str, asyncio.Task[None]] = Field(
-        default_factory=dict,
-        description="Maps actor id to the task that is running the actor",
-    )
-    _errorfuture: Optional[asyncio.Future[Exception]] = None
-    _agent: Optional[Agent] = None
 
     _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(
         default_factory=lambda: {}  # type: ignore[return-value]
@@ -193,6 +179,7 @@ class BaseAgent(KoiledModel):
         default_factory=lambda: {}  # typ
     )
 
+    _disconnect_watchdog_task: Optional[asyncio.Task[None]] = PrivateAttr(default=None)
     _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
         default_factory=lambda: {}
     )
@@ -213,6 +200,10 @@ class BaseAgent(KoiledModel):
     for an agent that actually started (and only once per start)."""
 
     # Event based necessities
+    force: Optional[bool] = Field(
+        default=None,
+        description="Kick any connection already registered for this agent and take over. None defers to the transport's own build-time policy.",
+    )
     current_session: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
         description="A unique identifier for the current session. This is used to group patches and snapshots that belong to the same logical session together. By default an agent start a new session when booting up",
@@ -233,15 +224,22 @@ class BaseAgent(KoiledModel):
         default=5.0,
         description="Maximum seconds to wait for queued state patches to flush during teardown before closing the patch queue anyway. Bounds teardown so it can never hang on an unconsumed patch.",
     )
+    actor_cancel_timeout: float = Field(
+        default=5.0,
+        description="Maximum seconds to wait for one actor to cancel its in-flight assignments during teardown before abandoning it. Bounds teardown so an actor that swallows cancellation cannot hang it.",
+    )
     cancel_grace_period: float = Field(
         default=5.0,
         description="Maximum seconds to wait for the message-consumer task to unwind when the agent loop is cancelled before proceeding to teardown anyway. Bounds cancellation so it can never hang on a stream that ignores cancellation.",
+    )
+    connection_policy: ConnectionPolicy = Field(
+        default_factory=ConnectionPolicy,
+        description="How hard this agent fights to keep its control channel: retry budget, backoff, and when to stop trying. Handed to the transport, which executes it.",
     )
     shutdown_hook_timeout: float = Field(
         default=20.0,
         description="Maximum seconds a single shutdown hook may run during teardown before it is abandoned. Bounds teardown so it can never hang on a hook that does not return.",
     )
-    started: bool = False
     running: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -256,23 +254,60 @@ class BaseAgent(KoiledModel):
         if self._caller_postman is None:
             from rekuest_next.agents.caller import AgentPostman
 
-            self._caller_postman = AgentPostman(self)
+            self._caller_postman = AgentPostman(self.transport)
         return self._caller_postman
 
     async def alock(self, key: str, task: str) -> None:
-        """Signal that a task has acquired a lock."""
-        return None
+        """Tell the backend a task has acquired a lock.
+
+        These were silent no-ops on this class, so only the FastAPI agent actually
+        reported locks; ``Lock``/``Unlock`` are part of the protocol for every agent.
+
+        Best-effort on purpose: mutual exclusion is provided by the local
+        :class:`~rekuest_next.agents.lock.TaskLock`, and this only *tells* the backend
+        about it. A lock must still be acquirable when the reporting channel is down, so a
+        failed report is logged rather than raised — otherwise an unreachable backend would
+        stop the app from running work it can serialise perfectly well on its own.
+        """
+        await self._areport_lock(messages.Lock(key=key, task=task))
 
     async def aunlock(self, key: str) -> None:
-        """Signal that a task has released a lock."""
-        return None
+        """Tell the backend a task has released a lock. Best-effort, as :meth:`alock`."""
+        await self._areport_lock(messages.Unlock(key=key))
+
+    async def _areport_lock(
+        self, message: "messages.Lock | messages.Unlock"
+    ) -> None:
+        """Send a lock report, logging rather than raising if it cannot go out."""
+        try:
+            await self.transport.asend(message)
+        except Exception:
+            logger.warning(
+                "Failed to report %s for key %s",
+                type(message).__name__,
+                message.key,
+                exc_info=True,
+            )
 
     async def aget_read_only_proxy(self, key: str) -> AnyState:
-        """Acquire a read-only state proxy for a given key."""
-        return self.states[key]
+        """Acquire a state for a given key, for an actor that only reads it.
+
+        Returns a live view that refuses writes, so declaring a state read-only actually
+        means something. See :mod:`rekuest_next.state.readonly` for what the view does and
+        does not cover.
+        """
+        state = self.states[key]
+        view = read_only_view(state, key)
+        if view is state:
+            logger.debug(
+                "State %s cannot be given a read-only view (no instance dict); "
+                "handing back the writeable state",
+                key,
+            )
+        return view
 
     async def aget_write_proxy(self, key: str) -> AnyState:
-        """Acquire a write state proxy for a given key."""
+        """Acquire a state for a given key, for an actor that writes to it."""
         return self.states[key]
 
     async def apatch_event_loop(self) -> None:
@@ -381,11 +416,13 @@ class BaseAgent(KoiledModel):
         )
 
     async def acollect(self, key: str) -> None:
-        raise NotImplementedError("Collect method is not implemented in BaseAgent")
+        """Drop a local drawer and release it on the backend."""
+        del self.shelve[key]
+        await self.backend.acollect(key)
 
     async def _acreate_session(self) -> str:
-        """Create a new session identifier. Returns a UUID by default; override in subclasses."""
-        return str(uuid.uuid4())
+        """Mint the identifier for this run, however the backend does that."""
+        return await self.backend.acreate_session()
 
     def get_locks_for_keys(self, keys: Sequence[str]) -> List[TaskLock]:
         """Get the locks for the given keys.
@@ -397,7 +434,7 @@ class BaseAgent(KoiledModel):
         """
         return [self.locks[key] for key in keys if key in self.locks]
 
-    def collect_from_extensions(self) -> None:
+    def collect_from_registry(self) -> None:
         """Collect state schemas, hooks, sync keys and locks from the app registry.
 
         The actual implementation/state/blok payload is assembled (and validated)
@@ -423,8 +460,16 @@ class BaseAgent(KoiledModel):
             if lock_schema.key not in self.locks:
                 self.locks[lock_schema.key] = TaskLock(self, lock_schema)
 
+    def collect_from_extensions(self) -> None:
+        """Deprecated alias for :meth:`collect_from_registry`.
+
+        Named for the extension layer that has since been replaced by the single
+        ``AppRegistry``. Kept so existing callers keep working.
+        """
+        self.collect_from_registry()
+
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
-        """Get the structure registry for a given interface from extensions.
+        """Get the structure registry for a given interface from the app registry.
 
         Args:
             interface: The interface to get the registry for.
@@ -447,7 +492,13 @@ class BaseAgent(KoiledModel):
         label: Optional[str] = None,
         description: Optional[str] = None,
     ) -> str:
-        raise NotImplementedError("ashelve not implemented in BaseAgent")
+        """Put a value on the backend's shelve and return its drawer key."""
+        return await self.backend.ashelve(
+            identifier=identifier,
+            resource_id=resource_id,
+            label=label,
+            description=description,
+        )
 
     async def aput_on_shelve(
         self,
@@ -490,155 +541,209 @@ class BaseAgent(KoiledModel):
         return self.shelve[key]
 
     async def process(self, message: messages.ToAgentMessage) -> None:
-        """Processes a message from the transport. This is used to process
-        messages that are sent to the agent from the transport. The agent will
-        then send the message to the actors.
+        """Route one inbound message to the concern that owns it.
+
+        The four groups below are the actual seams in this protocol, and keeping them
+        apart is what stops connection bookkeeping, provider work and caller work from
+        being read as one thing:
+
+        * **session** — the connection's own bookkeeping: the ``Init`` acknowledging our
+          ``Register``, and the ``EventAck`` that ends a report's retention.
+        * **provider** — work the backend assigns *to* this agent, routed to actors.
+        * **caller** — answers to work this agent delegated, routed to the caller postman.
+        * **shelve** — local memory the backend asks us to release.
         """
         logger.info(f"Agent received {message}")
 
-        # TODO: Should be a match statement, as we have dropepd support for python 3.9,
-
-        if isinstance(message, messages.Init):
-            # The Init message is the server's acknowledgement of our Register.
-            # Signal that the agent is connected so callers awaiting aconnect()
-            # can proceed.
-            self._connected_event.set()
-            # Reconnect (the backend re-sends Init after a transient drop): resend any
-            # terminal reports we retained but never saw acked. Sent as-is (not via
-            # _adispatch) so seq is preserved and they are not re-buffered; the backend
-            # dedups terminal reports by task id.
-            for retained in list(self._unacked_events.values()):
-                await self.transport.asend(retained)
-            for inquiry in message.inquiries:
-                if inquiry.task in self.managed_assignments:
-                    assignment = self.managed_assignments[inquiry.task]
-                    actor = self.managed_actors[assignment.interface]
-
-                    # Checking status
-                    status = await actor.acheck_task(assignment.task)
-                    if status:
-                        await self._adispatch(
-                            messages.Progress(
-                                task=inquiry.task,
-                                message="Actor is still running",
-                                progress=0,
-                            )
-                        )
-                    else:
-                        await self._adispatch(
-                            messages.Critical(
-                                task=inquiry.task,
-                                error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
-                            )
-                        )
-                else:
-                    await self._adispatch(
-                        messages.Critical(
-                            task=inquiry.task,
-                            error="After disconnect actor was no longer managed (probably the app was restarted)",
-                        )
-                    )
-
-        elif isinstance(message, messages.Assign):
-            if message.interface in self.managed_actors:
-                # The actor is already spawned
-                actor = self.managed_actors[message.interface]
-                self.managed_assignments[message.task] = message
-                await actor.apass(message)
-            else:
-                try:
-                    actor = await self.aspawn_actor_from_assign(message)
-                    await actor.apass(message)
-
-                except Exception as e:
-                    await self._adispatch(
-                        messages.Critical(
-                            task=message.task,
-                            error=f"Not able to create actor through extensions {str(e)}",
-                        )
-                    )
-                    raise e
-
+        if isinstance(message, (messages.Init, messages.EventAck, messages.ProtocolError)):
+            await self._aprocess_session_message(message)
         elif isinstance(
             message,
             (
+                messages.Assign,
                 messages.Cancel,
+                messages.Interrupt,
                 messages.Pause,
                 messages.Resume,
             ),
         ):
-            if message.task in self.managed_assignments:
-                assignment = self.managed_assignments[message.task]
-                actor = self.managed_actors[assignment.interface]
-                await actor.apass(message)
-            else:
-                logger.warning(
-                    "Received unassignation for a provision that is not running. "
-                    f"Received: {message.task}"
-                )
-                await self._adispatch(
-                    messages.Critical(
-                        task=message.task,
-                        error="Actors is no longer running and not managed. Probablry there was a restart",
-                    )
-                )
+            await self._aprocess_provider_message(message)
+        elif isinstance(
+            message,
+            (
+                messages.AssignResponse,
+                messages.ProbeResponse,
+                messages.ControlResponse,
+                messages.ExecutionEvent,
+            ),
+        ):
+            self._process_caller_message(message)
+        elif isinstance(message, messages.Collect):
+            for key in message.drawers:
+                await self.acollect(key)
+        else:
+            raise AgentException(f"Unknown message type {type(message)}")
 
-        elif isinstance(message, messages.ProtocolError):
+    # ---------------------------------------------------------------- session
+
+    async def _aprocess_session_message(
+        self,
+        message: "messages.Init | messages.EventAck | messages.ProtocolError",
+    ) -> None:
+        """Handle the connection's own bookkeeping."""
+        if isinstance(message, messages.Init):
+            # Init is the server's acknowledgement of our Register, so it is what
+            # releases anyone waiting in aconnect(). The backend re-sends it on every
+            # connection, which is also the only signal we get that a drop was recovered.
+            self._connected_event.set()
+            await self._aresend_unacked_reports()
+            await self._areply_to_inquiries(message.inquiries)
+        elif isinstance(message, messages.EventAck):
+            # Backend made the reported event durable; stop retaining it.
+            self._unacked_events.pop(message.event, None)
+        else:
             raise AgentException(
                 "Received a protocol error from the backend. This usually means "
                 f"the agent sent a message the backend could not process: {message.error}"
             )
 
-        elif isinstance(message, messages.AssignResponse):
-            self.caller_postman.handle_assign_response(message)
+    async def _aresend_unacked_reports(self) -> None:
+        """Re-send terminal reports we retained but never saw acked.
 
+        Sent as-is rather than through ``_adispatch`` so the original ``seq`` survives and
+        they are not retained a second time; the backend dedups terminal reports by task.
+        """
+        for retained in list(self._unacked_events.values()):
+            await self.transport.asend(retained)
+
+    async def _areply_to_inquiries(
+        self, inquiries: "Sequence[messages.AssignInquiry]"
+    ) -> None:
+        """Tell the backend which of the tasks it is asking about are still alive."""
+        for inquiry in inquiries:
+            await self._areport_task_liveness(inquiry.task)
+
+    def _has_retained_terminal_report(self, task: str) -> bool:
+        """Whether a terminal report for this task is still waiting to be acked."""
+        return any(
+            getattr(message, "task", None) == task
+            for message in self._unacked_events.values()
+        )
+
+    async def _areport_task_liveness(self, task: str) -> None:
+        """Report whether one task is still running on its actor."""
+        if self._has_retained_terminal_report(task):
+            # Inquiries arrive on the same Init that just triggered the replay of
+            # retained reports, and that replay says precisely how this task ended.
+            # Answering again here would only contradict it.
+            return
+
+        if task not in self.managed_assignments:
+            await self._adispatch(
+                messages.Critical(
+                    task=task,
+                    error="After disconnect actor was no longer managed (probably the app was restarted)",
+                )
+            )
+            return
+
+        assignment = self.managed_assignments[task]
+        actor = self.managed_actors[assignment.interface]
+        if await actor.acheck_task(assignment.task):
+            await self._adispatch(
+                messages.Progress(
+                    task=task,
+                    message="Actor is still running",
+                    progress=0,
+                )
+            )
+        else:
+            await self._adispatch(
+                messages.Critical(
+                    task=task,
+                    error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
+                )
+            )
+
+    # --------------------------------------------------------------- provider
+
+    async def _aprocess_provider_message(
+        self,
+        message: "messages.Assign | messages.Cancel | messages.Interrupt | messages.Pause | messages.Resume",
+    ) -> None:
+        """Route work the backend assigned to this agent to the actor running it."""
+        if isinstance(message, messages.Assign):
+            await self._aassign_to_actor(message)
+        else:
+            await self._aforward_to_running_actor(message)
+
+    async def _aassign_to_actor(self, message: messages.Assign) -> None:
+        """Hand a new assignment to its actor, spawning the actor if needed.
+
+        A failure anywhere here is reported as ``Critical`` against the task before being
+        re-raised, so the backend learns the assignment died rather than waiting on it.
+        (Previously only the spawn path did that, so the same failure on an already-spawned
+        actor went unreported.)
+        """
+        try:
+            actor = self.managed_actors.get(message.interface)
+            if actor is None:
+                # aspawn_actor_from_assign records the assignment itself.
+                actor = await self.aspawn_actor_from_assign(message)
+            else:
+                self.managed_assignments[message.task] = message
+            self.running_assignments[message.task] = actor.id
+            await actor.apass(message)
+        except Exception as e:
+            await self._adispatch(
+                messages.Critical(
+                    task=message.task,
+                    error=f"Not able to create actor for interface {message.interface}: {e}",
+                )
+            )
+            raise
+
+    async def _aforward_to_running_actor(
+        self,
+        message: "messages.Cancel | messages.Interrupt | messages.Pause | messages.Resume",
+    ) -> None:
+        """Forward a lifecycle control message to the actor running that task."""
+        if message.task not in self.managed_assignments:
+            logger.warning(
+                "Received unassignation for a provision that is not running. "
+                f"Received: {message.task}"
+            )
+            await self._adispatch(
+                messages.Critical(
+                    task=message.task,
+                    error="Actors is no longer running and not managed. Probablry there was a restart",
+                )
+            )
+            return
+
+        assignment = self.managed_assignments[message.task]
+        actor = self.managed_actors[assignment.interface]
+        await actor.apass(message)
+
+    # ----------------------------------------------------------------- caller
+
+    def _process_caller_message(
+        self,
+        message: "messages.AssignResponse | messages.ProbeResponse | messages.ControlResponse | messages.ExecutionEvent",
+    ) -> None:
+        """Route an answer to work this agent delegated to the caller postman.
+
+        ``ExecutionEvent`` is the base of every backend→caller ``…Event`` mirror, so an
+        actor-internal ``acall``/``acall_dependency`` can observe what it delegated.
+        """
+        if isinstance(message, messages.AssignResponse):
+            self.caller_postman.handle_assign_response(message)
+        elif isinstance(message, messages.ProbeResponse):
+            self.caller_postman.handle_probe_response(message)
         elif isinstance(message, messages.ControlResponse):
             self.caller_postman.handle_control_response(message)
-
-        elif isinstance(message, messages.ExecutionEvent):
-            # Base of every backend→caller `…Event` mirror. Routed to the caller postman
-            # so an actor-internal acall/acall_dependency can observe the work it delegated.
-            self.caller_postman.handle_execution_event(message)
-
-        elif isinstance(message, messages.Collect):
-            for key in message.drawers:
-                await self.acollect(key)
-
-        elif isinstance(message, messages.AssignInquiry):
-            if message.task in self.managed_assignments:
-                assignment = self.managed_assignments[message.task]
-                actor = self.managed_actors[assignment.interface]
-
-                # Checking status
-                status = await actor.acheck_task(assignment.task)
-                if status:
-                    await self._adispatch(
-                        messages.Progress(
-                            task=message.task,
-                            message="Actor is still running",
-                        )
-                    )
-                else:
-                    await self._adispatch(
-                        messages.Critical(
-                            task=message.task,
-                            error="The assignment was not running anymore. But the actor was still managed. This could lead to some race conditions",
-                        )
-                    )
-            else:
-                await self._adispatch(
-                    messages.Critical(
-                        task=message.task,
-                        error="After disconnect actor was no longer managed (probably the app was restarted)",
-                    )
-                )
-
-        elif isinstance(message, messages.EventAck):
-            # Backend made the reported event durable; stop retaining it.
-            self._unacked_events.pop(message.event, None)
-
         else:
-            raise AgentException(f"Unknown message type {type(message)}")
+            self.caller_postman.handle_execution_event(message)
 
     async def atear_down(self) -> None:
         """Tears down the agent. This is used to tear down the agent
@@ -654,6 +759,12 @@ class BaseAgent(KoiledModel):
                 await background_task
             except asyncio.CancelledError:
                 pass
+
+        # Stop in-flight assignments before the shutdown hooks run, so hooks tear down
+        # resources with no work still using them. Bounded, because an actor that
+        # swallows cancellation must not be able to hang teardown.
+        await self._astop_disconnect_watchdog()
+        await self._acancel_actors()
 
         # Runs while the patch processor, the queue and the transport are still
         # alive, so a hook that touches state still gets its patches flushed by the
@@ -688,23 +799,6 @@ class BaseAgent(KoiledModel):
                 pass
             self._event_queue = None
 
-        for actor_task in self.managed_actor_tasks.values():
-            actor_task.cancel()
-        # just stopping the actor, not cancelling the provision..
-
-        for actor_task in self.managed_actor_tasks.values():
-            try:
-                await actor_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._errorfuture is not None and not self._errorfuture.done():
-            self._errorfuture.cancel()
-            try:
-                await self._errorfuture
-            except asyncio.CancelledError:
-                pass
-
         await self.astop_background()
         await self.transport.adisconnect()
 
@@ -713,10 +807,140 @@ class BaseAgent(KoiledModel):
         self._connected_event.clear()
         self._receiver = None
 
+    async def _acancel_actors(self) -> None:
+        """Cancel every managed actor's in-flight work, reporting each cancellation.
+
+        Nothing used to do this: teardown looped over a ``managed_actor_tasks`` dict that
+        was never populated, so assignments were simply abandoned mid-flight and the
+        backend was never told. ``Actor.acancel`` already did the right thing; it just had
+        no caller.
+        """
+        for interface, actor in list(self.managed_actors.items()):
+            try:
+                await asyncio.wait_for(
+                    actor.acancel(), timeout=self.actor_cancel_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Actor %s did not finish cancelling within %.2fs; abandoning it",
+                    interface,
+                    self.actor_cancel_timeout,
+                )
+            except Exception:
+                logger.error(
+                    "Actor %s failed while being cancelled", interface, exc_info=True
+                )
+
+    async def aon_connection_change(self, healthy: bool) -> None:
+        """React to the transport's link coming up or going down.
+
+        This is the signal the agent never used to get. The transport retries a
+        dropped socket transparently, so ``areceive()`` does not end and nothing
+        above ever learned that control had been lost — an action that is only safe
+        while it can be cancelled kept running regardless.
+
+        Note this does *not* set ``_connected_event`` on link-up: that event means
+        "the backend has acknowledged us", which only an ``Init`` can establish.
+        """
+        if healthy:
+            await self._astop_disconnect_watchdog()
+        else:
+            self._connected_event.clear()
+            self._start_disconnect_watchdog()
+
+    def _start_disconnect_watchdog(self) -> None:
+        """Begin counting down the grace periods of disconnect-sensitive actors."""
+        if (
+            self._disconnect_watchdog_task is not None
+            and not self._disconnect_watchdog_task.done()
+        ):
+            return
+        self._disconnect_watchdog_task = asyncio.create_task(
+            self._adisconnect_watchdog()
+        )
+
+    async def _astop_disconnect_watchdog(self) -> None:
+        """Stand the watchdog down, because the link is back (or we are shutting down)."""
+        task = self._disconnect_watchdog_task
+        self._disconnect_watchdog_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    async def _adisconnect_watchdog(self) -> None:
+        """Cancel each disconnect-sensitive actor once its grace period expires.
+
+        Only actors whose action declared ``on_disconnect=CANCEL`` are touched;
+        everything else keeps running, which is what makes a long acquisition safe
+        to leave alone while a stage motor is not.
+        """
+        down_at = time.monotonic()
+        pending = sorted(
+            (
+                actor
+                for actor in list(self.managed_actors.values())
+                if actor.policy.cancels_on_disconnect and actor.has_running_tasks()
+            ),
+            key=lambda actor: actor.policy.grace,
+        )
+        if not pending:
+            return
+
+        for actor in pending:
+            remaining = actor.policy.grace - (time.monotonic() - down_at)
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+
+            # Deadline expiry and link-up can interleave, so a reconnect that lands
+            # just after the sleep would otherwise kill work that could have carried
+            # on — or worse, kill it while the link is already healthy again.
+            if self.transport.connected:
+                logger.info(
+                    "Link recovered before the grace period elapsed; not cancelling"
+                )
+                return
+            if not actor.has_running_tasks():
+                continue
+
+            down_for = time.monotonic() - down_at
+            reason = (
+                f"cancelled by agent policy: control channel lost for {down_for:.1f}s"
+            )
+            try:
+                await asyncio.wait_for(
+                    actor.acancel_for_policy(reason),
+                    timeout=self.actor_cancel_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Actor %s did not stop within %.2fs of the disconnect policy firing",
+                    actor.id,
+                    self.actor_cancel_timeout,
+                )
+            except Exception:
+                logger.error(
+                    "Actor %s failed while being stopped by policy",
+                    actor.id,
+                    exc_info=True,
+                )
+
     async def aget_hash(self) -> str:
-        """Get the hash of the agent. This is used to identify the agent in the system and to check if the agent has changed."""
-        # TODO: Actually perform the hashing based on the extensions and their implementations, state schemas, and other relevant information. For now, we just return a random hash to force the agent to register all implementations on every start.
-        return random.randbytes(16).hex()
+        """A stable hash of this agent's definition, used to skip re-registration.
+
+        The backend does not compute this: it stores whatever hash we send on
+        ``ImplementAgentInput`` and hands it back as ``Agent.hash``. So this only has to
+        be *stable across runs of the same definition* — which is exactly what makes the
+        comparison in ``RekuestAgent.aensure`` meaningful. Keys are sorted so that
+        dictionary ordering cannot change the digest.
+        """
+        agent_input = self.app_registry.to_implement_agent_input(name=self.name)
+        canonical = json.dumps(
+            json.loads(agent_input.model_dump_json(by_alias=True, exclude_none=True)),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
     async def _adispatch(self, message: messages.FromAgentMessage) -> None:
         """Assign a stream seq to events, retain terminal reports for ack, then send.
@@ -730,8 +954,14 @@ class BaseAgent(KoiledModel):
             self._event_seq += 1
             # Messages are frozen, so produce a copy carrying the assigned seq.
             message = message.model_copy(update={"seq": self._event_seq})
-            if isinstance(message, _TERMINAL_FROM_AGENT_TYPES):
+            if isinstance(message, messages.TERMINAL_REPORTS):
                 self._unacked_events[message.id] = message
+                # The task is done, so it is no longer running on any actor, and no
+                # longer an assignment this agent is managing. Nothing used to pop
+                # ``managed_assignments``: it grew without bound, and kept answering
+                # backend liveness inquiries about work that had already finished.
+                self.running_assignments.pop(message.task, None)
+                self.managed_assignments.pop(message.task, None)
         await self.transport.asend(message)
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
@@ -744,7 +974,7 @@ class BaseAgent(KoiledModel):
         await self._adispatch(message)
 
     async def ashrink_state(self, interface: str, state: AnyState) -> Any:  # noqa: ANN401
-        """Shrink the state to the schema. This will be called when the agent starts"""
+        """Shrink a state value to its registered schema. Called as the agent starts."""
         if interface not in self._interface_stateschema_input_map:
             raise AgentException(f"State {interface} not found in agent {self.name}")
 
@@ -795,26 +1025,35 @@ class BaseAgent(KoiledModel):
 
         # TODO: Implement state initialization through dataclass
 
-        snapshot_event = messages.StateSnapshot(
+        # The first thing the backend hears about this run is SessionInit: it opens the
+        # session row and records these snapshots as its baseline. Sending a StateSnapshot
+        # here instead (as this used to) left the session uninitialised — the backend
+        # accepted the snapshot but never learned a session had started.
+        session_init = messages.SessionInit(
             session_id=self.current_session,
-            global_rev=self.global_revision,
-            snapshots={
+            states={
                 interface: copy.deepcopy(shrunk_state)
                 for interface, shrunk_state in self._current_shrunk_states.items()
             },
         )
-        logger.debug("Publishing initial snapshot event: %s ", snapshot_event)
-        await self.apublish_snapshot(snapshot_event)
+        logger.debug("Publishing session init: %s ", session_init)
+        await self.apublish_session_init(session_init)
+
+    async def apublish_session_init(self, session_init: messages.SessionInit) -> None:
+        """Announce a new session, with the state snapshots it starts from."""
+        await self.transport.asend(session_init)
+        logger.debug("Published session init %s", session_init)
 
     async def apublish_patch(self, patch: messages.StatePatch) -> None:
-        """Publish a patch to the agent.  Will forward the patch to the transport"""
-        raise NotImplementedError("apublish_envelope not implemented in BaseAgent")
+        """Publish a state patch over the socket."""
+        await self.transport.asend(patch)
+        logger.debug("Published patch %s", patch)
 
     async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
-        """Publish a snapshot to the agent.  Will forward the snapshot to the transport"""
-        raise NotImplementedError("apublish_snapshot not implemented in BaseAgent")
+        """Publish a full state snapshot over the socket."""
+        await self.transport.asend(snapshot)
+        logger.debug("Published snapshot %s", snapshot)
 
-    # Agent Related Getters
     async def aget_context(self, context: str) -> Any:  # noqa: ANN401
         """Get a context from the agent. This is used to get contexts from the
         agent from the actor."""
@@ -859,7 +1098,7 @@ class BaseAgent(KoiledModel):
     async def arun_startup_hooks(
         self, app_context: Optional[AppContext] = None
     ) -> StartupHookReturns:
-        """Run all startup hooks collected from extensions.
+        """Run all startup hooks collected from the app registry.
 
         Returns:
             StartupHookReturns: The combined states and contexts from all hooks.
@@ -891,7 +1130,7 @@ class BaseAgent(KoiledModel):
         return StartupHookReturns(states=states, contexts=contexts)
 
     async def arun_shutdown_hooks(self) -> None:
-        """Run all shutdown hooks collected from extensions.
+        """Run all shutdown hooks collected from the app registry.
 
         Runs in the reverse of the registration order, so teardown unwinds what
         startup set up. Only runs for an agent that got as far as its startup
@@ -909,7 +1148,7 @@ class BaseAgent(KoiledModel):
             try:
                 await asyncio.wait_for(
                     hook.arun(
-                        agent=cast("AgentProtocol", self),
+                        agent=self,
                         contexts=self.contexts,
                         states=self.states,
                         app_context=self._app_context,
@@ -921,21 +1160,32 @@ class BaseAgent(KoiledModel):
                 hook_error.__cause__ = e
                 logger.error(hook_error, exc_info=hook_error)
 
+    @property
+    def registered_agent_id(self) -> Optional[str]:
+        """The id this agent's backend assigned it, once registered.
+
+        ``None`` before :meth:`aensure` has run, and for a backend that assigns none.
+        """
+        return self.backend.registered_agent_id
+
     async def aensure(self) -> None:
-        """A function that gets called so that we create the agent with its definitions before we start the ooop"""
+        """Make sure the backend knows what this agent implements, before the loop starts."""
+        await self.backend.aensure_registered(
+            app_registry=self.app_registry,
+            name=self.name,
+            definition_hash=await self.aget_hash(),
+        )
 
     async def astart(self, app_context: Optional[AppContext] = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
         """
-        # Collect state schemas, startup hooks, and background workers from all extensions
-        self.collect_from_extensions()
+        # Collect state schemas, startup hooks and background workers from the app registry
+        self.collect_from_registry()
 
         await self.aensure()
         self.current_session = await self._acreate_session()
-
-        # Run startup hooks from extensions
 
         # Inspect all locks
         locks = [lock.lock_key for lock in self.locks.values()]
@@ -962,15 +1212,12 @@ class BaseAgent(KoiledModel):
             self.contexts[context_key] = context_value
 
         await self.arun_background()
-        self._errorfuture = asyncio.Future()
 
     async def aspawn_actor_from_assign(self, assign: messages.Assign) -> Actor:
         """Spawns an Actor from a Assign.
 
-        We only spawn actors on assign as some actors can be meta actors that
-        do not exist hardcoded in the agent extensions, but rather are created
-        on demand based on the assign message.
-
+        Actors are spawned on assign rather than up front, because some are meta actors
+        that are not registered ahead of time but created on demand from the assign.
         """
 
         try:
@@ -1012,6 +1259,14 @@ class BaseAgent(KoiledModel):
         """
         await self._adrain_until_connected()
 
+    async def aget_handshake_params(self) -> HandshakeParams:
+        """Supply the agent-owned half of registering a connection.
+
+        Called by the transport once per connect attempt, which is what lets a reconnect
+        carry the *current* session id rather than one captured at build time.
+        """
+        return HandshakeParams(force=self.force, session_id=self.current_session)
+
     async def _aconnect_sequence(self, context: Optional[AppContext] = None) -> None:
         """The startup + transport-open + acknowledge sequence, unbounded.
 
@@ -1021,6 +1276,10 @@ class BaseAgent(KoiledModel):
         logger.debug("aconnect: running astart")
         await self.astart(app_context=context)
         logger.debug("aconnect: opening transport")
+        # Installed before the socket opens so the very first Register carries the
+        # session id, not just the ones after a reconnect, and so a drop during the
+        # very first connection already reaches the disconnect watchdog.
+        self.transport.set_transport_host(self)
         self._receiver = self.transport.areceive().__aiter__()
         await self.transport.aconnect()
         logger.debug("aconnect: draining until acknowledged")
@@ -1184,76 +1443,20 @@ class BaseAgent(KoiledModel):
 class RekuestAgent(BaseAgent):
     """The Rekuest Agent
 
-    This is the default agent that is used by rekuest. It provides the basic
-    functionality for managing the lifecycle of the actors that are spawned
-    from it.
-
+    The default agent: a :class:`BaseAgent` whose control plane is a real Rekuest server,
+    reached over GraphQL. Everything that used to be overridden here — registration,
+    shelving, collecting, publishing — now lives in
+    :class:`~rekuest_next.agents.backend.RathAgentBackend`, so this class only has to pick
+    the backend.
     """
 
     rath: RekuestNextRath = Field(
         description="The graph client that is used to make queries to when connecting to the rekuest server.",
     )
 
-    pass
-
-    async def aensure(self) -> None:
-        """Register all implementations that are handled by extensiosn
-
-        This method is called by the agent when it starts and it is responsible for
-        registering the templates that are defined in the extensions.
-        """
-
-        self._agent = await aensure_agent(
-            name=self.name,
-            rath=self.rath,
-        )
-
-        if self._agent.hash != await self.aget_hash():
-            logger.info(
-                "Agent hash does not match, registering implementations and states again"
-            )
-            # Assemble + validate the whole agent input from the app registry
-            # (the ImplementAgentInput model validators fire on construction).
-            agent_input = self.app_registry.to_implement_agent_input(
-                name=self.name,
-            )
-            agent = await aimplement_agent(
-                name=agent_input.name,
-                implementations=agent_input.implementations,
-                states=agent_input.states,
-                locks=agent_input.locks,
-                bloks=agent_input.bloks,
-                rath=self.rath,
-            )
-
-            logger.info("Registered agent with id %s and hash %s", agent.id, agent.hash)
-
-    async def ashelve(
-        self,
-        identifier: Identifier,
-        resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
-    ) -> str:
-        drawer = await ashelve(
-            identifier=identifier,
-            resource_id=resource_id,
-            label=label,
-            description=description,
-            rath=self.rath,
-        )
-        return drawer.id
-
-    async def acollect(self, key: str) -> None:
-        del self.shelve[key]
-        await aunshelve(id=key, rath=self.rath)
-
-    async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
-        await self.transport.asend(snapshot)
-        logger.debug("Published snapshot %s", snapshot)
-        return None
-
-    async def apublish_patch(self, patch: messages.StatePatch) -> None:
-        await self.transport.asend(patch)
-        logger.debug("Published patch %s", patch)
-        return None
+    def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
+        """Point the control plane at the same server this agent queries."""
+        super().model_post_init(__context)
+        if isinstance(self.backend, LocalAgentBackend):
+            # Only when the caller did not pass one explicitly.
+            self.backend = RathAgentBackend(rath=self.rath)

@@ -30,6 +30,8 @@ from rekuest_next import messages
 from rekuest_next.api.schema import AssignInput, StateImplementationInput
 from rekuest_next.agents.base import BaseAgent, RevisedState
 from rekuest_next.agents.transport.base import AgentTransport
+from rekuest_next.agents.backend import LocalAgentBackend
+from rekuest_next.contrib.fastapi.sink.backend import SinkAgentBackend
 from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetriever
 from rekuest_next.contrib.fastapi.retriever.protocol import StateRetriever
 from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink
@@ -351,6 +353,13 @@ class FastApiTransport(AgentTransport):
     `asubmit()` and forwards outgoing agent messages through a single websocket
     manager. Each websocket connection announces the task, state, and lock keys
     it wants to receive during its init handshake.
+
+    There is no control channel here to lose. The websockets this manages are
+    *observers* — a UI subscribing to updates — and the actual command path is an
+    in-process queue fed by HTTP routes. So both halves of the disconnect story are
+    inert for this transport: ``ConnectionPolicy`` has nothing to reconnect, and an
+    action's ``DisconnectPolicy`` never fires, however it is declared. A subscriber
+    going away is not a loss of control.
     """
 
     connection_manager: FastAPIConnectionManager = Field(
@@ -549,6 +558,9 @@ class FastApiAgent(BaseAgent):
     def model_post_init(self, __context: Any) -> None:
         """Wire task routing so websocket subscriptions use action keys."""
         super().model_post_init(__context)
+        # This agent's control plane is its sink, not a remote server.
+        if isinstance(self.backend, LocalAgentBackend):
+            self.backend = SinkAgentBackend(sink=self.sink)
         self.transport.connection_manager.task_routing_key_resolver = (
             self.get_task_action_key_for_message
         )
@@ -572,8 +584,11 @@ class FastApiAgent(BaseAgent):
         if interface is not None:
             normalized_payload["interface"] = interface
 
-        for field_name in ("cached", "log", "capture", "ephemeral"):
-            normalized_payload.setdefault(field_name, False)
+        # `cached`, `log` and `ephemeral` were dropped from AssignInput by the backend;
+        # a payload still carrying them would now be rejected as extra input.
+        for field_name in ("cached", "log", "ephemeral"):
+            normalized_payload.pop(field_name, None)
+        normalized_payload.setdefault("capture", False)
 
         return AssignInput.model_validate(normalized_payload)
 
@@ -773,24 +788,6 @@ class FastApiAgent(BaseAgent):
 
         return locks
 
-    async def ashelve(self, identifier, resource_id, label=None, description=None):
-        raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")
-
-    async def alock(self, key: str, task: str):
-        """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.Lock(
-            key=key,
-            task=task,
-        )
-        await self.transport.asend(message)
-
-    async def aunlock(self, key: str):
-        """Publish a patch to the agent.  Will forward the patch to all connected clients"""
-        message = messages.Unlock(
-            key=key,
-        )
-        await self.transport.asend(message)
-
     async def apublish_patch(self, patch: messages.StatePatch) -> None:
         """Publish a state patch event: broadcast to websocket clients and persist to sink."""
         await self.transport.asend(patch)
@@ -799,6 +796,21 @@ class FastApiAgent(BaseAgent):
     async def apublish_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         await self.transport.asend(snapshot)
         return await self.sink.adump_snapshot(snapshot)
+
+    async def apublish_session_init(self, session_init: messages.SessionInit) -> None:
+        """Announce the session and give the sink its baseline snapshot.
+
+        The sink stores snapshots, not session messages, so the states carried by the
+        session init are handed to it in the shape it persists.
+        """
+        await self.transport.asend(session_init)
+        await self.sink.adump_snapshot(
+            messages.StateSnapshot(
+                session_id=session_init.session_id,
+                global_rev=self.global_revision,
+                snapshots=dict(session_init.states),
+            )
+        )
 
     async def aget_revised_state(self, interface: str) -> RevisedState:
         """Get the current agent-owned shrunk state and revision for an interface."""
@@ -810,12 +822,6 @@ class FastApiAgent(BaseAgent):
         return RevisedState(
             revision=self.global_revision,
             data=copy.deepcopy(self._current_shrunk_states[interface]),
-        )
-
-    async def _acreate_session(self) -> str:
-        return await self.sink.acreate_session(
-            states=list(self.states.values()),
-            implementations=list(self.interface_implementation_map.values()),
         )
 
     async def _await_persistence_caught_up(self) -> None:
@@ -850,18 +856,13 @@ class FastApiAgent(BaseAgent):
         """Start the agent and initialize the sink and retriever."""
         await self.sink.ainitialize()
         await self.retriever.ainitialize()
+        if isinstance(self.backend, SinkAgentBackend):
+            # The session records the agent's states, which exist only once started.
+            self.backend.states = list(self.states.values())
+        # The baseline snapshot reaches the sink through apublish_session_init below,
+        # which super().astart() triggers once states are initialized. (This used to dump
+        # a second, identical snapshot here.)
         await super().astart(app_context=app_context)
-        # Dump initial snapshots after states are initialized
-        if self._current_shrunk_states:
-            snapshot = messages.StateSnapshot(
-                session_id=self.current_session,
-                global_rev=self.global_revision,
-                snapshots={
-                    interface: copy.deepcopy(shrunk_state)
-                    for interface, shrunk_state in self._current_shrunk_states.items()
-                },
-            )
-            await self.sink.adump_snapshot(snapshot)
 
     async def atear_down(self) -> None:
         """Tear down the agent and clean up the sink and retriever."""

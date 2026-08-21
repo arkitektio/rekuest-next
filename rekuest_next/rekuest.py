@@ -62,17 +62,15 @@ class RekuestNext(Composition):
             stateful (bool, optional): Whether the actor maintains internal state.
             widgets (Optional[Dict[str, AssignWidgetInput]], optional): Mapping of parameter names to widgets.
             dependencies (Optional[List[DependencyInput]], optional): List of external dependencies.
-            interfaces (Optional[List[str]], optional): Additional interfaces implemented.
             collections (Optional[List[str]], optional): Groupings for organizational purposes.
             port_groups (Optional[List[PortGroupInput]], optional): Port group assignments.
             effects (Optional[Dict[str, List[EffectInput]]], optional): Mapping of effects per port.
-            is_test_for (Optional[List[str]], optional): Interfaces this function serves as a test for.
-            logo (Optional[str], optional): URL or identifier for the actor's logo.
+            is_test_for (Optional[List[TestTargetInput]], optional): Actions this function serves as
+                a test for, each identified by hash or by (app, key, version).
             validators (Optional[Dict[str, List[ValidatorInput]]], optional): Input validation rules.
             structure_registry (Optional[StructureRegistry], optional): Custom structure registry instance.
             implementation_registry (Optional[DefinitionRegistry], optional): Custom implementation registry instance.
             in_process (bool, optional): Execute actor in the same process.
-            dynamic (bool, optional): Whether the actor definition is subject to change dynamically.
             concurrency (Literal["parallel", "serial"], optional): Whether assignments to the actor
                 may run concurrently ("parallel") or one at a time ("serial", the default).
 
@@ -161,8 +159,8 @@ class RekuestNext(Composition):
         """
         Run the application.
 
-        If ``force`` is set, it overrides the transport's build-time force policy for
-        this run (kicking any existing connection for this agent and taking over).
+        If ``force`` is set, it overrides the agent's takeover policy for this run
+        (kicking any existing connection for this agent and taking over).
         """
         return unkoil(self.arun, context=context, force=force)
 
@@ -177,14 +175,13 @@ class RekuestNext(Composition):
         return unkoil_task(self.arun, context=context, force=force)
 
     def _maybe_override_force(self, force: bool | None) -> None:
-        """Override the transport's build-time force policy for this run.
+        """Override the agent's takeover policy for this run.
 
-        Guarded because ``force`` is a websocket-transport concept and the agent
-        only holds an abstract transport.
+        ``force`` is a registration policy the agent owns and hands to its transport in
+        the per-attempt handshake, so this is a plain assignment — no duck typing needed.
         """
-        transport = getattr(self.agent, "transport", None)
-        if force is not None and transport is not None and hasattr(transport, "force"):
-            setattr(transport, "force", force)
+        if force is not None:
+            self.agent.force = force
 
     async def arun(
         self, context: Any | None = None, *, force: bool | None = None
@@ -192,8 +189,7 @@ class RekuestNext(Composition):
         """
         Run the application.
 
-        If ``force`` is not None it overrides the transport's build-time force policy
-        for this run.
+        If ``force`` is not None it overrides the agent's takeover policy for this run.
         """
         self._maybe_override_force(force)
         await self.agent.aprovide(context=context)

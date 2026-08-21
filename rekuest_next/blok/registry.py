@@ -11,13 +11,13 @@ from typing import (
 from rekuest_next.api.schema import (
     ActionArgumentInput,
     ActionDependencyInput,
-    AgentCallInput,
+    AgentProbeInput,
     AgentDependencyInput,
     BlokImplementationInput,
     ComponentNodeInput,
     ComponentPropInput,
     StateDependencyInput,
-    UtilCallInput,
+    UtilProbeInput,
 )
 from rekuest_next.definition.dependencies import (
     build_action_dependency_input,
@@ -172,7 +172,7 @@ def _collect_prop_references(
 
 
 def _collect_agent_call_references(
-    agent_call: AgentCallInput,
+    agent_call: AgentProbeInput,
     available_locals: Set[str],
     referenced_actions: dict[str, set[str]],
     referenced_states: dict[str, set[str]],
@@ -193,7 +193,7 @@ def _collect_agent_call_references(
 
 
 def _collect_util_call_references(
-    util_call: UtilCallInput,
+    util_call: UtilProbeInput,
     available_locals: Set[str],
     referenced_actions: dict[str, set[str]],
     referenced_states: dict[str, set[str]],

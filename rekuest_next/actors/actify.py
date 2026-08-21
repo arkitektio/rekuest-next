@@ -5,6 +5,7 @@ into an actor.
 """
 
 import inspect
+import warnings
 from functools import partial
 from typing import Any, Optional, Tuple
 
@@ -96,7 +97,6 @@ def prepare_definition_from_config(
         function,
         structure_registry,
         widgets=config.widgets,
-        interfaces=config.interfaces,
         port_groups=config.port_groups,
         collections=config.collections,
         stateful=stateful,
@@ -106,7 +106,6 @@ def prepare_definition_from_config(
         name=config.name,
         description=config.description,
         return_widgets=config.return_widgets,
-        logo=config.logo,
         key=config.key,
         version=config.version,
         **prepare_overrides,
@@ -155,6 +154,7 @@ def reactify(
         "dependency_variables": implementation_details.dependency_variables,
         "locks": implementation_details.locks,
         "concurrency": config.concurrency,
+        "policy": config.policy,
     }
 
     if is_coroutine:
@@ -167,6 +167,20 @@ def reactify(
         iterator = THREADED_FUNC
     else:
         raise NotImplementedError("No way of converting this to a function")
+
+    if config.policy.cancels_on_disconnect and iterator in (
+        THREADED_FUNC,
+        THREADED_GEN,
+    ):
+        # Warn rather than raise: a threaded action that *does* poll is perfectly
+        # valid, and we cannot tell from the outside whether this one does.
+        warnings.warn(
+            f"{getattr(function, '__name__', function)!r} asks to be cancelled on "
+            "disconnect but runs in a worker thread, which cannot be force-killed. "
+            "It will only stop if its body calls koil.check_cancelled().",
+            UserWarning,
+            stacklevel=3,
+        )
 
     return (
         definition,

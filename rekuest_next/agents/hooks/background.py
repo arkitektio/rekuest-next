@@ -14,7 +14,7 @@ from typing import (
 import asyncio
 
 from koil.bridge import run_threaded
-from rekuest_next.actors.types import Agent
+from rekuest_next.state.publish import StateHolder
 from rekuest_next.agents.context import (
     prepare_context_variables,
 )
@@ -108,7 +108,7 @@ class WrappedBackgroundTask(WithVariables):
         super().__init__(func)
 
     async def arun(
-        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
+        self, agent: StateHolder, contexts: Dict[str, Any], states: Dict[str, Any]
     ) -> None:
         """Run the background task in the event loop"""
         kwargs = self.get_kwargs(contexts, states)
@@ -127,12 +127,12 @@ class WrappedThreadedBackgroundTask(WithVariables):
         super().__init__(func)
         self.thread_pool = ThreadPoolExecutor(1)
 
-    def run_with_publishing(self, agent: Agent, **kwargs: Any) -> None:
+    def run_with_publishing(self, agent: StateHolder, **kwargs: Any) -> None:
         with direct_publishing(agent):
             return self.func(**kwargs)
 
     async def arun(
-        self, agent: Agent, contexts: Dict[str, Any], states: Dict[str, Any]
+        self, agent: StateHolder, contexts: Dict[str, Any], states: Dict[str, Any]
     ) -> None:
         """Run the background task in a thread pool"""
         kwargs = self.get_kwargs(contexts, states)
