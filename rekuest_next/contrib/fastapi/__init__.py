@@ -1,5 +1,10 @@
 """FastAPI integration for rekuest_next agents."""
 
+from .auth import (
+    AuthenticationError,
+    ExpandUserFromRequest,
+    UserSource,
+)
 from .routes import (
     add_agent_routes,
     add_implementation_routes,
@@ -21,6 +26,9 @@ from .agent import FastAPIConnectionManager, FastApiAgent, FastApiTransport
 
 
 __all__ = [
+    "AuthenticationError",
+    "ExpandUserFromRequest",
+    "UserSource",
     "FastApiAgent",
     "FastApiTransport",
     "FastAPIConnectionManager",

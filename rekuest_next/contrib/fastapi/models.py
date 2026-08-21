@@ -130,3 +130,10 @@ class WebSocketSubscriptionInit(BaseModel):
     state_keys: list[str] | None = None
     lock_keys: list[str] | None = None
     state_update_intervals: dict[str, float] | None = None
+    token: str | None = None
+    """Credential for the handshake.
+
+    Browsers cannot set headers on a `WebSocket`, so the websocket authenticates in
+    band: this is the websocket's equivalent of an `Authorization` header. It is read
+    by the application's `expand_user_from_request` hook.
+    """

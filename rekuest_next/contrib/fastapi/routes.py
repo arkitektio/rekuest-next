@@ -32,6 +32,7 @@ from rekuest_next.contrib.fastapi.route_groups import (
     build_state_router,
     build_task_router,
 )
+from rekuest_next.contrib.fastapi.auth import ExpandUserFromRequest
 from rekuest_next.contrib.sql_lite.retriever import SQLLiteRetriever
 from rekuest_next.contrib.sql_lite.sink import SQLLiteSink
 
@@ -76,6 +77,7 @@ def add_agent_routes(
     app: FastAPI,
     agent: FastApiAgent,
     get_user_from_request: Optional[Callable[[Request], object]] = None,
+    expand_user_from_request: Optional[ExpandUserFromRequest] = None,
     ws_path: str = "/ws",
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
@@ -85,11 +87,17 @@ def add_agent_routes(
 ) -> None:
     """Include core agent routes."""
     user_getter = get_user_from_request or _default_user_from_request
+    if expand_user_from_request is not None and get_user_from_request is not None:
+        logger.warning(
+            "Both get_user_from_request and expand_user_from_request were given; "
+            "expand_user_from_request wins."
+        )
     _include_router(
         app,
         build_core_router(
             agent,
             user_getter,
+            expand_user_from_request=expand_user_from_request,
             ws_path=ws_path,
             assign_path=assign_path,
             cancel_path=cancel_path,
@@ -178,6 +186,7 @@ def configure_fastapi(
     app: FastAPI,
     app_registry: AppRegistry,
     get_user_from_request: Optional[Callable[[Request], object]] = None,
+    expand_user_from_request: Optional[ExpandUserFromRequest] = None,
     add_implementations: bool = True,
     add_schema: bool = True,
     add_states: bool = True,
@@ -193,7 +202,18 @@ def configure_fastapi(
     db_file: str = "agent_data.db",
     app_context: Any | None = None,
 ) -> FastApiAgent:
-    """Configure a FastAPI app with a refactored set of agent route groups."""
+    """Configure a FastAPI app with a refactored set of agent route groups.
+
+    Args:
+        expand_user_from_request: Unified authentication hook. It is handed a
+            Starlette `Request` for HTTP routes and a `WebSocketSubscriptionInit`
+            for the websocket handshake, so one callable covers both transports.
+            Raise `AuthenticationError` to reject: HTTP answers 401, the websocket
+            closes with code 1008.
+        get_user_from_request: Deprecated, HTTP-only predecessor of
+            `expand_user_from_request`. Still honoured when the newer hook is
+            absent, in which case the websocket stays unauthenticated as before.
+    """
     agent: FastApiAgent = FastApiAgent(  # type: ignore
         app_registry=app_registry,
         retriever=SQLLiteRetriever(db_path=db_file),
@@ -204,6 +224,7 @@ def configure_fastapi(
         app,
         agent,
         get_user_from_request=get_user_from_request,
+        expand_user_from_request=expand_user_from_request,
         ws_path=ws_path,
         assign_path=assign_path,
     )

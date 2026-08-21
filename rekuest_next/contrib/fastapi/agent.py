@@ -36,6 +36,10 @@ from rekuest_next.contrib.fastapi.retriever.memory_retriever import MemoryRetrie
 from rekuest_next.contrib.fastapi.retriever.protocol import StateRetriever
 from rekuest_next.contrib.fastapi.sink.memory_sink import MemorySink
 from rekuest_next.contrib.fastapi.sink.protocol import StateSink
+from rekuest_next.contrib.fastapi.auth import (
+    AuthenticationError,
+    ExpandUserFromRequest,
+)
 from rekuest_next.contrib.fastapi.models import (
     LockView,
     StateCollectionResponse,
@@ -456,6 +460,7 @@ class FastApiTransport(AgentTransport):
             [WebSocketSubscriptionInit], Awaitable[dict[str, Any] | None]
         ]
         | None = None,
+        expand_user_from_request: ExpandUserFromRequest | None = None,
     ) -> None:
         """Serve the unified websocket endpoint.
 
@@ -469,6 +474,9 @@ class FastApiTransport(AgentTransport):
             websocket: The accepted websocket connection.
             build_initial_payload: Optional callback used to construct the first
                 snapshot message after the init payload has been received.
+            expand_user_from_request: Optional hook used to authenticate the
+                handshake from the init payload. Raising `AuthenticationError`
+                closes the socket with code 1008 before any subscription is made.
         """
         print("WebSocket connection received, waiting for init payload...")
         await websocket.accept()
@@ -478,6 +486,19 @@ class FastApiTransport(AgentTransport):
                 raise ValueError("Websocket init payload must be a JSON object")
 
             init_payload = WebSocketSubscriptionInit.model_validate(init_data)
+
+            if expand_user_from_request is not None:
+                try:
+                    expand_user_from_request(init_payload)
+                except AuthenticationError as auth_error:
+                    # Closed *after* accept on purpose. Closing before accept makes the
+                    # handshake fail as an HTTP error, which browsers surface as an
+                    # opaque code 1006 that a client cannot tell apart from a dropped
+                    # connection. A post-accept 1008 is a code the client can act on.
+                    logger.info("WebSocket rejected: %s", auth_error)
+                    await websocket.close(code=1008, reason="unauthorized")
+                    return
+
             subscriptions = _WebSocketSubscriptions.from_init(init_payload)
             await self.connection_manager.connect(websocket, subscriptions)
 
@@ -645,11 +666,22 @@ class FastApiAgent(BaseAgent):
             },
         }
 
-    async def handle_websocket(self, websocket: WebSocket) -> None:
-        """Serve the unified websocket endpoint for this agent."""
+    async def handle_websocket(
+        self,
+        websocket: WebSocket,
+        expand_user_from_request: ExpandUserFromRequest | None = None,
+    ) -> None:
+        """Serve the unified websocket endpoint for this agent.
+
+        Args:
+            websocket: The websocket connection to serve.
+            expand_user_from_request: Optional hook authenticating the handshake
+                from the init payload the client sends after connecting.
+        """
         await self.transport.handle_websocket(
             websocket,
             build_initial_payload=self.abuild_websocket_init_message,
+            expand_user_from_request=expand_user_from_request,
         )
 
     def build_task_action_key(self, assign_message: messages.Assign) -> str:
