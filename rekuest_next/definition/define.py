@@ -223,7 +223,7 @@ def convert_object_to_argport(
         # and convert hem to a new union
 
         non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
-        cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
+        cls = Union[tuple(non_nullable_args)]  # type: ignore
         # TODO: We might want to handle this better
 
         return convert_object_to_argport(
@@ -522,7 +522,7 @@ def convert_object_to_returnport(
         # and convert hem to a new union
 
         non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
-        cls = Union.__getitem__(tuple(non_nullable_args))  # type: ignore
+        cls = Union[tuple(non_nullable_args)]  # type: ignore
         # TODO: We might want to handle this better
 
         return convert_object_to_returnport(

@@ -1,5 +1,7 @@
 """General Tests for defininin actions"""
 
+from typing import Optional
+
 from rekuest_next.api.schema import DefinitionInput, PortKind
 import pytest
 from rekuest_next.definition.define import prepare_definition
@@ -264,6 +266,40 @@ def test_explicit_name_takes_precedence(simple_registry: StructureRegistry) -> N
         some_action, structure_registry=simple_registry, name="Custom Name"
     )
     assert functional_definition.name == "Custom Name"
+
+
+@pytest.mark.define
+def test_nullable_optional_arg_and_return(simple_registry: StructureRegistry) -> None:
+    """Regression test for the nullable-union reconstruction (issue #15).
+
+    Both ``convert_object_to_argport`` and ``convert_object_to_returnport``
+    rebuild a new union from the non-``None`` members of an ``Optional`` type.
+    On Python 3.14 ``typing.Union`` became a real C class, so the previous
+    ``Union.__getitem__(tuple(...))`` call raised ``descriptor '__getitem__'
+    requires a 'typing.Union' object but received a 'tuple'``. This test hits
+    both the input and output branches to guard against a regression.
+    """
+
+    def optional_roundtrip(x: Optional[int]) -> Optional[str]:
+        """Return the value as a string, or ``None``.
+
+        Args:
+            x (int, optional): the input value
+        """
+        return None if x is None else str(x)
+
+    functional_definition = prepare_definition(
+        optional_roundtrip, structure_registry=simple_registry
+    )
+    assert isinstance(functional_definition, DefinitionInput), (
+        "output is not a definition"
+    )
+
+    assert functional_definition.args[0].nullable, "Arg should be nullable"
+    assert functional_definition.args[0].kind == PortKind.INT
+
+    assert functional_definition.returns[0].nullable, "Return should be nullable"
+    assert functional_definition.returns[0].kind == PortKind.STRING
 
 
 @pytest.mark.define
