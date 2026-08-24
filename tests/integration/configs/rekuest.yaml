@@ -8,6 +8,11 @@ django:
     - "*"
   secret_key: 9be5ca4df71514f00a8f22719f788ad8
 authentikate:
+  # This service's identifier, matched against the token's `aud` claim. Required
+  # since the backend bump. The static_tokens below never have their audience
+  # checked (they are pasted into this config by hand), so this only has to be
+  # honest, not permissive.
+  audience: rekuest
   issuers:
     - kind: rsa
       iss: lok

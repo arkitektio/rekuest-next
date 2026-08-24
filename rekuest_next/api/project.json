@@ -1,9 +1,8 @@
 {
-    "schema_url": "http://jhnnsrs-lab/rekuest/schema",
+    "schema": "http://jhnnsrs-lab/rekuest/schema",
     "documents": "graphql/**/**.graphql",
     "extensions": {
         "turms": {
-            "pydantic_version": "v2",
             "domain": null,
             "out_dir": "rekuest_next/api",
             "dump_configuration": true,
@@ -55,19 +54,17 @@
                 ],
                 "exclude": null,
                 "include": null,
-                "exclude_fields": [],
-                "include_fields": [],
                 "convert_list_to_tuple": true
             },
             "create_catchall": true,
             "options": {
                 "enabled": true,
                 "extra": "forbid",
-                "allow_mutation": null,
-                "allow_population_by_field_name": true,
-                "orm_mode": null,
+                "populate_by_name": true,
+                "from_attributes": null,
                 "use_enum_values": true,
                 "validate_assignment": null,
+                "alias_mode": "split",
                 "types": [
                     "input"
                 ],
@@ -75,6 +72,8 @@
                 "include": null
             },
             "skip_forwards": false,
+            "min_python_version": "3.10",
+            "type_annotation_style": "auto",
             "additional_bases": {
                 "Action": [
                     "rekuest_next.traits.action.Callable"
@@ -115,13 +114,8 @@
             },
             "additional_config": {},
             "force_plugin_order": true,
-            "omited_document_rules": [],
-            "parsers": [
-                {
-                    "type": "turms.parsers.polyfill.PolyfillParser",
-                    "python_version": 3.7
-                }
-            ],
+            "omitted_document_rules": [],
+            "parsers": [],
             "plugins": [
                 {
                     "type": "turms.plugins.enums.EnumsPlugin"

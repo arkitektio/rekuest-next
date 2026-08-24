@@ -1397,7 +1397,7 @@ dev = [
     { name = "qtpy", specifier = ">=2.4.3" },
     { name = "ruff", specifier = ">0.11" },
     { name = "testcontainers", specifier = "==3.7.0" },
-    { name = "turms", specifier = ">=0.11.0" },
+    { name = "turms", specifier = ">=2.0.0" },
 ]
 
 [[package]]
@@ -1582,7 +1582,7 @@ wheels = [
 
 [[package]]
 name = "turms"
-version = "0.11.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "graphql-core" },
@@ -1594,9 +1594,9 @@ dependencies = [
     { name = "rich-click" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d3/e4/727c4da8492d5529a6442873bcf57acbcb7d86ab3aa0214ad14a6b33c7a8/turms-0.11.0.tar.gz", hash = "sha256:3da190c2c91f1264af189ae3322328697cb48e65c5474638d7b41c7c9bcd890d", size = 57255, upload-time = "2026-06-12T09:21:16.418Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/93/feb543387938a048c05f45e942f53e483f5e0e421e83c16a7b991185159a/turms-2.0.0.tar.gz", hash = "sha256:2cb42978954052ce99c1479188317bf89cc87998f95cc13ffe9ead38ffeddaf7", size = 86744, upload-time = "2026-08-24T11:00:32.438Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/be/7305fd63379bbdf2affc2d2794f1dc664793d4a059e2b03148f330749af0/turms-0.11.0-py3-none-any.whl", hash = "sha256:b1fc887638b406e88c3c8dbb9e2e8a3792998b5947227bce85f4a2134c931586", size = 73006, upload-time = "2026-06-12T09:21:17.444Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/38/f89d2eee9995348a976031aee1ed773dcf9877cb8505e6372a62a1723834/turms-2.0.0-py3-none-any.whl", hash = "sha256:6bddc9cdbc2399259d77c0a8fa9299ed9714be8b1fc412bdcf00b375d85d238f", size = 104214, upload-time = "2026-08-24T11:00:31.13Z" },
 ]
 
 [[package]]

@@ -28,7 +28,6 @@ from rekuest_next.actors.vars import (
 )
 from rekuest_next.api.schema import (
     TaskEventKind,
-    AssignInput,
     HookInput,
     Action,
     afind as afind_node,
@@ -137,64 +136,58 @@ def _resolve_postman(postman: Optional[Postman]) -> Postman:
     return postman
 
 
-def _build_assign_input(
-    *,
-    args: Optional[Dict[str, Any]],
-    reference: Optional[str],
-    hooks: Optional[List[HookInput]],
-    parent: Optional[Assign],
-    capture: bool,
-    cached: bool = False,
-    log: bool = False,
-    action: Optional[Action] = None,
-    implementation: Optional[Implementation] = None,
-    dependency: Optional[ID] = None,
-    method: Optional[str] = None,
-) -> AssignInput:
-    """Build the AssignInput for a remote call.
+def _resolve_parent(parent: Optional[Assign]) -> Optional[ID]:
+    """The parent task id to attach this call to, as the socket wants it.
 
-    When no ``parent`` is given and the call happens inside another
-    task, the current task is attached as the parent.
-
-    ``cached`` and ``log`` are accepted but no longer sent: the backend dropped both
-    fields from ``AssignInput`` (``cached`` had already been documented there as having
-    no effect — replay is decided caller-side via ``reusableTaskFor``). They stay in the
-    signature so existing callers keep working.
+    When no ``parent`` is given and the call happens inside another task, the current
+    task becomes the parent. Only the agent socket can carry one — which is exactly the
+    postman bound while an actor body runs, so the two line up on their own.
     """
     if parent is None:
         try:
             parent = useAssign()
         except NotWithinATaskError:
-            parent = None
-
-    return AssignInput(
-        action=action.id if action else None,
-        implementation=implementation.id if implementation else None,
-        dependency=dependency,
-        method=method,  # type: ignore
-        args=args or {},
-        reference=reference or str(uuid.uuid4()),
-        hooks=tuple(hooks or []),
-        capture=capture,
-        parent=ID.validate(parent.task) if parent else None,
-        isHook=False,
-    )
+            return None
+    return ID.validate(parent.task)
 
 
-async def _astream_raw(
+async def _astream_raw(  # noqa: PLR0913 - the call description, mirrored from the protocol
     postman: Postman,
-    assign_input: AssignInput,
+    *,
+    args: Optional[Dict[str, Any]] = None,
+    reference: Optional[str] = None,
+    hooks: Optional[List[HookInput]] = None,
+    capture: bool = False,
+    action: Optional[Action] = None,
+    implementation: Optional[Implementation] = None,
+    parent: Optional[ID] = None,
+    dependency: Optional[ID] = None,
+    method: Optional[str] = None,
     escalate_to_interrupt: bool = False,
     cancel_timeout: Optional[float] = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the YIELD payloads of a task, returning on DONE.
 
+    The call is described by its arguments rather than by a pre-built payload: the
+    GraphQL postman and the agent postman no longer share one (see
+    :meth:`rekuest_next.postmans.types.Postman.aassign`), so each builds its own.
+
     Raises:
         ErrorCallError: If the backend reports a task error.
         CriticalCallError: If the backend reports a critical task error.
+        RootOnlyAssignError: If a ``parent``/``dependency``/``method`` call is routed
+            to a postman that can only create root tasks.
     """
     async for i in postman.aassign(
-        assign_input,
+        args=args or {},
+        capture=capture,
+        reference=reference or str(uuid.uuid4()),
+        hooks=tuple(hooks or []),
+        action=action.id if action else None,
+        implementation=implementation.id if implementation else None,
+        parent=parent,
+        dependency=dependency,
+        method=method,
         escalate_to_interrupt=escalate_to_interrupt,
         cancel_timeout=cancel_timeout,
     ):
@@ -230,23 +223,23 @@ async def aiterate_raw(
     Operates on already-serialized arguments and yields transport-level
     payloads; prefer :func:`aiterate` unless you are deliberately operating on
     transport-level data.
+
+    ``cached`` and ``log`` are accepted but not sent: the backend dropped both fields
+    from ``AssignInput`` (``cached`` had already been documented there as having no
+    effect — replay is decided caller-side via ``reusableTaskFor``). They stay in the
+    signature so existing callers keep working.
     """
     resolved_postman = _resolve_postman(postman)
-    assign_input = _build_assign_input(
-        args=kwargs,
-        reference=reference,
-        hooks=hooks,
-        parent=parent,
-        cached=cached,
-        log=log,
-        capture=capture,
-        action=action,
-        implementation=implementation,
-    )
 
     async for returns in _astream_raw(
         resolved_postman,
-        assign_input,
+        args=kwargs,
+        reference=reference,
+        hooks=hooks,
+        capture=capture,
+        action=action,
+        implementation=implementation,
+        parent=_resolve_parent(parent),
         escalate_to_interrupt=escalate_to_interrupt,
         cancel_timeout=cancel_timeout,
     ):
@@ -312,23 +305,31 @@ async def acall_dependency_raw(
     log: bool = False,
     postman: Optional[Postman] = None,
 ) -> Any:  # noqa: ANN401
-    """Call a method on a dependency with already serialized arguments."""
+    """Call a method on a dependency with already serialized arguments.
+
+    A dependency method call is never a root, so it can only be originated over the
+    agent socket — which is the postman bound while an actor body runs. Calling it from
+    outside a task raises ``RootOnlyAssignError``.
+
+    ``cached`` and ``log`` are accepted but not sent: the backend dropped both fields
+    from ``AssignInput`` (``cached`` had already been documented there as having no
+    effect — replay is decided caller-side via ``reusableTaskFor``). They stay in the
+    signature so existing callers keep working.
+    """
     resolved_postman = _resolve_postman(postman)
-    assign_input = _build_assign_input(
-        args=kwargs,
-        reference=reference,
-        hooks=hooks,
-        parent=parent,
-        cached=cached,
-        log=log,
-        capture=capture,
-        dependency=dependency_key,
-        method=method,
-    )
 
     returns = tuple()
 
-    async for r in _astream_raw(resolved_postman, assign_input):
+    async for r in _astream_raw(
+        resolved_postman,
+        args=kwargs,
+        reference=reference,
+        hooks=hooks,
+        capture=capture,
+        parent=_resolve_parent(parent),
+        dependency=dependency_key,
+        method=method,
+    ):
         returns = r
 
     return returns

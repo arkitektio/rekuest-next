@@ -1,8 +1,11 @@
 """A GraphQL postman"""
 
 from types import TracebackType
-from typing import AsyncGenerator, Dict, List
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
+from rath.scalars import ID
 from rekuest_next.api.schema import (
+    HookInput,
+    ResolvedDependencyInput,
     TaskChange,
     TaskEventChange,
     TaskEventKind,
@@ -12,10 +15,12 @@ from rekuest_next.api.schema import (
     ainterrupt,
     AssignInput,
 )
+from rekuest_next.scalars import ActionHash
 import asyncio
+import uuid
 from pydantic import Field, PrivateAttr
 import logging
-from .errors import PostmanException
+from .errors import PostmanException, RootOnlyAssignError
 from rekuest_next.rath import RekuestNextRath
 from koil.composition import KoiledModel
 from .vars import current_postman
@@ -74,18 +79,105 @@ class GraphQLPostman(KoiledModel):
             for event in orphans:
                 queue.put_nowait(event)
 
-    async def aassign(
+    def _build_input(
         self,
-        assign: AssignInput,
+        *,
+        args: Dict[str, Any],
+        capture: bool,
+        reference: str,
+        hooks: Optional[Sequence[HookInput]],
+        action: Optional[ID],
+        implementation: Optional[ID],
+        parent: Optional[ID],
+        dependency: Optional[str],
+        method: Optional[str],
+        action_hash: Optional[ActionHash],
+        agent: Optional[ID],
+        interface: Optional[str],
+        resolution: Optional[ID],
+        dependencies: Optional[Sequence[ResolvedDependencyInput]],
+        step: Optional[bool],
+    ) -> AssignInput:
+        """Build the GraphQL ``AssignInput`` for this call.
+
+        Raises:
+            RootOnlyAssignError: If the call carries a ``parent``, ``dependency`` or
+                ``method`` — none of which a GraphQL assign can express.
+        """
+        if parent is not None or dependency is not None or method is not None:
+            raise RootOnlyAssignError(
+                "A GraphQL assign creates a root task, so it cannot carry "
+                f"parent={parent!r}, dependency={dependency!r}, method={method!r}. "
+                "A call made from inside a running task has to be originated over the "
+                "agent socket, which happens automatically while an actor body runs "
+                "(the agent's caller postman is bound as the current postman). Seeing "
+                "this means the call is running outside a task, or a GraphQL postman "
+                "was passed explicitly."
+            )
+        return AssignInput(
+            action=action,
+            resolution=resolution,
+            implementation=implementation,
+            agent=agent,
+            action_hash=action_hash,
+            interface=interface,
+            hooks=tuple(hooks) if hooks is not None else None,
+            args=args,
+            reference=reference,
+            capture=capture,
+            dependencies=tuple(dependencies) if dependencies is not None else None,
+            step=step,
+        )
+
+    async def aassign(  # noqa: PLR0913 - the call description, mirrored from the protocol
+        self,
+        *,
+        args: Dict[str, Any],
+        capture: bool = False,
+        reference: Optional[str] = None,
+        hooks: Optional[Sequence[HookInput]] = None,
+        action: Optional[ID] = None,
+        implementation: Optional[ID] = None,
+        parent: Optional[ID] = None,
+        dependency: Optional[str] = None,
+        method: Optional[str] = None,
+        action_hash: Optional[ActionHash] = None,
+        agent: Optional[ID] = None,
+        interface: Optional[str] = None,
+        resolution: Optional[ID] = None,
+        dependencies: Optional[Sequence[ResolvedDependencyInput]] = None,
+        step: Optional[bool] = None,
         escalate_to_interrupt: bool = False,
         cancel_timeout: float | None = None,
     ) -> AsyncGenerator[TaskEventChange, None]:
-        """Assign a"""
+        """Originate a root task over GraphQL and stream its events.
+
+        See :meth:`rekuest_next.postmans.types.Postman.aassign`. ``parent`` /
+        ``dependency`` / ``method`` are accepted only so this postman can reject them
+        loudly: the mutation creates a root task and has no way to express a child.
+        """
+        assign_input = self._build_input(
+            args=args,
+            capture=capture,
+            reference=reference or str(uuid.uuid4()),
+            hooks=hooks,
+            action=action,
+            implementation=implementation,
+            parent=parent,
+            dependency=dependency,
+            method=method,
+            action_hash=action_hash,
+            agent=agent,
+            interface=interface,
+            resolution=resolution,
+            dependencies=dependencies,
+            step=step,
+        )
+        # `_build_input` always sets it, so this is a str for the queue keys below.
+        assign_reference: str = assign_input.reference or ""
+
         if not self._received_something:
             await asyncio.sleep(0.5)  # Add an initial sleep
-
-        if not assign.reference:
-            raise Exception("Reference must be set. Before assigning")
 
         if not self._lock:
             raise ValueError("Postman was never connected")
@@ -94,18 +186,18 @@ class GraphQLPostman(KoiledModel):
             if not self._watching:
                 await self.start_watching()
 
-        self._ass_update_queues[assign.reference] = asyncio.Queue()
-        queue = self._ass_update_queues[assign.reference]
+        self._ass_update_queues[assign_reference] = asyncio.Queue()
+        queue = self._ass_update_queues[assign_reference]
 
         try:
-            task = await aassign(**assign.model_dump(), rath=self.rath)
+            task = await aassign(**assign_input.model_dump(), rath=self.rath)
         except Exception as e:
             raise PostmanException(f"Cannot Assign: {e}") from e
 
         # Bind task id -> reference so the change feed (which only knows the task
         # id) can route events to this queue. Also flushes any events that raced
         # ahead of this http response.
-        self._bind(task.id, assign.reference)
+        self._bind(task.id, assign_reference)
 
         try:
             while True:
@@ -127,7 +219,7 @@ class GraphQLPostman(KoiledModel):
                     else self.cancel_timeout,
                 )
             finally:
-                self._cleanup_reference(assign.reference)
+                self._cleanup_reference(assign_reference)
             raise e
 
     def _cleanup_reference(self, reference: str) -> None:

@@ -14,13 +14,13 @@ fixture) and a working executor path.
 """
 
 import asyncio
-from typing import Any, List, Protocol
+from typing import Any, Dict, List, Protocol
 
 import pytest
 from dokker import Deployment
 
 from rekuest_next.agents.caller import AgentPostman
-from rekuest_next.api.schema import AssignInput, amy_implementation_at
+from rekuest_next.api.schema import amy_implementation_at
 from rekuest_next.declare import declare
 from rekuest_next.remote import acall
 
@@ -38,12 +38,12 @@ async def test_actor_internal_dependency_call_uses_agent(
     ``AgentPostman.aassign`` (the agent caller) — not the GraphQL postman.
     """
 
-    delegated: List[AssignInput] = []
+    delegated: List[Dict[str, Any]] = []
     original_aassign = AgentPostman.aassign
 
-    def spy_aassign(self: AgentPostman, assign: AssignInput, *args: Any, **kwargs: Any):
-        delegated.append(assign)
-        return original_aassign(self, assign, *args, **kwargs)
+    def spy_aassign(self: AgentPostman, **kwargs: Any):
+        delegated.append(kwargs)
+        return original_aassign(self, **kwargs)
 
     monkeypatch.setattr(AgentPostman, "aassign", spy_aassign)
 
@@ -93,7 +93,10 @@ async def test_actor_internal_dependency_call_uses_agent(
         assert delegated, (
             "the dependency call did not go through the agent caller postman"
         )
-        assert any(a.dependency is not None for a in delegated), (
+        assert any(call.get("parent") is not None for call in delegated), (
+            "the inner call should have inherited the running task as its parent"
+        )
+        assert any(call.get("dependency") is not None for call in delegated), (
             "expected a dependency-resolving AssignRequest over the agent socket"
         )
 

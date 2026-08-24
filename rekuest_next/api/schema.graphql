@@ -1,4 +1,12 @@
-directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null) on FIELD_DEFINITION
+directive @auth(required_scopes: [String!] = null, required_roles: [String!] = null, required_org_roles: [String!] = null) on FIELD_DEFINITION
+
+directive @oneOf on INPUT_OBJECT
+
+schema @link(url: "https://specs.apollo.dev/federation/v2.11", import: ["@key"]) {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
 
 input AckInput {
   task: ID!
@@ -802,15 +810,12 @@ input ArgPortInput {
 """The `Args` scalar type represents a Dictionary of arguments"""
 scalar Args
 
-"""The input for assigning args to a action."""
+"""
+The input for assigning args to a action. A GraphQL assign is a ROOT by definition — children are created only over the agent socket (AssignRequest, where parent is mandatory) and by server-internal paths like init hooks, so parent/dependency/method are deliberately absent here.
+"""
 input AssignInput {
   """The action ID to assign to"""
   action: ID = null
-
-  """
-  The dependency key.method to assign when running inside a resolved task
-  """
-  dependency: String = null
 
   """
   The resolution ID to assign to when assining to a implementation with dependencies
@@ -830,9 +835,6 @@ input AssignInput {
   """
   actionHash: ActionHash = null
 
-  """The method key to assign when running inside a resolved task"""
-  method: String = null
-
   """
   The interface of the implementation. Only ussable if you also set agent
   """
@@ -851,11 +853,6 @@ input AssignInput {
   """
   reference: String = null
 
-  """
-  The parent ID of the task. This is used to identify the task in the system.
-  """
-  parent: ID = null
-
   """Whether to capture the task."""
   capture: Boolean!
 
@@ -864,14 +861,8 @@ input AssignInput {
   """
   dependencies: [ResolvedDependencyInput!] = null
 
-  """Whether the task is a hook"""
-  isHook: Boolean = null
-
   """Whether the task should step. Ie. go to the next breakpoint"""
   step: Boolean = null
-
-  """The policy for the task. This defines how the task should be handled."""
-  policy: AssignPolicy = null
 }
 
 enum AssignPolicy {
@@ -1377,7 +1368,7 @@ input CreateBlokInput {
 }
 
 """
-Input for creating a dashboard, optionally specifying its name, the bloks to include, and the owning organization.
+Input for creating a dashboard, optionally specifying its name and the bloks to include. It is owned by the caller's organization.
 """
 input CreateDashboardInput {
   """The name of the dashboard."""
@@ -1385,9 +1376,6 @@ input CreateDashboardInput {
 
   """The list of blok IDs to include in the dashboard."""
   bloks: [String!]! = []
-
-  """The organization ID to associate with the dashboard."""
-  organization: String = null
 }
 
 """The input for creating a implementation."""
@@ -2209,10 +2197,13 @@ input ImplementationOrder @oneOf {
   active: Ordering
 }
 
+"""
+An implementation feed event: exactly one of create/update/delete is set.
+"""
 type ImplementationUpdate {
-  create: Implementation!
-  update: Implementation!
-  delete: ID!
+  create: Implementation
+  update: Implementation
+  delete: ID
 }
 
 """
@@ -2394,7 +2385,7 @@ A type representing a media store reference, which can be either a string ID or 
 """
 scalar MediaLike
 
-type MediaStore {
+type MediaStore @key(fields: "id", resolvable: true) {
   id: ID!
   path: String!
   bucket: String!
@@ -2496,197 +2487,194 @@ type MessageEffect implements Effect {
 """Root mutation type for executing write operations on the API."""
 type Mutation {
   """Create a new implementation entry."""
-  createImplementation(input: CreateImplementationInput!): Implementation!
+  createImplementation(input: CreateImplementationInput!): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Acknowledge a task."""
-  ack(input: AckInput!): Task!
+  ack(input: AckInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Bounce an agent so it reconnects."""
-  bounce(input: BounceInput!): Agent!
+  bounce(input: BounceInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Kick an agent to force disconnect. It will fail and not reconnect."""
-  kick(input: KickInput!): Agent!
+  kick(input: KickInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Assign a task to an agent."""
-  assign(input: AssignInput!): Task!
+  assign(input: AssignInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Fire a probe at an agent — zero persistence, redis-held state under a TTL, never appears in task history. For high-frequency interactive work (previews, live parameter tweaks).
   """
-  probe(input: ProbeInput!): Probe!
+  probe(input: ProbeInput!): Probe! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Cancel a probe. Idempotent: cancelling a finished probe is a no-op returning its terminal state.
   """
-  cancelProbe(input: CancelProbeInput!): Probe!
+  cancelProbe(input: CancelProbeInput!): Probe! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Pause a probe. Idempotent on finished probes; the agent's Paused report settles the state.
   """
-  pauseProbe(input: PauseProbeInput!): Probe!
+  pauseProbe(input: PauseProbeInput!): Probe! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Resume a paused probe. Idempotent on finished probes; the agent's Resumed report settles the state.
   """
-  resumeProbe(input: ResumeProbeInput!): Probe!
+  resumeProbe(input: ResumeProbeInput!): Probe! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Cancel an active task."""
-  cancel(input: CancelInput!): Task!
+  cancel(input: CancelInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Pause an ongoing task."""
-  pause(input: PauseInput!): Task!
+  pause(input: PauseInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Resume a paused task."""
-  resume(input: ResumeInput!): Task!
+  resume(input: ResumeInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Collect results from a task."""
-  collect(input: CollectInput!): [String!]!
+  collect(input: CollectInput!): [String!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Interrupt the execution of a task."""
-  interrupt(input: InterruptInput!): Task!
-
-  """Reinitialize the task or agent."""
-  reinit(input: ReInitInput!): String!
+  interrupt(input: InterruptInput!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Block an agent from connecting."""
-  block(input: BlockInput!): Agent!
+  block(input: BlockInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Unblock a previously blocked agent."""
-  unblock(input: UnblockInput!): Agent!
+  unblock(input: UnblockInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a registered implementation."""
-  deleteImplementation(input: DeleteImplementationInput!): String!
+  deleteImplementation(input: DeleteImplementationInput!): String! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Mark an implementation as a higher-order wrapper of a lower implementation, with a projection config.
   """
-  setHigherOrder(input: SetHigherOrderInput!): Implementation!
+  setHigherOrder(input: SetHigherOrderInput!): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Ensure agent record exists or is up to date."""
-  ensureAgent(input: AgentInput!): Agent!
+  ensureAgent(input: AgentInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a new test case."""
-  createTestCase(input: CreateTestCaseInput!): TestCase!
+  createTestCase(input: CreateTestCaseInput!): TestCase! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a test result record."""
-  createTestResult(input: CreateTestResultInput!): TestResult!
+  createTestResult(input: CreateTestResultInput!): TestResult! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Shelve data into a memory drawer."""
-  shelveInMemoryDrawer(input: ShelveInMemoryDrawerInput!): MemoryDrawer!
+  shelveInMemoryDrawer(input: ShelveInMemoryDrawerInput!): MemoryDrawer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Unshelve data from a memory drawer."""
-  unshelveMemoryDrawer(input: UnshelveMemoryDrawerInput!): ID!
+  unshelveMemoryDrawer(input: UnshelveMemoryDrawerInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a dashboard layout."""
-  createDashboard(input: CreateDashboardInput!): Dashboard!
+  createDashboard(input: CreateDashboardInput!): Dashboard! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a user interface panel."""
-  createBlok(input: CreateBlokInput!): Blok!
+  createBlok(input: CreateBlokInput!): Blok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Materialize a UI blok into a concrete instance on a dashboard."""
-  materializeBlok(input: MaterializeBlokInput!): MaterializedBlok!
+  materializeBlok(input: MaterializeBlokInput!): MaterializedBlok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Pin an agent to the user."""
-  pinAgent(input: PinInput!): Agent!
+  pinAgent(input: PinInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Pin an implementation to the user."""
-  pinImplementation(input: PinInput!): Implementation!
+  pinImplementation(input: PinInput!): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete an agent record."""
-  deleteAgent(input: DeleteAgentInput!): ID!
+  deleteAgent(input: DeleteAgentInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update properties of an agent such as its name."""
-  updateAgent(input: UpdateAgentInput!): Agent!
+  updateAgent(input: UpdateAgentInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a shortcut to an action."""
-  createShortcut(input: CreateShortcutInput!): Shortcut!
+  createShortcut(input: CreateShortcutInput!): Shortcut! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a shortcut."""
-  deleteShortcut(input: DeleteShortcutInput!): ID!
+  deleteShortcut(input: DeleteShortcutInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a new toolbox with shortcuts."""
-  createToolbox(input: CreateToolboxInput!): Toolbox!
+  createToolbox(input: CreateToolboxInput!): Toolbox! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a toolbox by ID."""
-  deleteToolbox(input: DeleteToolboxInput!): ID!
+  deleteToolbox(input: DeleteToolboxInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete unreferenced actions from the system."""
-  cleanupActions(actionIds: [ID!] = null): Int!
+  cleanupActions(actionIds: [ID!] = null): Int! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Automatically resolve dependencies for an implementation."""
-  autoResolve(input: AutoResolveInput!): Resolution!
+  autoResolve(input: AutoResolveInput!): Resolution! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a resolution for an implementation."""
-  createResolution(input: CreateResolutionInput!): Resolution!
+  createResolution(input: CreateResolutionInput!): Resolution! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update an existing resolution."""
-  updateResolution(input: UpdateResolutionInput!): Resolution!
+  updateResolution(input: UpdateResolutionInput!): Resolution! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a resolution by ID."""
-  deleteResolution(input: DeleteResolutionInput!): ID!
+  deleteResolution(input: DeleteResolutionInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Upload media and return a URL for access"""
-  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant!
+  requestMediaUpload(input: RequestMediaUploadInput!): MediaUploadGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Finalize a media upload after the client has written the object"""
-  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore!
+  finishMediaUpload(input: FinishMediaUploadInput!): MediaStore! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Request temporary S3 read credentials for a media file"""
-  requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant!
+  requestMediaAccess(input: RequestMediaAccessInput!): MediaAccessGrant! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a dashboard by ID."""
-  deleteDashboard(input: DeleteDashboardInput!): Boolean!
+  deleteDashboard(input: DeleteDashboardInput!): Boolean! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Update properties of a dashboard such as its name, associated bloks, or organization.
   """
-  updateDashboard(input: UpdateDashboardInput!): Dashboard!
+  updateDashboard(input: UpdateDashboardInput!): Dashboard! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a blok by ID."""
-  deleteBlok(input: DeleteBlokInput!): Boolean!
+  deleteBlok(input: DeleteBlokInput!): Boolean! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Update properties of a blok such as its name, description, components, demo state, catalog, or dependencies.
   """
-  updateBlok(input: UpdateBlokInput!): Blok!
+  updateBlok(input: UpdateBlokInput!): Blok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a materialized blok by ID."""
-  deleteMaterializedBlok(input: DeleteMaterializedBlokInput!): Boolean!
+  deleteMaterializedBlok(input: DeleteMaterializedBlokInput!): Boolean! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update properties of a materialized blok such as its agent mappings."""
-  updateMaterializedBlok(input: UpdateMaterializedBlokInput!): MaterializedBlok!
+  updateMaterializedBlok(input: UpdateMaterializedBlokInput!): MaterializedBlok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Implement an agent with given states and implementations. This is used to set up an agent with its initial configuration and capabilities.
   """
-  implementAgent(input: ImplementAgentInput!): Agent!
+  implementAgent(input: ImplementAgentInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a new 3D model."""
-  createThreedModel(input: CreateThreeDModelInput!): ThreeDModel!
+  createThreedModel(input: CreateThreeDModelInput!): ThreeDModel! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update an existing 3D model."""
-  updateThreedModel(input: UpdateThreeDModelInput!): ThreeDModel!
+  updateThreedModel(input: UpdateThreeDModelInput!): ThreeDModel! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a 3D model."""
-  deleteThreedModel(input: DeleteThreeDModelInput!): ID!
+  deleteThreedModel(input: DeleteThreeDModelInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a new space."""
-  createSpace(input: CreateSpaceInput!): Space!
+  createSpace(input: CreateSpaceInput!): Space! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update an existing space."""
-  updateSpace(input: UpdateSpaceInput!): Space!
+  updateSpace(input: UpdateSpaceInput!): Space! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a space."""
-  deleteSpace(input: DeleteSpaceInput!): ID!
+  deleteSpace(input: DeleteSpaceInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Create a new placement for an agent in a space."""
-  createPlacement(input: CreatePlacementInput!): Placement!
+  createPlacement(input: CreatePlacementInput!): Placement! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Update an existing placement."""
-  updatePlacement(input: UpdatePlacementInput!): Placement!
+  updatePlacement(input: UpdatePlacementInput!): Placement! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Delete a placement."""
-  deletePlacement(input: DeletePlacementInput!): ID!
+  deletePlacement(input: DeletePlacementInput!): ID! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 }
 
 input OffsetPaginationInput {
@@ -2743,14 +2731,18 @@ type Patch {
   path: String!
   value: Args!
   timestamp: DateTime!
-  currentRevision: Int!
-  futureRevision: Int!
-  globalCurrentRevision: Int!
-  globalFutureRevision: Int!
-  sessionId: String!
   task: Task
   state: State!
   interface: String!
+
+  """Global revision this patch applied to (global_rev - 1)."""
+  globalCurrentRevision: Int!
+
+  """Global revision produced by this patch (global_rev)."""
+  globalFutureRevision: Int!
+
+  """The session identifier string this row belongs to."""
+  sessionId: String
   patch: JSONPatch!
 }
 
@@ -3136,237 +3128,230 @@ type Query {
   _service: _Service!
 
   """List all registered clients."""
-  clients(filters: ClientFilter, ordering: [ClientOrder!]! = [], pagination: OffsetPaginationInput): [Client!]!
+  clients(filters: ClientFilter, ordering: [ClientOrder!]! = [], pagination: OffsetPaginationInput): [Client!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of all hardware records."""
-  hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]!
+  hardwareRecords(filters: HardwareRecordFilter, pagination: OffsetPaginationInput): [HardwareRecord!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve all compute agents."""
-  agents(filters: AgentFilter, ordering: [AgentOrder!]! = [], pagination: OffsetPaginationInput): [Agent!]!
+  agents(filters: AgentFilter, ordering: [AgentOrder!]! = [], pagination: OffsetPaginationInput): [Agent!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of all available actions."""
-  actions(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]!
+  actions(filters: ActionFilter, ordering: [ActionOrder!]! = [], pagination: OffsetPaginationInput): [Action!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve protocols grouping actions."""
-  protocols(filters: ProtocolFilter, ordering: [ProtocolOrder!]! = [], pagination: OffsetPaginationInput): [Protocol!]!
+  protocols(filters: ProtocolFilter, ordering: [ProtocolOrder!]! = [], pagination: OffsetPaginationInput): [Protocol!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All registered implementations."""
-  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]!
+  implementations(filters: ImplementationFilter, ordering: [ImplementationOrder!]! = [], pagination: OffsetPaginationInput): [Implementation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Test results associated with test cases."""
-  testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]!
+  testResults(filters: TestResultFilter, pagination: OffsetPaginationInput): [TestResult!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All test cases."""
-  testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]!
+  testCases(filters: TestCaseFilter, pagination: OffsetPaginationInput): [TestCase!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of shortcuts."""
-  shortcuts(filters: ShortcutFilter, ordering: [ShortcutOrder!]! = [], pagination: OffsetPaginationInput): [Shortcut!]!
+  shortcuts(filters: ShortcutFilter, ordering: [ShortcutOrder!]! = [], pagination: OffsetPaginationInput): [Shortcut!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of toolboxes containing shortcuts."""
-  toolboxes(filters: ToolboxFilter, ordering: [ToolboxOrder!]! = [], pagination: OffsetPaginationInput): [Toolbox!]!
+  toolboxes(filters: ToolboxFilter, ordering: [ToolboxOrder!]! = [], pagination: OffsetPaginationInput): [Toolbox!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All dashboards."""
-  dashboards: [Dashboard!]!
+  dashboards: [Dashboard!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All states from agents."""
-  states: [State!]!
+  states: [State!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of UI Blok."""
-  bloks: [Blok!]!
+  bloks: [Blok!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All resolutions."""
-  resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]!
+  resolutions(filters: ResolutionFilter, pagination: OffsetPaginationInput): [Resolution!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List of UI Blok."""
-  materializedBloks(filters: MaterializedBlokFilter, ordering: [MaterializedBlokOrder!]! = [], pagination: OffsetPaginationInput): [MaterializedBlok!]!
+  materializedBloks(filters: MaterializedBlokFilter, ordering: [MaterializedBlokOrder!]! = [], pagination: OffsetPaginationInput): [MaterializedBlok!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Available state schemas."""
-  stateDefinitions: [StateDefinition!]!
+  stateDefinitions: [StateDefinition!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All memory shelves."""
-  memoryShelves(filters: MemoryShelveFilter, ordering: [MemoryShelveOrder!]! = [], pagination: OffsetPaginationInput): [MemoryShelve!]!
+  memoryShelves(filters: MemoryShelveFilter, ordering: [MemoryShelveOrder!]! = [], pagination: OffsetPaginationInput): [MemoryShelve!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All memory drawers."""
-  memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]!
+  memoryDrawers(filters: MemoryDrawerFilter, pagination: OffsetPaginationInput): [MemoryDrawer!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """All tasks."""
-  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]!
+  tasks(filters: TaskFilter, ordering: [TaskOrder!]! = [], pagination: OffsetPaginationInput): [Task!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific agent by ID or by app, version and device_id."""
-  agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null): Agent!
+  agent(id: ID = null, app: String = null, version: String = null, deviceId: String = null): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List all spaces."""
-  spaces(filters: SpaceFilter, ordering: [SpaceOrder!]! = [], pagination: OffsetPaginationInput): [Space!]!
+  spaces(filters: SpaceFilter, ordering: [SpaceOrder!]! = [], pagination: OffsetPaginationInput): [Space!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific space by ID."""
-  space(id: ID!): Space!
+  space(id: ID!): Space! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List all placements."""
-  placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]!
+  placements(filters: PlacementFilter, ordering: [PlacementOrder!]! = [], pagination: OffsetPaginationInput): [Placement!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific placement by ID."""
-  placement(id: ID!): Placement!
+  placement(id: ID!): Placement! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List all 3D models."""
-  threedModels(filters: ThreeDModelFilter, ordering: [ThreeDModelOrder!]! = [], pagination: OffsetPaginationInput): [ThreeDModel!]!
+  threedModels(filters: ThreeDModelFilter, ordering: [ThreeDModelOrder!]! = [], pagination: OffsetPaginationInput): [ThreeDModel!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific 3D model by ID."""
-  threedModel(id: ID!): ThreeDModel!
+  threedModel(id: ID!): ThreeDModel! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """List all sessions."""
-  sessions(filters: SessionFilter, ordering: [SessionOrder!]! = [], pagination: OffsetPaginationInput): [Session!]!
+  sessions(filters: SessionFilter, ordering: [SessionOrder!]! = [], pagination: OffsetPaginationInput): [Session!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific session by ID."""
-  session(id: ID!): Session!
+  session(id: ID!): Session! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Statistics about actions and their implementations."""
-  actionStats(filters: ActionFilter = null): ActionStats!
+  actionStats(filters: ActionFilter = null): ActionStats! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Statistics about tasks and their states."""
-  taskStats(filters: TaskFilter = null): TaskStats!
+  taskStats(filters: TaskFilter = null): TaskStats! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get task boundaries."""
-  taskBoundaries(correlationId: String!, stateId: ID = null): TaskBoundary
+  taskBoundaries(correlationId: String!, stateId: ID = null): TaskBoundary @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get session boundaries."""
-  sessionBoundaries(sessionId: ID!, stateId: ID = null): SessionBoundary
+  sessionBoundaries(sessionId: ID!, stateId: ID = null): SessionBoundary @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get state at global revision."""
-  stateAtGlobalRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]!
-
-  """Get state at local revision."""
-  stateAtLocalRev(revision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]!
+  stateAtGlobalRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null): [Snapshot!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get forward events after revision."""
-  forwardEventsAfterRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null, count: Int! = 100): [Patch!]!
+  forwardEventsAfterRev(globalRevision: Int!, stateId: ID = null, sessionId: String = null, count: Int! = 100): [Patch!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get patch events between global revisions."""
-  patchEventsBetweenGlobalRevs(fromGlobalRevision: Int!, toGlobalRevision: Int!, stateIds: [ID!] = null, sessionId: String = null): [Patch!]!
+  patchEventsBetweenGlobalRevs(fromGlobalRevision: Int!, toGlobalRevision: Int!, stateIds: [ID!] = null, sessionId: String = null): [Patch!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get snapshots around revision."""
-  snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]!
+  snapshotsAroundRev(revision: Int!, stateId: ID = null, sessionId: String = null, before: Int! = 1, after: Int! = 1): [Snapshot!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific action."""
-  action(id: ID = null, task: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDemandInput = null): Action!
+  action(id: ID = null, task: ID = null, implementation: ID = null, agent: ID = null, interface: String = null, hash: ActionHash = null, matching: ActionDemandInput = null): Action! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch the root tasks this client created (caller-scoped)."""
-  myTasks: [Task!]!
+  myTasks: [Task!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Fetch a live (or lingering) probe by ID. Expired probes are gone — probes are never persisted.
   """
-  probe(id: ID!): Probe!
+  probe(id: ID!): Probe! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Live probe counts: instance-wide total plus your in-flight count and cap.
   """
-  probeStats: ProbeStats!
+  probeStats: ProbeStats! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   The latest completed run of a PURE action with these exact args, or null — the replay primitive. Reuse decisions belong to the orchestrator.
   """
-  reusableTaskFor(actionHash: String!, args: Args!): Task
+  reusableTaskFor(actionHash: String!, args: Args!): Task @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a specific event."""
-  event(id: ID!): TaskEvent!
+  event(id: ID!): TaskEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Find implementation at given interface."""
-  implementationAt(agent: ID!, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation!
+  implementationAt(agent: ID!, interface: String = null, actionHash: String = null, demand: ActionDemandInput = null): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Find your implementation at a specific interface."""
-  myImplementationAt(actionId: ID = null, interface: String = null): Implementation!
+  myImplementationAt(actionId: ID = null, interface: String = null): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Materialize the latest state for a specific agent"""
-  checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): StateValue!
+  checkout(state: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): StateValue! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Materialize the latest states for a specific agent"""
-  checkoutAgent(agent: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): AgentWithValues!
+  checkoutAgent(agent: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): AgentWithValues! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   All structures referenced by the org's action ports (derived, not registered).
   """
-  structures(search: String = null): [Structure!]!
+  structures(search: String = null): [Structure!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   All structure packages referenced by the org's action ports (derived, not registered).
   """
-  structurePackages(search: String = null): [StructurePackage!]!
+  structurePackages(search: String = null): [StructurePackage!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   All interfaces referenced by the org's action ports (derived, not registered).
   """
-  interfaces(search: String = null): [Interface!]!
+  interfaces(search: String = null): [Interface!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch resolved dependencies for a resolution."""
-  resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]!
+  resolvedImplementations(resolution: ID!, dependencyKey: String = null, methodKey: String = null): [Implementation!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve state for a specific context."""
-  stateFor(agent: ID!, stateHash: String = null, demand: StateDemandInput = null): State!
+  stateFor(agent: ID!, stateHash: String = null, demand: StateDemandInput = null): State! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a client by ID."""
-  resolution(id: ID!): Resolution!
+  resolution(id: ID!): Resolution! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get a specific state by ID."""
-  state(id: ID!): State!
+  state(id: ID!): State! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a structure package by its key (derived from port identifiers)."""
-  structurePackage(key: ID!): StructurePackage!
+  structurePackage(key: ID!): StructurePackage! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Fetch an interface by its '@package/key' identifier (derived from port identifiers).
   """
-  interface(identifier: ID!): Interface!
+  interface(identifier: ID!): Interface! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Fetch a structure by its '@package/key' identifier (derived from port identifiers).
   """
-  structure(identifier: ID!): Structure!
+  structure(identifier: ID!): Structure! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a memory shelve by ID."""
-  memoryShelve(id: ID!): MemoryShelve!
+  memoryShelve(id: ID!): MemoryShelve! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a memory drawer by ID."""
-  memoryDrawer(id: ID!): MemoryDrawer!
+  memoryDrawer(id: ID!): MemoryDrawer! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get a blok by ID."""
-  blok(id: ID!): Blok!
+  blok(id: ID!): Blok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get a materialized blok by ID."""
-  materializedBlok(id: ID!): MaterializedBlok!
+  materializedBlok(id: ID!): MaterializedBlok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve a state definition by ID."""
-  stateDefinition(id: ID!): StateDefinition!
+  stateDefinition(id: ID!): StateDefinition! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get toolbox by ID."""
-  toolbox(id: ID!): Toolbox!
+  toolbox(id: ID!): Toolbox! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve shortcut by ID."""
-  shortcut(id: ID!): Shortcut!
+  shortcut(id: ID!): Shortcut! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get hardware record by ID."""
-  hardwareRecord(id: ID!): HardwareRecord!
+  hardwareRecord(id: ID!): HardwareRecord! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get dashboard by ID."""
-  dashboard(id: ID!): Dashboard!
+  dashboard(id: ID!): Dashboard! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch a dependency by ID."""
-  dependency(id: ID!): Dependency!
+  dependency(id: ID!): Dependency! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Retrieve test case by ID."""
-  testCase(id: ID!): TestCase!
+  testCase(id: ID!): TestCase! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get test result by ID."""
-  testResult(id: ID!): TestResult!
+  testResult(id: ID!): TestResult! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Get implementation by ID."""
-  implementation(id: ID!): Implementation!
+  implementation(id: ID!): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Fetch task by ID."""
-  task(id: ID!): Task!
-}
-
-input ReInitInput {
-  agent: ID = null
+  task(id: ID!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 }
 
 """Profile information for a user."""
@@ -3682,7 +3667,7 @@ scalar SearchQuery
 """
 A session representing a continuous interaction of an agent with the system.
 """
-type Session {
+type Session @key(fields: "id", resolvable: true) {
   id: ID!
   agent: Agent!
   startedAt: DateTime!
@@ -3822,10 +3807,13 @@ type Snapshot {
   id: ID!
   value: Args!
   timestamp: DateTime!
-  revision: Int!
-  globalRevision: Int!
-  sessionId: String!
   state: State!
+
+  """Global revision this snapshot represents (global_rev)."""
+  globalRevision: Int!
+
+  """The session identifier string this row belongs to."""
+  sessionId: String
 }
 
 """A space where agents can interact."""
@@ -4163,45 +4151,45 @@ type StructurePackage {
 """Root subscription type for real-time event streams from the system."""
 type Subscription {
   """Subscribe to notifications when new actions are created."""
-  newActions(cage: ID!): Action!
+  newActions: Action! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to root tasks created by this client (caller-scoped)."""
-  mytasks: TaskChangeEvent!
+  mytasks: TaskChangeEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to root task changes across the whole organization."""
-  tasks: TaskChangeEvent!
+  tasks: TaskChangeEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to updates on agent connections and statuses."""
-  agents: AgentChangeEvent!
+  agents: AgentChangeEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to changes in implementations."""
-  implementationChange(implementation: ID!): Implementation!
+  implementationChange(implementation: ID!): Implementation! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to creation or updates of implementations."""
-  implementations(agent: ID!): ImplementationUpdate!
+  implementations(agent: ID!): ImplementationUpdate! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to updates of state values and patches."""
-  stateUpdateEvents(stateId: ID!): State!
+  stateUpdateEvents(stateId: ID!): State! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to latest patches for specific agents or states."""
-  latestPatches(state: ID = null, agent: ID = null): Patch!
+  latestPatches(state: ID = null, agent: ID = null): Patch! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Watch a state: yields the current snapshot then streams patches."""
-  watchState(stateId: ID = null, agentId: ID = null, interface: String = null): StateSnapshotEventStatePatchEvent!
+  watchState(stateId: ID = null, agentId: ID = null, interface: String = null): StateSnapshotEventStatePatchEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Watch an agent: yields snapshots for all states then streams patches."""
-  watchAgent(agentId: ID!): AgentSnapshotEventStatePatchEvent!
+  watchAgent(agentId: ID!): AgentSnapshotEventStatePatchEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to all descendant task changes of a task."""
-  childTasks(id: ID!): ChildTaskEvent!
+  childTasks(id: ID!): ChildTaskEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Subscribe to task create/update for a specific agent."""
-  agentTasks(agent: ID!): AgentTaskUpdate!
+  agentTasks(agent: ID!): AgentTaskUpdate! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
   Stream the events of one probe (caller-scoped, payload-carrying). Emits a state snapshot first when events already happened.
   """
-  probeEvents(probe: ID!): ProbeEvent!
+  probeEvents(probe: ID!): ProbeEvent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 }
 
 """Tracks the assignment of an implementation to a specific task."""
@@ -4280,14 +4268,14 @@ type Task {
   """The method of the dependency that caused this task, if applicable."""
   dependencyMethod: String
 
-  """Get a specific dependency by key."""
-  resolvedDependencies: [ResolvedAgentDependency!]!
-
   """List of recent instructions for this task."""
   instructs: [TaskInstruct!]!
 
   """Get a specific argument by key."""
   arg(key: String!): Args
+
+  """The resolved dependencies for this task."""
+  resolvedDependencies: [ResolvedAgentDependency!]!
 }
 
 type TaskBoundary {
@@ -4326,9 +4314,6 @@ type TaskEvent {
   """Unique ID of the event."""
   id: ID!
 
-  """Name of the event."""
-  name: String!
-
   """Optional return values."""
   returns: AnyDefault
 
@@ -4350,7 +4335,7 @@ type TaskEvent {
   """If this event was delegated, the task it was delegated to."""
   delegatedTo: Task
 
-  """Default log level."""
+  """Log level of the event (LOG events; INFO when unset)."""
   level: LogLevel!
 
   """Reference string for the event."""
@@ -4389,6 +4374,7 @@ enum TaskEventKind {
   STARTED
   PROGRESS
   DELEGATE
+  UNASSIGN
   DISCONNECTED
   YIELD
   COMPLETED
@@ -4768,7 +4754,7 @@ input UpdateBlokInput {
 }
 
 """
-Input for updating a dashboard. This is used to update the properties of a dashboard, such as its name, associated bloks, or organization.
+Input for updating a dashboard: its name and associated bloks. Ownership cannot be reassigned.
 """
 input UpdateDashboardInput {
   """The ID of the dashboard to update."""
@@ -4781,9 +4767,6 @@ input UpdateDashboardInput {
   The new list of blok IDs to include in the dashboard. This will replace the existing list if provided.
   """
   bloks: [String!] = null
-
-  """The new organization ID to associate with the dashboard."""
-  organization: String = null
 }
 
 """
@@ -4866,7 +4849,7 @@ input UpdateThreeDModelInput {
 }
 
 """Represents an authenticated user."""
-type User {
+type User @key(fields: "id", resolvable: true) {
   """Unique ID of the user."""
   id: ID!
 

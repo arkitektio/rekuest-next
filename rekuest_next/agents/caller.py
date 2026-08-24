@@ -11,8 +11,8 @@ it unchanged once it is bound as ``current_postman`` while an actor body runs (s
 
 The translation is:
 
-- outbound: an ``AssignInput`` (the postman call shape) → an ``AssignRequest`` socket message;
-  ``AssignInput.reference`` is reused as the idempotency key.
+- outbound: the call description (:meth:`Postman.aassign`'s arguments) → an
+  ``AssignRequest`` socket message; ``reference`` is reused as the idempotency key.
 - inbound: the backend answers with an ``AssignResponse`` (carrying the durable task id) and
   then streams ``ExecutionEvent`` mirrors for that task. Each surfaced mirror is adapted into a
   :class:`CallerTaskEvent` that exposes exactly the ``.kind`` / ``.returns`` / ``.message``
@@ -29,12 +29,15 @@ import logging
 import uuid
 from dataclasses import dataclass
 from types import TracebackType
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
+
+from rath.scalars import ID
 
 from rekuest_next import messages
-from rekuest_next.api.schema import AssignInput, TaskEventKind
+from rekuest_next.api.schema import HookInput, TaskEventKind
 from rekuest_next.agents.transport.types import MessageSink
 from rekuest_next.postmans.errors import AssignException
+from rekuest_next.scalars import ActionHash
 
 logger = logging.getLogger(__name__)
 
@@ -137,50 +140,32 @@ class AgentPostman:
 
     # ------------------------------------------------------------------ outbound
 
-    def _build_request(
-        self, assign: AssignInput, reference: str
-    ) -> messages.AssignRequest:
-        """Translate an ``AssignInput`` into an ``AssignRequest`` socket message."""
-        return messages.AssignRequest(
-            reference=reference,
-            args=dict(assign.args or {}),
-            action=assign.action,
-            action_hash=assign.action_hash,
-            implementation=assign.implementation,
-            agent=assign.agent,
-            interface=assign.interface,
-            parent=assign.parent,
-            dependency=assign.dependency,
-            method=assign.method,
-            resolution=assign.resolution,
-            hooks=[h.model_dump(by_alias=True) for h in (assign.hooks or [])],
-            capture=assign.capture,
-            step=assign.step,
-        )
-
-    def _build_probe_request(
-        self, assign: AssignInput, reference: str
-    ) -> messages.ProbeRequest:
-        """Translate an ``AssignInput`` into a ``ProbeRequest`` socket message.
-
-        A probe carries only what identifies the action and its arguments: it has no
-        parent, no dependency resolution and no hooks, because it never joins a task tree.
-        """
-        return messages.ProbeRequest(
-            reference=reference,
-            args=dict(assign.args or {}),
-            action=assign.action,
-            action_hash=assign.action_hash,
-            implementation=assign.implementation,
-        )
-
-    async def aassign(
+    async def aassign(  # noqa: PLR0913 - the call description, mirrored from the protocol
         self,
-        assign: AssignInput,
+        *,
+        args: Dict[str, Any],
+        capture: bool = False,
+        reference: Optional[str] = None,
+        hooks: Optional[Sequence[HookInput]] = None,
+        action: Optional[ID] = None,
+        implementation: Optional[ID] = None,
+        parent: Optional[ID] = None,
+        dependency: Optional[str] = None,
+        method: Optional[str] = None,
+        action_hash: Optional[ActionHash] = None,
+        agent: Optional[ID] = None,
+        interface: Optional[str] = None,
+        resolution: Optional[ID] = None,
+        step: Optional[bool] = None,
         escalate_to_interrupt: bool = False,
         cancel_timeout: Optional[float] = None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
         """Originate a task over the agent socket and stream its events.
+
+        See :meth:`rekuest_next.postmans.types.Postman.aassign`. Unlike the GraphQL
+        mutation, the socket carries the whole task tree, so ``parent`` / ``dependency``
+        / ``method`` are sent as given — that is the reason actor-internal calls route
+        here at all.
 
         Sends an ``AssignRequest``, awaits the ``AssignResponse`` (to learn the durable task
         id), then yields a ``CallerTaskEvent`` for every surfaced mirror until a terminal one
@@ -188,10 +173,26 @@ class AgentPostman:
         confirmation is awaited (bounded by ``cancel_timeout``); if ``escalate_to_interrupt``
         is set and the cancel is not confirmed in time, an ``InterruptRequest`` follows.
         """
-        reference = assign.reference or str(uuid.uuid4())
+        request_reference = reference or str(uuid.uuid4())
+        request = messages.AssignRequest(
+            reference=request_reference,
+            args=dict(args or {}),
+            action=action,
+            action_hash=action_hash,
+            implementation=implementation,
+            agent=agent,
+            interface=interface,
+            parent=parent,
+            dependency=dependency,
+            method=method,
+            resolution=resolution,
+            hooks=[h.model_dump(by_alias=True) for h in (hooks or [])],
+            capture=capture,
+            step=step,
+        )
         async for event in self._astream(
-            self._build_request(assign, reference),
-            reference,
+            request,
+            request_reference,
             escalate_to_interrupt,
             cancel_timeout,
         ):
@@ -199,7 +200,12 @@ class AgentPostman:
 
     async def aprobe(
         self,
-        assign: AssignInput,
+        *,
+        args: Dict[str, Any],
+        reference: Optional[str] = None,
+        action: Optional[ID] = None,
+        implementation: Optional[ID] = None,
+        action_hash: Optional[ActionHash] = None,
         escalate_to_interrupt: bool = False,
         cancel_timeout: Optional[float] = None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
@@ -209,15 +215,25 @@ class AgentPostman:
         identity: no server-side history, no replay or recovery, and no task tree — probes
         are always provenance roots. Only actions declaring ``allowProbe`` accept one.
 
+        It therefore takes a narrower call description than :meth:`aassign`: no parent, no
+        dependency resolution and no hooks, because none of them can apply.
+
         The event stream is shaped exactly like :meth:`aassign`'s; the id it is keyed by is
         the probe id (``p-…``) rather than a durable task id. Resends are *not* idempotent:
         there is no durable row to dedupe against, so a resend after a lost response fires a
         new probe.
         """
-        reference = assign.reference or str(uuid.uuid4())
+        request_reference = reference or str(uuid.uuid4())
+        request = messages.ProbeRequest(
+            reference=request_reference,
+            args=dict(args or {}),
+            action=action,
+            action_hash=action_hash,
+            implementation=implementation,
+        )
         async for event in self._astream(
-            self._build_probe_request(assign, reference),
-            reference,
+            request,
+            request_reference,
             escalate_to_interrupt,
             cancel_timeout,
         ):

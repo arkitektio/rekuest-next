@@ -16,12 +16,12 @@ from .memory_transport import MemoryAgentTransport
 from rekuest_next.agents.caller import AgentPostman, CallerTaskEvent
 from rekuest_next.api.schema import TaskEventKind
 from rekuest_next.postmans.errors import AssignException
-from rekuest_next.remote import _astream_raw, _build_assign_input
+from rekuest_next.remote import _astream_raw
 from rekuest_next.errors import ErrorCallError
 
 
-def _assign(**kwargs: object):
-    """Build a valid AssignInput via the same helper remote.py uses."""
+def _call(**kwargs: object) -> dict:
+    """The call description a postman is handed, with the defaults these tests share."""
     base = dict(
         args={"x": 1},
         reference="ref-1",
@@ -30,7 +30,14 @@ def _assign(**kwargs: object):
         capture=False,
     )
     base.update(kwargs)
-    return _build_assign_input(**base)  # type: ignore[arg-type]
+    return base
+
+
+def _probe_call(**kwargs: object) -> dict:
+    """The narrower call description a probe takes: no parent, no hooks, no capture."""
+    base = dict(args={"x": 1}, reference="ref-1")
+    base.update(kwargs)
+    return base
 
 
 async def _until(predicate, timeout: float = 1.0) -> None:
@@ -52,15 +59,15 @@ def _last_request(sink: MemoryAgentTransport) -> messages.AssignRequest:
 
 @pytest.mark.asyncio
 async def test_aassign_emits_assign_request_with_field_mapping() -> None:
-    """aassign translates AssignInput → AssignRequest, mapping the key fields."""
+    """aassign translates the call description → AssignRequest, mapping the key fields."""
     sink = MemoryAgentTransport()
     pm = AgentPostman(sink)
 
-    assign = _assign(dependency="dep-key", method="run", capture=True)
+    call = _call(dependency="dep-key", method="run", capture=True)
     out: List[CallerTaskEvent] = []
 
     async def consume() -> None:
-        async for ev in pm.aassign(assign):
+        async for ev in pm.aassign(**call):
             out.append(ev)
 
     task = asyncio.create_task(consume())
@@ -97,7 +104,7 @@ async def test_event_before_response_is_buffered() -> None:
     out: List[CallerTaskEvent] = []
 
     async def consume() -> None:
-        async for ev in pm.aassign(_assign()):
+        async for ev in pm.aassign(**_call()):
             out.append(ev)
 
     task = asyncio.create_task(consume())
@@ -124,7 +131,7 @@ async def test_nack_raises_assign_exception() -> None:
     pm = AgentPostman(sink)
 
     async def consume() -> None:
-        async for _ in pm.aassign(_assign()):
+        async for _ in pm.aassign(**_call()):
             pass
 
     task = asyncio.create_task(consume())
@@ -150,10 +157,9 @@ async def test_failed_event_raises_error_call_error_through_stream() -> None:
     """A FailedEvent surfaces as ErrorCallError via remote._astream_raw (the real seam)."""
     sink = MemoryAgentTransport()
     pm = AgentPostman(sink)
-    assign = _assign()
 
     async def run() -> None:
-        async for _ in _astream_raw(pm, assign):
+        async for _ in _astream_raw(pm, **_call()):
             pass
 
     task = asyncio.create_task(run())
@@ -178,7 +184,7 @@ async def test_cancellation_sends_cancel_request() -> None:
     pm = AgentPostman(sink)
 
     async def consume() -> None:
-        async for _ in pm.aassign(_assign()):
+        async for _ in pm.aassign(**_call()):
             pass
 
     task = asyncio.create_task(consume())
@@ -207,12 +213,12 @@ async def test_concurrent_calls_do_not_cross_deliver() -> None:
     out_a: List[CallerTaskEvent] = []
     out_b: List[CallerTaskEvent] = []
 
-    async def consume(assign, out) -> None:
-        async for ev in pm.aassign(assign):
+    async def consume(call, out) -> None:
+        async for ev in pm.aassign(**call):
             out.append(ev)
 
-    ta = asyncio.create_task(consume(_assign(reference="ref-a"), out_a))
-    tb = asyncio.create_task(consume(_assign(reference="ref-b"), out_b))
+    ta = asyncio.create_task(consume(_call(reference="ref-a"), out_a))
+    tb = asyncio.create_task(consume(_call(reference="ref-b"), out_b))
     await _until(
         lambda: len(
             [m for m in sink.sent if isinstance(m, messages.AssignRequest)]
@@ -261,7 +267,7 @@ async def test_aprobe_fires_a_probe_and_streams_its_events() -> None:
     out: List[CallerTaskEvent] = []
 
     async def consume() -> None:
-        async for event in pm.aprobe(_assign()):
+        async for event in pm.aprobe(**_probe_call()):
             out.append(event)
 
     task = asyncio.create_task(consume())
@@ -289,7 +295,7 @@ async def test_aprobe_surfaces_a_refusal() -> None:
     pm = AgentPostman(sink)
 
     async def consume() -> None:
-        async for _ in pm.aprobe(_assign()):
+        async for _ in pm.aprobe(**_probe_call()):
             pass
 
     task = asyncio.create_task(consume())

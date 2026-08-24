@@ -13,14 +13,12 @@ projects:
           enabled: true
         options:
           enabled: true
-          allow_population_by_field_name: true
+          populate_by_name: true
+          alias_mode: split
           use_enum_values: true
           extra: forbid
           types:
             - input
-        parsers:
-          - type: turms.parsers.polyfill.PolyfillParser
-            python_version: 3.7
         stylers:
           - type: turms.stylers.default.DefaultStyler
           - type: turms.stylers.appender.AppenderStyler

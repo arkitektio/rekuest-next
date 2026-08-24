@@ -50,13 +50,16 @@ async def test_cancel_awaits_backend_cancelled(deployment: Deployment) -> None:
         reference = f"cancel-smoke-{uuid.uuid4().hex[:8]}"
         call_task = asyncio.create_task(acall(impl, seconds=30, reference=reference))
 
-        # Wait until the backend has registered and started the task.
+        # Wait until the backend has registered the task and recorded an event for it.
+        #
+        # `latestEventKind` is NOT a readiness signal: the backend leaves it at QUEUED
+        # for the whole run and only moves it on the terminal event, so a task that is
+        # already executing still reads as QUEUED. The event log is what we can observe
+        # moving, so we gate on that — it says the task exists on the backend, which is
+        # all the cancel below needs.
         async def _started() -> bool:
             task = await _find_task(reference)
-            return task is not None and task.latest_event_kind not in (
-                TaskEventKind.QUEUED,
-                TaskEventKind.BOUND,
-            )
+            return task is not None and len(task.events) > 0
 
         deadline = asyncio.get_event_loop().time() + 10.0
         while not await _started():

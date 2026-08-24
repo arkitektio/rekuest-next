@@ -16,7 +16,7 @@ with hand-written test doubles (no mocks, no socket/GraphQL backend):
 import asyncio
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Any, AsyncGenerator, Callable, List, Optional, Tuple
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pytest
 from pydantic import PrivateAttr
@@ -25,10 +25,11 @@ from rekuest_next import messages
 
 from .memory_transport import MemoryAgentTransport
 from rekuest_next.agents.caller import AgentPostman
-from rekuest_next.api.schema import AssignInput, TaskEventChange, TaskEventKind
+from rekuest_next.api.schema import TaskEventChange, TaskEventKind
+from rekuest_next.postmans.errors import RootOnlyAssignError
 from rekuest_next.postmans.graphql import GraphQLPostman
 from rekuest_next.rath import RekuestNextRath
-from rekuest_next.remote import _build_assign_input, aiterate_raw
+from rekuest_next.remote import aiterate_raw
 
 from rath.links.testing.direct_succeeding_link import DirectSucceedingLink
 
@@ -138,7 +139,8 @@ async def test_graphql_no_escalation_when_disabled() -> None:
 # ------------------------------------------------------------------ AgentPostman tests
 
 
-def _assign(**kwargs: object) -> AssignInput:
+def _call(**kwargs: object) -> dict:
+    """The call description a postman is handed, with the defaults these tests share."""
     base = dict(
         args={"x": 1},
         reference="ref-1",
@@ -147,7 +149,7 @@ def _assign(**kwargs: object) -> AssignInput:
         capture=False,
     )
     base.update(kwargs)
-    return _build_assign_input(**base)  # type: ignore[arg-type]
+    return base
 
 
 def _last_request(sink: MemoryAgentTransport) -> messages.AssignRequest:
@@ -175,7 +177,7 @@ async def _start_and_assign(
 
     async def consume() -> None:
         async for ev in pm.aassign(
-            _assign(), escalate_to_interrupt=escalate_to_interrupt
+            **_call(), escalate_to_interrupt=escalate_to_interrupt
         ):
             out.append(ev)
 
@@ -259,7 +261,16 @@ class RecordingPostman:
 
     async def aassign(
         self,
-        assign: AssignInput,  # noqa: ARG002 - part of the Postman protocol
+        *,
+        args: Dict[str, Any],  # noqa: ARG002 - part of the Postman protocol
+        capture: bool = False,  # noqa: ARG002 - part of the Postman protocol
+        reference: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
+        hooks: Optional[Sequence[Any]] = None,  # noqa: ARG002 - part of the protocol
+        action: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
+        implementation: Optional[str] = None,  # noqa: ARG002 - part of the protocol
+        parent: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
+        dependency: Optional[str] = None,  # noqa: ARG002 - part of the protocol
+        method: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
         escalate_to_interrupt: bool = False,
         cancel_timeout: Optional[float] = None,
     ) -> AsyncGenerator[TaskEventChange, None]:
@@ -292,3 +303,26 @@ async def test_remote_threads_cancel_params_to_postman() -> None:
         pass
 
     assert pm.calls == [(True, 2.5)]
+
+
+# ------------------------------------------------------- root-only GraphQL assign
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "non_root",
+    [{"parent": "t-parent"}, {"dependency": "dep-key"}, {"method": "run"}],
+    ids=["parent", "dependency", "method"],
+)
+async def test_graphql_refuses_a_non_root_assign(non_root: Dict[str, str]) -> None:
+    """The GraphQL mutation creates a root task, so a child call must be refused.
+
+    Dropping the parent instead would silently detach the child into an orphan root —
+    a provenance bug that surfaces far from its cause. Calls from inside a task belong
+    on the agent socket, which is what ``AgentPostman`` originates over.
+    """
+    pm = _graphql_postman()
+
+    with pytest.raises(RootOnlyAssignError):
+        async for _ in pm.aassign(**_call(**non_root)):
+            pass

@@ -599,15 +599,21 @@ class FastApiAgent(BaseAgent):
         payload: dict[str, Any],
         interface: str | None = None,
     ) -> AssignInput:
-        """Normalize FastAPI request payloads to the current AssignInput model."""
+        """Normalize FastAPI request payloads to the current AssignInput model.
+
+        A REST assign against this in-process agent is always a provenance root: there
+        is no server-side task tree to attach to, which is the same reason the backend
+        made ``AssignInput`` root-only.
+        """
         normalized_payload = dict(payload)
 
         if interface is not None:
             normalized_payload["interface"] = interface
 
-        # `cached`, `log` and `ephemeral` were dropped from AssignInput by the backend;
-        # a payload still carrying them would now be rejected as extra input.
-        for field_name in ("cached", "log", "ephemeral"):
+        # `cached`, `log` and `ephemeral` were dropped from AssignInput by the backend,
+        # and `parent` with them (a GraphQL assign is a root by definition). A payload
+        # still carrying any of them would now be rejected as extra input.
+        for field_name in ("cached", "log", "ephemeral", "parent"):
             normalized_payload.pop(field_name, None)
         normalized_payload.setdefault("capture", False)
 
@@ -627,7 +633,8 @@ class FastApiAgent(BaseAgent):
 
         The in-process FastAPI agent has no real org/implementation routing, so it stamps
         placeholder values (the ``org``/``implementation`` args) onto the Assign — the
-        message model requires both.
+        message model requires both. ``parent`` is left unset for the same reason there
+        is none to read off the ``AssignInput``: a REST assign here is always a root.
         """
         if assign_input.interface is None:
             raise ValueError("FastAPI assign requests require an interface")
@@ -635,7 +642,6 @@ class FastApiAgent(BaseAgent):
         return messages.Assign(
             interface=assign_input.interface,
             task=task or str(uuid.uuid4()),
-            parent=assign_input.parent,
             reference=assign_input.reference,
             args=assign_input.args,
             capture=assign_input.capture,
