@@ -16,7 +16,6 @@ from typing import (
     overload,
     cast,
 )
-import inflection
 
 if TYPE_CHECKING:
     from rekuest_next.app import AppRegistry
@@ -31,6 +30,7 @@ from rekuest_next.actors.vars import get_current_task_helper
 from rekuest_next.definition.define import (
     dependency_to_dependency_input,
 )
+from rekuest_next.definition.utils import interface_name
 from rekuest_next.definition.dependencies import build_action_dependency_input
 from rekuest_next.definition.hash import hash_definition
 from rekuest_next.protocols import AnyFunction
@@ -55,20 +55,6 @@ import logging
 
 
 logger = logging.getLogger(__name__)
-
-
-def interface_name(func: AnyFunction) -> str:
-    """Infer an interface name from a function or actor name.
-
-    Converts CamelCase or mixedCase names to snake_case.
-
-    Args:
-        func (AnyFunction): The function or actor to infer the name from.
-
-    Returns:
-        str: The inferred interface name in snake_case.
-    """
-    return inflection.underscore(func.__name__)
 
 
 P = ParamSpec("P")

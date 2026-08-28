@@ -77,7 +77,7 @@ def test_declared_action_and_blok_registry_build_same_action_dependency(
         lambda *args, **kwargs: None,
     )
 
-    declared_dependency = declared.to_dependency_input("run")
+    declared_dependency = declared.to_dependency_input()
     blok_dependency = _create_action_dependency("run", definition_registry)
 
     assert declared_dependency.model_dump() == blok_dependency.model_dump()
@@ -101,7 +101,7 @@ def test_declared_state_and_blok_registry_build_same_state_dependency(
         simple_registry,
     )
 
-    declared_dependency = declared.to_dependency_input("status")
+    declared_dependency = declared.to_dependency_input()
     blok_dependency = _create_state_dependency("status", state_registry)
 
     assert declared_dependency.model_dump() == blok_dependency.model_dump()

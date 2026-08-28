@@ -6,8 +6,10 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Literal,
     List,
     Optional,
+    cast,
     Type,
     TypeVar,
 )
@@ -56,6 +58,21 @@ from .types import (
 T = TypeVar("T")
 
 
+#: Which identifier map each fullfilled type lives in, and which port kind it yields.
+_IDENTIFIER_MAP_FOR: Dict[type, str] = {
+    FullFilledModel: "identifier_model_map",
+    FullFilledEnum: "identifier_enum_map",
+    FullFilledMemoryStructure: "identifier_memory_structure_map",
+    FullFilledStructure: "identifier_structure_map",
+}
+_PORT_KIND_FOR: Dict[type, PortKind] = {
+    FullFilledModel: PortKind.MODEL,
+    FullFilledEnum: PortKind.ENUM,
+    FullFilledMemoryStructure: PortKind.MEMORY_STRUCTURE,
+    FullFilledStructure: PortKind.STRUCTURE,
+}
+
+
 class StructureRegistry(BaseModel):
     """A registry for structures.
 
@@ -70,8 +87,6 @@ class StructureRegistry(BaseModel):
 
     """
 
-    copy_from_default: bool = False
-    allow_overwrites: bool = True
     allow_auto_register: bool = True
     identifier_structure_map: Dict[str, FullFilledStructure] = Field(
         default_factory=dict, exclude=True
@@ -278,47 +293,20 @@ class StructureRegistry(BaseModel):
                     " allow_auto_register to True"
                 )
 
-    def fullfill_registration(
-        self,
-        fullfilled_type: FullFilledType,
-    ) -> None:
-        """Fullfill the registration of a structure.
+    def fullfill_registration(self, fullfilled_type: FullFilledType) -> None:
+        """Record a fullfilled type under its class and its identifier.
 
-        Sets the structure in the registry and checks if the structure is already registered.
-        If it is already registered, it will raise an error.
-
-        Args:
-            fullfilled_structure (FullFilledStructure): The fullfilled structure to register
+        An identifier already present is overwritten.
         """
         self.cls_fullfilled_type_map[fullfilled_type.cls] = fullfilled_type
+        identifier_map = getattr(self, _IDENTIFIER_MAP_FOR[type(fullfilled_type)])
+        identifier_map[fullfilled_type.identifier] = fullfilled_type
 
-        if isinstance(fullfilled_type, FullFilledModel):
-            self.identifier_model_map[fullfilled_type.identifier] = fullfilled_type
-            return
-
-        if isinstance(fullfilled_type, FullFilledEnum):
-            self.identifier_enum_map[fullfilled_type.identifier] = fullfilled_type
-            return
-
-        if isinstance(fullfilled_type, FullFilledMemoryStructure):
-            self.identifier_memory_structure_map[fullfilled_type.identifier] = (
-                fullfilled_type
-            )
-            return
-
-        if isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
-            self.identifier_structure_map[fullfilled_type.identifier] = fullfilled_type
-            return
-
-        raise StructureRegistryError(
-            f"Could not register {fullfilled_type} as it is not a FullFilledStructure"
-            f" or a FullFilledEnum or a FullFilledMemoryStructure"
-        )
-
-    def get_argport_for_cls(
+    def get_port_for_cls(
         self,
         cls: Type[Any],
         key: str,
+        direction: Literal["arg", "return"],
         nullable: bool = False,
         description: Optional[str] = None,
         effects: Optional[list[EffectInput]] = None,
@@ -326,175 +314,71 @@ class StructureRegistry(BaseModel):
         validators: Optional[List[ValidatorInput]] = None,
         default: Any = None,  # noqa: ANN401
         assign_widget: Optional[AssignWidgetInput] = None,
+        return_widget: Optional[ReturnWidgetInput] = None,
         requires: Optional[List[RequiresInput]] = None,
-    ) -> ArgPortInput:
-        """Create a port for a given class
+        provides: Optional[List[ProvidesInput]] = None,
+    ) -> ArgPortInput | ReturnPortInput:
+        """Create an arg or return port for a registered (or auto-registered) class.
 
-        This will use the structure registry to find the correct
-        structure for the given class. It will then create a port
-        for this class. You can pass overwrites if the port
-        should not be created with the default values.
+        The port kind follows the fullfilled type; enums additionally carry
+        their choices and a converted default, and arg structure ports fall
+        back to the structure's default widget.
         """
-
         fullfilled_type = self.get_fullfilled_type_for_cls(cls)
-
-        if isinstance(fullfilled_type, FullFilledModel):
-            return ArgPortInput(
-                kind=PortKind.MODEL,
-                identifier=fullfilled_type.identifier,
-                widget=assign_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                requires=tuple(requires) if requires else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledEnum):
-            return ArgPortInput(
-                kind=PortKind.ENUM,
-                identifier=fullfilled_type.identifier,
-                widget=assign_widget,
-                choices=tuple(fullfilled_type.choices),
-                key=key,
-                label=label,
-                default=fullfilled_type.convert_default(default)
-                if default is not None
-                else None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                requires=tuple(requires) if requires else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledMemoryStructure):
-            return ArgPortInput(
-                kind=PortKind.MEMORY_STRUCTURE,
-                identifier=fullfilled_type.identifier,
-                widget=assign_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                requires=tuple(requires) if requires else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
-            return ArgPortInput(
-                kind=PortKind.STRUCTURE,
-                identifier=fullfilled_type.identifier,
-                widget=assign_widget or fullfilled_type.default_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                requires=tuple(requires) if requires else None,
-            )
-
-        else:
+        kind = _PORT_KIND_FOR.get(type(fullfilled_type))
+        if kind is None:
             raise StructureRegistryError(
-                f"Could not create port for {cls} as it is not a FullFilledStructure"
-                f" or a FullFilledEnum or a FullFilledMemoryStructure"
+                f"Could not create port for {cls}: unknown fullfilled type {type(fullfilled_type)}"
             )
+
+        is_arg = direction == "arg"
+        widget: Any = assign_widget if is_arg else return_widget
+        fields: Dict[str, Any] = dict(
+            kind=kind,
+            identifier=fullfilled_type.identifier,
+            widget=widget,
+            key=key,
+            label=label,
+            default=None,
+            nullable=nullable,
+            effects=tuple(effects or []),
+            description=description or fullfilled_type.description,
+            validators=tuple(validators or []),
+        )
+        if is_arg:
+            fields["requires"] = tuple(requires) if requires else None
+        else:
+            fields["provides"] = tuple(provides) if provides else None
+
+        if isinstance(fullfilled_type, FullFilledEnum):
+            fields["choices"] = tuple(fullfilled_type.choices)
+            fields["default"] = (
+                fullfilled_type.convert_default(default)
+                if default is not None
+                else None
+            )
+        elif isinstance(fullfilled_type, FullFilledStructure) and is_arg:
+            fields["widget"] = assign_widget or fullfilled_type.default_widget
+
+        port_cls = ArgPortInput if is_arg else ReturnPortInput
+        return port_cls(**fields)
+
+    def get_argport_for_cls(
+        self,
+        cls: Type[Any],
+        key: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ArgPortInput:
+        """Create an :class:`ArgPortInput` for a class (see :meth:`get_port_for_cls`)."""
+        return cast(ArgPortInput, self.get_port_for_cls(cls, key, "arg", **kwargs))
 
     def get_returnport_for_cls(
         self,
         cls: Type[Any],
         key: str,
-        nullable: bool = False,
-        description: Optional[str] = None,
-        effects: Optional[list[EffectInput]] = None,
-        label: Optional[str] = None,
-        validators: Optional[List[ValidatorInput]] = None,
-        default: Any = None,  # noqa: ANN401
-        return_widget: Optional[ReturnWidgetInput] = None,
-        provides: Optional[List[ProvidesInput]] = None,
+        **kwargs: Any,  # noqa: ANN401
     ) -> ReturnPortInput:
-        """Create a port for a given class
-
-        This will use the structure registry to find the correct
-        structure for the given class. It will then create a port
-        for this class. You can pass overwrites if the port
-        should not be created with the default values.
-        """
-
-        fullfilled_type = self.get_fullfilled_type_for_cls(cls)
-
-        if isinstance(fullfilled_type, FullFilledModel):
-            return ReturnPortInput(
-                kind=PortKind.MODEL,
-                identifier=fullfilled_type.identifier,
-                widget=return_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                provides=tuple(provides) if provides else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledEnum):
-            return ReturnPortInput(
-                kind=PortKind.ENUM,
-                identifier=fullfilled_type.identifier,
-                widget=return_widget,
-                choices=tuple(fullfilled_type.choices),
-                key=key,
-                label=label,
-                default=fullfilled_type.convert_default(default)
-                if default is not None
-                else None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                provides=tuple(provides) if provides else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledMemoryStructure):
-            return ReturnPortInput(
-                kind=PortKind.MEMORY_STRUCTURE,
-                identifier=fullfilled_type.identifier,
-                widget=return_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                provides=tuple(provides) if provides else None,
-            )
-
-        elif isinstance(fullfilled_type, FullFilledStructure):  # type: ignore
-            return ReturnPortInput(
-                kind=PortKind.STRUCTURE,
-                identifier=fullfilled_type.identifier,
-                widget=return_widget,
-                key=key,
-                label=label,
-                default=None,
-                nullable=nullable,
-                effects=tuple(effects or []),
-                description=description or fullfilled_type.description,
-                validators=tuple(validators or []),
-                provides=tuple(provides) if provides else None,
-            )
-
-        else:
-            raise StructureRegistryError(
-                f"Could not create port for {cls} as it is not a FullFilledStructure"
-                f" or a FullFilledEnum or a FullFilledMemoryStructure"
-            )
+        """Create a :class:`ReturnPortInput` for a class (see :meth:`get_port_for_cls`)."""
+        return cast(
+            ReturnPortInput, self.get_port_for_cls(cls, key, "return", **kwargs)
+        )

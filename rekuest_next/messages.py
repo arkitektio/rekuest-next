@@ -13,7 +13,7 @@ the caller stream carries the ``…Event`` suffix (``Pause`` cmd vs ``Paused`` r
 ``PausedEvent`` stream).
 """
 
-from typing import Any, List, Optional, Literal, Union, Dict
+from typing import Any, List, Optional, Literal, Union, Dict, get_args
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from pydantic import Field
@@ -695,7 +695,9 @@ class ProbeRequest(Message):
     lost ``ProbeResponse`` fires a NEW probe (probes are cheap and TTL-bounded).
     """
 
-    type: Literal[FromAgentMessageType.PROBE_REQUEST] = FromAgentMessageType.PROBE_REQUEST
+    type: Literal[FromAgentMessageType.PROBE_REQUEST] = (
+        FromAgentMessageType.PROBE_REQUEST
+    )
     reference: Optional[str] = Field(
         default=None,
         description="An optional requester-side reference echoed to the executor.",
@@ -1049,25 +1051,8 @@ ToAgentMessage = Union[
     AssignResponse,
     ProbeResponse,
     ControlResponse,
-    BoundEvent,
-    QueuedEvent,
-    StartedEvent,
-    ProgressEvent,
-    DelegateEvent,
-    DisconnectedEvent,
-    YieldEvent,
-    CompletedEvent,
-    LogEvent,
-    CancellingEvent,
-    CancelledEvent,
-    InterruptingEvent,
-    InterruptedEvent,
-    PausingEvent,
-    PausedEvent,
-    ResumingEvent,
-    ResumedEvent,
-    FailedEvent,
-    CriticalEvent,
+    # ...plus every backend→caller mirror (kept in one place above).
+    *get_args(ExecutionEventMessage),
 ]
 FromAgentMessage = Union[
     Critical,

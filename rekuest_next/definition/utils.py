@@ -1,5 +1,6 @@
 """Utils for Rekuest Next"""
 
+import inflection
 from typing import Any
 
 
@@ -16,3 +17,8 @@ def is_local_var(type_: Any) -> bool:  # noqa: ANN401
     from rekuest_next.agents.context import is_context
 
     return is_context(type_) or is_state(type_) or is_read_only_state(type_)
+
+
+def interface_name(func: Any) -> str:  # noqa: ANN401
+    """Infer an interface name from a function or class name (CamelCase → snake_case)."""
+    return inflection.underscore(func.__name__)

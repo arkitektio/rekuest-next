@@ -1,6 +1,5 @@
 """Register a function or actor with the definition registry."""
 
-from symtable import Class
 from typing import (
     Any,
     Callable,
@@ -12,7 +11,6 @@ from typing import (
     overload,
     get_type_hints,
 )
-import inflection
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateDependencyInput,
@@ -30,6 +28,7 @@ from rekuest_next.definition.demands import (
 )
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.definition.define import convert_object_to_returnport
+from rekuest_next.definition.utils import interface_name
 from rekuest_next.protocols import AnyFunction
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.api.schema import (
@@ -38,20 +37,6 @@ from rekuest_next.api.schema import (
     StateDefinitionInput,
 )
 import inspect
-
-
-def interface_name(func: AnyFunction) -> str:
-    """Infer an interface name from a function or actor name.
-
-    Converts CamelCase or mixedCase names to snake_case.
-
-    Args:
-        func (AnyFunction): The function or actor to infer the name from.
-
-    Returns:
-        str: The inferred interface name in snake_case.
-    """
-    return inflection.underscore(func.__name__)
 
 
 P = ParamSpec("P")
@@ -76,13 +61,13 @@ class DeclaredAgentAction(Generic[P, R]):
         self.override: ActionDemandOverride | None = get_action_demand_override(func)
         self.definition = prepare_definition(
             func,
-            omitfirst=True,  # Omit the first parameter, which is usually `self` in agent protocols
+            omitfirst=1,  # Omit the first parameter, which is usually `self` in agent protocols
             structure_registry=get_default_structure_registry(),
         )
         self.is_async = inspect.iscoroutinefunction(func)
         self.interface = func.__name__
 
-    def to_dependency_input(self, key: str) -> ActionDependencyInput:
+    def to_dependency_input(self) -> ActionDependencyInput:
         """Convert the wrapped function to a DependencyInput.
 
         By default the demanded action inherits its ``app`` from the protocol's
@@ -110,7 +95,7 @@ class DeclaredAgentAction(Generic[P, R]):
         )
 
 
-class DeclaredAgentState(Generic[P, R]):
+class DeclaredAgentState:
     """A wrapped function that calls the actor's implementation."""
 
     def __init__(
@@ -132,7 +117,7 @@ class DeclaredAgentState(Generic[P, R]):
         )
         self.definition = inspect_declared_state(stateclass)
 
-    def to_dependency_input(self, key: str) -> StateDependencyInput:
+    def to_dependency_input(self) -> StateDependencyInput:
         """Convert the wrapped function to a DependencyInput.
 
         By default the demanded state inherits its ``app`` from the protocol's
@@ -190,7 +175,7 @@ def declare_state(cls: Type[T]) -> Type[T]:
     return state_cls
 
 
-def state_dep_like(cls: Class) -> bool:
+def state_dep_like(cls: type[Any]) -> bool:
     if isinstance(cls, type) and getattr(cls, "__is_state__", None):
         return True
     return False
@@ -234,12 +219,11 @@ class DeclaredAgentProtocol(Generic[Agent]):
         """Initialize the wrapped function."""
         self.func = func
         self.app = app
-        self.hash = hash
         self.description = description or func.__doc__
         self.allow_inactive = allow_inactive
         self.interface = interface_name(func)
         self.actions: Dict[str, DeclaredAgentAction[Any, Any]] = {}
-        self.states: Dict[str, DeclaredAgentState[Any, Any]] = {}
+        self.states: Dict[str, DeclaredAgentState] = {}
         self.auto_resolvable = auto_resolvable
         self.min = min
         self.max = max
@@ -277,10 +261,10 @@ class DeclaredAgentProtocol(Generic[Agent]):
             app=self.app,
             description=self.description or self.func.__doc__,
             actionDependencies=tuple(
-                action.to_dependency_input(key) for key, action in self.actions.items()
+                action.to_dependency_input() for action in self.actions.values()
             ),
             stateDependencies=tuple(
-                state.to_dependency_input(key) for key, state in self.states.items()
+                state.to_dependency_input() for state in self.states.values()
             ),
             autoResolvable=self.auto_resolvable,
             optional=False,
@@ -361,42 +345,17 @@ def state_protocol(cls: Type[T], /) -> Type[T]: ...
 
 
 @overload
-def state_protocol(
-    *,
-    app: str | None = None,
-    version: str | None = None,
-    min: int | None = None,
-    max: int | None = None,
-) -> Callable[[Type[T]], Type[T]]: ...
+def state_protocol() -> Callable[[Type[T]], Type[T]]: ...
 
 
-def state_protocol(
-    *cls: Type[T],
-    app: str | None = None,
-    version: str | None = None,
-    min: int | None = None,
-    max: int | None = None,
-) -> Type[T] | Callable[[Type[T]], Type[T]]:
-    """Declare an state protocol.
+def state_protocol(*cls: Type[T]) -> Type[T] | Callable[[Type[T]], Type[T]]:
+    """Declare a state protocol; usable bare or with parentheses.
 
-    This is useful for defining state protocols that can be registered later.
-
-    Args:
-        cls (AnyFunction): The class defining the agent protocol.
-        app (str): The application name.
-        version (str | None, optional): The version of the agent protocol. Defaults to None.
-
-    Returns:
-        AnyFunction: The same class, unmodified.
+    Alias of :func:`declare_state`. The class is returned unmodified apart from
+    the rekuest state markers.
     """
     if len(cls) == 1:
         return declare_state(cls[0])
-
     if len(cls) == 0:
-
-        def wrapper(state_cls: Type[T]) -> Type[T]:
-            return declare_state(state_cls)
-
-        return wrapper
-
+        return declare_state
     raise ValueError("You can only declare one state protocol at a time.")
