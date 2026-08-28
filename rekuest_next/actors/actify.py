@@ -60,11 +60,13 @@ def derive_implementation_details(
             newlocks.extend(lock)
         for lock in state_variables.required_state_locks.values():
             newlocks.extend(lock)
-        locks = list(set(newlocks))
+        # Sorted so the definition (and its hash) is identical across processes;
+        # ``set`` order depends on the hash seed.
+        locks = sorted(set(newlocks))
 
     manipulates = config.manipulates
     if manipulates is None:
-        manipulates = list(set(state_variables.write_state_variables.values()))
+        manipulates = sorted(set(state_variables.write_state_variables.values()))
 
     return ImplementationDetails(
         state_variables=state_variables,
