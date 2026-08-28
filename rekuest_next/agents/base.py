@@ -14,8 +14,6 @@ import copy
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -26,8 +24,6 @@ from typing import (
     Optional,
     Self,
     Sequence,
-    Type,
-    TypeVar,
 )
 import janus
 import jsonpatch  # type: ignore[import-untyped]
@@ -37,6 +33,8 @@ from koil.composition import KoiledModel
 from rekuest_next import messages
 from rekuest_next.actors.types import Actor
 from rekuest_next.agents.errors import AgentException, ProvisionException
+from rekuest_next.agents.dataclasses import QueuedPatchEvent, RevisedState
+from rekuest_next.agents.types import AppContext, T, app_context
 from rekuest_next.agents.policy import ConnectionPolicy
 from rekuest_next.agents.hooks.registry import (
     ShutdownHook,
@@ -67,42 +65,21 @@ from rekuest_next.structures.types import JSONSerializable
 
 logger = logging.getLogger(__name__)
 
+# ``AppContext``/``app_context``/``RevisedState``/``QueuedPatchEvent`` used to be
+# defined here; they stay importable from this module.
+__all__ = [
+    "BaseAgent",
+    "RekuestAgent",
+    "AppContext",
+    "T",
+    "app_context",
+    "QueuedPatchEvent",
+    "RevisedState",
+]
+
 
 if TYPE_CHECKING:
     from rekuest_next.agents.caller import AgentPostman
-
-
-class AppContext:
-    """Protocol for the app context that is passed to the hooks."""
-
-    __rekuest_app_context__: str
-
-
-T = TypeVar("T")
-
-
-def app_context(
-    cls: Type[T],
-) -> Type[T]:
-    """Decorator to register a class as an app context."""
-
-    setattr(cls, "__rekuest_app_context__", cls.__name__)
-    return cls
-
-
-@dataclass
-class QueuedPatchEvent:
-    interface: str
-    patch: Patch
-    event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-@dataclass
-class RevisedState:
-    """Current agent-owned shrunk state together with its local revision."""
-
-    revision: int
-    data: JSONSerializable
 
 
 class BaseAgent(KoiledModel):

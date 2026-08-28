@@ -26,7 +26,8 @@ from pydantic import ConfigDict, Field, PrivateAttr
 
 from rekuest_next import messages
 from rekuest_next.api.schema import AssignInput, StateImplementationInput
-from rekuest_next.agents.base import BaseAgent, RevisedState
+from rekuest_next.agents.base import BaseAgent
+from rekuest_next.agents.dataclasses import RevisedState
 from rekuest_next.agents.transport.base import AgentTransport
 from rekuest_next.agents.backend import LocalAgentBackend
 from rekuest_next.contrib.fastapi.sink.backend import SinkAgentBackend
