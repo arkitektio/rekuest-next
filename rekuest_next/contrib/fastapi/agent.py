@@ -387,8 +387,12 @@ class FastApiTransport(AgentTransport):
                 if initial_message is not None:
                     await websocket.send_json(initial_message)
 
+            # Keep the socket open for outbound events; nothing after INIT is
+            # acted on. ``receive_text`` (unlike the raw ``receive``) raises
+            # ``WebSocketDisconnect`` when the client goes away, which is what ends
+            # this loop cleanly.
             while True:
-                await websocket.receive()
+                await websocket.receive_text()
         except WebSocketDisconnect:
             logger.info("WebSocket client disconnected")
         except Exception as e:
