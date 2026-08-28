@@ -11,7 +11,7 @@ exactly it: the socket is gone, the stream is not.
 import asyncio
 import threading
 import time
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
 
 import pytest
 from koil import check_cancelled
@@ -73,7 +73,7 @@ def _assign(task: str, interface: str) -> messages.Assign:
     )
 
 
-def _errors(transport: MemoryAgentTransport) -> List[str]:
+def _errors(transport: MemoryAgentTransport) -> list[str]:
     return [c.error for c in transport.of_type(messages.Critical)]
 
 

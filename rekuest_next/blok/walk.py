@@ -8,7 +8,7 @@ only ever landed in the parser), so the traversal lives here and the callers
 supply a visitor.
 """
 
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from rekuest_next.api.schema import (
     ActionArgumentInput,
@@ -75,7 +75,7 @@ def prop_context(node: ComponentNodeInput, prop: ComponentPropInput) -> str:
 
 def foreach_parts(
     node: ComponentNodeInput,
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Return ``(let_name, items_path)`` for a ``foreach`` node, else ``(None, None)``."""
     if node.component.lower() != FOREACH_COMPONENT:
         return None, None
@@ -104,7 +104,7 @@ def foreach_parts(
 def walk_component(
     node: ComponentNodeInput,
     visitor: BlokVisitor,
-    scope: Optional[dict[str, Any]] = None,
+    scope: dict[str, Any] | None = None,
 ) -> None:
     """Walk ``node`` and its subtree, invoking ``visitor`` for every reference."""
     current_scope = dict(scope or {})
@@ -123,7 +123,7 @@ def walk_component(
 
 def _declare_foreach(
     node: ComponentNodeInput, visitor: BlokVisitor, scope: dict[str, Any]
-) -> Optional[tuple[str, Any]]:
+) -> tuple[str, Any] | None:
     """Return the ``(name, value)`` a ``foreach`` node binds, or ``None``.
 
     ``scope`` is read-only here: the caller owns the binding so scope mutation

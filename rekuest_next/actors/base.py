@@ -9,13 +9,10 @@ import contextlib
 import logging
 from typing import (
     Any,
-    Dict,
     Literal,
-    Mapping,
-    Optional,
     Self,
-    Tuple,
 )
+from collections.abc import Mapping
 import uuid
 from functools import partial
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
@@ -60,8 +57,8 @@ class Actor(BaseModel):
         default_factory=lambda: str(uuid.uuid4()), description="The id of the actor"
     )
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    running_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
-    locks: Optional[Tuple[str, ...]] = Field(
+    running_assignments: dict[str, messages.Assign] = Field(default_factory=dict)
+    locks: tuple[str, ...] | None = Field(
         default=None,
         description="The lock keys this actor requires. Locks will be acquired before running.",
     )
@@ -74,13 +71,13 @@ class Actor(BaseModel):
         description="What happens to this actor's in-flight work when the agent loses its control channel. Defaults to keeping it running.",
     )
 
-    _running_asyncio_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+    _running_asyncio_tasks: dict[str, asyncio.Task[None]] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _break_futures: Dict[str, asyncio.Future[bool]] = PrivateAttr(
+    _break_futures: dict[str, asyncio.Future[bool]] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _running_assignment_hooks: Dict[str, AssignmentHook] = PrivateAttr(
+    _running_assignment_hooks: dict[str, AssignmentHook] = PrivateAttr(
         default_factory=lambda: {},
     )
     _serial_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
@@ -555,7 +552,7 @@ class SerializingActor(Actor):
 
     async def aget_locals(
         self: Self,
-    ) -> Tuple[
+    ) -> tuple[
         Mapping[str, AnyContext],
         Mapping[str, AnyState],
         Mapping[str, AgentDependencyProxy],

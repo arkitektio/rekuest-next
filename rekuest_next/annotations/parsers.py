@@ -10,7 +10,8 @@ parser over those markers and accumulates the result into a single
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from rekuest_next.annotations.markers import Default, Description, Units
 from rekuest_next.api.schema import (

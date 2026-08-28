@@ -2,7 +2,7 @@
 
 from rekuest_next.declare import DeclaredAgentProtocol
 
-from typing import Dict, Any
+from typing import Any
 import inspect
 
 from rekuest_next.actors.types import PreparedDependencyVariables
@@ -33,7 +33,7 @@ def prepare_dependency_variables(
     sig = inspect.signature(function)
     parameters = sig.parameters
 
-    depedency_variables: Dict[str, str] = {}
+    depedency_variables: dict[str, str] = {}
 
     for key, value in parameters.items():
         cls = value.annotation

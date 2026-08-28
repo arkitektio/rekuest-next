@@ -1,7 +1,8 @@
 """A GraphQL postman"""
 
 from types import TracebackType
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import AsyncGenerator, Sequence
 from rath.scalars import ID
 from rekuest_next.api.schema import (
     HookInput,
@@ -40,13 +41,13 @@ class GraphQLPostman(KoiledModel):
 
     rath: RekuestNextRath
     connected: bool = Field(default=False)
-    tasks: Dict[str, TaskChange] = Field(default_factory=dict)
+    tasks: dict[str, TaskChange] = Field(default_factory=dict)
     cancel_timeout: float = Field(
         default=5.0,
         description="Maximum seconds to wait for the server to confirm cancellation of a task when an assign stream is cancelled. Bounds cancellation so cancelling a call can never hang.",
     )
 
-    _ass_update_queues: Dict[str, asyncio.Queue[TaskEventChange]] = PrivateAttr(
+    _ass_update_queues: dict[str, asyncio.Queue[TaskEventChange]] = PrivateAttr(
         default_factory=lambda: {}
     )
     # The change feed (TaskEventChange) only carries the task id, not the
@@ -54,9 +55,9 @@ class GraphQLPostman(KoiledModel):
     # An event can arrive before that binding is known (websocket faster than the
     # assign http response, or an event before its create), so unbound events are
     # buffered and flushed in `_bind`.
-    _task_to_reference: Dict[str, str] = PrivateAttr(default_factory=lambda: {})
-    _reference_to_task: Dict[str, str] = PrivateAttr(default_factory=lambda: {})
-    _orphan_events_by_task: Dict[str, List[TaskEventChange]] = PrivateAttr(
+    _task_to_reference: dict[str, str] = PrivateAttr(default_factory=lambda: {})
+    _reference_to_task: dict[str, str] = PrivateAttr(default_factory=lambda: {})
+    _orphan_events_by_task: dict[str, list[TaskEventChange]] = PrivateAttr(
         default_factory=lambda: {}
     )
     _watch_tasks_task: asyncio.Task[None] | None = None
@@ -81,7 +82,7 @@ class GraphQLPostman(KoiledModel):
 
     @staticmethod
     def _reject_non_root(
-        parent: Optional[ID], dependency: Optional[str], method: Optional[str]
+        parent: ID | None, dependency: str | None, method: str | None
     ) -> None:
         """Refuse call shapes a GraphQL assign cannot express.
 
@@ -103,21 +104,21 @@ class GraphQLPostman(KoiledModel):
     async def aassign(  # noqa: PLR0913 - the call description, mirrored from the protocol
         self,
         *,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         capture: bool = False,
-        reference: Optional[str] = None,
-        hooks: Optional[Sequence[HookInput]] = None,
-        action: Optional[ID] = None,
-        implementation: Optional[ID] = None,
-        parent: Optional[ID] = None,
-        dependency: Optional[str] = None,
-        method: Optional[str] = None,
-        action_hash: Optional[ActionHash] = None,
-        agent: Optional[ID] = None,
-        interface: Optional[str] = None,
-        resolution: Optional[ID] = None,
-        dependencies: Optional[Sequence[ResolvedDependencyInput]] = None,
-        step: Optional[bool] = None,
+        reference: str | None = None,
+        hooks: Sequence[HookInput] | None = None,
+        action: ID | None = None,
+        implementation: ID | None = None,
+        parent: ID | None = None,
+        dependency: str | None = None,
+        method: str | None = None,
+        action_hash: ActionHash | None = None,
+        agent: ID | None = None,
+        interface: str | None = None,
+        resolution: ID | None = None,
+        dependencies: Sequence[ResolvedDependencyInput] | None = None,
+        step: bool | None = None,
         escalate_to_interrupt: bool = False,
         cancel_timeout: float | None = None,
     ) -> AsyncGenerator[TaskEventChange, None]:
@@ -272,7 +273,7 @@ class GraphQLPostman(KoiledModel):
                 return False
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return False
             if event.kind in kinds:
                 return True

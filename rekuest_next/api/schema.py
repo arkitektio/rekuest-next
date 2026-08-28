@@ -12,7 +12,8 @@ from rekuest_next.traits.agent import ImplementAgentInputTrait
 from rekuest_next.traits.blok import BlokImplementationInputTrait, CreateBlokInputTrait
 from rekuest_next.traits.implementation import ImplementationInputTrait
 from rekuest_next.traits.ports import DefinitionInputTrait, PortTrait, ReturnWidgetInputTrait, ValidatorInputTrait, WidgetInputTrait
-from typing import Annotated, Any, AsyncIterator, Iterable, Iterator, Literal
+from typing import Annotated, Any, Literal
+from collections.abc import AsyncIterator, Iterable, Iterator
 
 class GraphQLDefault:
     """Records a GraphQL field schema default value. The client omits the field so the server applies its own default; this preserves the value for introspection."""

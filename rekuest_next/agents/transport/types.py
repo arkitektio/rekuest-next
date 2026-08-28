@@ -13,7 +13,8 @@ inherit to get the fields and default behaviour; the two must stay in step.
 """
 
 from types import TracebackType
-from typing import AsyncIterator, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,14 +31,14 @@ class HandshakeParams(BaseModel):
     reflects current agent state rather than whatever was true at build time.
     """
 
-    force: Optional[bool] = Field(default=None)
+    force: bool | None = Field(default=None)
     """Kick any connection already registered for this agent and take over.
 
     ``None`` means "no opinion" — the transport keeps its own build-time default. Only
     honoured for participants that execute work; a non-executor never displaces its own
     other connections.
     """
-    session_id: Optional[str] = Field(default=None)
+    session_id: str | None = Field(default=None)
     """Per-process identifier, minted in memory by the agent at start-up and never
     persisted. Its volatility is the reclaim signal: reconnecting with the SAME
     session_id means the process survived and in-flight work can be reclaimed; a

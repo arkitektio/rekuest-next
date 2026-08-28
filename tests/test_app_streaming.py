@@ -9,7 +9,7 @@ over the real transport.
 """
 
 import asyncio
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 from dokker import Deployment
@@ -29,8 +29,7 @@ async def test_iterate_sync_generator_action(deployment: Deployment) -> None:
 
     def count_up(until: int) -> Generator[int, None, None]:
         """Count up to a number, yielding each value."""
-        for i in range(until):
-            yield i
+        yield from range(until)
 
     app.register(count_up)
 

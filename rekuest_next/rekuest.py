@@ -1,6 +1,6 @@
 """The base client for rekuest next"""
 
-from typing import Optional, TypeVar
+from typing import TypeVar
 from koil.bridge import unkoil_task
 from koil import KoilFuture
 from pydantic import Field
@@ -18,11 +18,9 @@ from koil import unkoil
 from koil.composition import Composition
 
 from typing import (
-    Sequence,
-    Dict,
-    Tuple,
     Any,
 )
+from collections.abc import Sequence
 from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.structures.default import get_default_structure_registry
 from rekuest_next.structures.registry import StructureRegistry
@@ -52,7 +50,7 @@ class RekuestNext(Composition):
         self,
         *args,
         **kwargs,
-    ) -> Tuple[DefinitionInput, ActorBuilder]:
+    ) -> tuple[DefinitionInput, ActorBuilder]:
         """Register a function or actor with optional configuration parameters.
 
         This overload supports usage of `@register(...)` as a configurable decorator.
@@ -132,9 +130,9 @@ class RekuestNext(Composition):
     def register_blok(
         self,
         name: str | None = None,
-        component: Optional[str] = None,
-        description: Optional[str] = None,
-        demo_state: Dict[str, Any] | None = None,
+        component: str | None = None,
+        description: str | None = None,
+        demo_state: dict[str, Any] | None = None,
         dependencies: Sequence[AgentDependencyInput] | None = None,
     ) -> None:
         """Register a blok with the given name and optional JSX content.

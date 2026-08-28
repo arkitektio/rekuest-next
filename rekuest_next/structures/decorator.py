@@ -27,7 +27,8 @@ Examples:
                 return await cls.load_from_server(value)
 """
 
-from typing import Any, Callable, Optional, Type, TypeVar, Union, overload
+from typing import Any, TypeVar, overload
+from collections.abc import Callable
 
 from rekuest_next.api.schema import AssignWidgetInput, ReturnWidgetInput
 from rekuest_next.structures.convert import cls_to_identifier
@@ -39,28 +40,28 @@ T = TypeVar("T")
 
 
 @overload
-def structure(identifier: Type[T]) -> Type[T]: ...
+def structure(identifier: type[T]) -> type[T]: ...
 
 
 @overload
 def structure(
-    identifier: Optional[str] = None,
+    identifier: str | None = None,
     *,
-    registry: Optional[StructureRegistry] = None,
-    predicate: Optional[Callable[[Any], bool]] = None,
-    default_widget: Optional[AssignWidgetInput] = None,
-    default_returnwidget: Optional[ReturnWidgetInput] = None,
-) -> Callable[[Type[T]], Type[T]]: ...
+    registry: StructureRegistry | None = None,
+    predicate: Callable[[Any], bool] | None = None,
+    default_widget: AssignWidgetInput | None = None,
+    default_returnwidget: ReturnWidgetInput | None = None,
+) -> Callable[[type[T]], type[T]]: ...
 
 
 def structure(
-    identifier: Union[str, Type[T], None] = None,
+    identifier: str | type[T] | None = None,
     *,
-    registry: Optional[StructureRegistry] = None,
-    predicate: Optional[Callable[[Any], bool]] = None,
-    default_widget: Optional[AssignWidgetInput] = None,
-    default_returnwidget: Optional[ReturnWidgetInput] = None,
-) -> Union[Type[T], Callable[[Type[T]], Type[T]]]:
+    registry: StructureRegistry | None = None,
+    predicate: Callable[[Any], bool] | None = None,
+    default_widget: AssignWidgetInput | None = None,
+    default_returnwidget: ReturnWidgetInput | None = None,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Register a class as a global (serialize-by-reference) structure.
 
     Usable as a bare decorator (``@structure``) or with configuration
@@ -87,7 +88,7 @@ def structure(
     explicit_identifier = identifier
     reg = registry or get_default_structure_registry()
 
-    def wrapper(cls: Type[T]) -> Type[T]:
+    def wrapper(cls: type[T]) -> type[T]:
         return _register_structure(
             cls,
             explicit_identifier,
@@ -101,14 +102,14 @@ def structure(
 
 
 def _register_structure(
-    cls: Type[T],
-    identifier: Optional[str],
+    cls: type[T],
+    identifier: str | None,
     registry: StructureRegistry,
     *,
-    predicate: Optional[Callable[[Any], bool]] = None,
-    default_widget: Optional[AssignWidgetInput] = None,
-    default_returnwidget: Optional[ReturnWidgetInput] = None,
-) -> Type[T]:
+    predicate: Callable[[Any], bool] | None = None,
+    default_widget: AssignWidgetInput | None = None,
+    default_returnwidget: ReturnWidgetInput | None = None,
+) -> type[T]:
     """Validate the structure protocol and eagerly register the class."""
     if not hasattr(cls, "ashrink") or not hasattr(cls, "aexpand"):
         raise StructureDefinitionError(

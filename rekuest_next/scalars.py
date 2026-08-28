@@ -12,7 +12,7 @@ from graphql import (
     print_source_location,
     GraphQLSyntaxError,
 )
-from typing import IO, Dict, Any, Union
+from typing import IO, Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -22,13 +22,13 @@ import re
 ActionHash = str
 QString = str
 
-ValueMap = Dict[str, Any]
+ValueMap = dict[str, Any]
 
 ValidatorFunctionCoercible = str
 SearchQueryCoercible = str | DocumentNode
 MediaLikeCoercible = str | IO[bytes]
-Args = Dict[str, Any]
-JSONSerializable = Union[str, int, float, bool, None, Dict, list]
+Args = dict[str, Any]
+JSONSerializable = str | int | float | bool | None | dict | list
 
 
 class Identifier(str):

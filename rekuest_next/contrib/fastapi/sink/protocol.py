@@ -1,4 +1,4 @@
-from typing import List, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from rekuest_next import messages
 from rekuest_next.protocols import AnyState
@@ -16,7 +16,7 @@ class StateSink(Protocol):
         ...
 
     async def acreate_session(
-        self, states: List[AnyState], implementations: list
+        self, states: list[AnyState], implementations: list
     ) -> str:
         """Creates a new session and returns its ID."""
         ...

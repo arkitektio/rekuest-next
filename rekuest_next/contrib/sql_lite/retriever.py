@@ -1,7 +1,7 @@
 import aiosqlite
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime, UTC
+from typing import Any
 
 from rekuest_next.contrib.fastapi.retriever.protocol import (
     PatchEvent,
@@ -28,7 +28,7 @@ def dt_to_epoch_ms(dt: datetime) -> int:
 
 def epoch_ms_to_dt(ms: int) -> datetime:
     """Converts epoch milliseconds back to a timezone-aware datetime."""
-    return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
+    return datetime.fromtimestamp(ms / 1000.0, tz=UTC)
 
 
 # ==========================================
@@ -37,7 +37,7 @@ def epoch_ms_to_dt(ms: int) -> datetime:
 class SQLLiteRetriever:
     def __init__(self, db_path: str = "ff.db"):
         self.db_path = db_path
-        self.current_session_id: Optional[str] = None
+        self.current_session_id: str | None = None
 
     # --- INITIALIZATION & SESSION MANAGEMENT ---
     async def ainitialize(self) -> None:
@@ -52,7 +52,7 @@ class SQLLiteRetriever:
         self,
         column: str,
         key: str,
-        state_id: Optional[str],
+        state_id: str | None,
         *,
         session: bool,
     ) -> TaskBoundary | SessionBoundary | None:
@@ -84,7 +84,7 @@ class SQLLiteRetriever:
         self,
         correlation_id: str,
         state_id: str | None = None,
-    ) -> Optional[TaskBoundary]:
+    ) -> TaskBoundary | None:
         boundary = await self._aboundaries(
             "correlation_id", correlation_id, state_id, session=False
         )
@@ -92,7 +92,7 @@ class SQLLiteRetriever:
 
     async def aget_session_boundaries(
         self, session_id: str, state_id: str | None = None
-    ) -> Optional[SessionBoundary]:
+    ) -> SessionBoundary | None:
         boundary = await self._aboundaries(
             "session_id", session_id, state_id, session=True
         )
@@ -101,8 +101,8 @@ class SQLLiteRetriever:
     async def aget_state_at_global_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
     ) -> Snapshot | list[Snapshot] | None:
         return await self._aget_state_at_revision(
             target_revision=global_revision,
@@ -113,8 +113,8 @@ class SQLLiteRetriever:
     async def aget_forward_events_after_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         count: int = 100,
     ) -> list[PatchEvent]:
         session_filter = "AND session_id = ?" if session_id is not None else ""
@@ -182,8 +182,8 @@ class SQLLiteRetriever:
     async def aget_snapshots_around_rev(
         self,
         revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         before: int = 1,
         after: int = 1,
     ) -> list[Snapshot]:
@@ -236,8 +236,8 @@ class SQLLiteRetriever:
     async def _aget_state_at_revision(
         self,
         target_revision: int,
-        state_id: Optional[str],
-        session_id: Optional[str],
+        state_id: str | None,
+        session_id: str | None,
     ) -> Snapshot | list[Snapshot] | None:
         if state_id is None:
             state_ids = await self._aget_state_ids(session_id)
@@ -307,7 +307,7 @@ class SQLLiteRetriever:
             anchor_snapshot, (self._row_to_patch_event(row) for row in patch_rows)
         )
 
-    async def _aget_state_ids(self, session_id: Optional[str]) -> list[str]:
+    async def _aget_state_ids(self, session_id: str | None) -> list[str]:
         session_filter = "WHERE session_id = ?" if session_id is not None else ""
         params: tuple[object, ...] = (session_id,) if session_id is not None else ()
 

@@ -7,7 +7,7 @@ into an actor.
 import inspect
 import warnings
 from functools import partial
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from rekuest_next.actors.functional import (
     FUNC,
@@ -84,7 +84,7 @@ def prepare_definition_from_config(
     function: AnyFunction,
     structure_registry: StructureRegistry,
     config: RegisterConfig,
-    details: Optional[ImplementationDetails] = None,
+    details: ImplementationDetails | None = None,
     **prepare_overrides: Any,
 ) -> DefinitionInput:
     """Build the definition for a function from its bundled RegisterConfig.
@@ -117,8 +117,8 @@ def prepare_definition_from_config(
 def reactify(
     function: AnyFunction,
     structure_registry: StructureRegistry,
-    config: Optional[RegisterConfig] = None,
-) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+    config: RegisterConfig | None = None,
+) -> tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Reactify a function
 
     This function takes a callable (of type async or sync function or generator) and

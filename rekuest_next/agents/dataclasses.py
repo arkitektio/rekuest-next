@@ -5,7 +5,7 @@ and from the agent's behaviour so that each can be imported without the other.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from rekuest_next.state.publish import Patch
 from rekuest_next.structures.types import JSONSerializable
@@ -17,7 +17,7 @@ class QueuedPatchEvent:
 
     interface: str
     patch: Patch
-    event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass

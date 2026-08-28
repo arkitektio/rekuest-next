@@ -15,7 +15,6 @@ from rekuest_next.api.schema import (
 )
 from rekuest_next.structures.types import JSONSerializable
 from rekuest_next.scalars import SearchQuery
-from typing import List
 from rekuest_next.scalars import ValidatorFunctionCoercible
 
 
@@ -121,7 +120,7 @@ def CustomReturnWidget(hook: str, ward: str) -> ReturnWidgetInput:
     return ReturnWidgetInput(kind=ReturnWidgetKind.CUSTOM, hook=hook, ward=ward)
 
 
-def ChoiceReturnWidget(choices: List[ChoiceInput]) -> ReturnWidgetInput:
+def ChoiceReturnWidget(choices: list[ChoiceInput]) -> ReturnWidgetInput:
     """A choice return widget.
 
     A choice return widget is a widget that renderes a list of choices with the
@@ -136,7 +135,7 @@ def ChoiceReturnWidget(choices: List[ChoiceInput]) -> ReturnWidgetInput:
     return ReturnWidgetInput(kind=ReturnWidgetKind.CHOICE, choices=tuple(choices))
 
 
-def ChoiceWidget(choices: List[str] | str | List[ChoiceInput]) -> AssignWidgetInput:
+def ChoiceWidget(choices: list[str] | str | list[ChoiceInput]) -> AssignWidgetInput:
     """A choice widget.
 
     A choice widget is a widget that renders a list of choices with the
@@ -237,7 +236,7 @@ def withChoices(*choices: ChoiceInput | JSONSerializable) -> AssignWidgetInput:
 def withValidator(
     function: str,
     errorMessage: str,
-    dependencies: List[str] | None = None,
+    dependencies: list[str] | None = None,
 ) -> ValidatorInput:
     """A decorator to add a validator to a widget.
 
@@ -259,7 +258,7 @@ def withValidator(
 def withEffect(
     kind: EffectKind,
     function: ValidatorFunctionCoercible,
-    dependencies: List[str] | None = None,
+    dependencies: list[str] | None = None,
     message: str | None = None,
 ) -> EffectInput:
     """A decorator to add an effect to a widget.

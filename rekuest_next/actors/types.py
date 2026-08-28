@@ -6,10 +6,10 @@ from typing import (
     Protocol,
     Self,
     runtime_checkable,
-    Awaitable,
     Any,
     Literal,
 )
+from collections.abc import Awaitable
 from rekuest_next import messages
 from rekuest_next.actors.policy import KEEP, DisconnectPolicy
 from rekuest_next.agents.context import PreparedContextReturns, PreparedContextVariables
@@ -31,7 +31,7 @@ from rekuest_next.definition.define import (
     EffectsMap,
     ReturnWidgetMap,
 )
-from typing import Optional, List, Dict, Sequence, Tuple, Callable
+from collections.abc import Sequence, Callable
 from dataclasses import dataclass
 
 
@@ -53,9 +53,9 @@ class AssignmentHook:
 
 @dataclass
 class PreparedStateVariables:
-    write_state_variables: Dict[str, str]
-    read_only_variables: Dict[str, str]
-    required_state_locks: Dict[str, list[str]]
+    write_state_variables: dict[str, str]
+    read_only_variables: dict[str, str]
+    required_state_locks: dict[str, list[str]]
 
     @property
     def count(self) -> int:
@@ -63,7 +63,7 @@ class PreparedStateVariables:
         return len(self.write_state_variables) + len(self.read_only_variables)
 
     @property
-    def variable_keys(self) -> List[str]:
+    def variable_keys(self) -> list[str]:
         """Get the keys of the state variables."""
         return list(self.write_state_variables.keys()) + list(
             self.read_only_variables.keys()
@@ -72,7 +72,7 @@ class PreparedStateVariables:
 
 @dataclass
 class PreparedAppContextVariables:
-    app_context_variables: Dict[str, str]
+    app_context_variables: dict[str, str]
 
     @property
     def count(self) -> int:
@@ -82,12 +82,12 @@ class PreparedAppContextVariables:
 
 @dataclass
 class PreparedDependencyVariables:
-    dependency_variables: Dict[str, Any]
+    dependency_variables: dict[str, Any]
 
 
 @dataclass
 class PreparedStateReturns:
-    state_returns: Dict[int, str]
+    state_returns: dict[int, str]
 
     @property
     def count(self) -> int:
@@ -97,7 +97,7 @@ class PreparedStateReturns:
 
 @dataclass
 class PreparedAppContextReturns:
-    app_context_returns: Dict[int, str]
+    app_context_returns: dict[int, str]
 
     @property
     def count(self) -> int:
@@ -112,9 +112,9 @@ class ImplementationDetails:
     context_variables: PreparedContextVariables
     context_returns: PreparedContextReturns
     dependency_variables: PreparedDependencyVariables
-    locks: Optional[List[str]] = None
-    tracks: Optional[List["TrackInput"]] = None
-    manipulates: Optional[List[str]] = None
+    locks: list[str] | None = None
+    tracks: list["TrackInput"] | None = None
+    manipulates: list[str] | None = None
 
 
 @runtime_checkable
@@ -163,7 +163,7 @@ class LockHost(Protocol):
         """Report that a task has released a lock."""
         ...
 
-    def get_locks_for_keys(self, keys: Sequence[str]) -> List["TaskLock"]:
+    def get_locks_for_keys(self, keys: Sequence[str]) -> list["TaskLock"]:
         """Resolve the agent's task locks for the given lock keys."""
         ...
 
@@ -217,7 +217,7 @@ class AgentLifecycle(Protocol):
     Called only from :class:`~rekuest_next.rekuest.RekuestNext` and the FastAPI routes.
     """
 
-    force: Optional[bool]
+    force: bool | None
     """Kick any connection already registered for this agent and take over. ``None``
     defers to the transport's own build-time policy. Settable per run."""
 
@@ -358,24 +358,24 @@ class RegisterConfig:
     """
 
     # definition-shaping
-    name: Optional[str] = None
-    description: Optional[str] = None
-    interface: Optional[str] = None
-    widgets: Optional[AssignWidgetMap] = None
-    return_widgets: Optional[ReturnWidgetMap] = None
-    effects: Optional[EffectsMap] = None
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None
-    collections: Optional[List[str]] = None
-    port_groups: Optional[List[PortGroupInput]] = None
-    is_test_for: Optional[List[TestTargetInput]] = None
+    name: str | None = None
+    description: str | None = None
+    interface: str | None = None
+    widgets: AssignWidgetMap | None = None
+    return_widgets: ReturnWidgetMap | None = None
+    effects: EffectsMap | None = None
+    validators: dict[str, list[ValidatorInput]] | None = None
+    collections: list[str] | None = None
+    port_groups: list[PortGroupInput] | None = None
+    is_test_for: list[TestTargetInput] | None = None
     stateful: bool = False
-    version: Optional[str] = None
-    key: Optional[str] = None
+    version: str | None = None
+    key: str | None = None
     # implementation / actor-shaping
-    optimistics: Optional[List[OptimisticCoercible]] = None
-    locks: Optional[List[str]] = None
-    tracks: Optional[List[TrackInput]] = None
-    manipulates: Optional[List[str]] = None
+    optimistics: list[OptimisticCoercible] | None = None
+    locks: list[str] | None = None
+    tracks: list[TrackInput] | None = None
+    manipulates: list[str] | None = None
     in_process: bool = False
     bypass_shrink: bool = False
     bypass_expand: bool = False
@@ -395,8 +395,8 @@ class Actifier(Protocol):
         self,
         function: AnyFunction,
         structure_registry: StructureRegistry,
-        config: Optional[RegisterConfig] = None,
-    ) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+        config: RegisterConfig | None = None,
+    ) -> tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
         """A function that will inspect the function and return a definition and
         an actor builder. This method will inspect the function and return a
         definition and an actor builder.

@@ -1,6 +1,5 @@
 """General Tests for defininin actions"""
 
-from typing import Optional
 
 from rekuest_next.api.schema import DefinitionInput, PortKind
 import pytest
@@ -280,7 +279,7 @@ def test_nullable_optional_arg_and_return(simple_registry: StructureRegistry) ->
     both the input and output branches to guard against a regression.
     """
 
-    def optional_roundtrip(x: Optional[int]) -> Optional[str]:
+    def optional_roundtrip(x: int | None) -> str | None:
         """Return the value as a string, or ``None``.
 
         Args:

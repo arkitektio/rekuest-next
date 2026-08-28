@@ -8,7 +8,8 @@ handler in :data:`SHRINKERS`; container kinds recurse through
 
 import asyncio
 from enum import Enum
-from typing import Any, Dict, List, Sequence, cast
+from typing import Any, cast
+from collections.abc import Sequence
 
 from rekuest_next.api.schema import Action, DefinitionInput, PortKind
 from rekuest_next.structures.errors import (
@@ -73,7 +74,7 @@ async def _list(
     return await asyncio.gather(
         *[
             _shrink(child, item, ctx.child(f"{port.key}[{index}]"))
-            for index, item in enumerate(cast(List[Any], value))
+            for index, item in enumerate(cast(list[Any], value))
         ]
     )
 
@@ -262,9 +263,9 @@ async def ashrink_arg(
 async def ashrink_args(
     definition: DefinitionInput | Action,
     args: Sequence[Any],
-    kwargs: Dict[str, Any],
+    kwargs: dict[str, Any],
     structure_registry: StructureRegistry,
-) -> Dict[str, JSONSerializable]:
+) -> dict[str, JSONSerializable]:
     """Shrink positional and keyword arguments against ``definition.args``.
 
     Positional ``args`` are consumed first in port order, then ``kwargs`` are

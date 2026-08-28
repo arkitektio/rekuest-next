@@ -1,5 +1,6 @@
 import dataclasses
-from typing import Callable, Any, Generic, Iterable, TypeVar, overload, SupportsIndex
+from typing import Any, Generic, TypeVar, overload, SupportsIndex
+from collections.abc import Callable, Iterable
 
 from rekuest_next.actors.vars import (
     get_current_task_id_or_none,

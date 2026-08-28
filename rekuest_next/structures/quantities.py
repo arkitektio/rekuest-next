@@ -10,7 +10,7 @@ returns ``False`` so no quantity ports are ever produced, and :func:`resolve_qua
 returns ``None`` so the serializer can raise a clear error.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 try:
     from kanne import PintQuantity
@@ -73,7 +73,7 @@ def _refresh_map() -> None:
             _REFERENCE_UNIT_TO_TYPE[reference_unit] = cls
 
 
-def resolve_quantity_type(unit: Optional[str]) -> "Optional[type[PintQuantity]]":
+def resolve_quantity_type(unit: str | None) -> "type[PintQuantity] | None":
     """The kanne type whose ``reference_unit`` equals ``unit`` (a port's ``unit``), or ``None``.
 
     ``None`` when kanne is absent, ``unit`` is falsy, or no kanne type declares that
@@ -102,7 +102,7 @@ def shrink_quantity(value: Any) -> str:  # noqa: ANN401
         return str(value)
 
 
-def expand_quantity(value: Any, reference_unit: Optional[str]) -> Any:  # noqa: ANN401
+def expand_quantity(value: Any, reference_unit: str | None) -> Any:  # noqa: ANN401
     """Parse a wire value into a live kanne quantity of the type identified by ``reference_unit``.
 
     Raises :class:`ValueError` if kanne isn't installed or no kanne type declares
@@ -122,7 +122,7 @@ def expand_quantity(value: Any, reference_unit: Optional[str]) -> Any:  # noqa: 
     return cls.validate(value)
 
 
-def matches_dimension(value: Any, dimension: Optional[str]) -> bool:  # noqa: ANN401
+def matches_dimension(value: Any, dimension: str | None) -> bool:  # noqa: ANN401
     """Whether ``value`` is a quantity whose pint dimensionality equals ``dimension``.
 
     Used to predicate a QUANTITY port (e.g. for union disambiguation) and, conceptually,

@@ -5,7 +5,7 @@ containers live in :mod:`rekuest_next.agents.dataclasses`; behaviour lives on
 :class:`rekuest_next.agents.base.BaseAgent`.
 """
 
-from typing import Type, TypeVar
+from typing import TypeVar
 
 
 class AppContext:
@@ -18,8 +18,8 @@ T = TypeVar("T")
 
 
 def app_context(
-    cls: Type[T],
-) -> Type[T]:
+    cls: type[T],
+) -> type[T]:
     """Decorator to register a class as an app context."""
 
     setattr(cls, "__rekuest_app_context__", cls.__name__)

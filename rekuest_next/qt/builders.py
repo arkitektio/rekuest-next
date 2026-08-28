@@ -7,13 +7,10 @@ This allow the async patterns of actors to extend to the Qt world.
 import inspect
 from typing import (
     Any,
-    AsyncGenerator,
-    Callable,
-    Optional,
-    Tuple,
     get_args,
     get_origin,
 )
+from collections.abc import AsyncGenerator, Callable
 from qtpy import QtCore, QtWidgets
 from koil.qt import QtGenerator, QtFuture, qt_to_async, qt_gen_to_async_gen
 from rekuest_next.actors.functional import FUNC, GEN, FunctionalActor
@@ -187,10 +184,10 @@ class QtGeneratorBuilder(QtCore.QObject):
 def qtinloopactifier(
     function: AnyFunction,
     structure_registry: StructureRegistry,
-    config: Optional[RegisterConfig] = None,
+    config: RegisterConfig | None = None,
     *,
     parent: QtWidgets.QWidget = None,
-) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+) -> tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a builder that will create an actor
@@ -229,10 +226,10 @@ def qtinloopactifier(
 def qtwithfutureactifier(
     function: Callable,
     structure_registry: StructureRegistry,
-    config: Optional[RegisterConfig] = None,
+    config: RegisterConfig | None = None,
     *,
     parent: QtWidgets.QWidget = None,
-) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+) -> tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with
@@ -284,10 +281,10 @@ def qtwithfutureactifier(
 def qtwithgeneratoractifier(
     function: Callable,
     structure_registry: StructureRegistry,
-    config: Optional[RegisterConfig] = None,
+    config: RegisterConfig | None = None,
     *,
     parent: QtWidgets.QWidget = None,
-) -> Tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
+) -> tuple[DefinitionInput, ImplementationDetails, ActorBuilder]:
     """Qt Actifier
 
     The qt actifier wraps a function and returns a build that calls the function with

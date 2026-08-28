@@ -6,7 +6,6 @@ by the integration test ``tests/test_agent_caller.py``.
 """
 
 import asyncio
-from typing import List
 
 import pytest
 
@@ -64,7 +63,7 @@ async def test_aassign_emits_assign_request_with_field_mapping() -> None:
     pm = AgentPostman(sink)
 
     call = _call(dependency="dep-key", method="run", capture=True)
-    out: List[CallerTaskEvent] = []
+    out: list[CallerTaskEvent] = []
 
     async def consume() -> None:
         async for ev in pm.aassign(**call):
@@ -101,7 +100,7 @@ async def test_event_before_response_is_buffered() -> None:
     """A mirror that races ahead of the AssignResponse is still delivered (orphan buffer)."""
     sink = MemoryAgentTransport()
     pm = AgentPostman(sink)
-    out: List[CallerTaskEvent] = []
+    out: list[CallerTaskEvent] = []
 
     async def consume() -> None:
         async for ev in pm.aassign(**_call()):
@@ -210,8 +209,8 @@ async def test_concurrent_calls_do_not_cross_deliver() -> None:
     """Two simultaneous calls with distinct references/tasks stay isolated."""
     sink = MemoryAgentTransport()
     pm = AgentPostman(sink)
-    out_a: List[CallerTaskEvent] = []
-    out_b: List[CallerTaskEvent] = []
+    out_a: list[CallerTaskEvent] = []
+    out_b: list[CallerTaskEvent] = []
 
     async def consume(call, out) -> None:
         async for ev in pm.aassign(**call):
@@ -264,7 +263,7 @@ async def test_aprobe_fires_a_probe_and_streams_its_events() -> None:
     sink = MemoryAgentTransport()
     pm = AgentPostman(sink)
 
-    out: List[CallerTaskEvent] = []
+    out: list[CallerTaskEvent] = []
 
     async def consume() -> None:
         async for event in pm.aprobe(**_probe_call()):

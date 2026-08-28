@@ -7,7 +7,7 @@ what they may return (see :meth:`WithVariables.validate_returns`).
 """
 
 import inspect
-from typing import Any, Dict
+from typing import Any
 
 from rekuest_next.agents.context import prepare_context_variables
 from rekuest_next.agents.errors import StateRequirementsNotMet
@@ -68,12 +68,12 @@ class WithVariables:
 
     def get_kwargs(
         self,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any = None,  # noqa: ANN401
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build the call kwargs from the agent's live contexts, states and app context."""
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         for key, value in self.context_variables.context_variables.items():
             try:
                 kwargs[key] = contexts[value]

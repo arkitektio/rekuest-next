@@ -1,4 +1,3 @@
-from typing import Tuple
 
 import pytest
 
@@ -24,7 +23,7 @@ def test_startup_decorator():
         pass
 
     @startup
-    def my_startup_hook_returns_context_and_state() -> Tuple[Hallo, HalloState]:
+    def my_startup_hook_returns_context_and_state() -> tuple[Hallo, HalloState]:
         return Hallo(), HalloState()
         pass
 

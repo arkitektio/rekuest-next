@@ -1,6 +1,6 @@
 """Test the reactify function which converts a function or generator into an actor definition."""
 
-from typing import Callable, Generator
+from collections.abc import Callable, Generator
 from rekuest_next.actors.actify import reactify
 from rekuest_next.actors.types import RegisterConfig
 from rekuest_next.api.schema import ActionKind

@@ -14,13 +14,9 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     Any,
-    AsyncIterator,
-    Awaitable,
-    Callable,
-    List,
-    Optional,
     Self,
 )
+from collections.abc import AsyncIterator, Awaitable, Callable
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ConfigDict, Field, PrivateAttr
 
@@ -175,7 +171,7 @@ class FastAPIConnectionManager:
 
         message_json = message.model_dump_json()
         async with self._lock:
-            disconnected: List[WebSocket] = []
+            disconnected: list[WebSocket] = []
             for connection in self._active_connections:
                 connection_state = self._connections.get(connection)
                 if connection_state is None or not self._matches_subscription(
@@ -254,7 +250,7 @@ class FastApiTransport(AgentTransport):
         description="The websocket connection manager for multiplexed updates.",
     )
 
-    _receive_queue: Optional[asyncio.Queue[messages.ToAgentMessage]] = PrivateAttr(
+    _receive_queue: asyncio.Queue[messages.ToAgentMessage] | None = PrivateAttr(
         default=None
     )
     _connected: bool = PrivateAttr(default=False)
@@ -760,7 +756,7 @@ class FastApiAgent(BaseAgent):
 
         try:
             await asyncio.wait_for(_wait(), timeout=self.sink_catch_up_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Timed out waiting for persistence to catch up during shutdown after %.2fs",
                 self.sink_catch_up_timeout,

@@ -6,7 +6,7 @@ the context of a task.
 
 """
 
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 
 from rath.links.base import ContinuationLink

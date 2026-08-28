@@ -4,7 +4,8 @@ import logging
 import warnings
 from abc import abstractmethod
 from types import TracebackType
-from typing import Optional, Self, AsyncIterator, cast
+from typing import Self, cast
+from collections.abc import AsyncIterator
 
 from pydantic import ConfigDict, PrivateAttr
 
@@ -58,7 +59,7 @@ class AgentTransport(KoiledModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    _host: Optional[TransportHost] = PrivateAttr(default=None)
+    _host: TransportHost | None = PrivateAttr(default=None)
 
     def set_transport_host(self, host: TransportHost) -> None:
         """Install the agent this transport serves.

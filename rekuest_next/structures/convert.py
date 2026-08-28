@@ -9,12 +9,11 @@ everything else becomes a FullFilledMemoryStructure kept in the local shelve.
 from enum import Enum, IntEnum, StrEnum
 from typing import (
     Any,
-    Callable,
     Literal,
-    Type,
     get_args,
     get_origin,
 )
+from collections.abc import Callable
 
 from rekuest_next.api.schema import (
     AssignWidgetInput,
@@ -33,7 +32,7 @@ from rekuest_next.structures.types import (
 from rekuest_next.structures.utils import build_instance_predicate
 
 
-def cls_to_identifier(cls: Type[Any]) -> Identifier:
+def cls_to_identifier(cls: type[Any]) -> Identifier:
     """Derive an identifier string from a class's module and name."""
     try:
         return Identifier.validate(f"{cls.__module__.lower()}.{cls.__name__.lower()}")
@@ -49,7 +48,7 @@ def identity_default_converter(x: str) -> str:
     return x
 
 
-def make_enum_converter(cls: Type[Enum]) -> Callable[[Any], str]:
+def make_enum_converter(cls: type[Enum]) -> Callable[[Any], str]:
     """Create a converter that maps a default value to its enum member name.
 
     Handles both enum instances and raw values (e.g. functools.partial treated
@@ -75,7 +74,7 @@ def make_enum_converter(cls: Type[Enum]) -> Callable[[Any], str]:
     return converter
 
 
-def enum_choices(cls: Type[Enum]) -> list[ChoiceInput]:
+def enum_choices(cls: type[Enum]) -> list[ChoiceInput]:
     """Build the ChoiceInput list for an enum's members."""
     return [
         ChoiceInput(label=key, value=key, description=value.__doc__)
@@ -83,7 +82,7 @@ def enum_choices(cls: Type[Enum]) -> list[ChoiceInput]:
     ]
 
 
-def is_global_structure(cls: Type[Any]) -> bool:
+def is_global_structure(cls: type[Any]) -> bool:
     """Check whether a class implements the global structure protocol."""
     return (
         hasattr(cls, "get_identifier")
@@ -92,7 +91,7 @@ def is_global_structure(cls: Type[Any]) -> bool:
     )
 
 
-def fullfilled_enum_from_cls(cls: Type[Enum]) -> FullFilledEnum:
+def fullfilled_enum_from_cls(cls: type[Enum]) -> FullFilledEnum:
     """Build a FullFilledEnum from an Enum subclass."""
     choices = enum_choices(cls)
 
@@ -145,7 +144,7 @@ def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
     members = {str(value): value for value in values}
 
     if all(isinstance(value, str) for value in values):
-        base: Type[Enum] = StrEnum
+        base: type[Enum] = StrEnum
     elif all(
         isinstance(value, int) and not isinstance(value, bool) for value in values
     ):
@@ -153,7 +152,7 @@ def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
     else:
         base = Enum
 
-    enum_cls: Type[Enum] = base("Literal", members)  # type: ignore[call-overload]
+    enum_cls: type[Enum] = base("Literal", members)  # type: ignore[call-overload]
 
     choices = [ChoiceInput(label=key, value=key) for key in members]
 
@@ -173,7 +172,7 @@ def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
     )
 
 
-def fullfilled_structure_from_cls(cls: Type[Any]) -> FullFilledStructure:
+def fullfilled_structure_from_cls(cls: type[Any]) -> FullFilledStructure:
     """Build a FullFilledStructure from a class implementing the global
     structure protocol (get_identifier/ashrink/aexpand)."""
     if not hasattr(cls, "get_identifier"):
@@ -199,7 +198,7 @@ def fullfilled_structure_from_cls(cls: Type[Any]) -> FullFilledStructure:
 
 
 def fullfilled_memory_structure_from_cls(
-    cls: Type[Any],
+    cls: type[Any],
 ) -> FullFilledMemoryStructure:
     """Build a FullFilledMemoryStructure for a class kept in the local shelve."""
     if hasattr(cls, "get_identifier"):

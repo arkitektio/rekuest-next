@@ -7,7 +7,7 @@ COMPLETED/ERROR unroutable: clients saw PROGRESS and YIELD but never the end.
 """
 
 from pathlib import Path
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 from fastapi import FastAPI
@@ -22,8 +22,7 @@ def _build_app(tmp_path: Path) -> FastAPI:
 
     def count_up(until: int) -> Generator[int, None, None]:
         """Yield the numbers below ``until``."""
-        for i in range(until):
-            yield i
+        yield from range(until)
 
     def explode() -> int:
         """Always fail."""

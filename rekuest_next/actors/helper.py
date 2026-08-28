@@ -1,6 +1,6 @@
 """The AssignmentHelper is a helper class that is used to manage the assignment"""
 
-from typing import Any, Optional, Self
+from typing import Any, Self
 from pydantic import BaseModel, ConfigDict
 from rekuest_next.api.schema import LogLevel
 from koil import unkoil
@@ -49,7 +49,7 @@ class AssignmentHelper(BaseModel):
         """
         self.actor.install_assignment_hook(self.assignment.task, hook)
 
-    async def aprogress(self, progress: int, message: Optional[str] = None) -> None:
+    async def aprogress(self, progress: int, message: str | None = None) -> None:
         """Send a progress message to the actor.
 
         Args:
@@ -83,7 +83,7 @@ class AssignmentHelper(BaseModel):
         """
         return unkoil(self.abreakpoint)
 
-    def progress(self, progress: int, message: Optional[str] = None) -> None:
+    def progress(self, progress: int, message: str | None = None) -> None:
         """Send a progress message to the agent.
 
         Args:
@@ -152,9 +152,9 @@ class AssignmentHelper(BaseModel):
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[type],
+        exc_type: type | None,
+        exc_val: Exception | None,
+        exc_tb: type | None,
     ) -> None:
         """Exit the context manager
 
@@ -178,9 +178,9 @@ class AssignmentHelper(BaseModel):
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[type],
+        exc_type: type | None,
+        exc_val: Exception | None,
+        exc_tb: type | None,
     ) -> None:
         """Exit the async context manager
 

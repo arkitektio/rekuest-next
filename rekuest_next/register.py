@@ -3,19 +3,15 @@
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Dict,
     Generic,
-    List,
     Literal,
     Optional,
     ParamSpec,
-    Tuple,
     TypeVar,
-    Union,
     overload,
     cast,
 )
+from collections.abc import Callable
 
 if TYPE_CHECKING:
     from rekuest_next.app import AppRegistry
@@ -82,7 +78,7 @@ class WrappedFunction(Generic[P, R]):
             implementation,
             *args,
             parent=helper.assignment,
-            **cast("Dict[str, Any]", kwargs),
+            **cast("dict[str, Any]", kwargs),
         )
 
     async def acall(self, *args: P.args, **kwargs: P.kwargs) -> R:
@@ -94,7 +90,7 @@ class WrappedFunction(Generic[P, R]):
             implementation,
             *args,
             parent=helper.assignment,
-            **cast("Dict[str, Any]", kwargs),
+            **cast("dict[str, Any]", kwargs),
         )
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
@@ -114,10 +110,10 @@ def register_func(
     function_or_actor: AnyFunction,
     structure_registry: StructureRegistry,
     implementation_registry: "AppRegistry",
-    config: Optional[RegisterConfig] = None,
+    config: RegisterConfig | None = None,
     *,
     actifier: Actifier = reactify,
-) -> Tuple[DefinitionInput, ActorBuilder]:
+) -> tuple[DefinitionInput, ActorBuilder]:
     """Register a function or actor with the provided app registry.
 
     This function wraps a callable or actor into an ActorBuilder and registers it
@@ -188,26 +184,26 @@ def register(func: Callable[P, R]) -> WrappedFunction[P, R]:
 @overload
 def register(
     *,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
+    name: str | None = None,
+    description: str | None = None,
     actifier: Actifier = reactify,
-    interface: Optional[str] = None,
+    interface: str | None = None,
     stateful: bool = False,
-    widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    collections: Optional[List[str]] = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    effects: Optional[Dict[str, List[EffectInput]]] = None,
-    is_test_for: Optional[List[TestTargetInput]] = None,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    structure_registry: Optional[StructureRegistry] = None,
+    widgets: dict[str, AssignWidgetInput] | None = None,
+    collections: list[str] | None = None,
+    port_groups: list[PortGroupInput] | None = None,
+    effects: dict[str, list[EffectInput]] | None = None,
+    is_test_for: list[TestTargetInput] | None = None,
+    validators: dict[str, list[ValidatorInput]] | None = None,
+    structure_registry: StructureRegistry | None = None,
     implementation_registry: Optional["AppRegistry"] = None,
-    optimistics: Optional[List[OptimisticCoercible]] = None,
+    optimistics: list[OptimisticCoercible] | None = None,
     in_process: bool = False,
-    tracks: Optional[List[TrackInput]] = None,
-    locks: Optional[List[str]] = None,
+    tracks: list[TrackInput] | None = None,
+    locks: list[str] | None = None,
     concurrency: Literal["parallel", "serial"] = "serial",
     policy: DisconnectPolicy = KEEP,
-    version: Optional[str] = None,
+    version: str | None = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with configuration: ``@register(...)``."""
     ...
@@ -215,27 +211,27 @@ def register(
 
 def register(  # type: ignore[valid-type]
     *func: Callable[P, R],
-    name: Optional[str] = None,
+    name: str | None = None,
     actifier: Actifier = reactify,
-    interface: Optional[str] = None,
+    interface: str | None = None,
     stateful: bool = False,
-    description: Optional[str] = None,
-    widgets: Optional[Dict[str, AssignWidgetInput]] = None,
-    collections: Optional[List[str]] = None,
-    port_groups: Optional[List[PortGroupInput]] = None,
-    effects: Optional[Dict[str, List[EffectInput]]] = None,
-    is_test_for: Optional[List[TestTargetInput]] = None,
-    optimistics: Optional[List[OptimisticCoercible]] = None,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
-    structure_registry: Optional[StructureRegistry] = None,
-    tracks: Optional[List[TrackInput]] = None,
+    description: str | None = None,
+    widgets: dict[str, AssignWidgetInput] | None = None,
+    collections: list[str] | None = None,
+    port_groups: list[PortGroupInput] | None = None,
+    effects: dict[str, list[EffectInput]] | None = None,
+    is_test_for: list[TestTargetInput] | None = None,
+    optimistics: list[OptimisticCoercible] | None = None,
+    validators: dict[str, list[ValidatorInput]] | None = None,
+    structure_registry: StructureRegistry | None = None,
+    tracks: list[TrackInput] | None = None,
     implementation_registry: Optional["AppRegistry"] = None,
     in_process: bool = False,
-    locks: Optional[List[str]] = None,
+    locks: list[str] | None = None,
     concurrency: Literal["parallel", "serial"] = "serial",
     policy: DisconnectPolicy = KEEP,
-    version: Optional[str] = None,
-) -> Union[WrappedFunction[P, R], Callable[[Callable[P, R]], WrappedFunction[P, R]]]:
+    version: str | None = None,
+) -> WrappedFunction[P, R] | Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with an app registry.
 
     Serves as both a bare decorator and a configurable decorator. All keyword

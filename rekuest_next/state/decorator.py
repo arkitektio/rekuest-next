@@ -4,12 +4,11 @@ from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Optional,
-    Type,
     TypeVar,
-    Callable,
     overload,
     get_type_hints,
 )
+from collections.abc import Callable
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateImplementationInput,
@@ -27,7 +26,7 @@ T = TypeVar("T")
 
 
 def inspect_state(
-    cls: Type[T], structure_registry: StructureRegistry
+    cls: type[T], structure_registry: StructureRegistry
 ) -> StateImplementationInput:
     """Inspect the state schema of a class."""
     from rekuest_next.definition.define import convert_object_to_returnport
@@ -66,11 +65,11 @@ def inspect_state(
 
 
 def statify(
-    cls: Type[T],
-    required_locks: Optional[list[str]] = None,
-    structure_registry: Optional[StructureRegistry] = None,
+    cls: type[T],
+    required_locks: list[str] | None = None,
+    structure_registry: StructureRegistry | None = None,
     publish_interval: float = 0.1,
-) -> tuple[Type[T], StateImplementationInput]:
+) -> tuple[type[T], StateImplementationInput]:
     if structure_registry is None:
         structure_registry = get_default_structure_registry()
 
@@ -103,28 +102,28 @@ def statify(
 
 
 @overload
-def state(*function: Type[T]) -> Type[T]: ...
+def state(*function: type[T]) -> type[T]: ...
 
 
 @overload
 def state(
     *,
-    name: Optional[str] = None,
-    required_locks: Optional[list[str]] = None,
+    name: str | None = None,
+    required_locks: list[str] | None = None,
     publish_interval: float = 0.1,
     registry: Optional["AppRegistry"] = None,
-    structure_reg: Optional[StructureRegistry] = None,
+    structure_reg: StructureRegistry | None = None,
 ) -> Callable[[T], T]: ...
 
 
 def state(
-    *function: Type[T],
-    name: Optional[str] = None,
-    required_locks: Optional[list[str]] = None,
+    *function: type[T],
+    name: str | None = None,
+    required_locks: list[str] | None = None,
     publish_interval: float = 0.1,
     registry: Optional["AppRegistry"] = None,
-    structure_reg: Optional[StructureRegistry] = None,
-) -> Type[T] | Callable[[Type[T]], Type[T]]:
+    structure_reg: StructureRegistry | None = None,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Register a class as an observable agent state.
 
     The decorator ensures the class is a dataclass, assigns a rekuest state
@@ -175,7 +174,7 @@ def state(
 
     if len(function) == 0:
 
-        def wrapper(cls: Type[T]) -> Type[T]:
+        def wrapper(cls: type[T]) -> type[T]:
             # Ensure it's a dataclass
             try:
                 fields(cls)

@@ -138,3 +138,12 @@ exclude_commit_patterns = [
     '^Merge ',
 ]
 
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "UP"]
+# UP038: rule is deprecated in ruff and ``isinstance(x, A | B)`` is slower than a tuple.
+# UP037: some quoted annotations guard TYPE_CHECKING-only imports in pydantic models.
+ignore = ["UP038", "UP037"]

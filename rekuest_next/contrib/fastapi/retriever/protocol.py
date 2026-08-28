@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from rekuest_next.messages import JSONSerializable
 
@@ -55,41 +55,41 @@ class StateRetriever(Protocol):
     async def ateardown(self) -> None: ...
 
     async def aget_task_boundaries(
-        self, correlation_id: str, state_id: Optional[str] = None
-    ) -> Optional[TaskBoundary]: ...
+        self, correlation_id: str, state_id: str | None = None
+    ) -> TaskBoundary | None: ...
 
     async def aget_session_boundaries(
-        self, session_id: str, state_id: Optional[str] = None
-    ) -> Optional[SessionBoundary]: ...
+        self, session_id: str, state_id: str | None = None
+    ) -> SessionBoundary | None: ...
 
     async def aget_state_at_global_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Snapshot | List[Snapshot] | None: ...
+        state_id: str | None = None,
+        session_id: str | None = None,
+    ) -> Snapshot | list[Snapshot] | None: ...
 
     async def aget_forward_events_after_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         count: int = 100,
-    ) -> List[PatchEvent]: ...
+    ) -> list[PatchEvent]: ...
 
     async def aget_patch_events_between_global_revs(
         self,
         from_global_revision: int,
         to_global_revision: int,
-        state_ids: Optional[List[str]] = None,
-        session_id: Optional[str] = None,
-    ) -> List[PatchEvent]: ...
+        state_ids: list[str] | None = None,
+        session_id: str | None = None,
+    ) -> list[PatchEvent]: ...
 
     async def aget_snapshots_around_rev(
         self,
         revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         before: int = 1,
         after: int = 1,
-    ) -> List[Snapshot]: ...
+    ) -> list[Snapshot]: ...

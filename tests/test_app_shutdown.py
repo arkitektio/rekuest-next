@@ -8,7 +8,6 @@ cancelled-loop path, and exactly once either way.
 """
 
 import asyncio
-from typing import List
 
 import pytest
 from dokker import Deployment
@@ -23,7 +22,7 @@ async def test_shutdown_hook_runs_on_clean_exit(deployment: Deployment) -> None:
 
     app = build_fresh_rekuest(deployment, token="standalone_token")
     registry = app.agent.app_registry
-    torn_down: List[int] = []
+    torn_down: list[int] = []
 
     @registry.state
     class Counter:
@@ -154,7 +153,7 @@ async def test_shutdown_hook_runs_once_when_the_loop_is_cancelled(
 
     app = build_fresh_rekuest(deployment, token="standalone_token")
     registry = app.agent.app_registry
-    calls: List[str] = []
+    calls: list[str] = []
 
     @registry.state
     class Flag:

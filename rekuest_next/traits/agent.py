@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Iterable, Iterator
+from typing import TYPE_CHECKING
+from collections.abc import Iterable, Iterator
 
 from pydantic import BaseModel, model_validator
 

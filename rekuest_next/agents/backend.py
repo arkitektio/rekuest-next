@@ -15,7 +15,7 @@ backend.
 
 import logging
 import uuid
-from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,7 +44,7 @@ class AgentBackend(Protocol):
     """
 
     @property
-    def registered_agent_id(self) -> Optional[str]:
+    def registered_agent_id(self) -> str | None:
         """The id the backend assigned this agent, once registered.
 
         ``None`` before registration, and for backends that assign none.
@@ -54,7 +54,7 @@ class AgentBackend(Protocol):
     async def aensure_registered(
         self,
         app_registry: "AppRegistry",
-        name: Optional[str],
+        name: str | None,
         definition_hash: str,
     ) -> None:
         """Make sure the backend knows what this agent implements.
@@ -72,8 +72,8 @@ class AgentBackend(Protocol):
         self,
         identifier: Identifier,
         resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
+        label: str | None = None,
+        description: str | None = None,
     ) -> str:
         """Put a value on the shelve and return its drawer key."""
         ...
@@ -94,14 +94,14 @@ class LocalAgentBackend(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
-    def registered_agent_id(self) -> Optional[str]:
+    def registered_agent_id(self) -> str | None:
         """No backend, so no assigned id."""
         return None
 
     async def aensure_registered(
         self,
         app_registry: "AppRegistry",
-        name: Optional[str],
+        name: str | None,
         definition_hash: str,
     ) -> None:
         """Nothing to register against."""
@@ -115,8 +115,8 @@ class LocalAgentBackend(BaseModel):
         self,
         identifier: Identifier,
         resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
+        label: str | None = None,
+        description: str | None = None,
     ) -> str:
         """Not supported: there is no shelve to put anything on."""
         raise NotImplementedError(
@@ -139,17 +139,17 @@ class RathAgentBackend(BaseModel):
     )
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    _agent: Optional[AgentModel] = None
+    _agent: AgentModel | None = None
 
     @property
-    def registered_agent_id(self) -> Optional[str]:
+    def registered_agent_id(self) -> str | None:
         """The server-assigned agent id, available once registration has run."""
         return self._agent.id if self._agent is not None else None
 
     async def aensure_registered(
         self,
         app_registry: "AppRegistry",
-        name: Optional[str],
+        name: str | None,
         definition_hash: str,
     ) -> None:
         """Register this agent's implementations and states, if they changed.
@@ -191,8 +191,8 @@ class RathAgentBackend(BaseModel):
         self,
         identifier: Identifier,
         resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
+        label: str | None = None,
+        description: str | None = None,
     ) -> str:
         """Put a value on the server-side shelve and return its drawer id."""
         drawer = await ashelve(

@@ -1,21 +1,17 @@
 """Functions for testing"""
 
 import asyncio
-import sys
-from typing import Dict, Generator, List, Tuple, Optional, Union
+from collections.abc import Generator
 from .structures import SecondObject, SecondSerializableObject, SerializableObject
 from annotated_types import Le, Predicate, Gt, Len
 from rekuest_next.structures.model import model
 from rekuest_next.api.schema import AssignWidgetInput, AssignWidgetKind
 
 
-if sys.version_info < (3, 9):
-    from typing_extensions import Annotated
-else:
-    from typing import Annotated
+from typing import Annotated
 
 
-def null_function(x: Optional[int]) -> None:
+def null_function(x: int | None) -> None:
     """Karl
 
     Karl takes a a representation and does magic stuff
@@ -63,8 +59,8 @@ def plain_structure_function(
 
 
 def union_structure_function(
-    rep: Union[SerializableObject, SecondSerializableObject],
-) -> Union[SerializableObject, SecondSerializableObject]:
+    rep: SerializableObject | SecondSerializableObject,
+) -> SerializableObject | SecondSerializableObject:
     """Karl
 
     Karl takes a a representation and does magic stuff
@@ -84,8 +80,8 @@ def union_structure_function(
 
 
 def basic_union_function(
-    rep: Union[int, SerializableObject],
-) -> Union[int, SerializableObject]:
+    rep: int | SerializableObject,
+) -> int | SerializableObject:
     """A union mixing a basic type with a structure.
 
     Exercises the case that used to break: a bare ``int`` member of a union has
@@ -100,7 +96,7 @@ def basic_union_function(
     return rep
 
 
-def numeric_union_function(rep: Union[int, float]) -> Union[int, float]:
+def numeric_union_function(rep: int | float) -> int | float:
     """A union of two numeric types whose JSON encodings collapse.
 
     Used to prove the ``use`` index is authoritative on expand: an int on the
@@ -116,8 +112,8 @@ def numeric_union_function(rep: Union[int, float]) -> Union[int, float]:
 
 
 def nested_basic_function(
-    rep: List[str], nana: Dict[str, int], name: str | None = None
-) -> Tuple[List[str], int]:
+    rep: list[str], nana: dict[str, int], name: str | None = None
+) -> tuple[list[str], int]:
     """Structure Karl
 
     Nananan
@@ -134,8 +130,8 @@ def nested_basic_function(
 
 
 def nested_structure_function(
-    rep: List[SerializableObject], name: Dict[str, SerializableObject] | None = None
-) -> Tuple[str, Dict[str, SecondSerializableObject]]:
+    rep: list[SerializableObject], name: dict[str, SerializableObject] | None = None
+) -> tuple[str, dict[str, SecondSerializableObject]]:
     """Structured Karl
 
     Naoinaoainao
@@ -171,7 +167,7 @@ def annotated_basic_function(
 
 def annotated_nested_structure_function(
     rep: Annotated[str, Predicate(str.islower)],
-    number: Dict[str, Annotated[List[SecondSerializableObject], Len(3)]] | None = None,
+    number: dict[str, Annotated[list[SecondSerializableObject], Len(3)]] | None = None,
 ) -> str:
     """Annotated Karl
 
@@ -188,8 +184,8 @@ def annotated_nested_structure_function(
 
 
 def nested_structure_generator(
-    rep: List[SecondObject], name: Dict[str, SecondObject] | None = None
-) -> Generator[Tuple[str, Dict[str, SecondObject]], None, None]:
+    rep: list[SecondObject], name: dict[str, SecondObject] | None = None
+) -> Generator[tuple[str, dict[str, SecondObject]], None, None]:
     """Structured Karl
 
     Naoinaoainao
@@ -206,8 +202,8 @@ def nested_structure_generator(
 
 
 async def nested_structure_asyncgenerator(
-    rep: List[SecondObject], name: Dict[str, SecondObject] | None = None
-) -> Tuple[str, Dict[str, SecondObject]]:  # type: ignore
+    rep: list[SecondObject], name: dict[str, SecondObject] | None = None
+) -> tuple[str, dict[str, SecondObject]]:  # type: ignore
     """function_with_side_register_async
 
     Naoinaoainao
@@ -233,7 +229,7 @@ class Karl:
     strucutre: Annotated[SecondObject, AssignWidgetInput(kind=AssignWidgetKind.CUSTOM)]
 
 
-async def nested_model_with_annotations(karls: List[Karl]) -> List[Karl]:
+async def nested_model_with_annotations(karls: list[Karl]) -> list[Karl]:
     """Karl
 
     Karl takes a a representation and does magic stuff

@@ -14,7 +14,7 @@ fixture) and a working executor path.
 """
 
 import asyncio
-from typing import Any, Dict, List, Protocol
+from typing import Any, Protocol
 
 import pytest
 from dokker import Deployment
@@ -38,7 +38,7 @@ async def test_actor_internal_dependency_call_uses_agent(
     ``AgentPostman.aassign`` (the agent caller) — not the GraphQL postman.
     """
 
-    delegated: List[Dict[str, Any]] = []
+    delegated: list[dict[str, Any]] = []
     original_aassign = AgentPostman.aassign
 
     def spy_aassign(self: AgentPostman, **kwargs: Any):

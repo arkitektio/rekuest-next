@@ -3,29 +3,24 @@ be used to mark a class as a model."""
 
 import inspect
 import re
-import sys
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Type, TypeVar, get_type_hints
+from typing import Any, TypeVar, get_type_hints
 import inflection
 from fieldz import fields, Field  # type: ignore
 from pydantic import BaseModel
 
 from rekuest_next.api.schema import ValidatorInput
 
-# Handle Python version compatibility for dataclass_transform
-if sys.version_info >= (3, 11):
-    from typing import dataclass_transform
-else:
-    from typing_extensions import dataclass_transform
+from typing import dataclass_transform
 
-T = TypeVar("T", bound=Type[Any])
+T = TypeVar("T", bound=type[Any])
 
 
 def model_field(
     *args: Any,
-    description: Optional[str] = None,
-    validators: Optional[List[ValidatorInput]] = None,
-    label: Optional[str] = None,
+    description: str | None = None,
+    validators: list[ValidatorInput] | None = None,
+    label: str | None = None,
     **kwargs: Any,
 ) -> Any:
     """Create a dataclass field enriched with rekuest model metadata.
@@ -138,7 +133,7 @@ def model(cls: T) -> T:
     return cls
 
 
-def is_model(cls: Type[Any]) -> bool:
+def is_model(cls: type[Any]) -> bool:
     """Check if a class is a model."""
 
     return getattr(cls, "__rekuest_model__", False)
@@ -148,22 +143,22 @@ class InspectedModel(BaseModel):
     """A model that can be used to serialize and deserialize"""
 
     identifier: str
-    description: Optional[str]
-    args: List["InspectedArg"]
+    description: str | None
+    args: list["InspectedArg"]
 
 
 class InspectedArg(BaseModel):
     """A fullfiled argument of a model that can be used to serialize and deserialize"""
 
     key: str
-    default: Optional[Any]
+    default: Any | None
     cls: Any
-    label: Optional[str]
-    description: Optional[str]
-    validators: Optional[List[ValidatorInput]]
+    label: str | None
+    description: str | None
+    validators: list[ValidatorInput] | None
 
 
-def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
+def inspect_args_for_model(cls: type[Any]) -> list[InspectedArg]:
     """Retrieve the arguments for a model."""
     children_classes: tuple[Field[Any], ...] = fields(cls)  # type: ignore
 
@@ -189,7 +184,7 @@ def inspect_args_for_model(cls: Type[Any]) -> List[InspectedArg]:
     return args
 
 
-def inspect_model_class(cls: Type[Any]) -> InspectedModel:
+def inspect_model_class(cls: type[Any]) -> InspectedModel:
     """Retrieve the fullfilled model for a class."""
     return InspectedModel(
         identifier=cls.__rekuest_model__,

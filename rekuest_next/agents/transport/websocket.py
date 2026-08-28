@@ -3,7 +3,8 @@
 import time
 import warnings
 from types import TracebackType
-from typing import Awaitable, Callable, Dict, List, Optional, Self, Type, cast
+from typing import Self, cast
+from collections.abc import Awaitable, Callable
 import pydantic
 import websockets
 from rekuest_next.agents.policy import Backoff, ConnectionPolicy
@@ -34,7 +35,7 @@ from .errors import (
     AgentWasBlocked,
     KickError,
 )
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from pydantic import BaseModel
 
@@ -72,7 +73,7 @@ KICK_CODE = 4005
 BOUNCED_CODE = BEFORE_REGISTRATION_CODE
 
 
-agent_error_codes: Dict[int, Type[Exception]] = {
+agent_error_codes: dict[int, type[Exception]] = {
     KICK_CODE: AgentWasKicked,
     BUSY_CODE: AgentIsAlreadyBusy,
     BLOCKED_CODE: AgentWasBlocked,
@@ -82,7 +83,7 @@ agent_error_codes: Dict[int, Type[Exception]] = {
     SCHEMA_MISMATCH_CODE: DefiniteConnectionFail,
 }
 
-agent_error_message: Dict[int, str] = {
+agent_error_message: dict[int, str] = {
     KICK_CODE: "Agent was kicked by the server",
     BUSY_CODE: "Agent can't connect as another instance is already connected. Please kick the other instance first",
     BLOCKED_CODE: "Agent is currently blocked by the server. Unblock first!",
@@ -125,12 +126,12 @@ class WebsocketAgentTransport(AgentTransport):
         default_factory=lambda: ssl.create_default_context(cafile=certifi.where())
     )
     token_loader: Callable[[], Awaitable[str]] = Field(exclude=True)
-    max_retries: Optional[int] = None
+    max_retries: int | None = None
     """Deprecated. Set ``ConnectionPolicy.max_retries`` on the agent instead."""
-    time_between_retries: Optional[float] = None
+    time_between_retries: float | None = None
     """Deprecated. Set ``ConnectionPolicy.backoff`` on the agent instead. When given it
     pins a flat (non-exponential) delay, reproducing the old behaviour exactly."""
-    allow_reconnect: Optional[bool] = None
+    allow_reconnect: bool | None = None
     """Deprecated. ``False`` is equivalent to ``ConnectionPolicy(max_retries=0)``."""
     auto_connect: bool = True
     force: bool = False
@@ -141,7 +142,7 @@ class WebsocketAgentTransport(AgentTransport):
 
     _healthy: ContextBool = False
     _closing: ContextBool = False
-    _drop_times: List[float] = pydantic.PrivateAttr(default_factory=list)
+    _drop_times: list[float] = pydantic.PrivateAttr(default_factory=list)
 
     @pydantic.model_validator(mode="after")
     def _warn_on_deprecated_retry_knobs(self) -> "WebsocketAgentTransport":
@@ -169,7 +170,7 @@ class WebsocketAgentTransport(AgentTransport):
         replaced by the agent's default backoff.
         """
         policy = super().connection_policy
-        overrides: Dict[str, object] = {}
+        overrides: dict[str, object] = {}
         if self.max_retries is not None:
             overrides["max_retries"] = self.max_retries
         if self.time_between_retries is not None:
@@ -354,7 +355,7 @@ class WebsocketAgentTransport(AgentTransport):
                 # Disconnect was requested; stop the (re)connect loop cleanly.
                 return
             send_task = None
-            connected_at: Optional[float] = None
+            connected_at: float | None = None
             try:
                 try:
                     # The credential is the transport's to load, and is reloaded per
@@ -488,7 +489,7 @@ class WebsocketAgentTransport(AgentTransport):
         # receive loop noticed the drop first and cancelled us mid-send — that
         # message has to go back, or it is simply lost. Only terminal reports are
         # retained elsewhere; a Progress, Log or Yield popped here would vanish.
-        in_flight: Optional[str] = None
+        in_flight: str | None = None
 
         def requeue() -> None:
             """Put the held message back, then close out the get that took it.
@@ -591,7 +592,7 @@ class WebsocketAgentTransport(AgentTransport):
             # it ignores that, so a clean shutdown stays clean.
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=self.flush_timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 task.cancel()
                 try:
                     await task
@@ -605,9 +606,9 @@ class WebsocketAgentTransport(AgentTransport):
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the transport context, closing the connection if it is still up."""
         if self._connection_task is not None or self._client is not None:

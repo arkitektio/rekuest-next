@@ -1,7 +1,8 @@
 """Functional actors for rekuest_next"""
 
 import logging
-from typing import Any, AsyncGenerator, Callable, Dict, List, Self
+from typing import Any, Self
+from collections.abc import AsyncGenerator, Callable
 from koil.bridge import iterate_threaded, run_threaded  # type: ignore
 from rekuest_next.actors.base import SerializingActor
 from rekuest_next.messages import Assign
@@ -34,7 +35,7 @@ class FunctionalActor(SerializingActor):
     iterator: "ResultIterator"
 
     def aiterate_results(
-        self: Self, **params: Dict[str, Any]
+        self: Self, **params: dict[str, Any]
     ) -> AsyncGenerator[Any, None]:
         """Invoke the wrapped callable and yield its result(s)."""
         return self.iterator(self.assign, **params)
@@ -82,14 +83,14 @@ class FunctionalActor(SerializingActor):
 
             context_kwargs, state_kwargs, dependency_kwargs = await self.aget_locals()
 
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 **input_kwargs,
                 **context_kwargs,
                 **state_kwargs,
                 **dependency_kwargs,
             }
 
-            logs: List[str] = []
+            logs: list[str] = []
 
             async def aflush_captured_logs() -> None:
                 if logs and assignment.capture:

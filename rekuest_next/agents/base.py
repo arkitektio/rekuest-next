@@ -18,13 +18,10 @@ from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
-    AsyncIterator,
-    Dict,
-    List,
     Optional,
     Self,
-    Sequence,
 )
+from collections.abc import AsyncIterator, Sequence
 import janus
 import jsonpatch  # type: ignore[import-untyped]
 from pydantic import ConfigDict, Field, PrivateAttr
@@ -107,7 +104,7 @@ class BaseAgent(KoiledModel):
     )
 
     # TODO: KV Store
-    shelve: Dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
+    shelve: dict[str, Any] = Field(default_factory=dict)  # kv_store -> Seperate
     transport: AgentTransport
     backend: AgentBackend = Field(
         default_factory=LocalAgentBackend,
@@ -115,59 +112,59 @@ class BaseAgent(KoiledModel):
     )
     app_registry: AppRegistry = Field(default_factory=get_default_app_registry)
 
-    contexts: Dict[str, Any] = Field(
+    contexts: dict[str, Any] = Field(
         default_factory=dict,
         description="Maps context keys to context values registed with @context",
     )
-    states: Dict[str, AnyState] = Field(
+    states: dict[str, AnyState] = Field(
         default_factory=dict,
         description="Maps the state key to the state value. This is used to store the states of the agent.",
     )
-    locks: Dict[str, TaskLock] = Field(default_factory=dict)
+    locks: dict[str, TaskLock] = Field(default_factory=dict)
 
     capture_condition: asyncio.Condition = Field(default_factory=asyncio.Condition)
     capture_active: bool = Field(default=False)
 
-    managed_actors: Dict[str, Actor] = Field(default_factory=dict)
+    managed_actors: dict[str, Actor] = Field(default_factory=dict)
 
-    managed_assignments: Dict[str, messages.Assign] = Field(default_factory=dict)
-    running_assignments: Dict[str, str] = Field(
+    managed_assignments: dict[str, messages.Assign] = Field(default_factory=dict)
+    running_assignments: dict[str, str] = Field(
         default_factory=dict, description="Maps task to actor id"
     )
 
-    _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(
+    _current_shrunk_states: dict[str, JSONSerializable] = PrivateAttr(
         default_factory=lambda: {}  # type: ignore[return-value]
     )
-    _app_context: Optional[AppContext] = PrivateAttr(default=None)
+    _app_context: AppContext | None = PrivateAttr(default=None)
     _caller_postman: Optional["AgentPostman"] = PrivateAttr(default=None)
     """The agent-as-caller postman, lazily built. Bound as ``current_postman`` while an
     actor body runs so actor-internal ``acall``/``acall_dependency`` route over this socket."""
 
     _connected_event: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
     """Set when the server acknowledges the agent (an ``Init`` message is received)."""
-    _receiver: Optional[AsyncIterator[messages.ToAgentMessage]] = PrivateAttr(
+    _receiver: AsyncIterator[messages.ToAgentMessage] | None = PrivateAttr(
         default=None
     )
     """The live transport message stream, shared between ``aconnect`` and ``aloop``."""
 
-    _interface_stateschema_input_map: Dict[str, StateDefinitionInput] = PrivateAttr(
+    _interface_stateschema_input_map: dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}  # typ
     )
 
-    _disconnect_watchdog_task: Optional[asyncio.Task[None]] = PrivateAttr(default=None)
-    _background_tasks: Dict[str, asyncio.Task[None]] = PrivateAttr(
+    _disconnect_watchdog_task: asyncio.Task[None] | None = PrivateAttr(default=None)
+    _background_tasks: dict[str, asyncio.Task[None]] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_state_schemas: Dict[str, StateDefinitionInput] = PrivateAttr(
+    _collected_state_schemas: dict[str, StateDefinitionInput] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_startup_hooks: Dict[str, StartupHook] = PrivateAttr(
+    _collected_startup_hooks: dict[str, StartupHook] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_shutdown_hooks: Dict[str, ShutdownHook] = PrivateAttr(
+    _collected_shutdown_hooks: dict[str, ShutdownHook] = PrivateAttr(
         default_factory=lambda: {}
     )
-    _collected_background_workers: Dict[str, Any] = PrivateAttr(
+    _collected_background_workers: dict[str, Any] = PrivateAttr(
         default_factory=lambda: {}
     )
     _ran_startup_hooks: bool = PrivateAttr(default=False)
@@ -175,7 +172,7 @@ class BaseAgent(KoiledModel):
     for an agent that actually started (and only once per start)."""
 
     # Event based necessities
-    force: Optional[bool] = Field(
+    force: bool | None = Field(
         default=None,
         description="Kick any connection already registered for this agent and take over. None defers to the transport's own build-time policy.",
     )
@@ -187,7 +184,7 @@ class BaseAgent(KoiledModel):
     _patch_processor_task: asyncio.Task[None] | None = PrivateAttr(default=None)
     _event_seq: int = PrivateAttr(default=0)
     # message id -> retained terminal event awaiting its EventAck (insertion-ordered dict)
-    _unacked_events: Dict[str, messages.FromAgentMessage] = PrivateAttr(
+    _unacked_events: dict[str, messages.FromAgentMessage] = PrivateAttr(
         default_factory=dict
     )
     global_revision: int = 0
@@ -393,7 +390,7 @@ class BaseAgent(KoiledModel):
         """Mint the identifier for this run, however the backend does that."""
         return await self.backend.acreate_session()
 
-    def get_locks_for_keys(self, keys: Sequence[str]) -> List[TaskLock]:
+    def get_locks_for_keys(self, keys: Sequence[str]) -> list[TaskLock]:
         """Get the locks for the given keys.
 
         Args:
@@ -450,8 +447,8 @@ class BaseAgent(KoiledModel):
         self,
         identifier: Identifier,
         resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
+        label: str | None = None,
+        description: str | None = None,
     ) -> str:
         """Put a value on the backend's shelve and return its drawer key."""
         return await self.backend.ashelve(
@@ -745,7 +742,7 @@ class BaseAgent(KoiledModel):
                 await asyncio.wait_for(
                     self._event_queue.async_q.join(), timeout=self.teardown_join_timeout
                 )
-            except (RuntimeError, asyncio.TimeoutError):
+            except (TimeoutError, RuntimeError):
                 logger.warning(
                     "Timed out flushing queued patches during teardown; "
                     "closing the patch queue anyway"
@@ -786,7 +783,7 @@ class BaseAgent(KoiledModel):
                 await asyncio.wait_for(
                     actor.acancel(), timeout=self.actor_cancel_timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "Actor %s did not finish cancelling within %.2fs; abandoning it",
                     interface,
@@ -878,7 +875,7 @@ class BaseAgent(KoiledModel):
                     actor.acancel_for_policy(reason),
                     timeout=self.actor_cancel_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "Actor %s did not stop within %.2fs of the disconnect policy firing",
                     actor.id,
@@ -1072,7 +1069,7 @@ class BaseAgent(KoiledModel):
             pass
 
     async def arun_startup_hooks(
-        self, app_context: Optional[AppContext] = None
+        self, app_context: AppContext | None = None
     ) -> StartupHookReturns:
         """Run all startup hooks collected from the app registry.
 
@@ -1081,8 +1078,8 @@ class BaseAgent(KoiledModel):
         """
         from rekuest_next.agents.hooks.errors import StartupHookError
 
-        states: Dict[str, Any] = {}
-        contexts: Dict[str, Any] = {}
+        states: dict[str, Any] = {}
+        contexts: dict[str, Any] = {}
 
         for key, hook in self._collected_startup_hooks.items():
             try:
@@ -1137,7 +1134,7 @@ class BaseAgent(KoiledModel):
                 logger.error(hook_error, exc_info=hook_error)
 
     @property
-    def registered_agent_id(self) -> Optional[str]:
+    def registered_agent_id(self) -> str | None:
         """The id this agent's backend assigned it, once registered.
 
         ``None`` before :meth:`aensure` has run, and for a backend that assigns none.
@@ -1152,7 +1149,7 @@ class BaseAgent(KoiledModel):
             definition_hash=await self.aget_hash(),
         )
 
-    async def astart(self, app_context: Optional[AppContext] = None) -> None:
+    async def astart(self, app_context: AppContext | None = None) -> None:
         """Starts the agent. This is used to start the agent and all the actors
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
@@ -1251,7 +1248,7 @@ class BaseAgent(KoiledModel):
         """
         return HandshakeParams(force=self.force, session_id=self.current_session)
 
-    async def _aconnect_sequence(self, context: Optional[AppContext] = None) -> None:
+    async def _aconnect_sequence(self, context: AppContext | None = None) -> None:
         """The startup + transport-open + acknowledge sequence, unbounded.
 
         Each phase is logged so that a stall (when ``aconnect`` wraps this in a
@@ -1272,7 +1269,7 @@ class BaseAgent(KoiledModel):
 
     async def aconnect(
         self,
-        context: Optional[AppContext] = None,
+        context: AppContext | None = None,
         timeout: float | None = None,
     ) -> None:
         """Starts the agent and connects to the transport.
@@ -1351,7 +1348,7 @@ class BaseAgent(KoiledModel):
                 asyncio.shield(consume_task), timeout=self.cancel_grace_period
             )
             return
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (TimeoutError, asyncio.CancelledError):
             pass
         except Exception:
             logger.warning("Message consumer errored during shutdown", exc_info=True)
@@ -1372,12 +1369,12 @@ class BaseAgent(KoiledModel):
             await asyncio.wait_for(
                 asyncio.shield(consume_task), timeout=self.cancel_grace_period
             )
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (TimeoutError, asyncio.CancelledError):
             pass
         except Exception:
             logger.warning("Message consumer errored during shutdown", exc_info=True)
 
-    async def aprovide(self, context: Optional[AppContext] = None) -> None:
+    async def aprovide(self, context: AppContext | None = None) -> None:
         """Provides the agent.
 
         This starts the agent, connects to the transport, and then listens for
@@ -1405,9 +1402,9 @@ class BaseAgent(KoiledModel):
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Exit the agent.
 

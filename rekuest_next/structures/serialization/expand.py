@@ -8,7 +8,8 @@ handler in :data:`EXPANDERS`; container kinds recurse through
 
 import asyncio
 import datetime as dt
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any
+from collections.abc import Sequence
 
 from rath.scalars import ID
 
@@ -266,9 +267,9 @@ async def aexpand_return(
 
 async def aexpand_returns(
     definition: DefinitionInput | Action,
-    returns: Dict[str, JSONSerializable],
+    returns: dict[str, JSONSerializable],
     structure_registry: StructureRegistry,
-) -> Tuple[Any, ...]:
+) -> tuple[Any, ...]:
     """Expand a returns dict against ``definition.returns``, in port order.
 
     A key missing from ``returns`` is tolerated only for nullable ports.

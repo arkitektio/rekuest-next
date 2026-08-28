@@ -1,6 +1,6 @@
 import copy
-from datetime import datetime, timezone
-from typing import Callable, Optional
+from datetime import datetime, UTC
+from collections.abc import Callable
 
 from rekuest_next import messages
 from rekuest_next.contrib.fastapi.retriever.protocol import (
@@ -22,7 +22,7 @@ from rekuest_next.messages import JSONSerializable
 class MemoryRetriever:
     """In-memory retriever for persisted state history stored as transport messages."""
 
-    def __init__(self, store: Optional[MemoryStore] = None) -> None:
+    def __init__(self, store: MemoryStore | None = None) -> None:
         self.store = store
 
     async def ainitialize(self) -> None:
@@ -35,7 +35,7 @@ class MemoryRetriever:
         self,
         key: str,
         matches: Callable[[messages.StatePatch], bool],
-        state_id: Optional[str],
+        state_id: str | None,
         *,
         session: bool,
     ) -> TaskBoundary | SessionBoundary | None:
@@ -59,8 +59,8 @@ class MemoryRetriever:
     async def aget_task_boundaries(
         self,
         correlation_id: str,
-        state_id: Optional[str] = None,
-    ) -> Optional[TaskBoundary]:
+        state_id: str | None = None,
+    ) -> TaskBoundary | None:
         boundary = self._boundaries(
             correlation_id,
             lambda patch: patch.task_id == correlation_id,
@@ -70,8 +70,8 @@ class MemoryRetriever:
         return boundary if isinstance(boundary, TaskBoundary) else None
 
     async def aget_session_boundaries(
-        self, session_id: str, state_id: Optional[str] = None
-    ) -> Optional[SessionBoundary]:
+        self, session_id: str, state_id: str | None = None
+    ) -> SessionBoundary | None:
         boundary = self._boundaries(
             session_id,
             lambda patch: patch.session_id == session_id,
@@ -83,8 +83,8 @@ class MemoryRetriever:
     async def aget_state_at_global_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
     ) -> Snapshot | list[Snapshot] | None:
         return self._aget_state_at_revision(
             target_revision=global_revision,
@@ -95,8 +95,8 @@ class MemoryRetriever:
     async def aget_forward_events_after_rev(
         self,
         global_revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         count: int = 100,
     ) -> list[PatchEvent]:
         patches = [
@@ -118,8 +118,8 @@ class MemoryRetriever:
         self,
         from_global_revision: int,
         to_global_revision: int,
-        state_ids: Optional[list[str]] = None,
-        session_id: Optional[str] = None,
+        state_ids: list[str] | None = None,
+        session_id: str | None = None,
     ) -> list[PatchEvent]:
         patches = [
             patch
@@ -140,8 +140,8 @@ class MemoryRetriever:
     async def aget_snapshots_around_rev(
         self,
         revision: int,
-        state_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        state_id: str | None = None,
+        session_id: str | None = None,
         before: int = 1,
         after: int = 1,
     ) -> list[Snapshot]:
@@ -166,7 +166,7 @@ class MemoryRetriever:
             for rev, data, sess_id in before_snapshots:
                 collected.append(
                     Snapshot(
-                        timepoint=datetime.now(timezone.utc),
+                        timepoint=datetime.now(UTC),
                         data=copy.deepcopy(data),
                         global_revision=rev,
                         session_id=sess_id,
@@ -175,7 +175,7 @@ class MemoryRetriever:
             for rev, data, sess_id in after_snapshots:
                 collected.append(
                     Snapshot(
-                        timepoint=datetime.now(timezone.utc),
+                        timepoint=datetime.now(UTC),
                         data=copy.deepcopy(data),
                         global_revision=rev,
                         session_id=sess_id,
@@ -187,7 +187,7 @@ class MemoryRetriever:
     def _extract_state_snapshots(
         self,
         state_id: str,
-        session_id: Optional[str],
+        session_id: str | None,
     ) -> list[tuple[int, JSONSerializable, str]]:
         """Extract per-state (global_rev, data, session_id) tuples from stored snapshot events."""
         result: list[tuple[int, JSONSerializable, str]] = []
@@ -203,8 +203,8 @@ class MemoryRetriever:
     def _aget_state_at_revision(
         self,
         target_revision: int,
-        state_id: Optional[str],
-        session_id: Optional[str],
+        state_id: str | None,
+        session_id: str | None,
     ) -> Snapshot | list[Snapshot] | None:
         state_ids = (
             [state_id] if state_id is not None else self._get_state_ids(session_id)
@@ -229,8 +229,8 @@ class MemoryRetriever:
         self,
         state_id: str,
         target_revision: int,
-        session_id: Optional[str],
-    ) -> Optional[Snapshot]:
+        session_id: str | None,
+    ) -> Snapshot | None:
         # Find best anchor from snapshot events
         state_snapshots = self._extract_state_snapshots(state_id, session_id)
         if not state_snapshots:
@@ -246,7 +246,7 @@ class MemoryRetriever:
 
         anchor_revision, anchor_data, anchor_session = anchor
         anchor_snapshot = Snapshot(
-            timepoint=datetime.now(timezone.utc),
+            timepoint=datetime.now(UTC),
             data=anchor_data,
             global_revision=anchor_revision,
             session_id=anchor_session,
@@ -295,7 +295,7 @@ class MemoryRetriever:
             return []
         return list(self.store.snapshots)
 
-    def _get_state_ids(self, session_id: Optional[str]) -> list[str]:
+    def _get_state_ids(self, session_id: str | None) -> list[str]:
         return merge_state_ids(
             (
                 key
@@ -312,4 +312,4 @@ class MemoryRetriever:
 
 
 def _patch_timepoint(patch: messages.StatePatch) -> datetime:
-    return datetime.fromtimestamp(patch.ts, tz=timezone.utc)
+    return datetime.fromtimestamp(patch.ts, tz=UTC)

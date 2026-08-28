@@ -9,7 +9,8 @@ closes it — after flushing whatever is still queued.
 import asyncio
 import json
 import time
-from typing import AsyncIterator, List, cast
+from typing import cast
+from collections.abc import AsyncIterator
 
 import pytest
 import websockets
@@ -38,7 +39,7 @@ class FakeSocket:
     """Stands in for a live websockets client connection."""
 
     def __init__(self) -> None:
-        self.sent: List[str] = []
+        self.sent: list[str] = []
         self.closed = False
         self._dropped: int | None = None
         self._incoming: asyncio.Queue[object] = asyncio.Queue()
@@ -107,7 +108,7 @@ class _Host:
         self.connection_policy = policy or ConnectionPolicy()
         self.session_id = session_id
         self.force = force
-        self.transitions: List[bool] = []
+        self.transitions: list[bool] = []
 
     async def aget_handshake_params(self) -> HandshakeParams:
         return HandshakeParams(force=self.force, session_id=self.session_id)
@@ -135,7 +136,7 @@ async def test_socket_outlives_a_cancelled_receiver(socket: FakeSocket) -> None:
     async with transport as transport:
         await transport.aconnect()
 
-        received: List[messages.ToAgentMessage] = []
+        received: list[messages.ToAgentMessage] = []
 
         async def consume() -> None:
             async for message in transport.areceive():
@@ -212,7 +213,7 @@ async def test_reconnects_after_a_dropped_socket(
     async with transport as transport:
         await transport.aconnect()
 
-        received: List[messages.ToAgentMessage] = []
+        received: list[messages.ToAgentMessage] = []
         ended = False
 
         async def consume() -> None:
@@ -361,9 +362,9 @@ async def test_adisconnect_without_a_live_socket_does_not_hang() -> None:
     assert transport._send_queue.qsize() == 1, "The message has nowhere to go"
 
 
-def _register_frames(socket: FakeSocket) -> List[messages.Register]:
+def _register_frames(socket: FakeSocket) -> list[messages.Register]:
     """Every Register the transport put on this socket."""
-    frames: List[messages.Register] = []
+    frames: list[messages.Register] = []
     for raw in socket.sent:
         payload = json.loads(raw)
         if payload.get("type") == messages.FromAgentMessageType.REGISTER.value:
@@ -697,7 +698,7 @@ async def test_a_drop_while_a_send_is_in_flight_is_still_recoverable(
     async with transport as transport:
         await transport.aconnect()
 
-        received: List[messages.ToAgentMessage] = []
+        received: list[messages.ToAgentMessage] = []
         ended = False
 
         async def consume() -> None:

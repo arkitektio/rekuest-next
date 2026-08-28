@@ -3,14 +3,11 @@
 import inspect
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Optional,
     TypeVar,
-    Union,
     cast,
     overload,
 )
+from collections.abc import Callable
 from koil.bridge import run_threaded
 from rekuest_next.agents.hooks.errors import StartupHookError
 from rekuest_next.agents.hooks.registry import (
@@ -71,8 +68,8 @@ class WrappedStartupHook(StartupWithVariables):
 
         returns = ensure_return_as_tuple(parsed_returns)
 
-        states: Dict[str, Any] = {}
-        contexts: Dict[str, Any] = {}
+        states: dict[str, Any] = {}
+        contexts: dict[str, Any] = {}
 
         for index, return_value in enumerate(returns):
             if index in self.state_returns.state_returns:
@@ -117,8 +114,8 @@ class ThreadedStartupHook(StartupWithVariables):
 
         returns = ensure_return_as_tuple(parsed_returns)
 
-        states: Dict[str, Any] = {}
-        contexts: Dict[str, Any] = {}
+        states: dict[str, Any] = {}
+        contexts: dict[str, Any] = {}
 
         for index, return_value in enumerate(returns):
             if index in self.state_returns.state_returns:
@@ -133,7 +130,7 @@ class ThreadedStartupHook(StartupWithVariables):
         return StartupHookReturns(states=states, contexts=contexts)
 
 
-TStartup = TypeVar("TStartup", bound=Union[StartupFunction, ContextLessStartupFunction])
+TStartup = TypeVar("TStartup", bound=StartupFunction | ContextLessStartupFunction)
 
 
 @overload
@@ -145,7 +142,7 @@ def startup(*args: TStartup) -> TStartup:
 
 @overload
 def startup(
-    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *, name: str | None = None, registry: HooksRegistry | None = None
 ) -> Callable[[TStartup], TStartup]:
     """Decorator to register a startup hook
 
@@ -159,8 +156,8 @@ def startup(
 @overload
 def startup(
     *args: TStartup,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TStartup | Callable[[TStartup], TStartup]:
     """Decorator to register a startup hook"""
 
@@ -168,8 +165,8 @@ def startup(
 # --- Implementation ---
 def startup(
     *args: TStartup,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TStartup | Callable[[TStartup], TStartup]:
     """Register a startup hook on the selected hook registry.
 

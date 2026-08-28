@@ -5,7 +5,7 @@ that owns sessions. This is that difference expressed as a backend rather than a
 ``BaseAgent`` overrides.
 """
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,25 +21,25 @@ class SinkAgentBackend(BaseModel):
     """Mints sessions through a sink; nothing to register, nothing to shelve."""
 
     sink: StateSink = Field(description="The sink that owns sessions for this agent.")
-    states: List[AnyState] = Field(
+    states: list[AnyState] = Field(
         default_factory=list,
         description="States to record on the session. Refreshed by the agent before the session is created.",
     )
-    implementations: List[object] = Field(
+    implementations: list[object] = Field(
         default_factory=list,
         description="Implementations to record on the session.",
     )
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
-    def registered_agent_id(self) -> Optional[str]:
+    def registered_agent_id(self) -> str | None:
         """The in-process agent is not assigned an id by anyone."""
         return None
 
     async def aensure_registered(
         self,
         app_registry: "AppRegistry",
-        name: Optional[str],
+        name: str | None,
         definition_hash: str,
     ) -> None:
         """Nothing to register: the definitions never leave this process.
@@ -60,8 +60,8 @@ class SinkAgentBackend(BaseModel):
         self,
         identifier: Identifier,
         resource_id: str,
-        label: Optional[str] = None,
-        description: Optional[str] = None,
+        label: str | None = None,
+        description: str | None = None,
     ) -> str:
         """Not supported for the in-process agent."""
         raise NotImplementedError("Shelving is not implemented for FastApiAgent yet.")

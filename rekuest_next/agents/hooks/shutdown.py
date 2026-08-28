@@ -3,14 +3,12 @@
 import inspect
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Optional,
     TypeVar,
     cast,
     get_type_hints,
     overload,
 )
+from collections.abc import Callable
 import asyncio
 
 from koil.bridge import run_threaded
@@ -66,8 +64,8 @@ class WrappedShutdownHook(ShutdownWithVariables):
     async def arun(
         self,
         agent: StateHolder,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any,
     ) -> None:
         """Run the shutdown hook in the event loop"""
@@ -94,8 +92,8 @@ class ThreadedShutdownHook(ShutdownWithVariables):
     async def arun(
         self,
         agent: StateHolder,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any,
     ) -> None:
         """Run the shutdown hook in a thread"""
@@ -119,7 +117,7 @@ def shutdown(*args: TShutdown) -> TShutdown:
 
 @overload
 def shutdown(
-    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *, name: str | None = None, registry: HooksRegistry | None = None
 ) -> Callable[[TShutdown], TShutdown]:
     """Decorator to register a shutdown hook
 
@@ -133,8 +131,8 @@ def shutdown(
 @overload
 def shutdown(
     *args: TShutdown,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TShutdown | Callable[[TShutdown], TShutdown]:
     """Decorator to register a shutdown hook"""
 
@@ -142,8 +140,8 @@ def shutdown(
 # --- Implementation ---
 def shutdown(
     *args: TShutdown,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TShutdown | Callable[[TShutdown], TShutdown]:
     """Register a shutdown hook on the selected hook registry.
 

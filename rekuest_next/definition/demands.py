@@ -9,7 +9,8 @@ overrides that identity — letting a single method point at *another* action
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Annotated, Any, Callable, TypeVar, get_args, get_origin
+from typing import Annotated, Any, TypeVar, get_args, get_origin
+from collections.abc import Callable
 
 ACTION_DEMAND_ATTR = "__rekuest_action_demand__"
 STATE_DEMAND_ATTR = "__rekuest_state_demand__"

@@ -1,6 +1,6 @@
 """Shrink a state using a schema and a structure registry"""
 
-from typing import Dict, Any
+from typing import Any
 from rekuest_next.actors.types import Shelver
 from rekuest_next.api.schema import StateDefinitionInput
 from rekuest_next.messages import JSONSerializable
@@ -14,7 +14,7 @@ async def ashrink_state(
     schema: StateDefinitionInput,
     structure_reg: StructureRegistry,  # noqa: ANN401
     shelver: Shelver,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Shrink a state  using a schema and a structure registry
 
     Args:
@@ -27,7 +27,7 @@ async def ashrink_state(
 
     """
 
-    shrinked: Dict[str, JSONSerializable] = {}
+    shrinked: dict[str, JSONSerializable] = {}
     for port in schema.ports:
         shrinked[port.key] = await ashrink_return(
             port, getattr(state, port.key), structure_reg, shelver=shelver

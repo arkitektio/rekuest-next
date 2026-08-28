@@ -1,7 +1,7 @@
 """Validate blok component trees against their declared dependencies."""
 
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from rekuest_next.api.schema import (
     AgentDependencyInput,
@@ -308,7 +308,7 @@ def _infer_iterable_item_match(
 
 
 def resolve_state_reference(
-    dependency: Optional[str],
+    dependency: str | None,
     state_path: str,
     *,
     dependencies: Iterable[AgentDependencyInput],

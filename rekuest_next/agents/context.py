@@ -1,15 +1,11 @@
 """Context management for Rekuest Next."""
 
 from typing import (
-    Callable,
-    Dict,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
     overload,
     get_type_hints,
 )
+from collections.abc import Callable
 import inspect
 from dataclasses import dataclass
 import inflection
@@ -45,8 +41,8 @@ def get_context_locks(cls: object) -> list[str]:
 
 @overload
 def context(
-    *function: Type[T],
-) -> Type[T]:
+    *function: type[T],
+) -> type[T]:
     """Decorator to register a class as a context."""
     ...
 
@@ -54,8 +50,8 @@ def context(
 @overload
 def context(
     *,
-    name: Optional[str] = None,
-    locks: Optional[list[str]] = None,
+    name: str | None = None,
+    locks: list[str] | None = None,
 ) -> Callable[[T], T]:
     """Decorator to register a class as a context with optional locks.
 
@@ -68,10 +64,10 @@ def context(
 
 
 def context(  # type: ignore[valid-type]
-    *function: Type[T],
-    name: Optional[str] = None,
-    locks: Optional[list[str]] = None,
-) -> Type[T] | Callable[[Type[T]], Type[T]]:
+    *function: type[T],
+    name: str | None = None,
+    locks: list[str] | None = None,
+) -> type[T] | Callable[[type[T]], type[T]]:
     """Mark a class as agent context metadata.
 
     The decorator does not wrap the class behavior. Instead, it annotates the
@@ -108,7 +104,7 @@ def context(  # type: ignore[valid-type]
 
     if len(function) == 0:
 
-        def wrapper(cls: Type[T]) -> Type[T]:
+        def wrapper(cls: type[T]) -> type[T]:
             setattr(
                 cls, "__rekuest_context__", inflection.underscore(name or cls.__name__)
             )
@@ -122,8 +118,8 @@ def context(  # type: ignore[valid-type]
 
 @dataclass
 class PreparedContextVariables:
-    context_variables: Dict[str, str]
-    required_context_locks: Dict[str, list[str]]
+    context_variables: dict[str, str]
+    required_context_locks: dict[str, list[str]]
 
     @property
     def count(self) -> int:
@@ -133,7 +129,7 @@ class PreparedContextVariables:
 
 @dataclass
 class PreparedContextReturns:
-    context_returns: Dict[int, str]
+    context_returns: dict[int, str]
 
     @property
     def count(self) -> int:
@@ -143,7 +139,7 @@ class PreparedContextReturns:
 
 def prepare_context_variables(
     function: AnyFunction,
-) -> Tuple[PreparedContextVariables, PreparedContextReturns]:
+) -> tuple[PreparedContextVariables, PreparedContextReturns]:
     """Prepares the context variables for a function.
 
     Args:
@@ -160,9 +156,9 @@ def prepare_context_variables(
     except Exception:
         hints = {}
 
-    state_variables: Dict[str, str] = {}
-    state_returns: Dict[int, str] = {}
-    required_locks: Dict[str, list[str]] = {}
+    state_variables: dict[str, str] = {}
+    state_returns: dict[int, str] = {}
+    required_locks: dict[str, list[str]] = {}
 
     for key, value in parameters.items():
         cls = hints.get(key, value.annotation)

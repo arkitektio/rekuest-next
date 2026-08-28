@@ -3,13 +3,11 @@
 import inspect
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Optional,
     TypeVar,
     cast,
     overload,
 )
+from collections.abc import Callable
 import asyncio
 
 from koil.bridge import run_threaded
@@ -44,8 +42,8 @@ class WrappedBackgroundTask(BackgroundWithVariables):
     async def arun(
         self,
         agent: StateHolder,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any = None,  # noqa: ANN401
     ) -> None:
         """Run the background task in the event loop"""
@@ -71,8 +69,8 @@ class WrappedThreadedBackgroundTask(BackgroundWithVariables):
     async def arun(
         self,
         agent: StateHolder,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any = None,  # noqa: ANN401
     ) -> None:
         """Run the background task in a thread pool"""
@@ -93,22 +91,22 @@ def background(*args: TBackground) -> TBackground: ...
 
 @overload
 def background(
-    *, name: Optional[str] = None, registry: Optional[HooksRegistry] = None
+    *, name: str | None = None, registry: HooksRegistry | None = None
 ) -> Callable[[TBackground], TBackground]: ...
 
 
 @overload
 def background(
     *args: TBackground,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TBackground | Callable[[TBackground], TBackground]: ...
 
 
 def background(  # noqa: ANN201
     *args: TBackground,
-    name: Optional[str] = None,
-    registry: Optional[HooksRegistry] = None,
+    name: str | None = None,
+    registry: HooksRegistry | None = None,
 ) -> TBackground | Callable[[TBackground], TBackground]:
     """Register a background task on the selected hook registry.
 

@@ -1,6 +1,5 @@
 import ast
 import xml.etree.ElementTree as ET
-from typing import Optional, Union
 
 from rekuest_next.api.schema import (
     ActionArgumentInput,
@@ -206,7 +205,7 @@ class BlokParser:
         )
 
     @classmethod
-    def _parse_ast_call(cls, node: ast.Call) -> Union[AgentProbeInput, UtilProbeInput]:
+    def _parse_ast_call(cls, node: ast.Call) -> AgentProbeInput | UtilProbeInput:
         full_path = cls._extract_path(node.func)
         path_parts = full_path.split(".")
 
@@ -252,7 +251,7 @@ class BlokParser:
 
     @classmethod
     def _parse_ast_argument_value(
-        cls, node: ast.AST, key: Optional[str] = None
+        cls, node: ast.AST, key: str | None = None
     ) -> ActionArgumentInput:
         """Recursively parses AST nodes into ActionArgumentInput models."""
 

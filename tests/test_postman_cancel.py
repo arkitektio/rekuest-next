@@ -14,9 +14,10 @@ with hand-written test doubles (no mocks, no socket/GraphQL backend):
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from types import TracebackType
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any
+from collections.abc import AsyncGenerator, Callable, Sequence
 
 import pytest
 from pydantic import PrivateAttr
@@ -53,7 +54,7 @@ def _change(kind: TaskEventKind, task: str = "t1") -> TaskEventChange:
         id=f"e-{kind.value}",
         task=task,
         kind=kind,
-        createdAt=datetime.now(timezone.utc),
+        createdAt=datetime.now(UTC),
     )
 
 
@@ -63,8 +64,8 @@ def _change(kind: TaskEventKind, task: str = "t1") -> TaskEventChange:
 class RecordingGraphQLPostman(GraphQLPostman):
     """A ``GraphQLPostman`` that records cancel/interrupt sends instead of hitting GraphQL."""
 
-    _cancels: List[str] = PrivateAttr(default_factory=lambda: [])
-    _interrupts: List[str] = PrivateAttr(default_factory=lambda: [])
+    _cancels: list[str] = PrivateAttr(default_factory=lambda: [])
+    _interrupts: list[str] = PrivateAttr(default_factory=lambda: [])
 
     async def _send_cancel(self, task_id: str, timeout: float) -> None:
         self._cancels.append(task_id)
@@ -173,7 +174,7 @@ async def _start_and_assign(
     — so a subsequent ``task.cancel()`` exercises the confirmation path (rather than
     racing the not-yet-started loop).
     """
-    out: List[Any] = []
+    out: list[Any] = []
 
     async def consume() -> None:
         async for ev in pm.aassign(
@@ -257,22 +258,22 @@ class RecordingPostman:
     connected = True
 
     def __init__(self) -> None:
-        self.calls: List[Tuple[bool, Optional[float]]] = []
+        self.calls: list[tuple[bool, float | None]] = []
 
     async def aassign(
         self,
         *,
-        args: Dict[str, Any],  # noqa: ARG002 - part of the Postman protocol
+        args: dict[str, Any],  # noqa: ARG002 - part of the Postman protocol
         capture: bool = False,  # noqa: ARG002 - part of the Postman protocol
-        reference: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
-        hooks: Optional[Sequence[Any]] = None,  # noqa: ARG002 - part of the protocol
-        action: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
-        implementation: Optional[str] = None,  # noqa: ARG002 - part of the protocol
-        parent: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
-        dependency: Optional[str] = None,  # noqa: ARG002 - part of the protocol
-        method: Optional[str] = None,  # noqa: ARG002 - part of the Postman protocol
+        reference: str | None = None,  # noqa: ARG002 - part of the Postman protocol
+        hooks: Sequence[Any] | None = None,  # noqa: ARG002 - part of the protocol
+        action: str | None = None,  # noqa: ARG002 - part of the Postman protocol
+        implementation: str | None = None,  # noqa: ARG002 - part of the protocol
+        parent: str | None = None,  # noqa: ARG002 - part of the Postman protocol
+        dependency: str | None = None,  # noqa: ARG002 - part of the protocol
+        method: str | None = None,  # noqa: ARG002 - part of the Postman protocol
         escalate_to_interrupt: bool = False,
-        cancel_timeout: Optional[float] = None,
+        cancel_timeout: float | None = None,
     ) -> AsyncGenerator[TaskEventChange, None]:
         self.calls.append((escalate_to_interrupt, cancel_timeout))
         yield _change(TaskEventKind.COMPLETED)
@@ -282,9 +283,9 @@ class RecordingPostman:
 
     async def __aexit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         return None
 
@@ -314,7 +315,7 @@ async def test_remote_threads_cancel_params_to_postman() -> None:
     [{"parent": "t-parent"}, {"dependency": "dep-key"}, {"method": "run"}],
     ids=["parent", "dependency", "method"],
 )
-async def test_graphql_refuses_a_non_root_assign(non_root: Dict[str, str]) -> None:
+async def test_graphql_refuses_a_non_root_assign(non_root: dict[str, str]) -> None:
     """The GraphQL mutation creates a root task, so a child call must be refused.
 
     Dropping the parent instead would silently detach the child into an orphan root —

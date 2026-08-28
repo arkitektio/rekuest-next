@@ -20,7 +20,7 @@ from rekuest_next.state.predicate import (
     get_read_only_state_type,
     is_state,
 )
-from typing import Tuple, Dict, get_type_hints
+from typing import get_type_hints
 import inspect
 
 
@@ -57,7 +57,7 @@ def get_return_length(signature: inspect.Signature) -> int:
 
 def prepare_state_variables(
     function: AnyFunction,
-) -> Tuple[PreparedStateVariables, PreparedStateReturns]:
+) -> tuple[PreparedStateVariables, PreparedStateReturns]:
     """Prepare the state variables for the function.
 
     Args:
@@ -75,10 +75,10 @@ def prepare_state_variables(
     except Exception:
         hints = {}
 
-    write_state_variables: Dict[str, str] = {}
-    read_only_variables: Dict[str, str] = {}
-    required_state_locks: Dict[str, list[str]] = {}
-    state_returns: Dict[int, str] = {}
+    write_state_variables: dict[str, str] = {}
+    read_only_variables: dict[str, str] = {}
+    required_state_locks: dict[str, list[str]] = {}
+    state_returns: dict[int, str] = {}
 
     for key, value in parameters.items():
         annotation = hints.get(key, value.annotation)
@@ -110,7 +110,7 @@ def prepare_state_variables(
 
 def prepare_appcontext(
     function: AnyFunction,
-) -> Tuple[PreparedAppContextVariables, PreparedAppContextReturns]:
+) -> tuple[PreparedAppContextVariables, PreparedAppContextReturns]:
     """Prepare the state variables for the function.
 
     Args:
@@ -128,7 +128,7 @@ def prepare_appcontext(
     except Exception:
         hints = {}
 
-    write_app_context_variables: Dict[str, str] = {}
+    write_app_context_variables: dict[str, str] = {}
     for key, value in parameters.items():
         annotation = hints.get(key, value.annotation)
         if is_app_context(annotation):
@@ -136,7 +136,7 @@ def prepare_appcontext(
 
     returns = hints.get("return", sig.return_annotation)
 
-    app_context_returns: Dict[int, str] = {}
+    app_context_returns: dict[int, str] = {}
 
     if is_tuple(returns):
         for index, cls in enumerate(get_non_null_variants(returns)):

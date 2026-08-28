@@ -1,6 +1,5 @@
 """Tests for union-branch predication over ports."""
 
-from typing import List, Union
 
 import pytest
 
@@ -34,12 +33,12 @@ class Point:
     y: int
 
 
-def point_or_int(value: Union[Point, int]) -> int:
+def point_or_int(value: Point | int) -> int:
     """Accepts a Point or an int."""
     return 1
 
 
-def list_or_str(value: Union[List[int], str]) -> int:
+def list_or_str(value: list[int] | str) -> int:
     """Accepts a list of ints or a str."""
     return 1
 

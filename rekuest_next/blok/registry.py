@@ -3,11 +3,8 @@
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
-    Iterable,
-    List,
-    Sequence,
 )
+from collections.abc import Iterable, Sequence
 
 from rekuest_next.api.schema import (
     ActionDependencyInput,
@@ -32,9 +29,9 @@ if TYPE_CHECKING:
 
 def build_declared_bloks(
     app_registry: "AppRegistry",
-) -> Dict[str, BlokImplementationInput]:
+) -> dict[str, BlokImplementationInput]:
     """Generate blok inputs from their declarations against an app registry."""
-    declared_bloks: Dict[str, BlokImplementationInput] = {}
+    declared_bloks: dict[str, BlokImplementationInput] = {}
 
     for blok_key, declaration in app_registry.registered_bloks.items():
         dependencies = _build_dependencies_for_component(
@@ -61,10 +58,10 @@ def build_declared_bloks(
 class _ReferenceCollector(BlokVisitor):
     """Collects the dependency keys, actions and states a blok tree references."""
 
-    def __init__(self, aliases: Dict[str, str]) -> None:
+    def __init__(self, aliases: dict[str, str]) -> None:
         self.aliases = aliases
-        self.actions: Dict[str, set[str]] = {}
-        self.states: Dict[str, set[str]] = {}
+        self.actions: dict[str, set[str]] = {}
+        self.states: dict[str, set[str]] = {}
         # A ``state.<key>`` reference that names no dependency; resolvable only
         # when the blok has exactly one dependency to attribute it to.
         self.implicit_states: set[str] = set()
@@ -76,7 +73,7 @@ class _ReferenceCollector(BlokVisitor):
     def dependency_keys(self) -> set[str]:
         return set(self.actions) | set(self.states)
 
-    def visit_path(self, path: str, scope: Dict[str, Any], context: str) -> None:
+    def visit_path(self, path: str, scope: dict[str, Any], context: str) -> None:
         path_parts = path.split(".")
         if not path_parts or path_parts[0] in scope:
             return
@@ -98,19 +95,19 @@ class _ReferenceCollector(BlokVisitor):
             self.states.setdefault(self.canonical(root), set()).add(path_parts[1])
 
     def visit_agent_call(
-        self, call: AgentProbeInput, scope: Dict[str, Any], context: str
+        self, call: AgentProbeInput, scope: dict[str, Any], context: str
     ) -> None:
         self.actions.setdefault(self.canonical(call.dependency), set()).add(
             action_key_for(call)
         )
 
     def visit_util_call(
-        self, call: UtilProbeInput, scope: Dict[str, Any], context: str
+        self, call: UtilProbeInput, scope: dict[str, Any], context: str
     ) -> None:
         return None
 
     def declare_foreach_local(
-        self, name: str, items_path: str, scope: Dict[str, Any], context: str
+        self, name: str, items_path: str, scope: dict[str, Any], context: str
     ) -> None:
         # The item's schema is only knowable once dependencies exist, which is
         # what this pass is building. Declaring the name is enough here.
@@ -122,7 +119,7 @@ def _build_dependencies_for_component(
     component: ComponentNodeInput,
     app_registry: "AppRegistry",
     explicit_dependencies: Sequence[AgentDependencyInput],
-) -> List[AgentDependencyInput]:
+) -> list[AgentDependencyInput]:
     """Resolve a blok's dependencies, preferring explicitly declared ones.
 
     Dependencies referenced by the tree but not declared explicitly are inferred
@@ -157,7 +154,7 @@ def _build_dependencies_for_component(
             collector.implicit_states
         )
 
-    dependencies: List[AgentDependencyInput] = []
+    dependencies: list[AgentDependencyInput] = []
 
     for dependency_key in sorted(dependency_keys):
         explicit = explicit_by_key.get(dependency_key)
@@ -231,7 +228,7 @@ def _create_state_dependency(
 def _autogenerate_demo_state(
     dependencies: Iterable[AgentDependencyInput],
     app_registry: "AppRegistry",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Synthesize a placeholder value for every state the blok reads.
 
     Values come from the state's declared *ports*, not from instantiating the
@@ -242,10 +239,10 @@ def _autogenerate_demo_state(
     app) is omitted entirely -- a partial entry would fail the demo_state
     completeness check on ``BlokImplementationInput``.
     """
-    demo_state: Dict[str, Any] = {}
+    demo_state: dict[str, Any] = {}
 
     for dependency in dependencies:
-        dependency_demo_state: Dict[str, Any] = {}
+        dependency_demo_state: dict[str, Any] = {}
         complete = True
 
         for state_demand in dependency.state_dependencies or ():
@@ -265,7 +262,7 @@ def _autogenerate_demo_state(
     return demo_state
 
 
-_DEMO_SCALARS: Dict[PortKind, Any] = {
+_DEMO_SCALARS: dict[PortKind, Any] = {
     PortKind.STRING: "",
     PortKind.INT: 0,
     PortKind.FLOAT: 0.0,

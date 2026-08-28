@@ -12,7 +12,8 @@ The ``*_actor_*`` names are aliases of the shared implementations in
 import asyncio
 import datetime as dt
 from enum import Enum
-from typing import Any, Dict, List, Sequence, cast
+from typing import Any, cast
+from collections.abc import Sequence
 
 from rath.scalars import ID
 
@@ -410,11 +411,11 @@ async def aexpand_arg(
 
 async def expand_inputs(
     definition: DefinitionInput,
-    args: Dict[str, JSONSerializable],
+    args: dict[str, JSONSerializable],
     structure_registry: StructureRegistry,
     shelver: Shelver,
     skip_expanding: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Expand an incoming ``args`` dict against ``definition.args``.
 
     Raises:
@@ -546,7 +547,7 @@ async def _shrink_list(
     return await asyncio.gather(
         *[
             _shrink(child, item, ctx.child(f"{port.key}[{index}]"))
-            for index, item in enumerate(cast(List[Any], value))
+            for index, item in enumerate(cast(list[Any], value))
         ]
     )
 
@@ -779,11 +780,11 @@ async def ashrink_return(
 
 async def shrink_outputs(
     definition: DefinitionInput,
-    returns: List[Any] | None,
+    returns: list[Any] | None,
     structure_registry: StructureRegistry,
     shelver: Shelver,
     skip_shrinking: bool = False,
-) -> Dict[str, JSONSerializable]:
+) -> dict[str, JSONSerializable]:
     """Shrink a function's return value(s) against ``definition.returns``.
 
     A single (non-tuple) return is treated as one output; a tuple is spread

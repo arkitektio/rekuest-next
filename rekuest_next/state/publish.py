@@ -17,7 +17,7 @@ class Patch:
     value: Any = None
     old_value: Any = None
     port: ReturnPortInput | None = None
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 
     def __str__(self):
         return (
@@ -65,9 +65,9 @@ class Publisher(Protocol):
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_value: Optional[BaseException],
-        traceback: Optional[object],
+        exc_type: type | None,
+        exc_value: BaseException | None,
+        traceback: object | None,
     ) -> None:
         """Exit the synchronous context manager."""
         ...
@@ -78,9 +78,9 @@ class Publisher(Protocol):
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_value: Optional[BaseException],
-        traceback: Optional[object],
+        exc_type: type | None,
+        exc_value: BaseException | None,
+        traceback: object | None,
     ) -> None:
         """Exit the asynchronous context manager."""
         ...
@@ -101,9 +101,9 @@ class BasePublisher:
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_value: Optional[BaseException],
-        traceback: Optional[object],
+        exc_type: type | None,
+        exc_value: BaseException | None,
+        traceback: object | None,
     ) -> None:
         if self._token is not None:
             publish_context.reset(self._token)
@@ -115,9 +115,9 @@ class BasePublisher:
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_value: Optional[BaseException],
-        traceback: Optional[object],
+        exc_type: type | None,
+        exc_value: BaseException | None,
+        traceback: object | None,
     ) -> None:
         if self._token is not None:
             publish_context.reset(self._token)

@@ -8,7 +8,7 @@ drawer id string, which is also what callers hand back in to pipe it into the
 next call.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.serialization.protocols import SerializablePort
@@ -17,7 +17,7 @@ from rekuest_next.structures.serialization.protocols import SerializablePort
 def shrink_memory_reference(
     port: SerializablePort,
     value: Any,  # noqa: ANN401
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Wrap a drawer id (or an already-wrapped reference) into the envelope."""
     if isinstance(value, dict) and "object" in value:
         value = value["object"]

@@ -12,7 +12,8 @@ feed inbound messages with :meth:`feed`, read what the agent emitted from :attr:
 
 import asyncio
 from types import TracebackType
-from typing import AsyncIterator, List, Optional, Self, TypeVar
+from typing import Optional, Self, TypeVar
+from collections.abc import AsyncIterator
 
 from rekuest_next import messages
 from rekuest_next.agents.transport.base import AgentTransport
@@ -25,7 +26,7 @@ T = TypeVar("T", bound=messages.FromAgentMessage)
 class MemoryAgentTransport(AgentTransport):
     """A queue-backed transport that records what the agent sends."""
 
-    sent: List[messages.FromAgentMessage] = []
+    sent: list[messages.FromAgentMessage] = []
     """Every outbound message, in order, including the ``seq`` the agent stamped."""
 
     _in_queue: Optional["asyncio.Queue[object]"] = None
@@ -73,7 +74,7 @@ class MemoryAgentTransport(AgentTransport):
         """Record an outbound message instead of putting it on a wire."""
         self.sent.append(message)
 
-    def of_type(self, kind: type[T]) -> List[T]:
+    def of_type(self, kind: type[T]) -> list[T]:
         """Every recorded message of one type, for readable assertions."""
         return [m for m in self.sent if isinstance(m, kind)]
 

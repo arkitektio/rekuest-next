@@ -5,7 +5,8 @@ allow you to execute queries and mutations using thre rekuest-rath client.
 
 """
 
-from typing import Any, Dict, Generator, AsyncGenerator, Type
+from typing import Any
+from collections.abc import Generator, AsyncGenerator
 from rekuest_next.rath import RekuestNextRath, current_rekuest_next_rath
 from koil import unkoil, unkoil_gen
 from rath.turms.funcs import TOperation
@@ -13,8 +14,8 @@ from .errors import NoRekuestRathFoundError
 
 
 def execute(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: RekuestNextRath | None = None,
 ) -> TOperation:
     """Executes a query or mutation using rath in a blocking way."""
@@ -22,8 +23,8 @@ def execute(
 
 
 async def aexecute(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: RekuestNextRath | None = None,
 ) -> TOperation:
     """Executes a query or mutation using rath in a non-blocking way."""
@@ -41,8 +42,8 @@ async def aexecute(
 
 
 def subscribe(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: RekuestNextRath | None = None,
 ) -> Generator[TOperation, None, None]:
     """Subscribes to a query or mutation using rath in a blocking way."""
@@ -50,8 +51,8 @@ def subscribe(
 
 
 async def asubscribe(
-    operation: Type[TOperation],
-    variables: Dict[str, Any],
+    operation: type[TOperation],
+    variables: dict[str, Any],
     rath: RekuestNextRath | None = None,
 ) -> AsyncGenerator[TOperation, None]:
     """Subscribes to a query or mutation using rath in a non-blocking way."""

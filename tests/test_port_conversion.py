@@ -1,6 +1,6 @@
 """Unit tests for type-hint → port conversion edge cases."""
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from rekuest_next.annotations import Provides, Requires
 from rekuest_next.api.schema import (
@@ -28,7 +28,7 @@ class Box:
     height: int
 
 
-def optional_requires(name: Optional[TiffName] = None) -> Optional[Wide]:
+def optional_requires(name: TiffName | None = None) -> Wide | None:
     """Optional ports keep their descriptors."""
     return None
 

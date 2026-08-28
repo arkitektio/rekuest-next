@@ -24,14 +24,15 @@ Rejection is signalled by raising `AuthenticationError`. The transport decides h
 surface it: HTTP answers `401`, the websocket closes with code `1008`.
 """
 
-from typing import Any, Callable, Union
+from typing import Any
+from collections.abc import Callable
 
 from fastapi import Request
 
 from rekuest_next.contrib.fastapi.models import WebSocketSubscriptionInit
 
 #: Either arm of the union a user-expansion hook may be handed.
-UserSource = Union[Request, WebSocketSubscriptionInit]
+UserSource = Request | WebSocketSubscriptionInit
 
 #: Signature of the unified user-expansion hook.
 ExpandUserFromRequest = Callable[[UserSource], Any]

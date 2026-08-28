@@ -7,7 +7,7 @@ not stop the remaining ones, and hooks only run for an agent that actually got
 through its startup hooks — exactly once per start.
 """
 
-from typing import Generator, List
+from collections.abc import Generator
 
 import pytest
 
@@ -81,7 +81,7 @@ async def test_shutdown_hooks_run_with_states_and_contexts(
     mock_rekuest: RekuestNext,
 ) -> None:
     """The live state and context objects are injected by annotation."""
-    seen: List[object] = []
+    seen: list[object] = []
 
     async def close_connection(connection: Connection, counter: Counter) -> None:
         connection.closed = True
@@ -107,7 +107,7 @@ async def test_threaded_shutdown_hook_runs_with_states_and_contexts(
     mock_rekuest: RekuestNext,
 ) -> None:
     """A sync hook runs in a thread, and gets the same injection as an async one."""
-    seen: List[object] = []
+    seen: list[object] = []
 
     def close_connection(connection: Connection, counter: Counter) -> None:
         connection.closed = True
@@ -133,7 +133,7 @@ async def test_shutdown_hooks_run_in_reverse_registration_order(
     mock_rekuest: RekuestNext,
 ) -> None:
     """Teardown unwinds in the reverse of the order things were set up."""
-    calls: List[str] = []
+    calls: list[str] = []
 
     async def first() -> None:
         calls.append("first")
@@ -157,7 +157,7 @@ async def test_failing_shutdown_hook_does_not_stop_the_others(
     mock_rekuest: RekuestNext,
 ) -> None:
     """A hook that raises is logged; teardown carries on."""
-    calls: List[str] = []
+    calls: list[str] = []
 
     async def survivor() -> None:
         calls.append("survivor")
@@ -181,7 +181,7 @@ async def test_failing_shutdown_hook_does_not_stop_the_others(
 async def test_shutdown_hooks_only_run_for_a_started_agent_and_only_once(
     mock_rekuest: RekuestNext,
 ) -> None:
-    calls: List[str] = []
+    calls: list[str] = []
 
     async def close_it() -> None:
         calls.append("closed")

@@ -7,7 +7,6 @@ from rekuest_next.actors.vars import (
 )
 
 from rekuest_next.api.schema import LogLevel
-from typing import Optional
 from rekuest_next import messages
 import logging
 
@@ -123,7 +122,7 @@ def useAssign() -> messages.Assign:
     return get_current_task_helper().assignment
 
 
-def progress(percentage: int, message: Optional[str] = None) -> None:
+def progress(percentage: int, message: str | None = None) -> None:
     """Publish a synchronous progress update for the current task.
 
     The update is forwarded to the task helper when one is active. When
@@ -148,7 +147,7 @@ def progress(percentage: int, message: Optional[str] = None) -> None:
         )
 
 
-async def aprogress(percentage: int, message: Optional[str] = None) -> None:
+async def aprogress(percentage: int, message: str | None = None) -> None:
     """Publish an asynchronous progress update for the current task.
 
     This is the async counterpart to :func:`progress`. Outside a task,

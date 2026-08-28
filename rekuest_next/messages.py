@@ -13,19 +13,19 @@ the caller stream carries the ``…Event`` suffix (``Pause`` cmd vs ``Paused`` r
 ``PausedEvent`` stream).
 """
 
-from typing import Any, List, Optional, Literal, Union, Dict, get_args
+from typing import Any, Literal, Union, get_args
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from pydantic import Field
 import uuid
 
 
-JSONSerializable = Union[
-    str, int, float, bool, None, dict[str, "JSONSerializable"], list["JSONSerializable"]
-]
+JSONSerializable = (
+    str | int | float | bool | None | dict[str, "JSONSerializable"] | list["JSONSerializable"]
+)
 
 
-ShallowJSONSerializable = Union[str, int, float, bool, None, dict[str, Any], list[Any]]  # type: ignore
+ShallowJSONSerializable = str | int | float | bool | None | dict[str, Any] | list[Any]
 
 LogLevelLiteral = Literal[
     "DEBUG",
@@ -157,7 +157,7 @@ class FromAgentEvent(Message):
     scope). The backend dedups terminal reports by task id regardless of ``seq``.
     """
 
-    seq: Optional[int] = Field(
+    seq: int | None = Field(
         default=None,
         description="Monotonic per-connection stream sequence for at-least-once dedup/resume. Stream-level only — never an execution resume cursor.",
     )
@@ -183,40 +183,40 @@ class Assign(Message):
         description="Whether to step the task or not (i.e. stop at the first breakpoint and wait for a step message from the rekuest backend to continue). If None don't step.",
     )
     task: str = Field(description="The task id")
-    root: Optional[str] = Field(
+    root: str | None = Field(
         default=None,
         description="The root of all cascaded tasks (user triggered task), None if this is the mother",
     )
     """ The mother task (root)"""
-    parent: Optional[str] = Field(
+    parent: str | None = Field(
         default=None,
         description="The direct parent of this task, None if this is this is the mother",
     )
     """ The parent s"""
-    resolution: Optional[str] = Field(
+    resolution: str | None = Field(
         default=None, description="The resolution id this task has dependencies"
     )
     probe: bool = Field(
         default=False,
         description="Whether this is a probe (p-… id): an ephemeral invocation with no server-side history, no replay/recovery; sub-assignment and locks are unavailable. Agents may adapt (e.g. skip audit side effects).",
     )
-    capture: Optional[bool] = Field(
+    capture: bool | None = Field(
         default=None, description="Whether to run in debug mode, false by default"
     )
-    reference: Optional[str] = Field(
+    reference: str | None = Field(
         default=None, description="A reference that the assinger provided"
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(
+    args: dict[str, ShallowJSONSerializable] = Field(
         description="The arguments that was sendend"
     )
-    message: Optional[str] = None
+    message: str | None = None
     user: str = Field(..., description="The assinging user")
     org: str = Field(description="The org that the user currently belongs to")
     action: str = Field(description="The action of this task")
     implementation: str = Field(
         description="The implementation of this task (the id of the implementation)"
     )
-    token: Optional[str] = Field(
+    token: str | None = Field(
         default=None,
         description="An opaque, signed provenance token attesting who caused this task and with which inputs. The agent forwards it untouched to downstream services; it does not validate it. None when the implementation opts out of provenance (needs_token=False).",
     )
@@ -398,8 +398,8 @@ class Progress(FromAgentEvent):
 
     type: Literal[FromAgentMessageType.PROGRESS] = FromAgentMessageType.PROGRESS
     task: str
-    progress: Optional[int] = None
-    message: Optional[str] = None
+    progress: int | None = None
+    message: str | None = None
 
 
 class Yield(FromAgentEvent):
@@ -410,7 +410,7 @@ class Yield(FromAgentEvent):
 
     type: Literal[FromAgentMessageType.YIELD] = FromAgentMessageType.YIELD
     task: str
-    returns: Optional[Dict[str, Any]] = None
+    returns: dict[str, Any] | None = None
 
 
 class Completed(FromAgentEvent):
@@ -471,7 +471,7 @@ class SessionInit(Message):
     session_id: str = Field(
         description="The session id of the agent (generated on a restart of the agent)"
     )
-    states: Dict[str, Any] = Field(
+    states: dict[str, Any] = Field(
         description="A dictionary containing the initial state snapshots, where the key is the state name and the value is the state snapshot"
     )
 
@@ -496,7 +496,7 @@ class StatePatch(Message):
     old_value: Any | None = Field(
         description="The old value of the patch, which can be used for debugging and tracing purposes"
     )
-    task_id: Optional[str] = Field(
+    task_id: str | None = Field(
         default=None,
         description="An optional correlation id to correlate this patch with a specific task_id or event in the agent's execution, which can be used for debugging and tracing purposes",
     )
@@ -516,7 +516,7 @@ class StateSnapshot(Message):
         description="The session id of the agent (generated on a restart of the agent)"
     )
     global_rev: int = Field(description="The global revision of the state")
-    snapshots: Dict[str, Any] = Field(
+    snapshots: dict[str, Any] = Field(
         description="A dictionary containing the state snapshots, where the key is the state name and the value is the state snapshot"
     )
 
@@ -570,7 +570,7 @@ class Register(Message):
 
     Only honoured for participants that ``executes_work`` (the executor singleton). A
     non-executor (frontend/observer) never force-displaces — its other connections coexist."""
-    session_id: Optional[str] = Field(
+    session_id: str | None = Field(
         default=None,
         description="Per-process identifier minted in-memory by the executor at start-up (never persisted). Its volatility is the reclaim signal: a reconnect with the SAME session_id means the process survived (reclaim in-flight work); a DIFFERENT session_id means a fresh process (fail-and-cascade). Omitted by non-executors.",
     )
@@ -614,46 +614,46 @@ class AssignRequest(Message):
     reference: str = Field(
         description="Caller-supplied idempotency key. Stable across resends of the same logical request."
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(
+    args: dict[str, ShallowJSONSerializable] = Field(
         default_factory=dict, description="The args of the task (ports → values)."
     )
-    action: Optional[str] = Field(
+    action: str | None = Field(
         default=None, description="The action ID to assign to."
     )
-    action_hash: Optional[str] = Field(
+    action_hash: str | None = Field(
         default=None, description="The action hash to assign to."
     )
-    implementation: Optional[str] = Field(
+    implementation: str | None = Field(
         default=None, description="A direct implementation ID to assign to."
     )
-    agent: Optional[str] = Field(
+    agent: str | None = Field(
         default=None, description="A direct agent ID to assign to (with interface)."
     )
-    interface: Optional[str] = Field(
+    interface: str | None = Field(
         default=None, description="The implementation interface (only with agent)."
     )
-    parent: Optional[str] = Field(
+    parent: str | None = Field(
         default=None,
         description="The parent task ID. None for a root task (requires can_assign_root).",
     )
-    dependency: Optional[str] = Field(
+    dependency: str | None = Field(
         default=None,
         description="The dependency key to resolve when running inside a resolved task.",
     )
-    method: Optional[str] = Field(
+    method: str | None = Field(
         default=None, description="The dependency method to assign."
     )
-    resolution: Optional[str] = Field(
+    resolution: str | None = Field(
         default=None,
         description="The resolution ID for an implementation with dependencies.",
     )
-    hooks: Optional[List[Dict[str, Any]]] = Field(
+    hooks: list[dict[str, Any]] | None = Field(
         default=None, description="Lifecycle hooks for the task."
     )
-    capture: Optional[bool] = Field(
+    capture: bool | None = Field(
         default=None, description="Whether to run in debug capture mode."
     )
-    step: Optional[bool] = Field(
+    step: bool | None = Field(
         default=None, description="Whether to step to breakpoints."
     )
 
@@ -672,14 +672,14 @@ class AssignResponse(Message):
     )
     request: str = Field(description="The id of the AssignRequest this result answers.")
     reference: str = Field(description="The idempotency key echoed from the request.")
-    task: Optional[str] = Field(
+    task: str | None = Field(
         default=None, description="The durable task id, or None when error is set."
     )
     created: bool = Field(
         default=True,
         description="False when an existing task was returned for a duplicate reference.",
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description="A human-readable error if the assign was rejected (e.g. missing can_assign_root).",
     )
@@ -698,18 +698,18 @@ class ProbeRequest(Message):
     type: Literal[FromAgentMessageType.PROBE_REQUEST] = (
         FromAgentMessageType.PROBE_REQUEST
     )
-    reference: Optional[str] = Field(
+    reference: str | None = Field(
         default=None,
         description="An optional requester-side reference echoed to the executor.",
     )
-    args: Dict[str, ShallowJSONSerializable] = Field(
+    args: dict[str, ShallowJSONSerializable] = Field(
         default_factory=dict, description="The args of the probe (ports → values)."
     )
-    action: Optional[str] = Field(default=None, description="The action ID to probe.")
-    action_hash: Optional[str] = Field(
+    action: str | None = Field(default=None, description="The action ID to probe.")
+    action_hash: str | None = Field(
         default=None, description="The action hash to probe."
     )
-    implementation: Optional[str] = Field(
+    implementation: str | None = Field(
         default=None, description="A direct implementation ID to probe."
     )
 
@@ -723,10 +723,10 @@ class ProbeResponse(Message):
 
     type: Literal[ToAgentMessageType.PROBE_RESPONSE] = ToAgentMessageType.PROBE_RESPONSE
     request: str = Field(description="The id of the ProbeRequest this answers.")
-    probe: Optional[str] = Field(
+    probe: str | None = Field(
         default=None, description="The probe id (p-…), or None when error is set."
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description="A human-readable error if the probe was refused (allow_probe not declared, cap exceeded, …).",
     )
@@ -750,7 +750,7 @@ class CancelRequest(ControlRequest):
     type: Literal[FromAgentMessageType.CANCEL_REQUEST] = (
         FromAgentMessageType.CANCEL_REQUEST
     )
-    auto_interrupt: Optional[float] = Field(
+    auto_interrupt: float | None = Field(
         default=None,
         description="Seconds. If the cancel is not confirmed within this window, auto-escalate to an interrupt. None disables escalation (the cancel stays pending until the agent confirms or the caller escalates manually).",
     )
@@ -799,11 +799,11 @@ class ControlResponse(Message):
     request: str = Field(
         description="The id of the CancelRequest/InterruptRequest/PauseRequest/ResumeRequest this answers."
     )
-    task: Optional[str] = Field(default=None, description="The controlled task id.")
+    task: str | None = Field(default=None, description="The controlled task id.")
     accepted: bool = Field(
         description="True when the request was accepted (broadcast + -ING persisted); False when rejected."
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description="A human-readable reason when the request was rejected.",
     )
@@ -819,11 +819,11 @@ class EventAck(Message):
 
     type: Literal[ToAgentMessageType.EVENT_ACK] = ToAgentMessageType.EVENT_ACK
     event: str = Field(description="The id of the FromAgentEvent being acknowledged.")
-    task: Optional[str] = Field(
+    task: str | None = Field(
         default=None,
         description="The task the acked event belonged to, for convenience.",
     )
-    seq: Optional[int] = Field(
+    seq: int | None = Field(
         default=None,
         description="The stream sequence acknowledged, if the event carried one.",
     )
@@ -877,8 +877,8 @@ class ProgressEvent(ExecutionEvent):
     """The executing agent reported progress."""
 
     type: Literal[ToAgentMessageType.PROGRESS_EVENT] = ToAgentMessageType.PROGRESS_EVENT
-    progress: Optional[int] = None
-    message: Optional[str] = None
+    progress: int | None = None
+    message: str | None = None
 
 
 class DelegateEvent(ExecutionEvent):
@@ -893,14 +893,14 @@ class DisconnectedEvent(ExecutionEvent):
     type: Literal[ToAgentMessageType.DISCONNECTED_EVENT] = (
         ToAgentMessageType.DISCONNECTED_EVENT
     )
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class YieldEvent(ExecutionEvent):
     """The executing agent yielded a result."""
 
     type: Literal[ToAgentMessageType.YIELD_EVENT] = ToAgentMessageType.YIELD_EVENT
-    returns: Optional[Dict[str, Any]] = None
+    returns: dict[str, Any] | None = None
 
 
 class CompletedEvent(ExecutionEvent):
@@ -915,7 +915,7 @@ class LogEvent(ExecutionEvent):
     """A log line from the executing agent."""
 
     type: Literal[ToAgentMessageType.LOG_EVENT] = ToAgentMessageType.LOG_EVENT
-    message: Optional[str] = None
+    message: str | None = None
     level: LogLevelLiteral = "INFO"
 
 
@@ -979,38 +979,38 @@ class FailedEvent(ExecutionEvent):
     """The task errored (potentially recoverable)."""
 
     type: Literal[ToAgentMessageType.FAILED_EVENT] = ToAgentMessageType.FAILED_EVENT
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class CriticalEvent(ExecutionEvent):
     """The task hit an unrecoverable error."""
 
     type: Literal[ToAgentMessageType.CRITICAL_EVENT] = ToAgentMessageType.CRITICAL_EVENT
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # Every backend→caller mirror, in TaskEventKind order. Imported by ``facade.caller_events``.
-ExecutionEventMessage = Union[
-    BoundEvent,
-    QueuedEvent,
-    StartedEvent,
-    ProgressEvent,
-    DelegateEvent,
-    DisconnectedEvent,
-    YieldEvent,
-    CompletedEvent,
-    LogEvent,
-    CancellingEvent,
-    CancelledEvent,
-    InterruptingEvent,
-    InterruptedEvent,
-    PausingEvent,
-    PausedEvent,
-    ResumingEvent,
-    ResumedEvent,
-    FailedEvent,
-    CriticalEvent,
-]
+ExecutionEventMessage = (
+    BoundEvent
+    | QueuedEvent
+    | StartedEvent
+    | ProgressEvent
+    | DelegateEvent
+    | DisconnectedEvent
+    | YieldEvent
+    | CompletedEvent
+    | LogEvent
+    | CancellingEvent
+    | CancelledEvent
+    | InterruptingEvent
+    | InterruptedEvent
+    | PausingEvent
+    | PausedEvent
+    | ResumingEvent
+    | ResumedEvent
+    | FailedEvent
+    | CriticalEvent
+)
 
 
 #: Terminal agent→backend reports. Retained until the backend acknowledges them with an
@@ -1054,29 +1054,29 @@ ToAgentMessage = Union[
     # ...plus every backend→caller mirror (kept in one place above).
     *get_args(ExecutionEventMessage),
 ]
-FromAgentMessage = Union[
-    Critical,
-    Log,
-    Progress,
-    Started,
-    Completed,
-    Failed,
-    Yield,
-    Register,
-    HeartbeatEvent,
-    Resumed,
-    Paused,
-    Cancelled,
-    Interrupted,
-    StatePatch,
-    StateSnapshot,
-    Lock,
-    Unlock,
-    SessionInit,
-    AssignRequest,
-    ProbeRequest,
-    CancelRequest,
-    InterruptRequest,
-    PauseRequest,
-    ResumeRequest,
-]
+FromAgentMessage = (
+    Critical
+    | Log
+    | Progress
+    | Started
+    | Completed
+    | Failed
+    | Yield
+    | Register
+    | HeartbeatEvent
+    | Resumed
+    | Paused
+    | Cancelled
+    | Interrupted
+    | StatePatch
+    | StateSnapshot
+    | Lock
+    | Unlock
+    | SessionInit
+    | AssignRequest
+    | ProbeRequest
+    | CancelRequest
+    | InterruptRequest
+    | PauseRequest
+    | ResumeRequest
+)

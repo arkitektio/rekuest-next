@@ -3,7 +3,8 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Awaitable, Callable, Generator
+from typing import Any
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from uuid import uuid4
 import pytest
 from rekuest_next.app import AppRegistry

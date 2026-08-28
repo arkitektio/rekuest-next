@@ -18,7 +18,8 @@ declaration covers attribute and container mutation, which is what publishes pat
 
 import dataclasses
 from collections.abc import Mapping, Sequence
-from typing import Any, Dict, Iterator, Type, TypeVar
+from typing import Any, TypeVar
+from collections.abc import Iterator
 
 __all__ = ["ReadOnlyStateError", "read_only_view"]
 
@@ -133,7 +134,7 @@ def _wrap(value: Any, state_name: str) -> Any:  # noqa: ANN401
 #: rebuild the type. The view shares the state's instance dict, so the name cannot
 #: live on the instance; keying the cache on it keeps error messages accurate when
 #: several states share one dataclass.
-_view_classes: Dict[tuple[type, str], type] = {}
+_view_classes: dict[tuple[type, str], type] = {}
 
 
 def _read_only_class(cls: type, state_name: str) -> type:
@@ -188,7 +189,7 @@ def read_only_view(state: T, state_name: str) -> T:
     ``slots=True`` dataclass), since a view over it could not stay live. That is the old
     behaviour, and is logged by the caller rather than failing the assignment.
     """
-    cls: Type[Any] = type(state)
+    cls: type[Any] = type(state)
     if not hasattr(state, "__dict__"):
         return state
 

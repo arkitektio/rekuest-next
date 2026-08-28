@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime
-from typing import Iterable, cast
+from typing import cast
+from collections.abc import Iterable
 
 import jsonpatch  # type: ignore[import-untyped]
 

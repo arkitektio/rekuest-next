@@ -4,15 +4,11 @@ import inspect
 from enum import Enum
 from typing import (
     Any,
-    Callable,
-    Dict,
     Literal,
-    List,
-    Optional,
     cast,
-    Type,
     TypeVar,
 )
+from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,13 +55,13 @@ T = TypeVar("T")
 
 
 #: Which identifier map each fullfilled type lives in, and which port kind it yields.
-_IDENTIFIER_MAP_FOR: Dict[type, str] = {
+_IDENTIFIER_MAP_FOR: dict[type, str] = {
     FullFilledModel: "identifier_model_map",
     FullFilledEnum: "identifier_enum_map",
     FullFilledMemoryStructure: "identifier_memory_structure_map",
     FullFilledStructure: "identifier_structure_map",
 }
-_PORT_KIND_FOR: Dict[type, PortKind] = {
+_PORT_KIND_FOR: dict[type, PortKind] = {
     FullFilledModel: PortKind.MODEL,
     FullFilledEnum: PortKind.ENUM,
     FullFilledMemoryStructure: PortKind.MEMORY_STRUCTURE,
@@ -88,19 +84,19 @@ class StructureRegistry(BaseModel):
     """
 
     allow_auto_register: bool = True
-    identifier_structure_map: Dict[str, FullFilledStructure] = Field(
+    identifier_structure_map: dict[str, FullFilledStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_enum_map: Dict[str, FullFilledEnum] = Field(
+    identifier_enum_map: dict[str, FullFilledEnum] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_memory_structure_map: Dict[str, FullFilledMemoryStructure] = Field(
+    identifier_memory_structure_map: dict[str, FullFilledMemoryStructure] = Field(
         default_factory=dict, exclude=True
     )
-    identifier_model_map: Dict[str, FullFilledModel] = Field(
+    identifier_model_map: dict[str, FullFilledModel] = Field(
         default_factory=dict, exclude=True
     )
-    cls_fullfilled_type_map: Dict[Type[Any], FullFilledType] = Field(
+    cls_fullfilled_type_map: dict[type[Any], FullFilledType] = Field(
         default_factory=lambda: {}, exclude=True
     )  # Map from class to fullfilled type
 
@@ -124,7 +120,7 @@ class StructureRegistry(BaseModel):
         """Get the fullfilled memory structure for a given identifier."""
         return self.identifier_memory_structure_map[identifier]
 
-    def auto_register(self, cls: Type[Any]) -> FullFilledType:
+    def auto_register(self, cls: type[Any]) -> FullFilledType:
         """Auto register a class.
 
         Enums become enums, classes implementing the global structure protocol
@@ -161,7 +157,7 @@ class StructureRegistry(BaseModel):
         self.fullfill_registration(fullfilled_type)
         return fullfilled_type
 
-    def get_identifier_for_cls(self, cls: Type[Any]) -> str:
+    def get_identifier_for_cls(self, cls: type[Any]) -> str:
         """Get the identifier for a given class.
 
         This will use the structure registry to find the correct
@@ -183,10 +179,10 @@ class StructureRegistry(BaseModel):
 
     def register_as_model(
         self,
-        cls: Type[Any],
+        cls: type[Any],
         identifier: str,
         predicate: Predicator | None = None,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> None:
         """Register a class as a model."""
 
@@ -201,12 +197,12 @@ class StructureRegistry(BaseModel):
 
     def register_as_enum(
         self,
-        cls: Type[Any],
+        cls: type[Any],
         identifier: str,
         choices: list[ChoiceInput],
-        description: Optional[str] = None,
-        default_widget: Optional[AssignWidgetInput] = None,
-        default_returnwidget: Optional[ReturnWidgetInput] = None,
+        description: str | None = None,
+        default_widget: AssignWidgetInput | None = None,
+        default_returnwidget: ReturnWidgetInput | None = None,
     ) -> None:
         """Register a class as an enum."""
         fullfile_type = FullFilledEnum(
@@ -224,15 +220,15 @@ class StructureRegistry(BaseModel):
 
     def register_as_structure(
         self,
-        cls: Type[object],
+        cls: type[object],
         identifier: str,
         aexpand: Expander,
         ashrink: Shrinker,
         predicate: Callable[[Any], bool] | None = None,
         convert_default: Callable[[Any], str] | None = None,
-        description: Optional[str] = None,
-        default_widget: Optional[AssignWidgetInput] = None,
-        default_returnwidget: Optional[ReturnWidgetInput] = None,
+        description: str | None = None,
+        default_widget: AssignWidgetInput | None = None,
+        default_returnwidget: ReturnWidgetInput | None = None,
     ) -> FullFilledStructure:
         """Register a class as a structure.
 
@@ -270,7 +266,7 @@ class StructureRegistry(BaseModel):
         self.fullfill_registration(fs)
         return fs
 
-    def get_fullfilled_type_for_cls(self, cls: Type[Any]) -> FullFilledType:
+    def get_fullfilled_type_for_cls(self, cls: type[Any]) -> FullFilledType:
         """Get the fullfilled structure for a given class.
         This will use the structure registry to find the correct
         structure for the given class.
@@ -304,19 +300,19 @@ class StructureRegistry(BaseModel):
 
     def get_port_for_cls(
         self,
-        cls: Type[Any],
+        cls: type[Any],
         key: str,
         direction: Literal["arg", "return"],
         nullable: bool = False,
-        description: Optional[str] = None,
-        effects: Optional[list[EffectInput]] = None,
-        label: Optional[str] = None,
-        validators: Optional[List[ValidatorInput]] = None,
+        description: str | None = None,
+        effects: list[EffectInput] | None = None,
+        label: str | None = None,
+        validators: list[ValidatorInput] | None = None,
         default: Any = None,  # noqa: ANN401
-        assign_widget: Optional[AssignWidgetInput] = None,
-        return_widget: Optional[ReturnWidgetInput] = None,
-        requires: Optional[List[RequiresInput]] = None,
-        provides: Optional[List[ProvidesInput]] = None,
+        assign_widget: AssignWidgetInput | None = None,
+        return_widget: ReturnWidgetInput | None = None,
+        requires: list[RequiresInput] | None = None,
+        provides: list[ProvidesInput] | None = None,
     ) -> ArgPortInput | ReturnPortInput:
         """Create an arg or return port for a registered (or auto-registered) class.
 
@@ -333,7 +329,7 @@ class StructureRegistry(BaseModel):
 
         is_arg = direction == "arg"
         widget: Any = assign_widget if is_arg else return_widget
-        fields: Dict[str, Any] = dict(
+        fields: dict[str, Any] = dict(
             kind=kind,
             identifier=fullfilled_type.identifier,
             widget=widget,
@@ -365,7 +361,7 @@ class StructureRegistry(BaseModel):
 
     def get_argport_for_cls(
         self,
-        cls: Type[Any],
+        cls: type[Any],
         key: str,
         **kwargs: Any,  # noqa: ANN401
     ) -> ArgPortInput:
@@ -374,7 +370,7 @@ class StructureRegistry(BaseModel):
 
     def get_returnport_for_cls(
         self,
-        cls: Type[Any],
+        cls: type[Any],
         key: str,
         **kwargs: Any,  # noqa: ANN401
     ) -> ReturnPortInput:

@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator, Callable
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 
@@ -95,8 +95,8 @@ def create_lifespan(
 def add_agent_routes(
     app: FastAPI,
     agent: FastApiAgent,
-    get_user_from_request: Optional[Callable[[Request], object]] = None,
-    expand_user_from_request: Optional[ExpandUserFromRequest] = None,
+    get_user_from_request: Callable[[Request], object] | None = None,
+    expand_user_from_request: ExpandUserFromRequest | None = None,
     ws_path: str = "/ws",
     assign_path: str = "/assign",
     cancel_path: str = "/cancel",
@@ -204,8 +204,8 @@ def add_schema_routes(
 def configure_fastapi(
     app: FastAPI,
     app_registry: AppRegistry,
-    get_user_from_request: Optional[Callable[[Request], object]] = None,
-    expand_user_from_request: Optional[ExpandUserFromRequest] = None,
+    get_user_from_request: Callable[[Request], object] | None = None,
+    expand_user_from_request: ExpandUserFromRequest | None = None,
     add_implementations: bool = True,
     add_schema: bool = True,
     add_states: bool = True,

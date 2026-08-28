@@ -5,7 +5,8 @@ registration data — implementations, states and bloks — together with the ho
 and structure registries.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Type, TypeVar
+from typing import Any, TypeVar
+from collections.abc import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,9 +33,9 @@ class BlokDeclaration(BaseModel):
     """Everything :meth:`AppRegistry.register_blok` records for one blok."""
 
     component: ComponentNodeInput
-    description: Optional[str] = None
-    demo_state: Optional[Dict[str, Any]] = None
-    dependencies: Optional[List[AgentDependencyInput]] = None
+    description: str | None = None
+    demo_state: dict[str, Any] | None = None
+    dependencies: list[AgentDependencyInput] | None = None
 
 
 class AppRegistry(BaseModel):
@@ -59,27 +60,27 @@ class AppRegistry(BaseModel):
     """
 
     # --- implementations (formerly DefinitionRegistry) ---
-    implementations: Dict[str, ImplementationInput] = Field(
+    implementations: dict[str, ImplementationInput] = Field(
         default_factory=dict, exclude=True
     )
-    actor_builders: Dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
+    actor_builders: dict[str, ActorBuilder] = Field(default_factory=dict, exclude=True)
 
     # --- states (formerly StateRegistry) ---
-    states: Dict[str, StateImplementationInput] = Field(
+    states: dict[str, StateImplementationInput] = Field(
         default_factory=dict, exclude=True
     )
-    state_registry_schemas: Dict[str, StructureRegistry] = Field(
+    state_registry_schemas: dict[str, StructureRegistry] = Field(
         default_factory=dict, exclude=True
     )
-    state_interface_classes: Dict[str, AnyState] = Field(
+    state_interface_classes: dict[str, AnyState] = Field(
         default_factory=dict, exclude=True
     )
-    state_classes_interfaces: Dict[Type[AnyState], str] = Field(
+    state_classes_interfaces: dict[type[AnyState], str] = Field(
         default_factory=dict, exclude=True
     )
 
     # --- bloks (formerly BlokRegistry) ---
-    registered_bloks: Dict[str, "BlokDeclaration"] = Field(default_factory=dict)
+    registered_bloks: dict[str, "BlokDeclaration"] = Field(default_factory=dict)
 
     # --- other registries kept as composed fields ---
     hooks_registry: HooksRegistry = Field(default_factory=HooksRegistry)
@@ -100,7 +101,7 @@ class AppRegistry(BaseModel):
         self.implementations[interface] = implementation
         self.actor_builders[interface] = actorBuilder
 
-    def get_implementations(self) -> List[ImplementationInput]:
+    def get_implementations(self) -> list[ImplementationInput]:
         """Get all implementations in the registry."""
         return list(self.implementations.values())
 
@@ -108,9 +109,9 @@ class AppRegistry(BaseModel):
         """Get the actor builder for a given interface."""
         return self.actor_builders[interface]
 
-    def get_locks(self) -> List[LockImplementationInput]:
+    def get_locks(self) -> list[LockImplementationInput]:
         """Get all lock implementations referenced by the implementations."""
-        lock_implementations: Dict[str, LockImplementationInput] = {}
+        lock_implementations: dict[str, LockImplementationInput] = {}
         for schema in self.implementations.values():
             if schema.locks is not None:
                 for lock in schema.locks:
@@ -129,7 +130,7 @@ class AppRegistry(BaseModel):
     # ------------------------------------------------------------------ #
     def register_state(
         self,
-        cls: Type[AnyState],
+        cls: type[AnyState],
         state: StateImplementationInput,
         registry: StructureRegistry,
     ) -> None:
@@ -144,7 +145,7 @@ class AppRegistry(BaseModel):
         assert interface in self.state_registry_schemas, "No definition for interface"
         return self.state_registry_schemas[interface]
 
-    def get_interface_for_class(self, cls: Type[AnyState]) -> str:
+    def get_interface_for_class(self, cls: type[AnyState]) -> str:
         """Get the interface for a state class."""
         assert cls in self.state_classes_interfaces, "No definition for class"
         return self.state_classes_interfaces[cls]
@@ -155,10 +156,10 @@ class AppRegistry(BaseModel):
     def register_blok(
         self,
         name: str,
-        component: Optional[str | ComponentNodeInput] = None,
-        description: Optional[str] = None,
-        demo_state: Optional[Dict[str, Any]] = None,
-        dependencies: Optional[Sequence[AgentDependencyInput]] = None,
+        component: str | ComponentNodeInput | None = None,
+        description: str | None = None,
+        demo_state: dict[str, Any] | None = None,
+        dependencies: Sequence[AgentDependencyInput] | None = None,
     ) -> None:
         """Register a blok component tree in the registry.
 
@@ -183,7 +184,7 @@ class AppRegistry(BaseModel):
             dependencies=list(dependencies) if dependencies is not None else None,
         )
 
-    def get_declared_bloks(self) -> Dict[str, BlokImplementationInput]:
+    def get_declared_bloks(self) -> dict[str, BlokImplementationInput]:
         """Generate blok inputs from their declarations against this registry."""
         from rekuest_next.blok.registry import build_declared_bloks
 
@@ -194,7 +195,7 @@ class AppRegistry(BaseModel):
     # ------------------------------------------------------------------ #
     def to_implement_agent_input(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> ImplementAgentInput:
         """Assemble (and validate) the full agent input from this registry.
 
@@ -215,9 +216,9 @@ class AppRegistry(BaseModel):
     # ------------------------------------------------------------------ #
     def state(
         self,
-        *args: Type[T],
-        name: Optional[str] = None,
-    ) -> Type[T] | Callable[[Type[T]], Type[T]]:
+        *args: type[T],
+        name: str | None = None,
+    ) -> type[T] | Callable[[type[T]], type[T]]:
         """Register a class as a stateful entity."""
         from rekuest_next.state.decorator import state as state_decorator
 
@@ -231,7 +232,7 @@ class AppRegistry(BaseModel):
     def background(
         self,
         *args: T,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> T | Callable[[T], T]:
         """Register a background task."""
         from rekuest_next.agents.hooks.background import (
@@ -249,7 +250,7 @@ class AppRegistry(BaseModel):
     def startup(
         self,
         *args: T,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> T | Callable[[T], T]:
         """Register a startup hook."""
         from rekuest_next.agents.hooks.startup import startup as startup_decorator
@@ -265,7 +266,7 @@ class AppRegistry(BaseModel):
     def shutdown(
         self,
         *args: T,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> T | Callable[[T], T]:
         """Register a shutdown hook."""
         from rekuest_next.agents.hooks.shutdown import shutdown as shutdown_decorator
@@ -280,15 +281,15 @@ class AppRegistry(BaseModel):
 
     def context(
         self,
-        *args: Type[T],
-    ) -> Type[T] | Callable[[Type[T]], Type[T]]:
+        *args: type[T],
+    ) -> type[T] | Callable[[type[T]], type[T]]:
         """Mark a class as a context."""
         from rekuest_next.agents.context import context as context_decorator
 
         if args:
             return context_decorator(*args)
 
-        def decorator(cls: Type[T]) -> Type[T]:
+        def decorator(cls: type[T]) -> type[T]:
             return context_decorator(cls)
 
         return decorator
@@ -310,7 +311,7 @@ class AppRegistry(BaseModel):
 
 
 # Global app registry instance
-_GLOBAL_APP_REGISTRY: Optional[AppRegistry] = None
+_GLOBAL_APP_REGISTRY: AppRegistry | None = None
 
 
 def get_default_app_registry() -> AppRegistry:

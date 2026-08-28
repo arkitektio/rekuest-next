@@ -1,7 +1,7 @@
 """Tests for turning registered bloks into agent inputs."""
 
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Protocol
 
 import pytest
 
@@ -47,7 +47,7 @@ def test_demo_state_is_synthesized_for_a_state_with_required_fields(
     @dataclass
     class ProtocolState:
         available_protocols: list[str]  # required: no default to construct from
-        running_protocol: Optional[str] = None
+        running_protocol: str | None = None
 
     registry.register_blok(
         "local", '<Text text="@self.ProtocolState.available_protocols" />'

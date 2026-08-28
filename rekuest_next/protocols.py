@@ -1,4 +1,5 @@
-from typing import Any, Awaitable, Protocol, Union, runtime_checkable, Tuple
+from typing import Any, Protocol, runtime_checkable
+from collections.abc import Awaitable
 
 from rekuest_next.state.observable import StateConfig
 
@@ -38,7 +39,7 @@ class AnyState(Protocol):
 AnyContext = Any
 
 SingleStartUpReturn = AnyContext | AnyState | None
-StartupTypes = SingleStartUpReturn | Tuple[SingleStartUpReturn, ...]
+StartupTypes = SingleStartUpReturn | tuple[SingleStartUpReturn, ...]
 
 
 @runtime_checkable
@@ -88,7 +89,7 @@ class ThreadedBackgroundFunction(Protocol):
     """
 
     def __call__(
-        self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState, AnyContext]
+        self, *args: AnyState | AnyContext, **kwargs: AnyState | AnyContext
     ) -> None:
         """Create the actor and return it. This method will create the actor and
         return it.
@@ -142,7 +143,7 @@ class ThreadedShutdownFunction(Protocol):
     """A shutdown function that runs in a thread."""
 
     def __call__(
-        self, *args: Union[AnyState, AnyContext], **kwargs: Union[AnyState, AnyContext]
+        self, *args: AnyState | AnyContext, **kwargs: AnyState | AnyContext
     ) -> None:
         """Release whatever the app acquired during its lifetime."""
         ...

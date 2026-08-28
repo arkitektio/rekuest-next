@@ -2,7 +2,8 @@
 
 import collections
 from enum import Enum
-from typing import Callable, List, Union, get_type_hints
+from typing import Union, get_type_hints
+from collections.abc import Callable
 from rekuest_next.structures.model import (
     is_model,
     inspect_model_class,
@@ -39,7 +40,7 @@ from rekuest_next.structures.quantities import (
     proposed_units_of,
     shrink_quantity,
 )
-from typing import Optional, Any, Dict, Literal, cast, get_origin, get_args, Annotated
+from typing import Optional, Any, Literal, cast, get_origin, get_args, Annotated
 import types
 import typing
 
@@ -88,17 +89,17 @@ def is_union(cls: Any) -> bool:  # noqa: ANN401
 
 def is_tuple(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a tuple"""
-    return get_origin(cls) in (tuple, typing.Tuple)
+    return get_origin(cls) in (tuple, tuple)
 
 
 def is_list(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a list"""
-    return get_origin(cls) in (list, typing.List)
+    return get_origin(cls) in (list, list)
 
 
 def is_dict(cls: Any) -> bool:  # noqa: ANN401
     """Check if a class is a dict"""
-    return get_origin(cls) in (dict, typing.Dict, types.MappingProxyType)
+    return get_origin(cls) in (dict, dict, types.MappingProxyType)
 
 
 def get_dict_value_cls(cls: Any) -> Any:  # noqa: ANN401
@@ -111,7 +112,7 @@ def get_list_value_cls(cls: Any) -> Any:  # noqa: ANN401
     return get_args(cls)[0]
 
 
-def get_non_null_variants(cls: Any) -> List[Any]:  # noqa: ANN401
+def get_non_null_variants(cls: Any) -> list[Any]:  # noqa: ANN401
     """Get the non-null variants of a union type"""
     return [arg for arg in get_args(cls) if arg is not type(None)]
 
@@ -213,11 +214,11 @@ def convert_object_to_port(
     label: str | None = None,
     description: str | None = None,
     nullable: bool = False,
-    validators: Optional[List[ValidatorInput]] = None,
-    effects: Optional[List[EffectInput]] = None,
-    requires: Optional[List[RequiresInput]] = None,
-    provides: Optional[List[ProvidesInput]] = None,
-    proposed_units: Optional[List[str]] = None,
+    validators: list[ValidatorInput] | None = None,
+    effects: list[EffectInput] | None = None,
+    requires: list[RequiresInput] | None = None,
+    provides: list[ProvidesInput] | None = None,
+    proposed_units: list[str] | None = None,
 ) -> ArgPortInput | ReturnPortInput:
     """Convert a Python type hint into an arg or return port.
 
@@ -230,7 +231,7 @@ def convert_object_to_port(
     port_cls = _port_cls_for(direction)
     is_arg = direction == "arg"
     widget = assign_widget if is_arg else return_widget
-    direction_kwargs: Dict[str, Any] = (
+    direction_kwargs: dict[str, Any] = (
         {"requires": tuple(requires) if requires else None}
         if is_arg
         else {"provides": tuple(provides) if provides else None}
@@ -242,7 +243,7 @@ def convert_object_to_port(
         )
 
     def make(kind: PortKind, **extra: Any) -> ArgPortInput | ReturnPortInput:  # noqa: ANN401
-        fields: Dict[str, Any] = dict(
+        fields: dict[str, Any] = dict(
             kind=kind,
             widget=widget,
             key=key,
@@ -262,7 +263,7 @@ def convert_object_to_port(
         # nullable port.
         non_nullable_args = [arg for arg in get_args(cls) if arg is not type(None)]
         return recurse(
-            Union[tuple(non_nullable_args)],  # type: ignore[arg-type]
+            Union[tuple(non_nullable_args)],  # type: ignore[arg-type]  # noqa: UP007 - built from a runtime tuple
             key,
             default=default,
             nullable=True,
@@ -350,7 +351,7 @@ def convert_object_to_port(
         child = recurse(get_dict_value_cls(cls), "...", nullable=False)
         return make(PortKind.DICT, children=(child,))
 
-    registry_kwargs: Dict[str, Any] = dict(
+    registry_kwargs: dict[str, Any] = dict(
         nullable=nullable,
         description=description,
         effects=effects,
@@ -422,10 +423,10 @@ def convert_object_to_returnport(
     )
 
 
-GroupMap = Dict[str, List[str]]
-AssignWidgetMap = Dict[str, AssignWidgetInput]
-ReturnWidgetMap = Dict[str, ReturnWidgetInput]
-EffectsMap = Dict[str, List[EffectInput]]
+GroupMap = dict[str, list[str]]
+AssignWidgetMap = dict[str, AssignWidgetInput]
+ReturnWidgetMap = dict[str, ReturnWidgetInput]
+EffectsMap = dict[str, list[EffectInput]]
 
 
 def snake_to_title_case(snake_str: str) -> str:
@@ -451,24 +452,24 @@ def snake_to_title_case(snake_str: str) -> str:
 def prepare_definition(
     function: Callable[..., Any],
     structure_registry: StructureRegistry,
-    widgets: Optional[AssignWidgetMap] = None,
-    return_widgets: Optional[ReturnWidgetMap] = None,
-    effects: Optional[EffectsMap] = None,
-    port_groups: List[PortGroupInput] | None = None,
+    widgets: AssignWidgetMap | None = None,
+    return_widgets: ReturnWidgetMap | None = None,
+    effects: EffectsMap | None = None,
+    port_groups: list[PortGroupInput] | None = None,
     allow_empty_doc: bool = True,
-    collections: List[str] | None = None,
+    collections: list[str] | None = None,
     description: str | None = None,
-    is_test_for: Optional[List[TestTargetInput]] = None,
-    validators: Optional[Dict[str, List[ValidatorInput]]] = None,
+    is_test_for: list[TestTargetInput] | None = None,
+    validators: dict[str, list[ValidatorInput]] | None = None,
     name: str | None = None,
     omitfirst: int | None = None,
     stateful: bool = False,
     omitkeys: list[str] | None = None,
-    return_annotations: Optional[List[Any]] = None,
+    return_annotations: list[Any] | None = None,
     allow_dev: bool = True,
     allow_annotations: bool = True,
-    version: Optional[str] = None,
-    key: Optional[str] = None,
+    version: str | None = None,
+    key: str | None = None,
 ) -> DefinitionInput:
     """Define
 
@@ -501,8 +502,8 @@ def prepare_definition(
     port_groups = port_groups or []
     collections = collections or []
     # Generate Args and Kwargs from the Annotation
-    args: List[ArgPortInput] = []
-    returns: List[ReturnPortInput] = []
+    args: list[ArgPortInput] = []
+    returns: list[ReturnPortInput] = []
 
     # Docstring Parser to help with descriptions. ``AUTO`` tries every known
     # style (reST, Google, Numpydoc, Epydoc) and keeps the best match, so we
@@ -543,7 +544,7 @@ def prepare_definition(
     doc_param_description_map = {
         param.arg_name: param.description for param in docstring.params
     }
-    doc_param_label_map: Dict[str, str] = {
+    doc_param_label_map: dict[str, str] = {
         param.arg_name: param.arg_name for param in docstring.params
     }
 

@@ -3,13 +3,10 @@
 from types import TracebackType
 from typing import (
     Any,
-    AsyncGenerator,
-    Dict,
-    Optional,
     Protocol,
-    Sequence,
     runtime_checkable,
 )
+from collections.abc import AsyncGenerator, Sequence
 
 from rath.scalars import ID
 
@@ -37,12 +34,12 @@ class TaskEventLike(Protocol):
         ...
 
     @property
-    def returns(self) -> Optional[Dict[str, Any]]:
+    def returns(self) -> dict[str, Any] | None:
         """The yielded values, on a YIELD event."""
         ...
 
     @property
-    def message(self) -> Optional[str]:
+    def message(self) -> str | None:
         """The error message, on a FAILED or CRITICAL event."""
         ...
 
@@ -68,17 +65,17 @@ class Postman(Protocol):
     def aassign(
         self,
         *,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         capture: bool = False,
-        reference: Optional[str] = None,
-        hooks: Optional[Sequence[HookInput]] = None,
-        action: Optional[ID] = None,
-        implementation: Optional[ID] = None,
-        parent: Optional[ID] = None,
-        dependency: Optional[str] = None,
-        method: Optional[str] = None,
+        reference: str | None = None,
+        hooks: Sequence[HookInput] | None = None,
+        action: ID | None = None,
+        implementation: ID | None = None,
+        parent: ID | None = None,
+        dependency: str | None = None,
+        method: str | None = None,
         escalate_to_interrupt: bool = False,
-        cancel_timeout: Optional[float] = None,
+        cancel_timeout: float | None = None,
     ) -> AsyncGenerator[TaskEventLike, None]:
         """Originate a task and stream its events.
 

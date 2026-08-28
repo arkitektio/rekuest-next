@@ -11,14 +11,8 @@ import uuid
 from dataclasses import dataclass, replace as dc_replace
 from typing import (
     Any,
-    AsyncGenerator,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Tuple,
-    Union,
 )
+from collections.abc import AsyncGenerator, Generator
 
 from rekuest_next.api.schema import DefinitionInput
 from koil import unkoil, unkoil_gen
@@ -56,7 +50,7 @@ __all__ = [
 
 
 async def afind(
-    action_implementation_res: Union[ID, Action, Implementation],
+    action_implementation_res: ID | Action | Implementation,
 ) -> Action:
     """Find and return the task generator"""
     if isinstance(action_implementation_res, Action):
@@ -79,11 +73,7 @@ async def afind(
 
 
 def find(
-    action_implementation_res: Union[
-        ID,
-        Action,
-        Implementation,
-    ],
+    action_implementation_res: ID | Action | Implementation,
 ) -> Action:
     """Resolve an action reference into a concrete action model.
 
@@ -119,8 +109,8 @@ def ensure_return_as_tuple(value: Any) -> tuple[Any]:  # noqa: ANN401
 
 
 def _resolve_target(
-    target: Union[Action, Implementation],
-) -> Tuple[Action, Optional[Implementation]]:
+    target: Action | Implementation,
+) -> tuple[Action, Implementation | None]:
     """Resolve an action-like target into (action, implementation)."""
     if isinstance(target, Implementation):
         return target.action, target
@@ -129,7 +119,7 @@ def _resolve_target(
     raise ValueError("action_implementation_res must be a Action or Implementation")
 
 
-def _resolve_postman(postman: Optional[Postman]) -> Postman:
+def _resolve_postman(postman: Postman | None) -> Postman:
     """Resolve the postman to use, falling back to the current context."""
     postman = postman or get_current_postman()
     if not postman:
@@ -137,7 +127,7 @@ def _resolve_postman(postman: Optional[Postman]) -> Postman:
     return postman
 
 
-def _resolve_parent(parent: Optional[Assign]) -> Optional[ID]:
+def _resolve_parent(parent: Assign | None) -> ID | None:
     """The parent task id to attach this call to, as the socket wants it.
 
     When no ``parent`` is given and the call happens inside another task, the current
@@ -161,19 +151,19 @@ class CallOptions:
     of re-listing a dozen keyword arguments.
     """
 
-    reference: Optional[str] = None
-    hooks: Optional[List[HookInput]] = None
+    reference: str | None = None
+    hooks: list[HookInput] | None = None
     capture: bool = False
-    parent: Optional[Assign] = None
-    postman: Optional[Postman] = None
+    parent: Assign | None = None
+    postman: Postman | None = None
     escalate_to_interrupt: bool = False
-    cancel_timeout: Optional[float] = None
+    cancel_timeout: float | None = None
 
 
 _DEFAULT_OPTIONS = CallOptions()
 
 
-def _resolve_options(options: Optional[CallOptions], **overrides: Any) -> CallOptions:  # noqa: ANN401
+def _resolve_options(options: CallOptions | None, **overrides: Any) -> CallOptions:  # noqa: ANN401
     """Merge legacy keyword arguments onto an options object.
 
     Keyword arguments that differ from the ``CallOptions`` defaults win over the
@@ -192,17 +182,17 @@ def _resolve_options(options: Optional[CallOptions], **overrides: Any) -> CallOp
 async def _astream_raw(  # noqa: PLR0913 - the call description, mirrored from the protocol
     postman: Postman,
     *,
-    args: Optional[Dict[str, Any]] = None,
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    args: dict[str, Any] | None = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     capture: bool = False,
-    action: Optional[Action] = None,
-    implementation: Optional[Implementation] = None,
-    parent: Optional[ID] = None,
-    dependency: Optional[ID] = None,
-    method: Optional[str] = None,
+    action: Action | None = None,
+    implementation: Implementation | None = None,
+    parent: ID | None = None,
+    dependency: ID | None = None,
+    method: str | None = None,
     escalate_to_interrupt: bool = False,
-    cancel_timeout: Optional[float] = None,
+    cancel_timeout: float | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the YIELD payloads of a task, returning on DONE.
 
@@ -243,19 +233,19 @@ async def _astream_raw(  # noqa: PLR0913 - the call description, mirrored from t
 
 
 async def aiterate_raw(
-    kwargs: Dict[str, Any] | None = None,
-    action: Optional[Action] = None,
-    implementation: Optional[Implementation] = None,
-    parent: Optional[Assign] = None,
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    kwargs: dict[str, Any] | None = None,
+    action: Action | None = None,
+    implementation: Implementation | None = None,
+    parent: Assign | None = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
     capture: bool = False,
     log: bool = False,
-    postman: Optional[Postman] = None,
+    postman: Postman | None = None,
     escalate_to_interrupt: bool = False,
-    cancel_timeout: Optional[float] = None,
-    options: Optional[CallOptions] = None,
+    cancel_timeout: float | None = None,
+    options: CallOptions | None = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the raw YIELD payloads of a remote call.
 
@@ -298,19 +288,19 @@ async def aiterate_raw(
 
 
 async def acall_raw(
-    kwargs: Dict[str, Any] | None = None,
-    action: Optional[Action] = None,
-    implementation: Optional[Implementation] = None,
-    parent: Optional[Assign] = None,
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    kwargs: dict[str, Any] | None = None,
+    action: Action | None = None,
+    implementation: Implementation | None = None,
+    parent: Assign | None = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
     capture: bool = False,
     log: bool = False,
-    postman: Optional[Postman] = None,
+    postman: Postman | None = None,
     escalate_to_interrupt: bool = False,
-    cancel_timeout: Optional[float] = None,
-    options: Optional[CallOptions] = None,
+    cancel_timeout: float | None = None,
+    options: CallOptions | None = None,
 ) -> Any:  # noqa: ANN401
     """Execute a low-level remote call with already serialized arguments.
 
@@ -350,14 +340,14 @@ async def acall_raw(
 async def acall_dependency_raw(
     dependency_key: ID,
     method: str,
-    kwargs: Dict[str, JSONSerializable],
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    kwargs: dict[str, JSONSerializable],
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
-    parent: Optional[Assign] = None,
+    parent: Assign | None = None,
     capture: bool = False,
     log: bool = False,
-    postman: Optional[Postman] = None,
+    postman: Postman | None = None,
 ) -> Any:  # noqa: ANN401
     """Call a method on a dependency with already serialized arguments.
 
@@ -390,19 +380,19 @@ async def acall_dependency_raw(
 
 
 async def acall(
-    action_implementation_res: Union[Action, Implementation],
+    action_implementation_res: Action | Implementation,
     *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
     capture: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    postman: Optional[Postman] = None,
+    structure_registry: StructureRegistry | None = None,
+    postman: Postman | None = None,
     escalate_to_interrupt: bool = False,
-    cancel_timeout: Optional[float] = None,
-    options: Optional[CallOptions] = None,
+    cancel_timeout: float | None = None,
+    options: CallOptions | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:
     """Execute a remote action and return expanded Python values.
@@ -478,19 +468,19 @@ async def acall(
 
 
 async def aiterate(
-    action_implementation_res: Union[Action, Implementation],
+    action_implementation_res: Action | Implementation,
     *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
     parent: Assign | None = None,
     log: bool = False,
     capture: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    postman: Optional[Postman] = None,
+    structure_registry: StructureRegistry | None = None,
+    postman: Postman | None = None,
     escalate_to_interrupt: bool = False,
-    cancel_timeout: Optional[float] = None,
-    options: Optional[CallOptions] = None,
+    cancel_timeout: float | None = None,
+    options: CallOptions | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[Any, None]:
     """Stream expanded yield values from a remote action.
@@ -569,14 +559,14 @@ async def acall_dependency(
     dependency_key: ID,
     method: str,
     *args: Any,  # noqa: ANN401
-    reference: Optional[str] = None,
-    hooks: Optional[List[HookInput]] = None,
+    reference: str | None = None,
+    hooks: list[HookInput] | None = None,
     cached: bool = False,
     parent: Assign | None = None,
     capture: bool = False,
     log: bool = False,
-    structure_registry: Optional[StructureRegistry] = None,
-    postman: Optional[Postman] = None,
+    structure_registry: StructureRegistry | None = None,
+    postman: Postman | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
     """Call a method on a dependency and return expanded Python values."""

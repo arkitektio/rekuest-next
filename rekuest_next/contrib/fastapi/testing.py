@@ -10,7 +10,8 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, Any, Generator, Optional
+from typing import Any, Optional
+from collections.abc import Callable, Generator
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -36,7 +37,7 @@ class BufferedEvent:
     raw: str
     data: dict[str, Any]
     event_type: str
-    task: Optional[str] = None
+    task: str | None = None
 
     @classmethod
     def from_json(cls, json_str: str) -> "BufferedEvent":
@@ -91,7 +92,7 @@ class BufferedEvent:
         """Check if this is a LOG event."""
         return self.event_type == "LOG"
 
-    def get_returns(self) -> Optional[dict[str, Any]]:
+    def get_returns(self) -> dict[str, Any] | None:
         """Get the returns from a YIELD event."""
         return self.data.get("returns")
 
@@ -233,7 +234,7 @@ class AgentTestClient(_EventAccessors):
         self,
         app: FastAPI,
         ws_path: str = "/ws",
-        as_user: Optional[str] = None,
+        as_user: str | None = None,
     ) -> None:
         """Initialize the AgentTestClient.
 
@@ -248,8 +249,8 @@ class AgentTestClient(_EventAccessors):
         self.app = app
         self.ws_path = ws_path
         self.as_user = as_user
-        self._client: Optional[TestClient] = None
-        self._websocket: Optional[WebSocketTestSession] = None
+        self._client: TestClient | None = None
+        self._websocket: WebSocketTestSession | None = None
         self._buffer = _EventBuffer()
 
     def __enter__(self) -> "AgentTestClient":
@@ -282,9 +283,9 @@ class AgentTestClient(_EventAccessors):
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
     ) -> None:
         """Exit the context manager, cleaning up connections."""
         # Close WebSocket if open
@@ -312,7 +313,7 @@ class AgentTestClient(_EventAccessors):
         return self._client
 
     def _get_headers(
-        self, extra_headers: Optional[dict[str, str]] = None
+        self, extra_headers: dict[str, str] | None = None
     ) -> dict[str, str]:
         """Get headers for HTTP requests, including x-session-user if as_user is set."""
         headers: dict[str, str] = {}
@@ -325,8 +326,8 @@ class AgentTestClient(_EventAccessors):
     def post(
         self,
         path: str,
-        json: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Make a POST request to the app.
@@ -349,7 +350,7 @@ class AgentTestClient(_EventAccessors):
     def get(
         self,
         path: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Make a GET request to the app.
@@ -426,7 +427,7 @@ class AgentTestClient(_EventAccessors):
 
     def collect_events(
         self,
-        count: Optional[int] = None,
+        count: int | None = None,
         timeout: float = 1.0,
     ) -> list[BufferedEvent]:
         """Collect events from the WebSocket.
@@ -555,7 +556,7 @@ class AsyncAgentTestClient(_EventAccessors):
         self,
         app: FastAPI,
         ws_path: str = "/ws",
-        as_user: Optional[str] = None,
+        as_user: str | None = None,
         base_url: str = "http://test",
     ) -> None:
         """Initialize the AsyncAgentTestClient.
@@ -573,13 +574,13 @@ class AsyncAgentTestClient(_EventAccessors):
         self.ws_path = ws_path
         self.as_user = as_user
         self.base_url = base_url
-        self._http_client: Optional[AsyncClient] = None
+        self._http_client: AsyncClient | None = None
         self._buffer = _EventBuffer()
         self._event_queue: asyncio.Queue[BufferedEvent] = asyncio.Queue()
-        self._ws_task: Optional[asyncio.Task[None]] = None
+        self._ws_task: asyncio.Task[None] | None = None
         self._stop_ws = asyncio.Event()
-        self._test_client: Optional[TestClient] = None
-        self._websocket: Optional[WebSocketTestSession] = None
+        self._test_client: TestClient | None = None
+        self._websocket: WebSocketTestSession | None = None
 
     async def __aenter__(self) -> "AsyncAgentTestClient":
         """Enter the async context manager."""
@@ -622,9 +623,9 @@ class AsyncAgentTestClient(_EventAccessors):
 
     async def __aexit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: Any | None,
     ) -> None:
         """Exit the async context manager."""
         # Stop WebSocket listener
@@ -661,7 +662,7 @@ class AsyncAgentTestClient(_EventAccessors):
         """Background task that listens for WebSocket messages."""
         loop = asyncio.get_event_loop()
 
-        def receive_sync() -> Optional[str]:
+        def receive_sync() -> str | None:
             try:
                 if self._websocket is not None:
                     return self._websocket.receive_text()
@@ -679,7 +680,7 @@ class AsyncAgentTestClient(_EventAccessors):
                     event = BufferedEvent.from_json(data)
                     self._buffer.add(event)
                     await self._event_queue.put(event)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
@@ -687,7 +688,7 @@ class AsyncAgentTestClient(_EventAccessors):
                 break
 
     def _get_headers(
-        self, extra_headers: Optional[dict[str, str]] = None
+        self, extra_headers: dict[str, str] | None = None
     ) -> dict[str, str]:
         """Get headers for HTTP requests, including x-session-user if as_user is set."""
         headers: dict[str, str] = {}
@@ -700,8 +701,8 @@ class AsyncAgentTestClient(_EventAccessors):
     async def post(
         self,
         path: str,
-        json: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Make an async POST request to the app.
@@ -724,7 +725,7 @@ class AsyncAgentTestClient(_EventAccessors):
     async def get(
         self,
         path: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Make an async GET request to the app.
@@ -774,7 +775,7 @@ class AsyncAgentTestClient(_EventAccessors):
             response_data=data,
         )
 
-    async def receive_event(self, timeout: float = 5.0) -> Optional[BufferedEvent]:
+    async def receive_event(self, timeout: float = 5.0) -> BufferedEvent | None:
         """Receive a single event from the WebSocket.
 
         Args:
@@ -785,12 +786,12 @@ class AsyncAgentTestClient(_EventAccessors):
         """
         try:
             return await asyncio.wait_for(self._event_queue.get(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
 
     async def collect_events(
         self,
-        count: Optional[int] = None,
+        count: int | None = None,
         timeout: float = 1.0,
     ) -> list[BufferedEvent]:
         """Collect events from the WebSocket.
@@ -817,7 +818,7 @@ class AsyncAgentTestClient(_EventAccessors):
                     self._event_queue.get(), timeout=min(remaining, 0.1)
                 )
                 collected.append(event)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
         return collected
@@ -847,7 +848,7 @@ class AsyncAgentTestClient(_EventAccessors):
                 event = await asyncio.wait_for(
                     self._event_queue.get(), timeout=min(remaining, 0.5)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             collected.append(event)
             if event.task == task_id and predicate(event):

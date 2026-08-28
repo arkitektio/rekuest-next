@@ -2,7 +2,7 @@ from __future__ import annotations
 import contextlib
 import os
 import threading
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from rekuest_next import messages
 from rekuest_next.actors.types import Capturable

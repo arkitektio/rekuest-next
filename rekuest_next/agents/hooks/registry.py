@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
-    Dict,
     Any,
     Protocol,
     runtime_checkable,
@@ -24,8 +23,8 @@ class BackgroundTask(Protocol):
     async def arun(
         self,
         agent: "StateHolder",
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any = None,  # noqa: ANN401
     ) -> None:
         """Run the background task in the event loop
@@ -47,8 +46,8 @@ class StartupHookReturns:
     It contains the state variables and contexts that are used by the agent.
     """
 
-    states: Dict[str, Any]
-    contexts: Dict[str, Any]
+    states: dict[str, Any]
+    contexts: dict[str, Any]
 
 
 @runtime_checkable
@@ -73,8 +72,8 @@ class ShutdownHook(Protocol):
     async def arun(
         self,
         agent: "StateHolder",
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
+        contexts: dict[str, Any],
+        states: dict[str, Any],
         app_context: Any,
     ) -> None:
         """Run the shutdown hook in the event loop"""
@@ -90,9 +89,9 @@ class HooksRegistry(BaseModel):
 
     """
 
-    background_worker: Dict[str, BackgroundTask] = Field(default_factory=dict)
-    startup_hooks: Dict[str, StartupHook] = Field(default_factory=dict)
-    shutdown_hooks: Dict[str, ShutdownHook] = Field(default_factory=dict)
+    background_worker: dict[str, BackgroundTask] = Field(default_factory=dict)
+    startup_hooks: dict[str, StartupHook] = Field(default_factory=dict)
+    shutdown_hooks: dict[str, ShutdownHook] = Field(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

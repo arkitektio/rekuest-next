@@ -1,7 +1,7 @@
 import asyncio
 from rath.links.parsing import ParsingLink
 from rath.operation import Operation, opify
-from typing import Any, Tuple, Type, Union
+from typing import Any
 from rekuest_next.io.upload import (
     astore_media_file,
 )
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 async def apply_recursive(
-    func, obj, typeguard: Union[Type[Any], Tuple[Type[Any], ...]]
+    func, obj, typeguard: type[Any] | tuple[type[Any], ...]
 ) -> Any:  # type: ignore
     """
     Recursively applies an asynchronous function to elements in a nested structure.

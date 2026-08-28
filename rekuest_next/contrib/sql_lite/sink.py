@@ -2,8 +2,7 @@ import asyncio
 import aiosqlite
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import datetime, UTC
 
 from rekuest_next import messages
 from rekuest_next.contrib.sql_lite.schema import ensure_sqlite_schema
@@ -19,7 +18,7 @@ def dt_to_epoch_ms(dt: datetime) -> int:
 
 def epoch_ms_to_dt(ms: int) -> datetime:
     """Converts epoch milliseconds back to a timezone-aware datetime."""
-    return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
+    return datetime.fromtimestamp(ms / 1000.0, tz=UTC)
 
 
 # ==========================================
@@ -31,7 +30,7 @@ class SQLLiteSink:
     def __init__(self, db_path: str = "ff.db") -> None:
         """Initializes the SQLLiteSink with the path to the SQLite database file. The sink will use this database to store snapshots and patches. If the file does not exist, it will be created automatically."""
         self.db_path = db_path
-        self.current_session_id: Optional[str] = None
+        self.current_session_id: str | None = None
 
     # --- INITIALIZATION & SESSION MANAGEMENT ---
     async def ainitialize(self) -> None:
@@ -43,11 +42,11 @@ class SQLLiteSink:
             await db.commit()
 
     async def acreate_session(
-        self, states: List[AnyState], implementations: list
+        self, states: list[AnyState], implementations: list
     ) -> str:
         """Create a new session and return its ID. Should be called at the start of a new logical session. By default this will be called automatically on each agent startup, but can also be called manually if the agent wants to manage sessions itself (e.g., create a new session for each user interaction)."""
         new_session = str(uuid.uuid4())
-        created_at_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
+        created_at_ms = dt_to_epoch_ms(datetime.now(UTC))
 
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
@@ -63,7 +62,7 @@ class SQLLiteSink:
     async def adump_snapshot(self, snapshot: messages.StateSnapshot) -> None:
         """Store a full snapshot of all states at a given revision."""
         target_session = snapshot.session_id or self.current_session_id
-        epoch_ms = dt_to_epoch_ms(datetime.now(timezone.utc))
+        epoch_ms = dt_to_epoch_ms(datetime.now(UTC))
         async with self._write_lock:
             async with aiosqlite.connect(self.db_path) as db:
                 for state_id, state_data in snapshot.snapshots.items():
@@ -90,7 +89,7 @@ class SQLLiteSink:
         global_future_rev = patch.global_rev
 
         target_session = patch.session_id or self.current_session_id
-        epoch_ms = dt_to_epoch_ms(datetime.fromtimestamp(patch.ts, tz=timezone.utc))
+        epoch_ms = dt_to_epoch_ms(datetime.fromtimestamp(patch.ts, tz=UTC))
 
         # We dump the value to a JSON string. If the op is "remove", value might be None.
         value_as_json = json.dumps(patch.value) if patch.value is not None else None

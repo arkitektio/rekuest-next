@@ -29,7 +29,8 @@ import logging
 import uuid
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import AsyncGenerator, Sequence
 
 from rath.scalars import ID
 
@@ -53,8 +54,8 @@ class CallerTaskEvent:
     """
 
     kind: TaskEventKind
-    returns: Optional[Dict[str, object]] = None
-    message: Optional[str] = None
+    returns: dict[str, object] | None = None
+    message: str | None = None
 
 
 #: Mirror message types that end a delegated task's stream. Every other mirror
@@ -64,7 +65,7 @@ class CallerTaskEvent:
 _TERMINAL_TYPES = messages.TERMINAL_EVENT_MIRRORS
 
 
-def _adapt(event: "messages.ExecutionEvent") -> Optional[CallerTaskEvent]:
+def _adapt(event: "messages.ExecutionEvent") -> CallerTaskEvent | None:
     """Translate a backend mirror into a ``CallerTaskEvent`` (or ``None`` to skip).
 
     Only the four kinds ``_astream_raw`` acts on are surfaced. ``Cancelled``/``Interrupted``
@@ -89,7 +90,7 @@ def _adapt(event: "messages.ExecutionEvent") -> Optional[CallerTaskEvent]:
 
 def _response_id(
     response: "messages.AssignResponse | messages.ProbeResponse",
-) -> Optional[str]:
+) -> str | None:
     """The id the backend assigned, whichever kind of answer this is.
 
     An assign is answered with a durable ``task`` id; a probe with an ephemeral ``probe``
@@ -116,18 +117,18 @@ class AgentPostman:
         # stream is cancelled. Bounds cancellation so it can never hang.
         self.cancel_timeout = cancel_timeout
         # request id -> future resolved with the AssignResponse or ProbeResponse
-        self._pending_responses: Dict[
+        self._pending_responses: dict[
             str,
             "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]",
         ] = {}
         # durable task id -> queue of ExecutionEvent mirrors
-        self._task_queues: Dict[str, "asyncio.Queue[messages.ExecutionEvent]"] = {}
+        self._task_queues: dict[str, "asyncio.Queue[messages.ExecutionEvent]"] = {}
         # task id -> mirrors that arrived before the AssignResponse was processed
-        self._orphan_by_task: Dict[str, List["messages.ExecutionEvent"]] = {}
+        self._orphan_by_task: dict[str, list["messages.ExecutionEvent"]] = {}
         # idempotency reference -> durable task id
-        self._reference_to_task: Dict[str, str] = {}
+        self._reference_to_task: dict[str, str] = {}
         # task id -> last seen seq (gap detection only)
-        self._last_seq: Dict[str, int] = {}
+        self._last_seq: dict[str, int] = {}
 
     @property
     def connected(self) -> bool:
@@ -139,22 +140,22 @@ class AgentPostman:
     async def aassign(  # noqa: PLR0913 - the call description, mirrored from the protocol
         self,
         *,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         capture: bool = False,
-        reference: Optional[str] = None,
-        hooks: Optional[Sequence[HookInput]] = None,
-        action: Optional[ID] = None,
-        implementation: Optional[ID] = None,
-        parent: Optional[ID] = None,
-        dependency: Optional[str] = None,
-        method: Optional[str] = None,
-        action_hash: Optional[ActionHash] = None,
-        agent: Optional[ID] = None,
-        interface: Optional[str] = None,
-        resolution: Optional[ID] = None,
-        step: Optional[bool] = None,
+        reference: str | None = None,
+        hooks: Sequence[HookInput] | None = None,
+        action: ID | None = None,
+        implementation: ID | None = None,
+        parent: ID | None = None,
+        dependency: str | None = None,
+        method: str | None = None,
+        action_hash: ActionHash | None = None,
+        agent: ID | None = None,
+        interface: str | None = None,
+        resolution: ID | None = None,
+        step: bool | None = None,
         escalate_to_interrupt: bool = False,
-        cancel_timeout: Optional[float] = None,
+        cancel_timeout: float | None = None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
         """Originate a task over the agent socket and stream its events.
 
@@ -197,13 +198,13 @@ class AgentPostman:
     async def aprobe(
         self,
         *,
-        args: Dict[str, Any],
-        reference: Optional[str] = None,
-        action: Optional[ID] = None,
-        implementation: Optional[ID] = None,
-        action_hash: Optional[ActionHash] = None,
+        args: dict[str, Any],
+        reference: str | None = None,
+        action: ID | None = None,
+        implementation: ID | None = None,
+        action_hash: ActionHash | None = None,
         escalate_to_interrupt: bool = False,
-        cancel_timeout: Optional[float] = None,
+        cancel_timeout: float | None = None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
         """Fire a probe over the agent socket and stream its events.
 
@@ -240,7 +241,7 @@ class AgentPostman:
         request: "messages.AssignRequest | messages.ProbeRequest",
         reference: str,
         escalate_to_interrupt: bool,
-        cancel_timeout: Optional[float],
+        cancel_timeout: float | None,
     ) -> AsyncGenerator[CallerTaskEvent, None]:
         """Send one origination request and stream the resulting events until terminal.
 
@@ -252,8 +253,8 @@ class AgentPostman:
         response_future: "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]" = loop.create_future()
         self._pending_responses[request.id] = response_future
 
-        task: Optional[str] = None
-        queue: Optional["asyncio.Queue[messages.ExecutionEvent]"] = None
+        task: str | None = None
+        queue: "asyncio.Queue[messages.ExecutionEvent]" | None = None
         try:
             await self.sink.asend(request)
             response = await response_future
@@ -384,7 +385,7 @@ class AgentPostman:
                 return False
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return False
             if isinstance(event, types):
                 return True
@@ -437,8 +438,8 @@ class AgentPostman:
 
     async def __aexit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         return None

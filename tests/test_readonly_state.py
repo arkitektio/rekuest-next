@@ -7,7 +7,6 @@ write would publish a patch like any other.
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import pytest
 
@@ -27,8 +26,8 @@ class Board:
     """A state with a scalar and both container kinds."""
 
     count: int = 0
-    items: List[int] = field(default_factory=list)
-    meta: Dict[str, int] = field(default_factory=dict)
+    items: list[int] = field(default_factory=list)
+    meta: dict[str, int] = field(default_factory=dict)
 
 
 def _evented_board() -> Board:
@@ -38,7 +37,7 @@ def _evented_board() -> Board:
 
 class _RecordingPublisher:
     def __init__(self) -> None:
-        self.patches: List[str] = []
+        self.patches: list[str] = []
 
     def publish_patch(self, interface: str, patch: object, task_id: str | None = None) -> None:
         self.patches.append(interface)
@@ -149,7 +148,7 @@ async def test_readonly_annotation_reaches_an_actor_as_a_refusing_view() -> None
     board = _evented_board()
     agent.states["Board"] = board
 
-    outcome: Dict[str, object] = {}
+    outcome: dict[str, object] = {}
 
     def peek(reader: ReadOnly[Board]) -> int:
         """Read the state, then try to write it."""
@@ -197,13 +196,13 @@ class _PatchRecorder:
     """Collects the raw JSON patches an evented state publishes."""
 
     def __init__(self) -> None:
-        self.patches: List[dict] = []
+        self.patches: list[dict] = []
 
     def publish_patch(self, interface: str, patch: object, task_id: str | None = None) -> None:
         self.patches.append({"op": patch.op, "path": patch.path, "value": getattr(patch, "value", None)})
 
 
-def _replay(patches: List[dict], initial: list) -> list:
+def _replay(patches: list[dict], initial: list) -> list:
     """Apply recorded patches to a plain list the way a remote consumer would."""
     import jsonpatch
 

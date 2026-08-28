@@ -10,7 +10,7 @@ dangerous actions can opt out of waiting.
 """
 
 import random
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -78,7 +78,7 @@ class ConnectionPolicy(BaseModel):
             "shorter-lived connection does not count as recovery."
         ),
     )
-    flap_limit: Optional[int] = Field(
+    flap_limit: int | None = Field(
         default=None,
         description=(
             "Sliding-window backstop: give up after this many drops within "

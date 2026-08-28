@@ -1,7 +1,7 @@
 """Types for the structures module."""
 
 from enum import Enum
-from typing import Protocol, Optional, List, Union
+from typing import Protocol
 from rath.scalars import ID
 from rekuest_next.api.schema import (
     AssignWidgetInput,
@@ -11,16 +11,14 @@ from rekuest_next.api.schema import (
 from pydantic import BaseModel, ConfigDict, Field
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Type,
     runtime_checkable,
 )
+from collections.abc import Awaitable, Callable
 
 
-JSONSerializable = Union[
-    str, int, float, bool, None, dict[str, "JSONSerializable"], list["JSONSerializable"]
-]
+JSONSerializable = (
+    str | int | float | bool | None | dict[str, "JSONSerializable"] | list["JSONSerializable"]
+)
 
 
 @runtime_checkable
@@ -73,29 +71,29 @@ class FullFilledStructure(BaseModel):
     aexpand and ashrink can be None.
     """
 
-    cls: Type[object]
+    cls: type[object]
     identifier: str
     aexpand: Expander
     ashrink: Shrinker
-    description: Optional[str]
+    description: str | None
     predicate: Callable[[Any], bool]
     convert_default: Callable[[Any], str] | None
-    default_widget: Optional[AssignWidgetInput]
-    default_returnwidget: Optional[ReturnWidgetInput]
+    default_widget: AssignWidgetInput | None
+    default_returnwidget: ReturnWidgetInput | None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
 class FullFilledEnum(BaseModel):
     """A fullfiled enum that can be used to serialize and deserialize"""
 
-    cls: Type[Enum]
+    cls: type[Enum]
     identifier: str
-    description: Optional[str]
-    choices: List[ChoiceInput]
+    description: str | None
+    choices: list[ChoiceInput]
     predicate: Predicator
     convert_default: Callable[[Any], str]
-    default_widget: Optional[AssignWidgetInput]
-    default_returnwidget: Optional[ReturnWidgetInput]
+    default_widget: AssignWidgetInput | None
+    default_returnwidget: ReturnWidgetInput | None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
@@ -105,20 +103,20 @@ class FullFilledMemoryStructure(BaseModel):
     cls: Any
     identifier: str
     predicate: Predicator
-    description: Optional[str]
+    description: str | None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
 class FullFilledModel(BaseModel):
     """A fullfiled model that can be used to serialize and deserialize"""
 
-    cls: Type[Expandable]
+    cls: type[Expandable]
     identifier: str
     predicate: Predicator
-    description: Optional[str] = Field(default=None)
+    description: str | None = Field(default=None)
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
 
-FullFilledType = Union[
-    FullFilledStructure, FullFilledEnum, FullFilledMemoryStructure, FullFilledModel
-]
+FullFilledType = (
+    FullFilledStructure | FullFilledEnum | FullFilledMemoryStructure | FullFilledModel
+)

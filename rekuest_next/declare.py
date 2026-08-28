@@ -2,15 +2,13 @@
 
 from typing import (
     Any,
-    Callable,
-    Dict,
     Generic,
     ParamSpec,
-    Type,
     TypeVar,
     overload,
     get_type_hints,
 )
+from collections.abc import Callable
 from rekuest_next.api.schema import (
     ReturnPortInput,
     StateDependencyInput,
@@ -100,7 +98,7 @@ class DeclaredAgentState:
 
     def __init__(
         self,
-        stateclass: Type,
+        stateclass: type,
         agent_interface: str,
         key: str,
         app: str | None = None,
@@ -147,7 +145,7 @@ Agent = TypeVar("Agent")
 T = TypeVar("T")
 
 
-def declare_state(cls: Type[T]) -> Type[T]:
+def declare_state(cls: type[T]) -> type[T]:
     """Mark a class as a declared state dependency.
 
     Declared states are lightweight protocol-style classes used by
@@ -181,7 +179,7 @@ def state_dep_like(cls: type[Any]) -> bool:
     return False
 
 
-def inspect_declared_state(stateclass: Type[Any]) -> StateDefinitionInput:
+def inspect_declared_state(stateclass: type[Any]) -> StateDefinitionInput:
     structure_registry = get_default_structure_registry()
     type_hints = get_type_hints(stateclass, include_extras=True)
     ports: list[ReturnPortInput] = []
@@ -207,7 +205,7 @@ class DeclaredAgentProtocol(Generic[Agent]):
 
     def __init__(
         self,
-        func: Type[Agent],
+        func: type[Agent],
         app: str | None = None,
         min: int | None = None,
         max: int | None = None,
@@ -222,8 +220,8 @@ class DeclaredAgentProtocol(Generic[Agent]):
         self.description = description or func.__doc__
         self.allow_inactive = allow_inactive
         self.interface = interface_name(func)
-        self.actions: Dict[str, DeclaredAgentAction[Any, Any]] = {}
-        self.states: Dict[str, DeclaredAgentState] = {}
+        self.actions: dict[str, DeclaredAgentAction[Any, Any]] = {}
+        self.states: dict[str, DeclaredAgentState] = {}
         self.auto_resolvable = auto_resolvable
         self.min = min
         self.max = max
@@ -283,7 +281,7 @@ def declare(
     min: int | None = None,
     max: int | None = None,
     version: str | None = None,
-) -> Callable[[Type[T]], Type[T]]:
+) -> Callable[[type[T]], type[T]]:
     """Declare a protocol that describes a remote agent dependency.
 
     The decorated class is inspected in two passes:
@@ -322,8 +320,8 @@ def declare(
     """
 
     def real_decorator(
-        func: Type[T],
-    ) -> Type[T]:  # type: ignore[valid-type]
+        func: type[T],
+    ) -> type[T]:  # type: ignore[valid-type]
         the_class = func
         protocol = DeclaredAgentProtocol(
             func=the_class,
@@ -341,14 +339,14 @@ def declare(
 
 
 @overload
-def state_protocol(cls: Type[T], /) -> Type[T]: ...
+def state_protocol(cls: type[T], /) -> type[T]: ...
 
 
 @overload
-def state_protocol() -> Callable[[Type[T]], Type[T]]: ...
+def state_protocol() -> Callable[[type[T]], type[T]]: ...
 
 
-def state_protocol(*cls: Type[T]) -> Type[T] | Callable[[Type[T]], Type[T]]:
+def state_protocol(*cls: type[T]) -> type[T] | Callable[[type[T]], type[T]]:
     """Declare a state protocol; usable bare or with parentheses.
 
     Alias of :func:`declare_state`. The class is returned unmodified apart from

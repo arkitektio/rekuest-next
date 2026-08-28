@@ -1,6 +1,5 @@
 """Utility functions for Rekuest Next structures."""
 
-from typing import Type
 from .types import Predicator
 
 
@@ -24,6 +23,6 @@ async def id_shrink(
         raise ValueError(f"Value {value} does not have an id attribute. Cannot shrink.")
 
 
-def build_instance_predicate(cls: Type[object]) -> Predicator:
+def build_instance_predicate(cls: type[object]) -> Predicator:
     """Build a predicate function that checks if an object is an instance of the given class."""
     return lambda value: isinstance(value, cls)

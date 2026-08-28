@@ -1,7 +1,8 @@
 """Per-call context threaded through the kind-dispatch tables."""
 
 from dataclasses import dataclass, replace
-from typing import Any, Awaitable, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any
+from collections.abc import Awaitable, Callable, Sequence
 
 from rekuest_next.actors.types import Shelver
 from rekuest_next.api.schema import PortKind
@@ -19,15 +20,15 @@ class SerializationContext:
     """
 
     registry: StructureRegistry
-    shelver: Optional[Shelver] = None
-    path: Tuple[str, ...] = ()
+    shelver: Shelver | None = None
+    path: tuple[str, ...] = ()
     depth: int = 0
 
     @classmethod
     def build(
         cls,
         registry: StructureRegistry,
-        shelver: Optional[Shelver] = None,
+        shelver: Shelver | None = None,
         path: Sequence[str] | None = None,
         depth: int = 0,
     ) -> "SerializationContext":
@@ -48,7 +49,7 @@ class SerializationContext:
 
 
 Handler = Callable[[SerializablePort, Any, SerializationContext], Awaitable[Any]]
-KindTable = Dict[PortKind, Handler]
+KindTable = dict[PortKind, Handler]
 
 
 def single_child(port: SerializablePort) -> SerializablePort | None:
@@ -58,7 +59,7 @@ def single_child(port: SerializablePort) -> SerializablePort | None:
     return port.children[0]
 
 
-def union_index(value: Any) -> Tuple[int | None, str | None]:  # noqa: ANN401
+def union_index(value: Any) -> tuple[int | None, str | None]:  # noqa: ANN401
     """Parse a tagged ``{"__use": i, "__value": ...}`` union value.
 
     Returns ``(index, None)`` on success, ``(None, reason)`` otherwise.

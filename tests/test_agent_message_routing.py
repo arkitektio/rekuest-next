@@ -8,7 +8,7 @@ drive it (the pre-existing ones had no ``areceive``). That is what makes the rou
 
 import asyncio
 import json
-from typing import AsyncIterator, List
+from collections.abc import AsyncIterator
 
 import pytest
 
@@ -49,7 +49,7 @@ async def _pump(agent: BaseAgent, count: int) -> None:
         await asyncio.wait_for(loop.__anext__(), timeout=2.0)
 
 
-def _errors(transport: MemoryAgentTransport) -> List[str]:
+def _errors(transport: MemoryAgentTransport) -> list[str]:
     return [c.error for c in transport.of_type(messages.Critical)]
 
 
@@ -187,7 +187,7 @@ async def test_caller_answers_go_to_the_postman_not_the_actors(
     They are keyed by the caller's request id and must never be looked up in
     managed_assignments, which only ever holds work assigned *to* this agent.
     """
-    seen: List[messages.ExecutionEvent] = []
+    seen: list[messages.ExecutionEvent] = []
     agent.caller_postman.handle_execution_event = seen.append  # type: ignore[method-assign]
 
     transport.feed(messages.CompletedEvent(task="delegated-1", event="ev-1", seq=1))
@@ -359,7 +359,7 @@ async def test_probe_response_is_routed_to_the_caller_postman(
     agent: BaseAgent, transport: MemoryAgentTransport
 ) -> None:
     """A ProbeResponse answers work this agent originated, like an AssignResponse."""
-    seen: List[messages.ProbeResponse] = []
+    seen: list[messages.ProbeResponse] = []
     agent.caller_postman.handle_probe_response = seen.append  # type: ignore[method-assign]
 
     transport.feed(messages.ProbeResponse(request="req-1", probe="p-1"))

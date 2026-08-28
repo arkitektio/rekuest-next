@@ -1,6 +1,7 @@
 """Error helpers that attach port / path context to (de)serialization failures."""
 
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from rekuest_next.structures.errors import ExpandingError, ShrinkingError
 from rekuest_next.structures.serialization.protocols import SerializablePort
