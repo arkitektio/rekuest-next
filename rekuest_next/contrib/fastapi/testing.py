@@ -51,19 +51,33 @@ class BufferedEvent:
 
     def is_done(self) -> bool:
         """Check if this is a DONE event."""
-        return self.event_type == "DONE"
+        # ``COMPLETED`` is the wire type of the agent's completion report; ``DONE``
+        # is kept for older payloads.
+        return self.event_type in {"COMPLETED", "DONE"}
 
     def is_end_state(self) -> bool:
-        """Check if this is an end state event (DONE or ERROR)."""
-        return self.event_type in {"DONE", "ERROR", "CRITICAL", "CANCELLED"}
+        """Check if this event ends the task (completed, failed, critical or cancelled)."""
+        return self.event_type in {
+            "COMPLETED",
+            "DONE",
+            "FAILED",
+            "ERROR",
+            "CRITICAL",
+            "CANCELLED",
+        }
 
     def is_yield(self) -> bool:
         """Check if this is a YIELD event."""
         return self.event_type == "YIELD"
 
     def is_error(self) -> bool:
-        """Check if this is an ERROR event."""
-        return self.event_type == "ERROR"
+        """Check if this event reports the task as failed.
+
+        ``CRITICAL`` is what the agent reports when the function raised, ``FAILED``
+        when its inputs or outputs could not be (de)serialized; ``ERROR`` is kept
+        for older payloads.
+        """
+        return self.event_type in {"CRITICAL", "FAILED", "ERROR"}
 
     def is_criticial(self) -> bool:
         """Check if this is a CRITICAL event."""
@@ -105,11 +119,13 @@ class _EventBuffer:
     """
 
     def __init__(self) -> None:
-        self._buffer = _EventBuffer()
+        self._lock = threading.Lock()
+        self._events: list[BufferedEvent] = []
 
     def add(self, event: BufferedEvent) -> None:
         """Append one event."""
-        self._buffer.add(event)
+        with self._lock:
+            self._events.append(event)
 
     def all(self) -> list[BufferedEvent]:
         """Snapshot of every buffered event."""
@@ -124,7 +140,7 @@ class _EventBuffer:
     def clear(self) -> None:
         """Drop every buffered event."""
         with self._lock:
-            self._buffer.clear()
+            self._events.clear()
 
 
 class _EventAccessors:

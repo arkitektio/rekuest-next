@@ -945,13 +945,20 @@ class BaseAgent(KoiledModel):
             message = message.model_copy(update={"seq": self._event_seq})
             if isinstance(message, messages.TERMINAL_REPORTS):
                 self._unacked_events[message.id] = message
-                # The task is done, so it is no longer running on any actor, and no
-                # longer an assignment this agent is managing. Nothing used to pop
-                # ``managed_assignments``: it grew without bound, and kept answering
-                # backend liveness inquiries about work that had already finished.
-                self.running_assignments.pop(message.task, None)
-                self.managed_assignments.pop(message.task, None)
         await self.transport.asend(message)
+        if isinstance(message, messages.TERMINAL_REPORTS):
+            # The task is done, so it is no longer running on any actor, and no
+            # longer an assignment this agent is managing. Nothing used to pop
+            # ``managed_assignments``: it grew without bound, and kept answering
+            # backend liveness inquiries about work that had already finished.
+            #
+            # Pruned only *after* the send: transports may route the message by
+            # looking the assignment up (the FastAPI transport resolves the
+            # websocket action key from ``managed_assignments``), and pruning
+            # first made every terminal event unroutable, so websocket clients saw
+            # PROGRESS/YIELD but never COMPLETED or ERROR.
+            self.running_assignments.pop(message.task, None)
+            self.managed_assignments.pop(message.task, None)
 
     async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Sends a message to the actor. This is used for sending messages to the
