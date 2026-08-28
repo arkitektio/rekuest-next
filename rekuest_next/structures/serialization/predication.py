@@ -1,185 +1,103 @@
-"""Predication module for Rekuest Next."""
+"""Predication: decide whether a Python value fits a port.
 
-from typing import Any
-from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.api.schema import (
-    PortKind,
-)
+Used to pick the matching branch of a ``UNION`` port before shrinking.
+"""
+
 import datetime as dt
+from typing import Any
 
-from rekuest_next.structures.serialization.protocols import SerializablePort
+from rekuest_next.api.schema import PortKind
 from rekuest_next.structures.quantities import matches_dimension
+from rekuest_next.structures.registry import StructureRegistry
+from rekuest_next.structures.serialization.protocols import SerializablePort
 
 
-def predicate_port_input(
+def _single_child(port: SerializablePort) -> SerializablePort:
+    if not port.children or len(port.children) != 1:
+        raise ValueError(f"Port {port.identifier} must have exactly one child")
+    return port.children[0]
+
+
+def _require_identifier(port: SerializablePort) -> str:
+    if not port.identifier:
+        raise ValueError(f"Port {port} has no identifier")
+    return port.identifier
+
+
+def predicate_port(
     port: SerializablePort,
     value: Any,  # noqa: ANN401
     structure_registry: StructureRegistry,
 ) -> bool:
-    """Check if the value is of the correct type for the structure.
+    """Check whether ``value`` is of the type described by ``port``.
 
-    Args:
-        port (Union[Port, PortInput]): The port to check.
-        value (Any): The value to check.
-        structure_registry (StructureRegistry, optional): The structure registry. Defaults to None.
-    Returns:
-        bool: True if the value is of the correct type for the structure, False otherwise.
+    Container kinds recurse into their children; registered kinds
+    (structure / model / memory structure / enum) defer to the predicate the
+    registry recorded for the identifier.
+
+    Raises:
+        ValueError: If the port is malformed (missing identifier / children) or
+            of an unknown kind.
     """
-    if port.kind == PortKind.DICT:
+    kind = port.kind
+    if kind == PortKind.DICT:
         if not isinstance(value, dict):
             return False
-
-        if not port.children:
-            raise ValueError(f"Port {port.identifier} has no children")
-
+        child = _single_child(port)
         return all(
-            [
-                predicate_port_input(port.children[0], value, structure_registry)
-                for key, value in value.items()  # type: ignore
-            ]
+            predicate_port(child, item, structure_registry)
+            for item in value.values()  # type: ignore[union-attr]
         )
-    if port.kind == PortKind.LIST:
+    if kind == PortKind.LIST:
         if not isinstance(value, list):
             return False
-
-        if not port.children:
-            raise ValueError(f"Port {port.identifier} has no children")
-
+        child = _single_child(port)
         return all(
-            [
-                predicate_port_input(port.children[0], value, structure_registry)
-                for value in value  # type: ignore
-            ]
+            predicate_port(child, item, structure_registry)
+            for item in value  # type: ignore[union-attr]
         )
-    if port.kind == PortKind.DATE:
+    if kind == PortKind.DATE:
         return isinstance(value, dt.datetime)
-    if port.kind == PortKind.INT:
+    if kind == PortKind.INT:
         return isinstance(value, int)
-    if port.kind == PortKind.FLOAT:
+    if kind == PortKind.FLOAT:
         return isinstance(value, float)
-    if port.kind == PortKind.BOOL:
+    if kind == PortKind.BOOL:
         return isinstance(value, bool)
-    if port.kind == PortKind.STRING:
+    if kind == PortKind.STRING:
         return isinstance(value, str)
-    if port.kind == PortKind.QUANTITY:
+    if kind == PortKind.QUANTITY:
         return matches_dimension(value, port.dimension)
-    if port.kind == PortKind.STRUCTURE:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-
-        fstruc = structure_registry.get_fullfilled_structure(port.identifier)
-        return fstruc.predicate(value)
-    if port.kind == PortKind.MODEL:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-        fstruc = structure_registry.get_fullfilled_model(port.identifier)
-        return fstruc.predicate(value)
-    if port.kind == PortKind.MEMORY_STRUCTURE:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-        fstruc = structure_registry.get_fullfilled_memory_structure(port.identifier)
-        return fstruc.predicate(value)
-    if port.kind == PortKind.ENUM:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-        fstruc = structure_registry.get_fullfilled_enum(port.identifier)
-        return fstruc.predicate(value)
+    if kind == PortKind.STRUCTURE:
+        return structure_registry.get_fullfilled_structure(
+            _require_identifier(port)
+        ).predicate(value)
+    if kind == PortKind.MODEL:
+        identifier = _require_identifier(port)
+        try:
+            fmodel = structure_registry.get_fullfilled_model(identifier)
+        except KeyError:
+            # Unregistered model: fall back to a structural check over children.
+            if not port.children:
+                raise ValueError(f"Port {identifier} has no children") from None
+            return all(
+                hasattr(value, child.key)
+                and predicate_port(child, getattr(value, child.key), structure_registry)
+                for child in port.children
+            )
+        return fmodel.predicate(value)
+    if kind == PortKind.MEMORY_STRUCTURE:
+        return structure_registry.get_fullfilled_memory_structure(
+            _require_identifier(port)
+        ).predicate(value)
+    if kind == PortKind.ENUM:
+        return structure_registry.get_fullfilled_enum(
+            _require_identifier(port)
+        ).predicate(value)
 
     raise ValueError(f"Unknown port kind: {port.kind} to predicate")
 
 
-def predicate_serializable_port(
-    port: SerializablePort,
-    value: Any,  # noqa: ANN401
-    structure_registry: StructureRegistry,
-) -> bool:
-    """Check if the value is of the correct type for the structure.
-
-    Args:
-        port (Union[Port, PortInput]): The port to check.
-        value (Any): The value to check.
-        structure_registry (StructureRegistry, optional): The structure registry. Defaults to None.
-    Returns:
-        bool: True if the value is of the correct type for the structure, False otherwise.
-    """
-    if port.kind == PortKind.DICT:
-        if not isinstance(value, dict):
-            return False
-
-        if not port.children:
-            raise ValueError(f"Port {port.identifier} has no children")
-
-        if len(port.children) != 1:
-            raise ValueError(f"Port {port.identifier} has no children")
-
-        child_port = port.children[0]
-        return all(
-            [
-                predicate_serializable_port(child_port, value, structure_registry)
-                for key, value in value.items()  # type: ignore
-            ]
-        )
-    if port.kind == PortKind.LIST:
-        if not isinstance(value, dict):
-            return False
-
-        if not port.children:
-            raise ValueError(f"Port {port.identifier} has no children")
-
-        if len(port.children) != 1:
-            raise ValueError(f"Port {port.identifier} has no children")
-
-        child_port = port.children[0]
-        return all(
-            [
-                predicate_serializable_port(child_port, value, structure_registry)
-                for value in value  # type: ignore
-            ]
-        )
-    if port.kind == PortKind.MODEL:
-        if not port.children:
-            raise ValueError(f"Port {port.identifier} has no children")
-
-        all_ports_match = True
-
-        for child_port in port.children:
-            child_value = getattr(value, child_port.key)
-
-            if not predicate_serializable_port(
-                child_port, getattr(value, child_value), structure_registry
-            ):
-                all_ports_match = False
-                break
-
-        return all_ports_match
-
-    if port.kind == PortKind.DATE:
-        return isinstance(value, dt.datetime)
-    if port.kind == PortKind.INT:
-        return isinstance(value, int)
-    if port.kind == PortKind.FLOAT:
-        return isinstance(value, float)
-    if port.kind == PortKind.BOOL:
-        return isinstance(value, bool)
-    if port.kind == PortKind.STRING:
-        return isinstance(value, str)
-    if port.kind == PortKind.QUANTITY:
-        return matches_dimension(value, port.dimension)
-    if port.kind == PortKind.STRUCTURE:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-        fstruc = structure_registry.get_fullfilled_structure(port.identifier)
-        return fstruc.predicate(value)
-    if port.kind == PortKind.MEMORY_STRUCTURE:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-
-        fstruc = structure_registry.get_fullfilled_memory_structure(port.identifier)
-        return fstruc.predicate(value)
-    if port.kind == PortKind.ENUM:
-        if not port.identifier:
-            raise ValueError(f"Port {port} has no identifier")
-        fstruc = structure_registry.get_fullfilled_enum(port.identifier)
-        return fstruc.predicate(value)
-
-    raise ValueError(f"Unknown port kind: {port.kind} to predicate")
+# Backwards-compatible names; both used to be separate, drifting copies.
+predicate_port_input = predicate_port
+predicate_serializable_port = predicate_port

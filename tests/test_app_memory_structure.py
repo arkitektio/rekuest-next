@@ -9,7 +9,9 @@ one.
 A **memory structure** is any object the structure registry cannot serialise
 (here, plain classes with no ``ashrink``/``aexpand``). Instead of being
 serialised onto the wire, it is parked on the agent's shelve and only an opaque
-reference (a *memory drawer* id) travels between server and client. Piping that
+reference (a *memory drawer* id, wrapped as ``{"__identifier", "object"}`` on
+the wire and exposed client-side as the bare id) travels between server and
+client. Piping that
 reference from one call's output into the next call's input therefore makes the
 second call resolve the *same* live object the first call produced -- which is
 the whole point of these tests.
@@ -43,19 +45,12 @@ class Mask:
 
 
 def _drawer(reference: object) -> str:
-    """Extract the memory-drawer id from a piped memory-structure reference.
-
-    A memory-structure return arrives client-side as
-    ``{"__identifier": ..., "object": <drawer-id>}``; to feed it into the next
-    call we hand that next call only the drawer id string.
-    """
-    assert isinstance(reference, dict), (
-        f"Expected a memory reference dict, got {reference!r}"
+    """A piped memory-structure reference arrives client-side as the bare
+    memory-drawer id string, ready to be handed to the next call as-is."""
+    assert isinstance(reference, str), (
+        f"Expected a memory drawer id string, got {reference!r}"
     )
-    assert "object" in reference, (
-        f"Memory reference is missing its drawer id: {reference!r}"
-    )
-    return str(reference["object"])
+    return reference
 
 
 @pytest.mark.integration
@@ -162,3 +157,82 @@ async def test_each_test_gets_a_fresh_app_registry(deployment: Deployment) -> No
     app.register(only_here)
 
     assert set(app.agent.app_registry.implementations) == {"only_here"}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio(loop_scope="session")
+async def test_memory_structure_round_trips_through_dependency(
+    deployment: Deployment,
+) -> None:
+    """A workflow pipes a memory structure between two dependency calls.
+
+    The provider creates an ``Image`` (parked on *its* shelve) and hands back a
+    reference; the workflow feeds that reference straight into the provider's
+    second method via the declared dependency proxy. Both hops go through the
+    actor-side serialisation path (``acall_dependency``), which must speak the
+    same ``{"__identifier", "object"}`` envelope as the client path.
+    """
+    from typing import Protocol
+
+    from rekuest_next.declare import declare
+
+    provider = build_fresh_rekuest(deployment, token="atest_token")
+
+    def make_image(size: int) -> Image:
+        """Create an in-memory image."""
+        return Image(pixels=list(range(size)))
+
+    def count_pixels(image: Image) -> int:
+        """Count the pixels of an image received from a previous call."""
+        return len(image.pixels)
+
+    provider.register(make_image)
+    provider.register(count_pixels)
+
+    workflow_app = build_fresh_rekuest(deployment, token="workflow_token")
+
+    @declare(app="atest", auto_resolvable=True, min=1)
+    class ImageProvider(Protocol):
+        def make_image(self, size: int) -> Image:
+            """Create an in-memory image."""
+            ...
+
+        def count_pixels(self, image: Image) -> int:
+            """Count the pixels of an image received from a previous call."""
+            ...
+
+    def pipe_through_dependency(atest: ImageProvider, size: int) -> int:
+        """Create an image on the provider and count its pixels there."""
+        reference = atest.make_image(size)
+        assert isinstance(reference, str), (
+            f"Expected a drawer id from the dependency, got {reference!r}"
+        )
+        return atest.count_pixels(reference)
+
+    workflow_app.register(pipe_through_dependency)
+
+    async with provider as provider, workflow_app as workflow_app:
+        await provider.aconnect(timeout=CONNECT_TIMEOUT)
+        provider_task = asyncio.create_task(provider.aloop())
+        await workflow_app.aconnect(timeout=CONNECT_TIMEOUT)
+        workflow_task = asyncio.create_task(workflow_app.aloop())
+
+        impl = await amy_implementation_at(
+            "pipe_through_dependency", rath=workflow_app.rath
+        )
+        result = await acall(
+            impl,
+            size=7,
+            postman=workflow_app.postman,
+            structure_registry=workflow_app.structure_registry,
+        )
+        assert result == 7, (
+            f"Expected 7 pixels counted via the dependency, got {result}"
+        )
+
+        for task in (provider_task, workflow_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
