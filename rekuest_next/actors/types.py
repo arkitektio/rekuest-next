@@ -188,9 +188,7 @@ class ActorContext(Shelver, LockHost, Capturable, Protocol):
         """
         ...
 
-    async def asend(
-        self, actor: "Actor", message: messages.FromAgentMessage
-    ) -> None:
+    async def asend(self, actor: "Actor", message: messages.FromAgentMessage) -> None:
         """Send a message from an actor up to the agent, which forwards it onward."""
         ...
 
@@ -207,9 +205,7 @@ class ActorContext(Shelver, LockHost, Capturable, Protocol):
         """Get a context value registered with ``@context``."""
         ...
 
-    def publish_patch(
-        self, interface: str, patch: Patch, task_id: str | None = None
-    ) -> None:
+    def publish_patch(self, interface: str, patch: Patch) -> None:
         """Publish a state patch. Satisfies ``state.publish.StateHolder``."""
         ...
 

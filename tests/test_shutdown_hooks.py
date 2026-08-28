@@ -94,7 +94,7 @@ async def test_shutdown_hooks_run_with_states_and_contexts(
     agent.contexts[Connection.__rekuest_context__] = connection
     agent.states[Counter.__rekuest_state__] = counter
 
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
     agent._ran_startup_hooks = True
     await agent.arun_shutdown_hooks()
 
@@ -120,7 +120,7 @@ async def test_threaded_shutdown_hook_runs_with_states_and_contexts(
     agent.contexts[Connection.__rekuest_context__] = connection
     agent.states[Counter.__rekuest_state__] = counter
 
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
     agent._ran_startup_hooks = True
     await agent.arun_shutdown_hooks()
 
@@ -145,7 +145,7 @@ async def test_shutdown_hooks_run_in_reverse_registration_order(
     mock_rekuest.register_shutdown(second)
 
     agent = mock_rekuest.agent
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
     agent._ran_startup_hooks = True
     await agent.arun_shutdown_hooks()
 
@@ -169,7 +169,7 @@ async def test_failing_shutdown_hook_does_not_stop_the_others(
     mock_rekuest.register_shutdown(exploding)  # runs first (reverse order)
 
     agent = mock_rekuest.agent
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
     agent._ran_startup_hooks = True
 
     await agent.arun_shutdown_hooks()
@@ -189,7 +189,7 @@ async def test_shutdown_hooks_only_run_for_a_started_agent_and_only_once(
     mock_rekuest.register_shutdown(close_it)
 
     agent = mock_rekuest.agent
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
 
     # Never started: teardown owes it nothing.
     await agent.arun_shutdown_hooks()

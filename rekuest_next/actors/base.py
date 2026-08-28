@@ -229,27 +229,42 @@ class Actor(BaseModel):
         """A function to cancel the actor. This is used to cancel the actor and
         stop listening for messages from the agent.
         """
-        # Cancel Mnaged actors
         logger.info(f"Cancelling Actor {self.id}")
+        await self._astop_all(
+            "Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
+            prune=False,
+        )
 
+    async def _astop_all(self: Self, error: str, prune: bool) -> int:
+        """Cancel every running assignment, await each, and report ``Critical(error)``.
+
+        The mechanism shared by :meth:`acancel` and :meth:`acancel_for_policy`; the
+        two differ in wording and in whether the bookkeeping is pruned (see the
+        latter's docstring for why).
+
+        Returns:
+            How many assignments were stopped.
+        """
         running = list(self._running_asyncio_tasks.items())
         for _, task in running:
             task.cancel()
 
+        stopped = 0
         for key, task in running:
             try:
                 await task
             except asyncio.CancelledError:
-                logger.info(
-                    f"Task {key} was cancelled through applicaction. Setting Critical"
-                )
-                await self.agent.asend(
-                    self,
-                    message=messages.Critical(
-                        task=key,
-                        error="Cancelled trhough application (this is not nice from the application and will be regarded as an error)",
-                    ),
-                )
+                logger.info(f"Task {key} was cancelled. Setting Critical")
+                stopped += 1
+            except Exception:  # noqa: BLE001 — the body failed on its way out
+                logger.error("Task %s errored while being stopped", key, exc_info=True)
+            if prune:
+                self._running_asyncio_tasks.pop(key, None)
+                self.running_assignments.pop(key, None)
+            await self.agent.asend(
+                self, message=messages.Critical(task=key, error=error)
+            )
+        return stopped
 
     async def abreak(self: Self, task_id: str) -> bool:
         """A function to pause the actor. This is used to instruct the actor to
@@ -297,6 +312,11 @@ class Actor(BaseModel):
         # first.
         self._running_asyncio_tasks.pop(task_id, None)
         self.running_assignments.pop(task_id, None)
+        # These two are keyed per task as well and used to outlive it: a task that
+        # was cancelled while paused kept its break future, and every task kept
+        # its hook.
+        self._running_assignment_hooks.pop(task_id, None)
+        self._break_futures.pop(task_id, None)
         try:
             task.result()
         except asyncio.CancelledError:
@@ -327,31 +347,16 @@ class Actor(BaseModel):
         Returns:
             How many assignments were stopped.
         """
-        running = list(self._running_asyncio_tasks.items())
-        if not running:
+        if not self._running_asyncio_tasks:
             return 0
 
         logger.warning(
-            "Actor %s stopping %d assignment(s): %s", self.id, len(running), reason
+            "Actor %s stopping %d assignment(s): %s",
+            self.id,
+            len(self._running_asyncio_tasks),
+            reason,
         )
-        for _, task in running:
-            task.cancel()
-
-        stopped = 0
-        for key, task in running:
-            try:
-                await task
-            except asyncio.CancelledError:
-                stopped += 1
-            except Exception:  # noqa: BLE001 — the body failed on its way out
-                logger.error("Task %s errored while being stopped", key, exc_info=True)
-            self._running_asyncio_tasks.pop(key, None)
-            self.running_assignments.pop(key, None)
-            await self.agent.asend(
-                self,
-                message=messages.Critical(task=key, error=reason),
-            )
-        return stopped
+        return await self._astop_all(reason, prune=True)
 
     async def acheck_task(self: Self, task_id: str) -> bool:
         """A function to check if the assignment is still running. This is used to
@@ -365,6 +370,39 @@ class Actor(BaseModel):
         if task_id in self._running_asyncio_tasks:
             return True
         return False
+
+    async def _astop_task(
+        self: Self,
+        task_id: str,
+        terminal: type[messages.Cancelled] | type[messages.Interrupted],
+        verb: str,
+    ) -> None:
+        """Stop one running assignment on the backend's request and report ``terminal``.
+
+        ``Cancel`` and ``Interrupt`` differ only in the terminal message they owe the
+        backend; the mechanism — cancel the task, await it, report — is the same.
+        """
+        if task_id not in self._running_asyncio_tasks:
+            logger.error(
+                f"Actor for {self}: Received {verb} for unknown task {task_id}"
+            )
+            return
+
+        task = self._running_asyncio_tasks[task_id]
+        if task.done():
+            logger.warning(f"Race Condition: Task was already done before {verb}")
+            await self.agent.asend(self, message=terminal(task=task_id))
+            return
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logger.info(
+                f"Task {task_id} was {verb} through arkitekt. Setting {terminal.__name__}"
+            )
+            self._running_asyncio_tasks.pop(task_id, None)
+            await self.agent.asend(self, message=terminal(task=task_id))
 
     async def aprocess(self: Self, message: messages.ToAgentMessage) -> None:
         """A function to process the message. This is used to process the message
@@ -393,70 +431,10 @@ class Actor(BaseModel):
             self._running_asyncio_tasks[message.task] = task
 
         elif isinstance(message, messages.Cancel):
-            if message.task in self._running_asyncio_tasks:
-                task = self._running_asyncio_tasks[message.task]
-
-                if not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        logger.info(
-                            f"Task {message.task} was cancelled through arkitekt. Setting Cancelled"
-                        )
-
-                        self._running_asyncio_tasks.pop(message.task, None)
-                        await self.agent.asend(
-                            actor=self,
-                            message=messages.Cancelled(task=message.task),
-                        )
-
-                else:
-                    logger.warning(
-                        "Race Condition: Task was already done before cancellation"
-                    )
-                    await self.agent.asend(
-                        self,
-                        message=messages.Cancelled(task=message.task),
-                    )
-
-            else:
-                logger.error(
-                    f"Actor for {self}: Received unassignment for unknown task {message.id}"
-                )
+            await self._astop_task(message.task, messages.Cancelled, "cancelled")
 
         elif isinstance(message, messages.Interrupt):
-            if message.task in self._running_asyncio_tasks:
-                task = self._running_asyncio_tasks[message.task]
-
-                if not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        logger.info(
-                            f"Task {message.task} was interrupted through arkitekt. Setting Interrupted"
-                        )
-
-                        self._running_asyncio_tasks.pop(message.task, None)
-                        await self.agent.asend(
-                            actor=self,
-                            message=messages.Interrupted(task=message.task),
-                        )
-
-                else:
-                    logger.warning(
-                        "Race Condition: Task was already done before interruption"
-                    )
-                    await self.agent.asend(
-                        self,
-                        message=messages.Interrupted(task=message.task),
-                    )
-
-            else:
-                logger.error(
-                    f"Actor for {self}: Received interrupt for unknown task {message.task}"
-                )
+            await self._astop_task(message.task, messages.Interrupted, "interrupted")
 
         elif isinstance(message, messages.Pause):
             await self.on_pause(message)

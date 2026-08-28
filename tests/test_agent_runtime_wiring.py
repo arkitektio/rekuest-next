@@ -42,11 +42,6 @@ def test_actor_builder_resolvable_from_app_registry(mock_rekuest: RekuestNext) -
     assert callable(builder)
 
 
-def test_collect_from_extensions_is_still_accepted(mock_rekuest: RekuestNext) -> None:
-    """The pre-rename name keeps working for existing callers."""
-    mock_rekuest.agent.collect_from_extensions()
-
-
 @pytest.mark.asyncio
 async def test_definition_hash_is_stable_and_definition_sensitive(
     mock_rekuest: RekuestNext,

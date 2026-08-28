@@ -13,6 +13,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_LOG_LEVELS = {
+    LogLevel.DEBUG: logging.DEBUG,
+    LogLevel.INFO: logging.INFO,
+    LogLevel.WARN: logging.WARNING,
+    LogLevel.ERROR: logging.ERROR,
+    LogLevel.CRITICAL: logging.CRITICAL,
+}
+
 
 def cast_log_level(level: LogLevel) -> int:
     """Convert a LogLevel to a logging level
@@ -23,18 +31,18 @@ def cast_log_level(level: LogLevel) -> int:
     Returns:
         int: The logging level
     """
-    if level == LogLevel.DEBUG:
-        return logging.DEBUG
-    elif level == LogLevel.INFO:
-        return logging.INFO
-    elif level == LogLevel.WARN:
-        return logging.WARNING
-    elif level == LogLevel.ERROR:
-        return logging.ERROR
-    elif level == LogLevel.CRITICAL:
-        return logging.CRITICAL
-    else:
-        raise ValueError(f"Invalid log level: {level}")
+    try:
+        return _LOG_LEVELS[level]
+    except KeyError:
+        raise ValueError(f"Invalid log level: {level}") from None
+
+
+def _log_locally(level: LogLevel, message: str) -> None:
+    """Fallback for ``log``/``alog`` when no task is running: emit through ``logging``."""
+    logger.debug(
+        "You attempted to log a message outside of a task. This message will not be sent to the rekuest server."
+    )
+    logger.log(cast_log_level(level), f"[{level}] {message}")
 
 
 def install_hook(hook: "AssignmentHook") -> None:
@@ -80,12 +88,8 @@ async def alog(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
     """
     try:
         await get_current_task_helper().alog(level, message)
-    except Exception:  # pylint: disable=broad-except
-        logger.debug(
-            "You attempted to log a message outside of a task. This message will not be sent to the rekuest server."
-        )
-        logger.log(cast_log_level(level), f"[{level}] {message}")
-        pass
+    except NotWithinATaskError:
+        _log_locally(level, message)
 
 
 def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
@@ -110,12 +114,8 @@ def log(message: str, level: LogLevel = LogLevel.DEBUG) -> None:
 
     try:
         get_current_task_helper().log(level, message)
-    except Exception:  # pylint: disable=broad-except
-        logger.debug(
-            "You attempted to log a message outside of a task. This message will not be sent to the rekuest server."
-        )
-        logger.log(cast_log_level(level), f"[{level}] {message}")
-        pass
+    except NotWithinATaskError:
+        _log_locally(level, message)
 
 
 def useAssign() -> messages.Assign:
@@ -146,7 +146,6 @@ def progress(percentage: int, message: Optional[str] = None) -> None:
         logger.warning(
             "You attempted to send progress outside of a task. This progress update will not be sent to the rekuest server."
         )
-        pass
 
 
 async def aprogress(percentage: int, message: Optional[str] = None) -> None:
@@ -171,7 +170,6 @@ async def aprogress(percentage: int, message: Optional[str] = None) -> None:
         logger.warning(
             "You attempted to send progress outside of a task. This progress update will not be sent to the rekuest server."
         )
-        pass
 
 
 async def apausepoint() -> None:
@@ -189,12 +187,11 @@ async def apausepoint() -> None:
     try:
         helper = get_current_task_helper()
         await helper.abreakpoint()
-    except NotWithinATaskError:  # pylint: disable=broad-except
+    except NotWithinATaskError:
         # We don't want breakpoints to fail the actor if not supported
         logger.warning(
             "You attempted to await a breakpoint outside of a task. This breakpoint will not be awaited."
         )
-        pass
 
 
 def pausepoint() -> None:
@@ -211,9 +208,8 @@ def pausepoint() -> None:
     try:
         helper = get_current_task_helper()
         helper.breakpoint()
-    except NotWithinATaskError:  # pylint: disable=broad-except
+    except NotWithinATaskError:
         # We don't want breakpoints to fail the actor if not supported
         logger.warning(
             "You attempted to await a breakpoint outside of a task. This breakpoint will not be awaited."
         )
-        pass

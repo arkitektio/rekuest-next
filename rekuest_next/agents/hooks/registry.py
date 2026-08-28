@@ -22,13 +22,18 @@ class BackgroundTask(Protocol):
     """
 
     async def arun(
-        self, agent: "StateHolder", contexts: Dict[str, Any], states: Dict[str, Any]
+        self,
+        agent: "StateHolder",
+        contexts: Dict[str, Any],
+        states: Dict[str, Any],
+        app_context: Any = None,  # noqa: ANN401
     ) -> None:
         """Run the background task in the event loop
         Args:
             agent (Agent): The agent running the background task
             contexts (Dict[str, Any]): The contexts of the agent
-            proxies (Dict[str, Any]): The state variables of the agent
+            states (Dict[str, Any]): The state variables of the agent
+            app_context (Any): The app context the agent was started with, if any
         Returns:
             None
         """

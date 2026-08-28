@@ -28,7 +28,9 @@ def transport() -> MemoryAgentTransport:
 @pytest.fixture()
 def agent(transport: MemoryAgentTransport) -> BaseAgent:
     """A bare agent with its own registry, so nothing leaks between tests."""
-    return BaseAgent(name="routing-test", transport=transport, app_registry=AppRegistry())
+    return BaseAgent(
+        name="routing-test", transport=transport, app_registry=AppRegistry()
+    )
 
 
 async def _run_loop(agent: BaseAgent) -> AsyncIterator[None]:
@@ -157,7 +159,9 @@ async def test_init_releases_connect_and_resends_unacked_reports(
 
     transport.feed(messages.Init(agent="agent-1"))
     await _pump(agent, 1)
-    assert len(transport.of_type(messages.Completed)) == 2, "an acked report must not replay"
+    assert len(transport.of_type(messages.Completed)) == 2, (
+        "an acked report must not replay"
+    )
 
 
 @pytest.mark.asyncio
@@ -333,16 +337,19 @@ async def test_probe_flag_on_an_assign_is_visible_to_the_agent(
     revived = messages.Assign(**json.loads(assign.model_dump_json()))
     assert revived.probe is True
 
-    assert messages.Assign(
-        task="t-1",
-        interface="x",
-        args={},
-        implementation="impl-1",
-        action="action-1",
-        reference="ref-1",
-        user="user-1",
-        org="org-1",
-    ).probe is False, "a normal assign must default to not-a-probe"
+    assert (
+        messages.Assign(
+            task="t-1",
+            interface="x",
+            args={},
+            implementation="impl-1",
+            action="action-1",
+            reference="ref-1",
+            user="user-1",
+            org="org-1",
+        ).probe
+        is False
+    ), "a normal assign must default to not-a-probe"
 
 
 @pytest.mark.asyncio
@@ -371,10 +378,7 @@ async def test_session_init_opens_the_session_with_its_baseline_states(
     """
     agent._current_shrunk_states["Board"] = {"count": 0}
 
-    await agent.ainit_states(
-        hook_return=StartupHookReturns(states={}, contexts={}),
-        app_context=None,
-    )
+    await agent.ainit_states(hook_return=StartupHookReturns(states={}, contexts={}))
 
     inits = transport.of_type(messages.SessionInit)
     assert len(inits) == 1, f"expected one SessionInit, got {transport.sent}"

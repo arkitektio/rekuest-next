@@ -94,7 +94,6 @@ def app_context(
 class QueuedPatchEvent:
     interface: str
     patch: Patch
-    task_id: Optional[str] = None
     event_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -158,7 +157,6 @@ class BaseAgent(KoiledModel):
     running_assignments: Dict[str, str] = Field(
         default_factory=dict, description="Maps task to actor id"
     )
-
 
     _current_shrunk_states: Dict[str, JSONSerializable] = PrivateAttr(
         default_factory=lambda: {}  # type: ignore[return-value]
@@ -275,9 +273,7 @@ class BaseAgent(KoiledModel):
         """Tell the backend a task has released a lock. Best-effort, as :meth:`alock`."""
         await self._areport_lock(messages.Unlock(key=key))
 
-    async def _areport_lock(
-        self, message: "messages.Lock | messages.Unlock"
-    ) -> None:
+    async def _areport_lock(self, message: "messages.Lock | messages.Unlock") -> None:
         """Send a lock report, logging rather than raising if it cannot go out."""
         try:
             await self.transport.asend(message)
@@ -327,17 +323,13 @@ class BaseAgent(KoiledModel):
             logger.debug("Patch event loop cancelled, shutting down")
             raise
 
-    def publish_patch(
-        self, interface: str, patch: Patch, task_id: str | None = None
-    ) -> None:
+    def publish_patch(self, interface: str, patch: Patch) -> None:
         """Publish a patch to the agent. This is used to publish patches to the
         agent from the actor."""
 
         if self._event_queue is None:
             raise AgentException("Patch queue is not initialized")
-        self._event_queue.sync_q.put(
-            QueuedPatchEvent(interface=interface, patch=patch, task_id=task_id)
-        )
+        self._event_queue.sync_q.put(QueuedPatchEvent(interface=interface, patch=patch))
 
     async def _aprocess_patch_event(self, queued_patch: QueuedPatchEvent) -> None:
         interface = queued_patch.interface
@@ -460,14 +452,6 @@ class BaseAgent(KoiledModel):
             if lock_schema.key not in self.locks:
                 self.locks[lock_schema.key] = TaskLock(self, lock_schema)
 
-    def collect_from_extensions(self) -> None:
-        """Deprecated alias for :meth:`collect_from_registry`.
-
-        Named for the extension layer that has since been replaced by the single
-        ``AppRegistry``. Kept so existing callers keep working.
-        """
-        self.collect_from_registry()
-
     def get_structure_registry_for_interface(self, interface: str) -> StructureRegistry:
         """Get the structure registry for a given interface from the app registry.
 
@@ -555,7 +539,9 @@ class BaseAgent(KoiledModel):
         """
         logger.info(f"Agent received {message}")
 
-        if isinstance(message, (messages.Init, messages.EventAck, messages.ProtocolError)):
+        if isinstance(
+            message, (messages.Init, messages.EventAck, messages.ProtocolError)
+        ):
             await self._aprocess_session_message(message)
         elif isinstance(
             message,
@@ -573,7 +559,6 @@ class BaseAgent(KoiledModel):
             (
                 messages.AssignResponse,
                 messages.ProbeResponse,
-                messages.ControlResponse,
                 messages.ExecutionEvent,
             ),
         ):
@@ -581,6 +566,10 @@ class BaseAgent(KoiledModel):
         elif isinstance(message, messages.Collect):
             for key in message.drawers:
                 await self.acollect(key)
+        elif isinstance(message, messages.ControlResponse):
+            # Acknowledgement of a fire-and-forget cancel/interrupt request; the
+            # outcome is observed through the task's own event mirrors instead.
+            logger.debug(f"Ignoring control acknowledgement {message}")
         else:
             raise AgentException(f"Unknown message type {type(message)}")
 
@@ -729,19 +718,19 @@ class BaseAgent(KoiledModel):
 
     def _process_caller_message(
         self,
-        message: "messages.AssignResponse | messages.ProbeResponse | messages.ControlResponse | messages.ExecutionEvent",
+        message: "messages.AssignResponse | messages.ProbeResponse | messages.ExecutionEvent",
     ) -> None:
         """Route an answer to work this agent delegated to the caller postman.
 
         ``ExecutionEvent`` is the base of every backend→caller ``…Event`` mirror, so an
         actor-internal ``acall``/``acall_dependency`` can observe what it delegated.
+        ``ControlResponse`` is not routed: cancel/interrupt requests are fire-and-forget
+        and their outcome is observed through the task's own event mirrors.
         """
         if isinstance(message, messages.AssignResponse):
             self.caller_postman.handle_assign_response(message)
         elif isinstance(message, messages.ProbeResponse):
             self.caller_postman.handle_probe_response(message)
-        elif isinstance(message, messages.ControlResponse):
-            self.caller_postman.handle_control_response(message)
         else:
             self.caller_postman.handle_execution_event(message)
 
@@ -990,9 +979,7 @@ class BaseAgent(KoiledModel):
         )
         return shrinked_state
 
-    async def ainit_states(
-        self, hook_return: StartupHookReturns, app_context: Any = None
-    ) -> None:  # noqa: ANN401
+    async def ainit_states(self, hook_return: StartupHookReturns) -> None:
         """Initialize the state of the agent. This will be called when the agent starts"""
 
         state_schemas = self._collected_state_schemas
@@ -1066,7 +1053,12 @@ class BaseAgent(KoiledModel):
 
         for name, worker in self._collected_background_workers.items():
             task = asyncio.create_task(
-                worker.arun(self, contexts=self.contexts, states=self.states)
+                worker.arun(
+                    self,
+                    contexts=self.contexts,
+                    states=self.states,
+                    app_context=self._app_context,
+                )
             )
             task.add_done_callback(
                 lambda task, name=name: self._on_background_done(name, task)
@@ -1181,6 +1173,9 @@ class BaseAgent(KoiledModel):
         that are spawned from it. The agent will then start the transport and
         start listening for messages from the transport.
         """
+        # Remembered here (not only in aconnect) so background workers started by
+        # this method can be handed the app context they were declared against.
+        self._app_context = app_context
         # Collect state schemas, startup hooks and background workers from the app registry
         self.collect_from_registry()
 
@@ -1195,7 +1190,7 @@ class BaseAgent(KoiledModel):
             # From here on the app has set up resources, so teardown owes it the
             # shutdown hooks (even if the rest of the startup fails).
             self._ran_startup_hooks = True
-            await self.ainit_states(hook_return=hook_return, app_context=app_context)
+            await self.ainit_states(hook_return=hook_return)
 
         self.global_revision = 0
         self._event_queue = janus.Queue()

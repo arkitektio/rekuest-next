@@ -120,10 +120,6 @@ class AgentPostman:
             str,
             "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]",
         ] = {}
-        # control request id -> future resolved with the ControlResponse
-        self._pending_control: Dict[
-            str, "asyncio.Future[messages.ControlResponse]"
-        ] = {}
         # durable task id -> queue of ExecutionEvent mirrors
         self._task_queues: Dict[str, "asyncio.Queue[messages.ExecutionEvent]"] = {}
         # task id -> mirrors that arrived before the AssignResponse was processed
@@ -253,9 +249,7 @@ class AgentPostman:
         cleanup below are identical for both.
         """
         loop = asyncio.get_event_loop()
-        response_future: (
-            "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]"
-        ) = loop.create_future()
+        response_future: "asyncio.Future[messages.AssignResponse | messages.ProbeResponse]" = loop.create_future()
         self._pending_responses[request.id] = response_future
 
         task: Optional[str] = None
@@ -314,6 +308,14 @@ class AgentPostman:
     ) -> "asyncio.Queue[messages.ExecutionEvent]":
         """Bind ``reference`` → ``task`` and return the task's queue, draining any orphans."""
         self._reference_to_task[reference] = task
+        return self._ensure_queue(task)
+
+    def _ensure_queue(self, task: str) -> "asyncio.Queue[messages.ExecutionEvent]":
+        """Return ``task``'s event queue, creating it and draining any orphaned mirrors.
+
+        Events can race ahead of the response that names their task; they are parked in
+        ``_orphan_by_task`` until this creates the queue they belong in.
+        """
         queue = self._task_queues.setdefault(task, asyncio.Queue())
         for event in self._orphan_by_task.pop(task, []):
             queue.put_nowait(event)
@@ -389,35 +391,26 @@ class AgentPostman:
 
     # ------------------------------------------------------------------- inbound
 
-    def handle_assign_response(self, message: messages.AssignResponse) -> None:
-        """Resolve the waiting ``aassign`` with its ``AssignResponse``."""
-        if message.task and not message.error:
-            # Pre-create the queue and drain orphans so events that raced ahead of this
-            # response are not lost (aassign reuses the same queue via setdefault).
-            queue = self._task_queues.setdefault(message.task, asyncio.Queue())
-            for event in self._orphan_by_task.pop(message.task, []):
-                queue.put_nowait(event)
+    def handle_response(
+        self, message: "messages.AssignResponse | messages.ProbeResponse"
+    ) -> None:
+        """Resolve the waiting ``aassign``/``aprobe`` with the backend's response."""
+        task = _response_id(message)
+        if task and not message.error:
+            # Pre-create the queue so events that raced ahead of this response are not
+            # lost (the awaiting flow reuses the same queue via setdefault).
+            self._ensure_queue(task)
         future = self._pending_responses.get(message.request)
         if future is not None and not future.done():
             future.set_result(message)
+
+    def handle_assign_response(self, message: messages.AssignResponse) -> None:
+        """Resolve the waiting ``aassign`` with its ``AssignResponse``."""
+        self.handle_response(message)
 
     def handle_probe_response(self, message: messages.ProbeResponse) -> None:
         """Resolve the waiting ``aprobe`` with its ``ProbeResponse``."""
-        if message.probe and not message.error:
-            # Pre-create the queue and drain orphans so events that raced ahead of this
-            # response are not lost (the stream reuses the same queue via setdefault).
-            queue = self._task_queues.setdefault(message.probe, asyncio.Queue())
-            for event in self._orphan_by_task.pop(message.probe, []):
-                queue.put_nowait(event)
-        future = self._pending_responses.get(message.request)
-        if future is not None and not future.done():
-            future.set_result(message)
-
-    def handle_control_response(self, message: messages.ControlResponse) -> None:
-        """Resolve a pending control request, if any (cancel is fire-and-forget by default)."""
-        future = self._pending_control.get(message.request)
-        if future is not None and not future.done():
-            future.set_result(message)
+        self.handle_response(message)
 
     def handle_execution_event(self, message: messages.ExecutionEvent) -> None:
         """Route a task-event mirror to its task queue (buffering if the response is in flight)."""

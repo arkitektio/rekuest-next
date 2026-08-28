@@ -12,15 +12,13 @@ from typing import (
     overload,
 )
 from koil.bridge import run_threaded
-from rekuest_next.agents.context import (
-    prepare_context_variables,
-)
 from rekuest_next.agents.hooks.errors import StartupHookError
 from rekuest_next.agents.hooks.registry import (
     HooksRegistry,
     StartupHookReturns,
     get_default_hook_registry,
 )
+from rekuest_next.agents.hooks.variables import WithVariables
 from rekuest_next.protocols import (
     AnyFunction,
     AsyncStartupFunction,
@@ -29,39 +27,17 @@ from rekuest_next.protocols import (
     StartupFunction,
 )
 from rekuest_next.remote import ensure_return_as_tuple
-from rekuest_next.state.utils import (
-    get_return_length,
-    prepare_appcontext,
-    prepare_state_variables,
-)
+from rekuest_next.state.utils import get_return_length
 
 
-class WithVariables:
-    def __init__(self, func: AnyFunction) -> None:
-        self.func = func
-        self.state_variables, self.state_returns = prepare_state_variables(func)
-        self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
-        self.context_variables, self.context_returns = prepare_context_variables(func)
-        self.pass_app_context = self.app_context_variables.count > 0
+class StartupWithVariables(WithVariables):
+    """Startup hooks run before any state or context exists: only the app context is injectable."""
 
-        # Check the arg length of the function and raise an error if it is more than the context and state variables
-        allowed_arg_types = self.app_context_variables.count
+    hook_kind = "Startup"
+    injects_states = False
 
+    def validate_returns(self, func: AnyFunction) -> None:
         allowed_return_types = self.state_returns.count + self.context_returns.count
-
-        if len(inspect.signature(func).parameters) > allowed_arg_types:
-            incorrect_args = set(inspect.signature(func).parameters.keys()) - set(
-                self.state_variables.variable_keys
-                + list(self.context_variables.context_variables.keys())
-                + list(self.app_context_variables.app_context_variables.keys())
-            )
-
-            raise ValueError(
-                f"Startup function {func.__name__} has more arguments than the context and state variables. "
-                f"Expected at most {allowed_arg_types} arguments, but got {len(inspect.signature(func).parameters)}."
-                f"{incorrect_args} are not valid argument names."
-            )
-
         if get_return_length(inspect.signature(func)) > allowed_return_types:
             raise ValueError(
                 f"Startup function {func.__name__} has more return values than the context and state variables. "
@@ -69,7 +45,7 @@ class WithVariables:
             )
 
 
-class WrappedStartupHook(WithVariables):
+class WrappedStartupHook(StartupWithVariables):
     """Startup hook that runs in the event loop"""
 
     def __init__(self, func: AsyncStartupFunction) -> None:
@@ -111,7 +87,7 @@ class WrappedStartupHook(WithVariables):
         return StartupHookReturns(states=states, contexts=contexts)
 
 
-class ThreadedStartupHook(WithVariables):
+class ThreadedStartupHook(StartupWithVariables):
     """Startup hook that runs in the event loop"""
 
     def __init__(self, func: ThreadedStartupFunction) -> None:

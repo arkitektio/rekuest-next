@@ -16,7 +16,7 @@ from rekuest_next.api.schema import LockDefinitionInput, LockImplementationInput
 from rekuest_next.rekuest import RekuestNext
 
 
-def test_collect_from_extensions_builds_task_locks(mock_rekuest: RekuestNext) -> None:
+def test_collect_from_registry_builds_task_locks(mock_rekuest: RekuestNext) -> None:
     def snap(x: int) -> int:
         """Take a picture."""
         return x
@@ -24,7 +24,7 @@ def test_collect_from_extensions_builds_task_locks(mock_rekuest: RekuestNext) ->
     mock_rekuest.register(snap, locks=["camera"])
 
     agent = mock_rekuest.agent
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
 
     assert "camera" in agent.locks
     assert agent.get_locks_for_keys(["camera"]) == [agent.locks["camera"]]
@@ -49,7 +49,7 @@ async def test_overlapping_lock_groups_do_not_deadlock(
     mock_rekuest.register(use_ba, locks=["b", "a"])
 
     agent = mock_rekuest.agent
-    agent.collect_from_extensions()
+    agent.collect_from_registry()
 
     async def hammer(keys: tuple[str, ...], task: str) -> None:
         for _ in range(25):
@@ -117,7 +117,7 @@ async def test_parallel_actor_interleaves_assignments(
         return x
 
     mock_rekuest.register(free, concurrency="parallel")
-    mock_rekuest.agent.collect_from_extensions()
+    mock_rekuest.agent.collect_from_registry()
 
     events: list[str] = []
     await _enter_twice(_spawn_actor(mock_rekuest, "free"), events)
@@ -135,7 +135,7 @@ async def test_actor_serializes_assignments_by_default(
         return x
 
     mock_rekuest.register(one_at_a_time)
-    mock_rekuest.agent.collect_from_extensions()
+    mock_rekuest.agent.collect_from_registry()
 
     events: list[str] = []
     await _enter_twice(_spawn_actor(mock_rekuest, "one_at_a_time"), events)
@@ -157,7 +157,7 @@ async def test_shared_lock_key_serializes_across_actors(
 
     mock_rekuest.register(left, locks=["camera"])
     mock_rekuest.register(right, locks=["camera"])
-    mock_rekuest.agent.collect_from_extensions()
+    mock_rekuest.agent.collect_from_registry()
 
     left_actor = _spawn_actor(mock_rekuest, "left")
     right_actor = _spawn_actor(mock_rekuest, "right")

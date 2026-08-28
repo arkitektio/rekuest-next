@@ -277,6 +277,52 @@ class WebsocketAgentTransport(AgentTransport):
             # put_nowait so this still runs when the task is being cancelled.
             self._in_queue.put_nowait(CLOSED)
 
+    async def _ahandle_inbound(self, message: str) -> None:
+        """Dispatch one raw frame from the socket.
+
+        Heartbeats are answered on the spot; ``Bounce``/``Kick`` are raised so the
+        receive loop's ``except`` arms classify them; everything else is handed to the
+        agent through the inbound queue. Frames that fail to parse are logged and
+        dropped, never fatal.
+        """
+        assert self._in_queue is not None, "Should be entered"
+        try:
+            payload = InMessagePayload(message=json.loads(message))
+        except pydantic.ValidationError:
+            logger.error(f"Received non-json message: {message}", exc_info=True)
+            return
+        logger.debug(f"<<<< {payload}")
+
+        if isinstance(payload.message, messages.Heartbeat):
+            await self.asend(messages.HeartbeatEvent())
+        elif isinstance(payload.message, messages.Bounce):
+            raise BounceError("Was bounced. Debug call to reconnect")
+        elif isinstance(payload.message, messages.Kick):
+            raise KickError(
+                f"Agent was kicked by the server: {payload.message.reason or 'No reason provided'}"
+            )
+        else:
+            self._in_queue.put_nowait(payload.message)
+
+    @staticmethod
+    def _classify_close(e: ConnectionClosedError) -> Exception:
+        """Turn a closed connection into the failure the retry loop should see.
+
+        Known agent error codes map to their dedicated exceptions; a bounce and
+        every other close are correctable (the loop reconnects).
+        """
+        # The close code the peer sent, or ABNORMAL_CLOSURE when it never sent a
+        # close frame.
+        close_code = e.rcvd.code if e.rcvd is not None else CloseCode.ABNORMAL_CLOSURE
+
+        if close_code in agent_error_codes:
+            return agent_error_codes[close_code](agent_error_message[close_code])
+        if close_code == BOUNCED_CODE:
+            return CorrectableConnectionFail("Was bounced. Debug call to reconnect")
+        return CorrectableConnectionFail(
+            "Connection failed unexpectably. Reconnectable."
+        )
+
     async def _aconnect_and_receive(self) -> None:
         """The connect/register/receive/retry loop itself."""
         assert self._in_queue is not None, "Should be entered"
@@ -322,27 +368,7 @@ class WebsocketAgentTransport(AgentTransport):
                             assert isinstance(message, str), (
                                 "Message should be a string"
                             )
-                            try:
-                                payload = InMessagePayload(message=json.loads(message))
-                                logger.debug(f"<<<< {payload}")
-
-                                if isinstance(payload.message, messages.Heartbeat):
-                                    await self.asend(messages.HeartbeatEvent())
-                                elif isinstance(payload.message, messages.Bounce):
-                                    raise BounceError(
-                                        "Was bounced. Debug call to reconnect"
-                                    )
-                                elif isinstance(payload.message, messages.Kick):
-                                    raise KickError(
-                                        f"Agent was kicked by the server: {payload.message.reason or 'No reason provided'}"
-                                    )
-                                else:
-                                    self._in_queue.put_nowait(payload.message)
-                            except pydantic.ValidationError:
-                                logger.error(
-                                    f"Received non-json message: {message}",
-                                    exc_info=True,
-                                )
+                            await self._ahandle_inbound(message)
 
                 except InvalidHandshake as e:
                     logger.warning(
@@ -369,28 +395,7 @@ class WebsocketAgentTransport(AgentTransport):
 
                 except ConnectionClosedError as e:
                     logger.warning("Websocket was closed", exc_info=True)
-
-                    # The close code the peer sent, or ABNORMAL_CLOSURE when it
-                    # never sent a close frame.
-                    close_code = (
-                        e.rcvd.code
-                        if e.rcvd is not None
-                        else CloseCode.ABNORMAL_CLOSURE
-                    )
-
-                    if close_code in agent_error_codes:
-                        raise agent_error_codes[close_code](
-                            agent_error_message[close_code]
-                        )
-
-                    if close_code == BOUNCED_CODE:
-                        raise CorrectableConnectionFail(
-                            "Was bounced. Debug call to reconnect"
-                        ) from e
-                    else:
-                        raise CorrectableConnectionFail(
-                            "Connection failed unexpectably. Reconnectable."
-                        ) from e
+                    raise self._classify_close(e) from e
 
                 except Exception as e:
                     logger.error("Websocket excepted closed definetely", exc_info=True)

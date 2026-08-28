@@ -15,14 +15,11 @@ import asyncio
 
 from koil.bridge import run_threaded
 from rekuest_next.state.publish import StateHolder
-from rekuest_next.agents.context import (
-    prepare_context_variables,
-)
-from rekuest_next.agents.errors import StateRequirementsNotMet
 from rekuest_next.agents.hooks.registry import (
     HooksRegistry,
     get_default_hook_registry,
 )
+from rekuest_next.agents.hooks.variables import WithVariables
 from rekuest_next.protocols import (
     AnyFunction,
     AsyncShutdownFunction,
@@ -31,39 +28,15 @@ from rekuest_next.protocols import (
 )
 from rekuest_next.definition.define import is_none_type
 from rekuest_next.state.publish import direct_publishing
-from rekuest_next.state.utils import (
-    is_empty_type,
-    prepare_appcontext,
-    prepare_state_variables,
-)
+from rekuest_next.state.utils import is_empty_type
 
 
-class WithVariables:
-    def __init__(self, func: AnyFunction) -> None:
-        self.func = func
-        self.state_variables, self.state_returns = prepare_state_variables(func)
-        self.app_context_variables, self.app_context_returns = prepare_appcontext(func)
-        self.context_variables, self.context_returns = prepare_context_variables(func)
+class ShutdownWithVariables(WithVariables):
+    """Shutdown hooks may take anything but must not return: the agent is tearing down."""
 
-        # Check the arg length of the function and raise an error if it is more than the context and state variables
-        total_args = (
-            self.state_variables.count
-            + self.context_variables.count
-            + self.app_context_variables.count
-        )
-        if len(inspect.signature(func).parameters) > total_args:
-            incorrect_args = set(inspect.signature(func).parameters.keys()) - set(
-                self.state_variables.variable_keys
-                + list(self.context_variables.context_variables.keys())
-                + list(self.app_context_variables.app_context_variables.keys())
-            )
+    hook_kind = "Shutdown"
 
-            raise ValueError(
-                f"Shutdown function {func.__name__} has more arguments than the context and state variables. "
-                f"Expected at most {total_args} arguments, but got {len(inspect.signature(func).parameters)}."
-                f"{incorrect_args} are not valid argument names."
-            )
-
+    def validate_returns(self, func: AnyFunction) -> None:
         # Resolve the hints first: an unresolved ``-> None`` annotation is the literal
         # None, which get_return_length would count as a return value.
         try:
@@ -78,48 +51,8 @@ class WithVariables:
                 "The agent is tearing down, so returned states and contexts would never be used."
             )
 
-    def get_kwargs(
-        self,
-        contexts: Dict[str, Any],
-        states: Dict[str, Any],
-        app_context: Any,
-    ) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
-        for key, value in self.context_variables.context_variables.items():
-            try:
-                kwargs[key] = contexts[value]
-            except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"Context requirements not met: {e}"
-                ) from e
 
-        for key, value in self.state_variables.read_only_variables.items():
-            try:
-                kwargs[key] = states[value]
-            except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"State requirements not met: {e}. Available are {list(states.keys())}"
-                ) from e
-
-        for key, value in self.state_variables.write_state_variables.items():
-            try:
-                kwargs[key] = states[value]
-            except KeyError as e:
-                raise StateRequirementsNotMet(
-                    f"State requirements not met: {e}. Available are {list(states.keys())}"
-                ) from e
-
-        for key, value in self.app_context_variables.app_context_variables.items():
-            if getattr(app_context, "__rekuest_app_context__", None) != value:
-                raise StateRequirementsNotMet(
-                    f"App context requirements not met: the agent was not started with a {value} app context"
-                )
-            kwargs[key] = app_context
-
-        return kwargs
-
-
-class WrappedShutdownHook(WithVariables):
+class WrappedShutdownHook(ShutdownWithVariables):
     """Shutdown hook that runs in the event loop"""
 
     def __init__(self, func: AsyncShutdownFunction) -> None:
@@ -143,7 +76,7 @@ class WrappedShutdownHook(WithVariables):
             await self.func(**kwargs)
 
 
-class ThreadedShutdownHook(WithVariables):
+class ThreadedShutdownHook(ShutdownWithVariables):
     """Shutdown hook that runs in a thread"""
 
     def __init__(self, func: ThreadedShutdownFunction) -> None:
