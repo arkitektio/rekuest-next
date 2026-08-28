@@ -48,17 +48,36 @@ def _include_router(app: FastAPI, router: APIRouter) -> None:
     register_router_custom_schemas(app, router)
 
 
+def _log_provide_task_failure(task: "asyncio.Task[None]") -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error("Error in agent provide task: %s", exc, exc_info=exc)
+
+
 def create_lifespan(
     agent: FastApiAgent,
     app_context: Any | None = None,
+    on_startup: Callable[[FastAPI], None] | None = None,
 ) -> Callable[[FastAPI], contextlib.AbstractAsyncContextManager[None]]:
-    """Create a FastAPI lifespan manager for a configured agent."""
+    """Create a FastAPI lifespan manager for a configured agent.
+
+    Args:
+        agent: The agent to enter and provide for the lifetime of the app.
+        app_context: Optional context passed to ``agent.aprovide``.
+        on_startup: Optional hook run once with the app before the agent is
+            entered (used to register routes that depend on a started agent).
+    """
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if on_startup is not None:
+            on_startup(app)
         app.state.agent = agent
         async with agent:
             provide_task = asyncio.create_task(agent.aprovide(context=app_context))
+            provide_task.add_done_callback(_log_provide_task_failure)
             yield
             provide_task.cancel()
             try:
@@ -229,8 +248,7 @@ def configure_fastapi(
         assign_path=assign_path,
     )
 
-    @contextlib.asynccontextmanager
-    async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
+    def _register_deferred_routes(fastapi_app: FastAPI) -> None:
         if add_tasks:
             add_task_routes(fastapi_app, agent, tasks_path=tasks_path)
         if add_task_details:
@@ -250,28 +268,11 @@ def configure_fastapi(
             add_implementation_routes(fastapi_app, agent)
         if add_schema:
             add_schema_routes(fastapi_app, agent)
-
         configure_openapi(fastapi_app)
-        fastapi_app.state.agent = agent
 
-        async with agent:
-            provide_task = asyncio.create_task(agent.aprovide(context=app_context))
-            provide_task.add_done_callback(
-                lambda t: logger.error(
-                    "Error in agent provide task: %s", t.exception(), exc_info=True
-                )
-            )
-            yield
-            provide_task.cancel()
-            try:
-                await provide_task
-            except asyncio.CancelledError:
-                logger.info("Provide task cancelled during shutdown")
-            except Exception as exc:
-                logger.error(
-                    "Error during provide task shutdown: %s", exc, exc_info=True
-                )
-
+    lifespan = create_lifespan(
+        agent, app_context=app_context, on_startup=_register_deferred_routes
+    )
     app.router.lifespan_context = lifespan
     return agent
 

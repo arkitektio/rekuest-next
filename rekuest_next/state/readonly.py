@@ -36,22 +36,61 @@ def _refuse(state_name: str, detail: str) -> "ReadOnlyStateError":
     )
 
 
-class _ReadOnlySequence(Sequence[Any]):
-    """A live, non-mutating view of a list held in read-only state."""
+class _ReadOnlyContainer:
+    """Shared machinery for live, non-mutating container views.
+
+    Subclasses set ``_mutators`` (method names that would mutate the target) and
+    ``_kind_name`` (used in error messages) and add the ABC they present as.
+    """
 
     __slots__ = ("_target", "_state_name")
 
-    def __init__(self, target: Sequence[Any], state_name: str) -> None:
+    _mutators: frozenset[str] = frozenset()
+    _kind_name: str = "container"
+
+    def __init__(self, target: Any, state_name: str) -> None:  # noqa: ANN401
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "_state_name", state_name)
 
-    def __getitem__(self, index: Any) -> Any:  # noqa: ANN401
+    def __getitem__(self, key: Any) -> Any:  # noqa: ANN401
         """Read one item, wrapping nested containers too."""
-        return _wrap(self._target[index], self._state_name)
+        return _wrap(self._target[key], self._state_name)
 
     def __len__(self) -> int:
-        """Number of items in the underlying list."""
+        """Size of the underlying container."""
         return len(self._target)
+
+    def __repr__(self) -> str:
+        """Show the underlying container."""
+        return f"ReadOnly({self._target!r})"
+
+    def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
+        """Refuse: this container belongs to a read-only state."""
+        raise _refuse(self._state_name, f"It holds a read-only {self._kind_name}.")
+
+    def __delitem__(self, key: Any) -> None:  # noqa: ANN401
+        """Refuse: this container belongs to a read-only state."""
+        raise _refuse(self._state_name, f"It holds a read-only {self._kind_name}.")
+
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+        """Forward reads; refuse the mutators."""
+        if name in type(self)._mutators:
+            raise _refuse(
+                self._state_name,
+                f"'{name}' would modify a read-only {self._kind_name}.",
+            )
+        return getattr(object.__getattribute__(self, "_target"), name)
+
+
+class _ReadOnlySequence(_ReadOnlyContainer, Sequence[Any]):
+    """A live, non-mutating view of a list held in read-only state."""
+
+    __slots__ = ()
+
+    _mutators = frozenset(
+        {"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse"}
+    )
+    _kind_name = "list"
 
     def __iter__(self) -> Iterator[Any]:
         """Iterate, wrapping nested containers."""
@@ -61,41 +100,14 @@ class _ReadOnlySequence(Sequence[Any]):
         """Compare against the underlying list."""
         return list(self._target) == list(other) if isinstance(other, (list, Sequence)) else NotImplemented
 
-    def __repr__(self) -> str:
-        """Show the underlying list."""
-        return f"ReadOnly({self._target!r})"
 
-    def __setitem__(self, index: Any, value: Any) -> None:  # noqa: ANN401
-        """Refuse: this list belongs to a read-only state."""
-        raise _refuse(self._state_name, "It holds a read-only list.")
-
-    def __delitem__(self, index: Any) -> None:  # noqa: ANN401
-        """Refuse: this list belongs to a read-only state."""
-        raise _refuse(self._state_name, "It holds a read-only list.")
-
-    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
-        """Forward reads; refuse the list mutators."""
-        if name in _LIST_MUTATORS:
-            raise _refuse(self._state_name, f"'{name}' would modify a read-only list.")
-        return getattr(object.__getattribute__(self, "_target"), name)
-
-
-class _ReadOnlyMapping(Mapping[Any, Any]):
+class _ReadOnlyMapping(_ReadOnlyContainer, Mapping[Any, Any]):
     """A live, non-mutating view of a dict held in read-only state."""
 
-    __slots__ = ("_target", "_state_name")
+    __slots__ = ()
 
-    def __init__(self, target: Mapping[Any, Any], state_name: str) -> None:
-        object.__setattr__(self, "_target", target)
-        object.__setattr__(self, "_state_name", state_name)
-
-    def __getitem__(self, key: Any) -> Any:  # noqa: ANN401
-        """Read one value, wrapping nested containers too."""
-        return _wrap(self._target[key], self._state_name)
-
-    def __len__(self) -> int:
-        """Number of entries in the underlying dict."""
-        return len(self._target)
+    _mutators = frozenset({"update", "setdefault", "pop", "popitem", "clear"})
+    _kind_name = "dict"
 
     def __iter__(self) -> Iterator[Any]:
         """Iterate the underlying keys."""
@@ -104,30 +116,6 @@ class _ReadOnlyMapping(Mapping[Any, Any]):
     def __eq__(self, other: object) -> bool:
         """Compare against the underlying dict."""
         return dict(self._target) == dict(other) if isinstance(other, (dict, Mapping)) else NotImplemented
-
-    def __repr__(self) -> str:
-        """Show the underlying dict."""
-        return f"ReadOnly({self._target!r})"
-
-    def __setitem__(self, key: Any, value: Any) -> None:  # noqa: ANN401
-        """Refuse: this dict belongs to a read-only state."""
-        raise _refuse(self._state_name, "It holds a read-only dict.")
-
-    def __delitem__(self, key: Any) -> None:  # noqa: ANN401
-        """Refuse: this dict belongs to a read-only state."""
-        raise _refuse(self._state_name, "It holds a read-only dict.")
-
-    def __getattr__(self, name: str) -> Any:  # noqa: ANN401
-        """Forward reads; refuse the dict mutators."""
-        if name in _DICT_MUTATORS:
-            raise _refuse(self._state_name, f"'{name}' would modify a read-only dict.")
-        return getattr(object.__getattribute__(self, "_target"), name)
-
-
-_LIST_MUTATORS = frozenset(
-    {"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse"}
-)
-_DICT_MUTATORS = frozenset({"update", "setdefault", "pop", "popitem", "clear"})
 
 
 def _wrap(value: Any, state_name: str) -> Any:  # noqa: ANN401
@@ -141,13 +129,16 @@ def _wrap(value: Any, state_name: str) -> Any:  # noqa: ANN401
     return value
 
 
-#: One read-only class per state class, so repeated lookups do not rebuild the type.
-_view_classes: Dict[type, type] = {}
+#: One read-only class per (state class, state name), so repeated lookups do not
+#: rebuild the type. The view shares the state's instance dict, so the name cannot
+#: live on the instance; keying the cache on it keeps error messages accurate when
+#: several states share one dataclass.
+_view_classes: Dict[tuple[type, str], type] = {}
 
 
 def _read_only_class(cls: type, state_name: str) -> type:
-    """Build (and cache) the read-only subclass for one state class."""
-    cached = _view_classes.get(cls)
+    """Build (and cache) the read-only subclass for one state class and name."""
+    cached = _view_classes.get((cls, state_name))
     if cached is not None:
         return cached
 
@@ -186,7 +177,7 @@ def _read_only_class(cls: type, state_name: str) -> type:
             "__doc__": f"A read-only view of {cls.__name__}.",
         },
     )
-    _view_classes[cls] = view_cls
+    _view_classes[(cls, state_name)] = view_cls
     return view_cls
 
 

@@ -2,17 +2,15 @@
 
 The FastAPI integration exposes one websocket endpoint. Clients send an init
 payload after connecting to declare which task action keys, state keys, and
-lock keys they want to receive. They can additionally provide
-`state_update_intervals` to control per-state batching and squashing for
-frontend state updates. Outgoing agent messages are then filtered by message
-type and the matching subscription set.
+lock keys they want to receive. Outgoing agent messages are then filtered by
+message type and the matching subscription set.
 """
 
 import asyncio
 import copy
 import logging
 import uuid
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     Any,
@@ -90,7 +88,6 @@ class _WebSocketSubscriptions:
     action_keys: set[str] | None = None
     state_keys: set[str] | None = None
     lock_keys: set[str] | None = None
-    state_update_intervals: dict[str, float] | None = None
 
     @classmethod
     def from_init(cls, payload: WebSocketSubscriptionInit) -> "_WebSocketSubscriptions":
@@ -106,26 +103,8 @@ class _WebSocketSubscriptions:
             action_keys=_normalize(payload.action_keys),
             state_keys=_normalize(payload.state_keys),
             lock_keys=_normalize(payload.lock_keys),
-            state_update_intervals=payload.state_update_intervals,
         )
 
-    def get_state_update_interval(self, state_name: str) -> float:
-        """Return the configured batching interval for a state key."""
-        if self.state_update_intervals is None:
-            return 0.0
-        interval = self.state_update_intervals.get(
-            state_name,
-            self.state_update_intervals.get("*", 0.0),
-        )
-        return max(interval, 0.0)
-
-
-@dataclass
-class _BufferedState:
-    """Buffered state patch events for one connection and state."""
-
-    state_name: str
-    patches: list[messages.StatePatch] = dataclass_field(default_factory=list)
 
 
 @dataclass
@@ -133,8 +112,6 @@ class _ManagedWebSocketConnection:
     """Connection state for a single websocket client."""
 
     subscriptions: _WebSocketSubscriptions
-    pending_states: dict[str, _BufferedState] = dataclass_field(default_factory=dict)
-    flush_tasks: dict[str, asyncio.Task[None]] = dataclass_field(default_factory=dict)
 
 
 class FastAPIConnectionManager:
@@ -181,14 +158,9 @@ class FastAPIConnectionManager:
         Args:
             websocket: The websocket connection to remove.
         """
-        flush_tasks: list[asyncio.Task[None]] = []
         async with self._lock:
             self._active_connections.discard(websocket)
-            connection_state = self._connections.pop(websocket, None)
-            if connection_state is not None:
-                flush_tasks = list(connection_state.flush_tasks.values())
-        for flush_task in flush_tasks:
-            flush_task.cancel()
+            self._connections.pop(websocket, None)
         logger.info(
             f"WebSocket disconnected. Total connections: {len(self._active_connections)}"
         )
@@ -217,96 +189,6 @@ class FastAPIConnectionManager:
 
         for connection in disconnected:
             await self.disconnect(connection)
-
-    async def _buffer_or_broadcast_state_message(
-        self,
-        message: messages.StatePatch,
-    ) -> None:
-        """Batch or immediately forward a state patch event per connection."""
-        state_name = message.state_name
-        immediate_connections: list[WebSocket] = []
-
-        async with self._lock:
-            for websocket in self._active_connections:
-                connection_state = self._connections.get(websocket)
-                if connection_state is None or not self._matches_subscription(
-                    connection_state.subscriptions, message
-                ):
-                    continue
-
-                interval = connection_state.subscriptions.get_state_update_interval(
-                    state_name
-                )
-                if interval <= 0:
-                    immediate_connections.append(websocket)
-                    continue
-
-                buffered = connection_state.pending_states.get(state_name)
-                if buffered is None:
-                    buffered = _BufferedState(state_name=state_name)
-                    connection_state.pending_states[state_name] = buffered
-
-                buffered.patches.append(message)
-
-                flush_task = connection_state.flush_tasks.get(state_name)
-                if flush_task is None or flush_task.done():
-                    connection_state.flush_tasks[state_name] = asyncio.create_task(
-                        self._flush_state_buffer(websocket, state_name, interval)
-                    )
-
-        message_json = message.model_dump_json()
-        for websocket in immediate_connections:
-            try:
-                await websocket.send_text(message_json)
-            except Exception as e:
-                logger.warning(f"Failed to send message to WebSocket: {e}")
-                await self.disconnect(websocket)
-
-    async def _flush_state_buffer(
-        self,
-        websocket: WebSocket,
-        state_name: str,
-        interval: float,
-    ) -> None:
-        """Flush a buffered state patch batch for one websocket and state."""
-        try:
-            await asyncio.sleep(interval)
-        except asyncio.CancelledError:
-            return
-
-        squashed_patches: list[messages.StatePatch] = []
-        async with self._lock:
-            connection_state = self._connections.get(websocket)
-            if connection_state is None:
-                return
-
-            buffered = connection_state.pending_states.pop(state_name, None)
-            connection_state.flush_tasks.pop(state_name, None)
-            if buffered is None:
-                return
-
-            squashed_patches = self._squash_state_patches(buffered.patches)
-
-        for patch in squashed_patches:
-            try:
-                await websocket.send_text(patch.model_dump_json())
-            except Exception as e:
-                logger.warning(f"Failed to send message to WebSocket: {e}")
-                await self.disconnect(websocket)
-                break
-
-    def _squash_state_patches(
-        self,
-        patches: list[messages.StatePatch],
-    ) -> list[messages.StatePatch]:
-        """Squash repeated operations on the same JSON path within one batch."""
-        latest_by_path: dict[str, tuple[int, messages.StatePatch]] = {}
-        for index, patch in enumerate(patches):
-            latest_by_path[patch.path] = (index, patch)
-        return [
-            patch
-            for _, patch in sorted(latest_by_path.values(), key=lambda item: item[0])
-        ]
 
     def _matches_subscription(
         self,
@@ -466,9 +348,7 @@ class FastApiTransport(AgentTransport):
 
         The websocket must send a JSON init payload immediately after connect.
         The payload may contain `action_keys`, `state_keys`, and `lock_keys`
-        arrays that define which updates should be delivered. It may also
-        contain `state_update_intervals`, a dictionary of per-state debounce
-        intervals in seconds used for batching and squashing state updates.
+        arrays that define which updates should be delivered.
 
         Args:
             websocket: The accepted websocket connection.

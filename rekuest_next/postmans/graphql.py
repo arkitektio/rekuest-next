@@ -79,26 +79,11 @@ class GraphQLPostman(KoiledModel):
             for event in orphans:
                 queue.put_nowait(event)
 
-    def _build_input(
-        self,
-        *,
-        args: Dict[str, Any],
-        capture: bool,
-        reference: str,
-        hooks: Optional[Sequence[HookInput]],
-        action: Optional[ID],
-        implementation: Optional[ID],
-        parent: Optional[ID],
-        dependency: Optional[str],
-        method: Optional[str],
-        action_hash: Optional[ActionHash],
-        agent: Optional[ID],
-        interface: Optional[str],
-        resolution: Optional[ID],
-        dependencies: Optional[Sequence[ResolvedDependencyInput]],
-        step: Optional[bool],
-    ) -> AssignInput:
-        """Build the GraphQL ``AssignInput`` for this call.
+    @staticmethod
+    def _reject_non_root(
+        parent: Optional[ID], dependency: Optional[str], method: Optional[str]
+    ) -> None:
+        """Refuse call shapes a GraphQL assign cannot express.
 
         Raises:
             RootOnlyAssignError: If the call carries a ``parent``, ``dependency`` or
@@ -114,20 +99,6 @@ class GraphQLPostman(KoiledModel):
                 "this means the call is running outside a task, or a GraphQL postman "
                 "was passed explicitly."
             )
-        return AssignInput(
-            action=action,
-            resolution=resolution,
-            implementation=implementation,
-            agent=agent,
-            action_hash=action_hash,
-            interface=interface,
-            hooks=tuple(hooks) if hooks is not None else None,
-            args=args,
-            reference=reference,
-            capture=capture,
-            dependencies=tuple(dependencies) if dependencies is not None else None,
-            step=step,
-        )
 
     async def aassign(  # noqa: PLR0913 - the call description, mirrored from the protocol
         self,
@@ -156,24 +127,22 @@ class GraphQLPostman(KoiledModel):
         ``dependency`` / ``method`` are accepted only so this postman can reject them
         loudly: the mutation creates a root task and has no way to express a child.
         """
-        assign_input = self._build_input(
-            args=args,
-            capture=capture,
-            reference=reference or str(uuid.uuid4()),
-            hooks=hooks,
+        self._reject_non_root(parent, dependency, method)
+        assign_input = AssignInput(
             action=action,
-            implementation=implementation,
-            parent=parent,
-            dependency=dependency,
-            method=method,
-            action_hash=action_hash,
-            agent=agent,
-            interface=interface,
             resolution=resolution,
-            dependencies=dependencies,
+            implementation=implementation,
+            agent=agent,
+            action_hash=action_hash,
+            interface=interface,
+            hooks=tuple(hooks) if hooks is not None else None,
+            args=args,
+            reference=reference or str(uuid.uuid4()),
+            capture=capture,
+            dependencies=tuple(dependencies) if dependencies is not None else None,
             step=step,
         )
-        # `_build_input` always sets it, so this is a str for the queue keys below.
+        # `reference` is always set above, so this is a str for the queue keys below.
         assign_reference: str = assign_input.reference or ""
 
         if not self._received_something:
@@ -345,12 +314,7 @@ class GraphQLPostman(KoiledModel):
         """Start watching for updates"""
         logger.info("Starting watching")
         self._watch_tasks_task = asyncio.create_task(self.watch_tasks())
-        self._watch_tasks_task.add_done_callback(self.log_task_fail)
         self._watching = True
-
-    def log_task_fail(self, task: asyncio.Task[None]) -> None:
-        """a hook to"""
-        return
 
     async def stop_watching(self) -> None:
         """Causes the postman to stop watching"""

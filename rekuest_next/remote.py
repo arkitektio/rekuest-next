@@ -8,6 +8,7 @@ resolution, ``AssignInput`` construction, and the postman event stream.
 """
 
 import uuid
+from dataclasses import dataclass, replace as dc_replace
 from typing import (
     Any,
     AsyncGenerator,
@@ -151,6 +152,43 @@ def _resolve_parent(parent: Optional[Assign]) -> Optional[ID]:
     return ID.validate(parent.task)
 
 
+@dataclass(frozen=True)
+class CallOptions:
+    """Transport-level options shared by every remote call helper.
+
+    Bundles the parameters that are forwarded unchanged from :func:`acall` /
+    :func:`aiterate` down to the postman, so each layer takes one object instead
+    of re-listing a dozen keyword arguments.
+    """
+
+    reference: Optional[str] = None
+    hooks: Optional[List[HookInput]] = None
+    capture: bool = False
+    parent: Optional[Assign] = None
+    postman: Optional[Postman] = None
+    escalate_to_interrupt: bool = False
+    cancel_timeout: Optional[float] = None
+
+
+_DEFAULT_OPTIONS = CallOptions()
+
+
+def _resolve_options(options: Optional[CallOptions], **overrides: Any) -> CallOptions:  # noqa: ANN401
+    """Merge legacy keyword arguments onto an options object.
+
+    Keyword arguments that differ from the ``CallOptions`` defaults win over the
+    corresponding field of ``options``; defaults never clobber an explicit option.
+    """
+    resolved = options or _DEFAULT_OPTIONS
+    effective = {
+        name: value
+        for name, value in overrides.items()
+        if value != getattr(_DEFAULT_OPTIONS, name)
+    }
+    return dc_replace(resolved, **effective) if effective else resolved
+
+
+
 async def _astream_raw(  # noqa: PLR0913 - the call description, mirrored from the protocol
     postman: Postman,
     *,
@@ -217,6 +255,7 @@ async def aiterate_raw(
     postman: Optional[Postman] = None,
     escalate_to_interrupt: bool = False,
     cancel_timeout: Optional[float] = None,
+    options: Optional[CallOptions] = None,
 ) -> AsyncGenerator[Any, None]:
     """Stream the raw YIELD payloads of a remote call.
 
@@ -227,21 +266,33 @@ async def aiterate_raw(
     ``cached`` and ``log`` are accepted but not sent: the backend dropped both fields
     from ``AssignInput`` (``cached`` had already been documented there as having no
     effect — replay is decided caller-side via ``reusableTaskFor``). They stay in the
-    signature so existing callers keep working.
+    signature so existing callers keep working. Prefer passing ``options``; the
+    individual keyword arguments are merged onto it for backwards compatibility.
     """
-    resolved_postman = _resolve_postman(postman)
+    del cached, log  # accepted for compatibility, never sent
+    opts = _resolve_options(
+        options,
+        parent=parent,
+        reference=reference,
+        hooks=hooks,
+        capture=capture,
+        postman=postman,
+        escalate_to_interrupt=escalate_to_interrupt,
+        cancel_timeout=cancel_timeout,
+    )
+    resolved_postman = _resolve_postman(opts.postman)
 
     async for returns in _astream_raw(
         resolved_postman,
         args=kwargs,
-        reference=reference,
-        hooks=hooks,
-        capture=capture,
+        reference=opts.reference,
+        hooks=opts.hooks,
+        capture=opts.capture,
         action=action,
         implementation=implementation,
-        parent=_resolve_parent(parent),
-        escalate_to_interrupt=escalate_to_interrupt,
-        cancel_timeout=cancel_timeout,
+        parent=_resolve_parent(opts.parent),
+        escalate_to_interrupt=opts.escalate_to_interrupt,
+        cancel_timeout=opts.cancel_timeout,
     ):
         yield returns
 
@@ -259,6 +310,7 @@ async def acall_raw(
     postman: Optional[Postman] = None,
     escalate_to_interrupt: bool = False,
     cancel_timeout: Optional[float] = None,
+    options: Optional[CallOptions] = None,
 ) -> Any:  # noqa: ANN401
     """Execute a low-level remote call with already serialized arguments.
 
@@ -272,21 +324,23 @@ async def acall_raw(
         ErrorCallError: If the backend reports a recoverable task error.
         CriticalCallError: If the backend reports a critical task error.
     """
+    del cached, log  # accepted for compatibility, never sent
     returns = tuple()
 
     async for r in aiterate_raw(
         kwargs=kwargs,
         action=action,
         implementation=implementation,
-        parent=parent,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        capture=capture,
-        log=log,
-        postman=postman,
-        escalate_to_interrupt=escalate_to_interrupt,
-        cancel_timeout=cancel_timeout,
+        options=_resolve_options(
+            options,
+            parent=parent,
+            reference=reference,
+            hooks=hooks,
+            capture=capture,
+            postman=postman,
+            escalate_to_interrupt=escalate_to_interrupt,
+            cancel_timeout=cancel_timeout,
+        ),
     ):
         returns = r
 
@@ -348,6 +402,7 @@ async def acall(
     postman: Optional[Postman] = None,
     escalate_to_interrupt: bool = False,
     cancel_timeout: Optional[float] = None,
+    options: Optional[CallOptions] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:
     """Execute a remote action and return expanded Python values.
@@ -397,19 +452,21 @@ async def acall(
         action, args, kwargs, structure_registry=structure_registry
     )
 
+    del cached, log  # accepted for compatibility, never sent
     raw_returns = await acall_raw(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        capture=capture,
-        parent=parent,
-        log=log,
-        postman=postman,
-        escalate_to_interrupt=escalate_to_interrupt,
-        cancel_timeout=cancel_timeout,
+        options=_resolve_options(
+            options,
+            parent=parent,
+            reference=reference,
+            hooks=hooks,
+            capture=capture,
+            postman=postman,
+            escalate_to_interrupt=escalate_to_interrupt,
+            cancel_timeout=cancel_timeout,
+        ),
     )
 
     returns = await aexpand_returns(
@@ -433,6 +490,7 @@ async def aiterate(
     postman: Optional[Postman] = None,
     escalate_to_interrupt: bool = False,
     cancel_timeout: Optional[float] = None,
+    options: Optional[CallOptions] = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncGenerator[Any, None]:
     """Stream expanded yield values from a remote action.
@@ -481,19 +539,21 @@ async def aiterate(
         action, args, kwargs, structure_registry=structure_registry
     )
 
+    del cached, log  # accepted for compatibility, never sent
     async for raw_returns in aiterate_raw(
         kwargs=shrinked_args,
         action=action,
         implementation=implementation,
-        reference=reference,
-        hooks=hooks,
-        cached=cached,
-        capture=capture,
-        parent=parent,
-        log=log,
-        postman=postman,
-        escalate_to_interrupt=escalate_to_interrupt,
-        cancel_timeout=cancel_timeout,
+        options=_resolve_options(
+            options,
+            parent=parent,
+            reference=reference,
+            hooks=hooks,
+            capture=capture,
+            postman=postman,
+            escalate_to_interrupt=escalate_to_interrupt,
+            cancel_timeout=cancel_timeout,
+        ),
     ):
         returns = await aexpand_returns(
             action, raw_returns, structure_registry=structure_registry

@@ -121,15 +121,13 @@ class WebSocketSubscriptionInit(BaseModel):
     """Init payload sent by websocket clients after connecting.
 
     All filter lists are optional. When omitted, the websocket receives all
-    messages of that category. State batching can be customized per state key
-    through `state_update_intervals`. Use `"*"` for a default interval.
+    messages of that category.
     """
 
     type: str | None = None
     action_keys: list[str] | None = None
     state_keys: list[str] | None = None
     lock_keys: list[str] | None = None
-    state_update_intervals: dict[str, float] | None = None
     token: str | None = None
     """Credential for the handshake.
 

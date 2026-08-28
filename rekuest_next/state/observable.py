@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Generic, Iterable, TypeVar, overload, SupportsIndex
+from typing import Callable, Any, Generic, Iterable, TypeVar, overload, SupportsIndex
 
 from rekuest_next.actors.vars import (
     get_current_task_id_or_none,
@@ -95,6 +95,18 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
+def _require_locks(config: StateConfig, path: str) -> None:
+    """Raise unless every lock the state config requires is currently held."""
+    acquired_locks = get_acquired_locks()
+    missing_locks = [
+        lock for lock in config.required_locks if lock not in acquired_locks
+    ]
+    if missing_locks:
+        raise RuntimeError(
+            f"Cannot modify state '{config.state_name}' at path '{path}' without required locks: {missing_locks}"
+        )
+
+
 class EventedDict(dict[K, V], Generic[K, V]):
     """A dictionary wrapper that emits JSON Patch operations on modification.
 
@@ -116,18 +128,8 @@ class EventedDict(dict[K, V], Generic[K, V]):
         self._path = path
         self._port = port
 
-    def __check_if_has_required_locks(self) -> None:
-        acquired_locks = get_acquired_locks()
-        missing_locks = [
-            lock for lock in self._config.required_locks if lock not in acquired_locks
-        ]
-        if missing_locks:
-            raise RuntimeError(
-                f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
-            )
-
     def __setitem__(self, key: Any, value: Any) -> None:
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         full_path = _make_path(self._path, key)
         exists = key in self
         old_value = self.get(key) if exists else None
@@ -148,7 +150,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
         )
 
     def __delitem__(self, key: Any) -> None:
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         full_path = _make_path(self._path, key)
         old_value = self[key]
         child_port = _resolve_child_port(self._config, self._port, key)
@@ -170,7 +172,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
         Emits a 'remove' patch if the key exists.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         if key in self:
             full_path = _make_path(self._path, key)
             old_value = self[key]
@@ -197,7 +199,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
         Emits a 'remove' patch for the removed item.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         key, value = super().popitem()
         full_path = _make_path(self._path, key)
         child_port = _resolve_child_port(self._config, self._port, key)
@@ -218,7 +220,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
         Emits a 'remove' patch for each key.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         keys = list(self.keys())
         for key in keys:
             del self[key]
@@ -228,7 +230,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
         Emits an 'add' patch only if the key was not present.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         if key not in self:
             self[key] = default
         return self[key]
@@ -238,7 +240,7 @@ class EventedDict(dict[K, V], Generic[K, V]):
 
         Emits 'add' or 'replace' patches for each key.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         if other:
             if hasattr(other, "keys"):
                 for k in other.keys():
@@ -279,22 +281,11 @@ class EventedList(list):
         self._path = path
         self._port = port
 
-    def __check_if_has_required_locks(self) -> None:
-        acquired_locks = get_acquired_locks()
-        missing_locks = [
-            lock for lock in self._config.required_locks if lock not in acquired_locks
-        ]
-        if missing_locks:
-            raise RuntimeError(
-                f"Cannot modify state '{self._config.state_name}' at path '{self._path}' without required locks: {missing_locks}"
-            )
-
     def _reindex_items(self, start_index: int) -> None:
         """Update the internal path references for items after a shift.
 
         This is necessary after insert/remove operations that shift indices.
         """
-        self.__check_if_has_required_locks()
         for i in range(start_index, len(self)):
             item = super().__getitem__(i)
             if hasattr(item, "_event_path"):
@@ -309,37 +300,28 @@ class EventedList(list):
     def __setitem__(self, index: slice, value: Iterable[Any]) -> None: ...
 
     def __setitem__(self, index: SupportsIndex | slice, value: Any) -> None:
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         if isinstance(index, slice):
-            # Handle slice assignment
-            indices = range(*index.indices(len(self)))
-
-            # Convert value to list for iteration
+            # Expand slice assignment into the single-index primitives so the
+            # emitted patches are valid RFC-6902 operations: remove the old
+            # slice (highest index first) then insert the new values in order.
+            indices = list(range(*index.indices(len(self))))
             new_values = list(value)
-
-            # For simplicity, emit replace for overlapping indices,
-            # remove for extra old items, add for extra new items
-            for i, idx in enumerate(indices):
-                if i < len(new_values):
-                    if idx < len(self):
-                        self[idx] = new_values[i]
-
-            # This is a complex case - for now, replace the slice and emit patches
-            super().__setitem__(
-                index,
-                [
-                    make_evented(
-                        v,
-                        self._config,
-                        _make_path(self._path, indices.start + i),
-                        port=_resolve_child_port(
-                            self._config, self._port, indices.start + i
-                        ),
+            if index.step not in (None, 1):
+                # Extended slices cannot change length: replace slot by slot.
+                if len(indices) != len(new_values):
+                    raise ValueError(
+                        f"attempt to assign sequence of size {len(new_values)} "
+                        f"to extended slice of size {len(indices)}"
                     )
-                    for i, v in enumerate(new_values)
-                ],
-            )
-            self._reindex_items(0)
+                for idx, item in zip(indices, new_values):
+                    self[idx] = item
+                return
+            for idx in reversed(indices):
+                del self[idx]
+            insert_at = indices[0] if indices else index.indices(len(self))[0]
+            for offset, item in enumerate(new_values):
+                self.insert(insert_at + offset, item)
         else:
             idx = index.__index__()
             full_path = _make_path(self._path, idx)
@@ -361,7 +343,7 @@ class EventedList(list):
             )
 
     def __delitem__(self, index: SupportsIndex | slice) -> None:
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         if isinstance(index, slice):
             # Handle slice deletion
             indices = sorted(range(*index.indices(len(self))), reverse=True)
@@ -393,7 +375,7 @@ class EventedList(list):
         Per RFC 6902, uses '/-' to indicate appending to end of array.
         """
         # Use the special '-' path element for array append per RFC 6902
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         append_path = f"{self._path}/-"
 
         # The actual index for the evented item's path reference
@@ -415,7 +397,7 @@ class EventedList(list):
 
         Emits an 'add' patch at the specified index.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         # Normalize negative index
         idx = index.__index__()
         if idx < 0:
@@ -441,7 +423,7 @@ class EventedList(list):
 
         Emits an 'add' patch for each item.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         for item in items:
             self.append(item)
 
@@ -450,7 +432,7 @@ class EventedList(list):
 
         Emits a 'remove' patch.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         # Convert to int
         idx: int = index.__index__() if hasattr(index, "__index__") else int(index)  # type: ignore
         # Normalize negative index
@@ -481,7 +463,7 @@ class EventedList(list):
 
         Emits a 'remove' patch at the item's index.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         index = self.index(item)
         del self[index]
 
@@ -490,67 +472,54 @@ class EventedList(list):
 
         Emits a 'remove' patch for each item, from end to start.
         """
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         while len(self) > 0:
             self.pop()
+
+    def _reorder(self, operation: Callable[[], None]) -> None:
+        """Run an in-place reordering and emit 'replace' patches for moved slots."""
+        _require_locks(self._config, self._path)
+        old_items = list(self)
+        operation()
+
+        for i in range(len(self)):
+            if old_items[i] != self[i]:
+                full_path = _make_path(self._path, i)
+                _publish_patch(
+                    self._config,
+                    _make_patch(
+                        op="replace",
+                        path=full_path,
+                        value=self[i],
+                        old_value=old_items[i],
+                        port=_resolve_child_port(self._config, self._port, i),
+                    ),
+                )
+        self._reindex_items(0)
 
     def reverse(self) -> None:
         """Reverse list in place.
 
         Emits 'replace' patches for each changed position.
         """
-        self.__check_if_has_required_locks()
-        old_items = list(self)
-        super().reverse()
-
-        for i in range(len(self)):
-            if old_items[i] != self[i]:
-                full_path = _make_path(self._path, i)
-                _publish_patch(
-                    self._config,
-                    _make_patch(
-                        op="replace",
-                        path=full_path,
-                        value=self[i],
-                        old_value=old_items[i],
-                        port=_resolve_child_port(self._config, self._port, i),
-                    ),
-                )
-        self._reindex_items(0)
+        self._reorder(super().reverse)
 
     def sort(self, *, key: Any = None, reverse: bool = False) -> None:
         """Sort list in place.
 
         Emits 'replace' patches for each changed position.
         """
-        self.__check_if_has_required_locks()
-        old_items = list(self)
-        super().sort(key=key, reverse=reverse)
-
-        for i in range(len(self)):
-            if old_items[i] != self[i]:
-                full_path = _make_path(self._path, i)
-                _publish_patch(
-                    self._config,
-                    _make_patch(
-                        op="replace",
-                        path=full_path,
-                        value=self[i],
-                        old_value=old_items[i],
-                        port=_resolve_child_port(self._config, self._port, i),
-                    ),
-                )
-        self._reindex_items(0)
+        self._reorder(lambda: super(EventedList, self).sort(key=key, reverse=reverse))
 
     def __iadd__(self, other: Iterable[Any]) -> "EventedList":
         """Implement += operator."""
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         self.extend(other)
         return self
 
     def __imul__(self, n: SupportsIndex) -> "EventedList":  # type: ignore[override]
         """Implement *= operator."""
-        self.__check_if_has_required_locks()
+        _require_locks(self._config, self._path)
         count = n.__index__() if hasattr(n, "__index__") else int(n)  # type: ignore
         if count <= 0:
             self.clear()
@@ -626,7 +595,7 @@ def make_evented(
 
         # 3. Create the interceptor hook
         def setattr_hook(self, name, value):
-            self.__check_if_has_required_locks()
+            _require_locks(self._event_config, self._event_path)
             if name.startswith("_"):
                 super(self.__class__, self).__setattr__(name, value)
                 return
@@ -663,25 +632,12 @@ def make_evented(
                     ),
                 )
 
-        def __check_if_has_required_locks(self):
-            acquired_locks = get_acquired_locks()
-            missing_locks = [
-                lock
-                for lock in self.__rekuest__config__.required_locks
-                if lock not in acquired_locks
-            ]
-            if missing_locks:
-                raise RuntimeError(
-                    f"Cannot modify state '{self.__rekuest__config__.state_name}' at path '{self._event_path}' without required locks: {missing_locks}"
-                )
-
         # 4. Create dynamic subclass
         original_cls = obj.__class__
         EventedClass = type(
             f"Evented{original_cls.__name__}",
             (original_cls,),
             {
-                "__check_if_has_required_locks": __check_if_has_required_locks,
                 "__setattr__": setattr_hook,
                 "_is_evented_wrapper": True,
                 "__rekuest__config__": config,

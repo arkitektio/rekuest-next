@@ -191,3 +191,50 @@ async def test_readonly_annotation_reaches_an_actor_as_a_refusing_view() -> None
     )
     assert "refused" in outcome, "the actor's write to a read-only state must be refused"
     assert board.count == 42, "the state must be unchanged"
+
+
+class _PatchRecorder:
+    """Collects the raw JSON patches an evented state publishes."""
+
+    def __init__(self) -> None:
+        self.patches: List[dict] = []
+
+    def publish_patch(self, interface: str, patch: object, task_id: str | None = None) -> None:
+        self.patches.append({"op": patch.op, "path": patch.path, "value": getattr(patch, "value", None)})
+
+
+def _replay(patches: List[dict], initial: list) -> list:
+    """Apply recorded patches to a plain list the way a remote consumer would."""
+    import jsonpatch
+
+    doc = {"items": list(initial)}
+    for p in patches:
+        doc = jsonpatch.apply_patch(doc, [p], in_place=False)
+    return doc["items"]
+
+
+@pytest.mark.parametrize(
+    ("initial", "target_slice", "new_values"),
+    [
+        ([1, 2, 3, 4], slice(1, 3), [9]),            # shrinking slice
+        ([1, 2, 3], slice(1, 2), [7, 8, 9]),         # growing slice
+        ([1, 2, 3], slice(0, 3), []),                # clearing slice
+        ([1, 2, 3], slice(3, 3), [4, 5]),            # append via empty slice
+        ([1, 2, 3, 4], slice(0, 4, 2), [10, 30]),    # extended slice, same size
+    ],
+)
+def test_slice_assignment_emits_replayable_patches(initial, target_slice, new_values) -> None:
+    """Length-changing slice assignment must publish patches a JSON-patch consumer can replay."""
+    board = _evented_board()
+    board.items.extend(initial)
+    recorder = _PatchRecorder()
+
+    expected = list(initial)
+    expected[target_slice] = new_values
+
+    with direct_publishing(recorder):
+        board.items[target_slice] = new_values
+
+    assert list(board.items) == expected
+    assert _replay(recorder.patches, initial) == expected
+    assert all(p["path"].startswith("/items") for p in recorder.patches)

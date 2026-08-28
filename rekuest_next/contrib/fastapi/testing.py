@@ -10,7 +10,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Generator, Optional
+from typing import Callable, Any, Generator, Optional
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -97,7 +97,92 @@ class AssignmentResult:
     response_data: dict[str, Any]
 
 
-class AgentTestClient:
+class _EventBuffer:
+    """Thread-safe store of websocket events shared by both test clients.
+
+    The sync client appends from a listener thread and the async client from a
+    coroutine; a plain lock covers both since no holder ever blocks while holding it.
+    """
+
+    def __init__(self) -> None:
+        self._buffer = _EventBuffer()
+
+    def add(self, event: BufferedEvent) -> None:
+        """Append one event."""
+        self._buffer.add(event)
+
+    def all(self) -> list[BufferedEvent]:
+        """Snapshot of every buffered event."""
+        with self._lock:
+            return list(self._events)
+
+    def where(self, predicate: Callable[[BufferedEvent], bool]) -> list[BufferedEvent]:
+        """Snapshot of the events matching ``predicate``."""
+        with self._lock:
+            return [e for e in self._events if predicate(e)]
+
+    def clear(self) -> None:
+        """Drop every buffered event."""
+        with self._lock:
+            self._buffer.clear()
+
+
+class _EventAccessors:
+    """Read-side helpers over an ``_EventBuffer``; mixed into both clients."""
+
+    _buffer: _EventBuffer
+
+    def add_event(self, event: BufferedEvent) -> None:
+        """Add an event to the buffer (thread-safe)."""
+        self._buffer.add(event)
+
+    def get_all_events(self) -> list[BufferedEvent]:
+        """Get all buffered events."""
+        return self._buffer.all()
+
+    def get_events_for_task(self, task_id: str) -> list[BufferedEvent]:
+        """Get all events for a specific task."""
+        return self._buffer.where(lambda e: e.task == task_id)
+
+    def get_done_events(self) -> list[BufferedEvent]:
+        """Get all DONE events."""
+        return self._buffer.where(lambda e: e.is_done())
+
+    def get_yield_events(self) -> list[BufferedEvent]:
+        """Get all YIELD events."""
+        return self._buffer.where(lambda e: e.is_yield())
+
+    def get_error_events(self) -> list[BufferedEvent]:
+        """Get all ERROR events."""
+        return self._buffer.where(lambda e: e.is_error())
+
+    def clear_events(self) -> None:
+        """Clear all buffered events."""
+        self._buffer.clear()
+
+    def has_done_for(self, task_id: str) -> bool:
+        """Check if a DONE event was received for the given task."""
+        return any(e.is_done() for e in self.get_events_for_task(task_id))
+
+    def has_error_for(self, task_id: str) -> bool:
+        """Check if an ERROR event was received for the given task."""
+        return any(e.is_error() for e in self.get_events_for_task(task_id))
+
+
+def _build_assign_request(
+    interface: str, args: dict[str, Any], use_implementation_route: bool
+) -> tuple[str, dict[str, Any]]:
+    """Return the ``(path, json_payload)`` for an assign against the real routes.
+
+    Every assign route (``/{interface}``, ``/assign/{interface}`` and ``/assign``)
+    validates its body as an ``AssignInput``, so the args must be nested under
+    ``"args"`` rather than posted bare.
+    """
+    path = f"/{interface}" if use_implementation_route else f"/assign/{interface}"
+    return path, {"args": args, "interface": interface}
+
+
+class AgentTestClient(_EventAccessors):
     """A test client wrapper that provides WebSocket event buffering for agent testing.
 
     This class wraps FastAPI's TestClient and connects to the WebSocket endpoint,
@@ -149,8 +234,7 @@ class AgentTestClient:
         self.as_user = as_user
         self._client: Optional[TestClient] = None
         self._websocket: Optional[WebSocketTestSession] = None
-        self._events: list[BufferedEvent] = []
-        self._lock = threading.Lock()
+        self._buffer = _EventBuffer()
 
     def __enter__(self) -> "AgentTestClient":
         """Enter the context manager, starting the test client and WebSocket connection."""
@@ -200,7 +284,7 @@ class AgentTestClient:
             self._client.__exit__(exc_type, exc_val, exc_tb)
             self._client = None
 
-        self._events.clear()
+        self._buffer.clear()
 
     @property
     def client(self) -> TestClient:
@@ -289,12 +373,8 @@ class AgentTestClient:
         Raises:
             RuntimeError: If the assignment request fails.
         """
-        if use_implementation_route:
-            path = f"/{interface}"
-        else:
-            path = f"/assign/{interface}"
-
-        response = self.post(path, json=args)
+        path, payload = _build_assign_request(interface, args, use_implementation_route)
+        response = self.post(path, json=payload)
 
         if response.status_code != 200:
             raise RuntimeError(
@@ -325,8 +405,7 @@ class AgentTestClient:
 
         data = self._websocket.receive_text()
         event = BufferedEvent.from_json(data)
-        with self._lock:
-            self._events.append(event)
+        self._buffer.add(event)
         return event
 
     def collect_events(
@@ -366,8 +445,7 @@ class AgentTestClient:
                         assert self._websocket is not None
                         data = self._websocket.receive_text()
                         event = BufferedEvent.from_json(data)
-                        with self._lock:
-                            self._events.append(event)
+                        self._buffer.add(event)
                         collected.append(event)
                     except Exception:
                         break
@@ -412,8 +490,7 @@ class AgentTestClient:
                         assert self._websocket is not None
                         data = self._websocket.receive_text()
                         event = BufferedEvent.from_json(data)
-                        with self._lock:
-                            self._events.append(event)
+                        self._buffer.add(event)
                         collected.append(event)
 
                         if event.task == task_id and event.is_done():
@@ -430,94 +507,8 @@ class AgentTestClient:
 
         return collected
 
-    def add_event(self, event: BufferedEvent) -> None:
-        """Add an event to the buffer (thread-safe).
 
-        Args:
-            event: The event to add.
-        """
-        with self._lock:
-            self._events.append(event)
-
-    def get_all_events(self) -> list[BufferedEvent]:
-        """Get all buffered events.
-
-        Returns:
-            A list of all events received so far.
-        """
-        with self._lock:
-            return list(self._events)
-
-    def get_events_for_task(self, task_id: str) -> list[BufferedEvent]:
-        """Get all events for a specific task.
-
-        Args:
-            task_id: The task ID to filter by.
-
-        Returns:
-            A list of events belonging to the given task.
-        """
-        with self._lock:
-            return [e for e in self._events if e.task == task_id]
-
-    def get_done_events(self) -> list[BufferedEvent]:
-        """Get all DONE events.
-
-        Returns:
-            A list of all DONE events received.
-        """
-        with self._lock:
-            return [e for e in self._events if e.is_done()]
-
-    def get_yield_events(self) -> list[BufferedEvent]:
-        """Get all YIELD events.
-
-        Returns:
-            A list of all YIELD events received.
-        """
-        with self._lock:
-            return [e for e in self._events if e.is_yield()]
-
-    def get_error_events(self) -> list[BufferedEvent]:
-        """Get all ERROR events.
-
-        Returns:
-            A list of all ERROR events received.
-        """
-        with self._lock:
-            return [e for e in self._events if e.is_error()]
-
-    def clear_events(self) -> None:
-        """Clear all buffered events."""
-        with self._lock:
-            self._events.clear()
-
-    def has_done_for(self, task_id: str) -> bool:
-        """Check if a DONE event was received for the given task.
-
-        Args:
-            task_id: The task ID to check.
-
-        Returns:
-            True if a DONE event exists for this task.
-        """
-        events = self.get_events_for_task(task_id)
-        return any(e.is_done() for e in events)
-
-    def has_error_for(self, task_id: str) -> bool:
-        """Check if an ERROR event was received for the given task.
-
-        Args:
-            task_id: The task ID to check.
-
-        Returns:
-            True if an ERROR event exists for this task.
-        """
-        events = self.get_events_for_task(task_id)
-        return any(e.is_error() for e in events)
-
-
-class AsyncAgentTestClient:
+class AsyncAgentTestClient(_EventAccessors):
     """An async test client that provides WebSocket event buffering for agent testing.
 
     This class uses httpx AsyncClient for HTTP requests and runs a background
@@ -567,11 +558,10 @@ class AsyncAgentTestClient:
         self.as_user = as_user
         self.base_url = base_url
         self._http_client: Optional[AsyncClient] = None
-        self._events: list[BufferedEvent] = []
+        self._buffer = _EventBuffer()
         self._event_queue: asyncio.Queue[BufferedEvent] = asyncio.Queue()
         self._ws_task: Optional[asyncio.Task[None]] = None
         self._stop_ws = asyncio.Event()
-        self._lock = asyncio.Lock()
         self._test_client: Optional[TestClient] = None
         self._websocket: Optional[WebSocketTestSession] = None
 
@@ -649,7 +639,7 @@ class AsyncAgentTestClient:
             self._test_client.__exit__(None, None, None)
             self._test_client = None
 
-        self._events.clear()
+        self._buffer.clear()
 
     async def _ws_listener(self) -> None:
         """Background task that listens for WebSocket messages."""
@@ -671,8 +661,7 @@ class AsyncAgentTestClient:
                 )
                 if data is not None:
                     event = BufferedEvent.from_json(data)
-                    async with self._lock:
-                        self._events.append(event)
+                    self._buffer.add(event)
                     await self._event_queue.put(event)
             except asyncio.TimeoutError:
                 continue
@@ -754,12 +743,8 @@ class AsyncAgentTestClient:
         Returns:
             An AssignmentResult with the status and task ID.
         """
-        if use_implementation_route:
-            path = f"/{interface}"
-        else:
-            path = "/assign"
-
-        response = await self.post(path, json={"args": args, "interface": interface})
+        path, payload = _build_assign_request(interface, args, use_implementation_route)
+        response = await self.post(path, json=payload)
 
         if response.status_code != 200:
             raise RuntimeError(
@@ -821,19 +806,16 @@ class AsyncAgentTestClient:
 
         return collected
 
-    async def collect_until_end_state(
+    async def _collect_until(
         self,
+        predicate: Callable[[BufferedEvent], bool],
         task_id: str,
-        timeout: float = 5.0,
+        timeout: float,
+        raise_on_timeout: bool,
     ) -> list[BufferedEvent]:
-        """Collect events until a DONE or ERROR event is received for the task.
+        """Collect events until one for ``task_id`` satisfies ``predicate``.
 
-        Args:
-            task_id: The task ID to wait for.
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            A list of all events collected (including the DONE or ERROR event).
+        On timeout either raises ``TimeoutError`` or returns what was collected.
         """
         collected: list[BufferedEvent] = []
         deadline = asyncio.get_event_loop().time() + timeout
@@ -841,20 +823,32 @@ class AsyncAgentTestClient:
         while True:
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-                raise TimeoutError("Timeout waiting for end state event")
+                if raise_on_timeout:
+                    raise TimeoutError(f"Timeout waiting for event on task {task_id}")
+                return collected
 
             try:
                 event = await asyncio.wait_for(
                     self._event_queue.get(), timeout=min(remaining, 0.5)
                 )
-                collected.append(event)
-
-                if event.task == task_id and event.is_end_state():
-                    break
             except asyncio.TimeoutError:
                 continue
+            collected.append(event)
+            if event.task == task_id and predicate(event):
+                return collected
 
-        return collected
+    async def collect_until_end_state(
+        self,
+        task_id: str,
+        timeout: float = 5.0,
+    ) -> list[BufferedEvent]:
+        """Collect events until a DONE or ERROR event is received for the task.
+
+        Raises ``TimeoutError`` if neither arrives within ``timeout``.
+        """
+        return await self._collect_until(
+            lambda e: e.is_end_state(), task_id, timeout, raise_on_timeout=True
+        )
 
     async def collect_until_done(
         self,
@@ -863,33 +857,11 @@ class AsyncAgentTestClient:
     ) -> list[BufferedEvent]:
         """Collect events until a DONE event is received for the task.
 
-        Args:
-            task_id: The task ID to wait for.
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            A list of all events collected (including the DONE event).
+        Returns whatever was collected if the timeout elapses first.
         """
-        collected: list[BufferedEvent] = []
-        deadline = asyncio.get_event_loop().time() + timeout
-
-        while True:
-            remaining = deadline - asyncio.get_event_loop().time()
-            if remaining <= 0:
-                break
-
-            try:
-                event = await asyncio.wait_for(
-                    self._event_queue.get(), timeout=min(remaining, 0.5)
-                )
-                collected.append(event)
-
-                if event.task == task_id and event.is_done():
-                    break
-            except asyncio.TimeoutError:
-                continue
-
-        return collected
+        return await self._collect_until(
+            lambda e: e.is_done(), task_id, timeout, raise_on_timeout=False
+        )
 
     async def collect_until_error(
         self,
@@ -898,71 +870,11 @@ class AsyncAgentTestClient:
     ) -> list[BufferedEvent]:
         """Collect events until an ERROR event is received for the task.
 
-        Args:
-            task_id: The task ID to wait for.
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            A list of all events collected (including the ERROR event).
+        Returns whatever was collected if the timeout elapses first.
         """
-        collected: list[BufferedEvent] = []
-        deadline = asyncio.get_event_loop().time() + timeout
-
-        while True:
-            remaining = deadline - asyncio.get_event_loop().time()
-            if remaining <= 0:
-                break
-
-            try:
-                event = await asyncio.wait_for(
-                    self._event_queue.get(), timeout=min(remaining, 0.5)
-                )
-                collected.append(event)
-
-                if event.task == task_id and event.is_error():
-                    break
-            except asyncio.TimeoutError:
-                continue
-
-        return collected
-
-    def add_event(self, event: BufferedEvent) -> None:
-        """Add an event to the buffer (for testing)."""
-        self._events.append(event)
-
-    def get_all_events(self) -> list[BufferedEvent]:
-        """Get all buffered events."""
-        return list(self._events)
-
-    def get_events_for_task(self, task_id: str) -> list[BufferedEvent]:
-        """Get all events for a specific task."""
-        return [e for e in self._events if e.task == task_id]
-
-    def get_done_events(self) -> list[BufferedEvent]:
-        """Get all DONE events."""
-        return [e for e in self._events if e.is_done()]
-
-    def get_yield_events(self) -> list[BufferedEvent]:
-        """Get all YIELD events."""
-        return [e for e in self._events if e.is_yield()]
-
-    def get_error_events(self) -> list[BufferedEvent]:
-        """Get all ERROR events."""
-        return [e for e in self._events if e.is_error()]
-
-    def clear_events(self) -> None:
-        """Clear all buffered events."""
-        self._events.clear()
-
-    def has_done_for(self, task_id: str) -> bool:
-        """Check if a DONE event was received for the given task."""
-        events = self.get_events_for_task(task_id)
-        return any(e.is_done() for e in events)
-
-    def has_error_for(self, task_id: str) -> bool:
-        """Check if an ERROR event was received for the given task."""
-        events = self.get_events_for_task(task_id)
-        return any(e.is_error() for e in events)
+        return await self._collect_until(
+            lambda e: e.is_error(), task_id, timeout, raise_on_timeout=False
+        )
 
 
 @contextlib.contextmanager

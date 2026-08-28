@@ -1,7 +1,7 @@
 import aiosqlite
 import json
 from datetime import datetime, timezone
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 from rekuest_next.contrib.fastapi.retriever.protocol import (
     PatchEvent,
@@ -9,8 +9,13 @@ from rekuest_next.contrib.fastapi.retriever.protocol import (
     Snapshot,
     TaskBoundary,
 )
+from rekuest_next.contrib.fastapi.retriever.replay import (
+    boundary_from_aggregates,
+    build_patch_document,
+    merge_state_ids,
+    replay,
+)
 from rekuest_next.contrib.sql_lite.schema import ensure_sqlite_schema
-from rekuest_next.messages import JSONSerializable
 
 
 # ==========================================
@@ -43,73 +48,55 @@ class SQLLiteRetriever:
         return None
 
     # --- READ / RETRIEVE METHODS ---
+    async def _aboundaries(
+        self,
+        column: str,
+        key: str,
+        state_id: Optional[str],
+        *,
+        session: bool,
+    ) -> TaskBoundary | SessionBoundary | None:
+        # `column` is one of two literals chosen below; values stay parameterized.
+        state_filter = "AND state_id = ?" if state_id is not None else ""
+        params: tuple[object, ...] = (key,) if state_id is None else (key, state_id)
+        query = f"""
+        SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
+        FROM state_patches
+        WHERE {column} = ? {state_filter};
+        """
+
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+
+        if not row or row[0] is None:
+            return None
+        return boundary_from_aggregates(
+            key,
+            row[0],
+            row[1],
+            epoch_ms_to_dt(row[2]),
+            epoch_ms_to_dt(row[3]),
+            session=session,
+        )
+
     async def aget_task_boundaries(
         self,
         correlation_id: str,
         state_id: str | None = None,
     ) -> Optional[TaskBoundary]:
-        # Using strict parameterization for safety
-        if state_id is None:
-            query = """
-            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
-            FROM state_patches
-            WHERE correlation_id = ?;
-            """
-            params = (correlation_id,)
-        else:
-            query = """
-            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
-            FROM state_patches
-            WHERE state_id = ? AND correlation_id = ?;
-            """
-            params = (state_id, correlation_id)
-
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(query, params) as cursor:
-                row = await cursor.fetchone()
-
-        if row and row[0] is not None:
-            return TaskBoundary(
-                correlation_id=correlation_id,
-                start_global_revision=row[0],
-                end_global_revision=row[1],
-                start_time=epoch_ms_to_dt(row[2]),
-                end_time=epoch_ms_to_dt(row[3]),
-            )
-        return None
+        boundary = await self._aboundaries(
+            "correlation_id", correlation_id, state_id, session=False
+        )
+        return boundary if isinstance(boundary, TaskBoundary) else None
 
     async def aget_session_boundaries(
         self, session_id: str, state_id: str | None = None
     ) -> Optional[SessionBoundary]:
-        # Completely eliminating f-strings for SQL structural queries to prevent injection
-        if state_id is None:
-            query = """
-            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
-            FROM state_patches
-            WHERE session_id = ?;
-            """
-            params = (session_id,)
-        else:
-            query = """
-            SELECT MIN(global_current_rev), MAX(global_future_rev), MIN(event_time), MAX(event_time)
-            FROM state_patches
-            WHERE session_id = ? AND state_id = ?;
-            """
-            params = (session_id, state_id)
-
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(query, params) as cursor:
-                row = await cursor.fetchone()
-
-        if row and row[0] is not None:
-            return SessionBoundary(
-                session_id=session_id,
-                start_global_revision=row[0],
-                end_global_revision=row[1],
-                start_time=epoch_ms_to_dt(row[2]),
-                end_time=epoch_ms_to_dt(row[3]),
-            )
-        return None
+        boundary = await self._aboundaries(
+            "session_id", session_id, state_id, session=True
+        )
+        return boundary if isinstance(boundary, SessionBoundary) else None
 
     async def aget_state_at_global_rev(
         self,
@@ -316,21 +303,9 @@ class SQLLiteRetriever:
             async with db.execute(patch_query, patch_params) as cursor:
                 patch_rows = await cursor.fetchall()
 
-        state_data = cast(
-            JSONSerializable, json.loads(json.dumps(anchor_snapshot.data))
+        return replay(
+            anchor_snapshot, (self._row_to_patch_event(row) for row in patch_rows)
         )
-        last_snapshot = anchor_snapshot
-        for row in patch_rows:
-            patch_event = self._row_to_patch_event(row)
-            state_data = self._apply_patch_document(state_data, patch_event.patch)
-            last_snapshot = Snapshot(
-                timepoint=patch_event.timepoint,
-                data=state_data,
-                global_revision=patch_event.global_future_rev,
-                session_id=patch_event.session_id,
-            )
-
-        return last_snapshot
 
     async def _aget_state_ids(self, session_id: Optional[str]) -> list[str]:
         session_filter = "WHERE session_id = ?" if session_id is not None else ""
@@ -347,19 +322,7 @@ class SQLLiteRetriever:
             ) as cursor:
                 patch_state_ids = [row[0] for row in await cursor.fetchall()]
 
-        return sorted(set(snapshot_state_ids).union(patch_state_ids))
-
-    def _apply_patch_document(
-        self,
-        state_data: JSONSerializable,
-        patch_document: JSONSerializable,
-    ) -> JSONSerializable:
-        import jsonpatch  # type: ignore[import-untyped]
-
-        return cast(
-            JSONSerializable,
-            jsonpatch.apply_patch(state_data, [patch_document], in_place=False),
-        )
+        return merge_state_ids(snapshot_state_ids, patch_state_ids)
 
     def _row_to_snapshot(self, row: tuple[Any, ...]) -> Snapshot:
         global_revision, event_time, session_id, state_data = row
@@ -382,9 +345,9 @@ class SQLLiteRetriever:
             path,
             value,
         ) = row
-        patch_document: dict[str, JSONSerializable] = {"op": op, "path": path}
-        if op != "remove":
-            patch_document["value"] = json.loads(value) if value is not None else None
+        patch_document = build_patch_document(
+            op, path, json.loads(value) if value is not None else None
+        )
 
         return PatchEvent(
             timepoint=epoch_ms_to_dt(event_time),

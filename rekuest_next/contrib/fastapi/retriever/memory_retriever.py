@@ -1,8 +1,6 @@
 import copy
 from datetime import datetime, timezone
-from typing import Optional, cast
-
-import jsonpatch  # type: ignore[import-untyped]
+from typing import Callable, Optional
 
 from rekuest_next import messages
 from rekuest_next.contrib.fastapi.retriever.protocol import (
@@ -10,6 +8,12 @@ from rekuest_next.contrib.fastapi.retriever.protocol import (
     SessionBoundary,
     Snapshot,
     TaskBoundary,
+)
+from rekuest_next.contrib.fastapi.retriever.replay import (
+    boundary_from_aggregates,
+    build_patch_document,
+    merge_state_ids,
+    replay,
 )
 from rekuest_next.contrib.fastapi.sink.memory_sink import MemoryStore
 from rekuest_next.messages import JSONSerializable
@@ -27,55 +31,54 @@ class MemoryRetriever:
     async def ateardown(self) -> None:
         return None
 
+    def _boundaries(
+        self,
+        key: str,
+        matches: Callable[[messages.StatePatch], bool],
+        state_id: Optional[str],
+        *,
+        session: bool,
+    ) -> TaskBoundary | SessionBoundary | None:
+        patches = [
+            patch
+            for patch in self._get_patches()
+            if matches(patch) and (state_id is None or patch.state_name == state_id)
+        ]
+        if not patches:
+            return None
+        timepoints = [_patch_timepoint(patch) for patch in patches]
+        return boundary_from_aggregates(
+            key,
+            min(patch.global_rev - 1 for patch in patches),
+            max(patch.global_rev for patch in patches),
+            min(timepoints),
+            max(timepoints),
+            session=session,
+        )
+
     async def aget_task_boundaries(
         self,
         correlation_id: str,
         state_id: Optional[str] = None,
     ) -> Optional[TaskBoundary]:
-        patches = [
-            patch
-            for patch in self._get_patches()
-            if patch.task_id == correlation_id
-            and (state_id is None or patch.state_name == state_id)
-        ]
-        if not patches:
-            return None
-
-        return TaskBoundary(
-            correlation_id=correlation_id,
-            start_global_revision=min(patch.global_rev - 1 for patch in patches),
-            end_global_revision=max(patch.global_rev for patch in patches),
-            start_time=min(
-                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
-            ),
-            end_time=max(
-                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
-            ),
+        boundary = self._boundaries(
+            correlation_id,
+            lambda patch: patch.task_id == correlation_id,
+            state_id,
+            session=False,
         )
+        return boundary if isinstance(boundary, TaskBoundary) else None
 
     async def aget_session_boundaries(
         self, session_id: str, state_id: Optional[str] = None
     ) -> Optional[SessionBoundary]:
-        patches = [
-            patch
-            for patch in self._get_patches()
-            if patch.session_id == session_id
-            and (state_id is None or patch.state_name == state_id)
-        ]
-        if not patches:
-            return None
-
-        return SessionBoundary(
-            session_id=session_id,
-            start_global_revision=min(patch.global_rev - 1 for patch in patches),
-            end_global_revision=max(patch.global_rev for patch in patches),
-            start_time=min(
-                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
-            ),
-            end_time=max(
-                datetime.fromtimestamp(patch.ts, tz=timezone.utc) for patch in patches
-            ),
+        boundary = self._boundaries(
+            session_id,
+            lambda patch: patch.session_id == session_id,
+            state_id,
+            session=True,
         )
+        return boundary if isinstance(boundary, SessionBoundary) else None
 
     async def aget_state_at_global_rev(
         self,
@@ -242,55 +245,45 @@ class MemoryRetriever:
             return None
 
         anchor_revision, anchor_data, anchor_session = anchor
-        current_state = cast(JSONSerializable, copy.deepcopy(anchor_data))
+        anchor_snapshot = Snapshot(
+            timepoint=datetime.now(timezone.utc),
+            data=anchor_data,
+            global_revision=anchor_revision,
+            session_id=anchor_session,
+        )
 
-        patches = [
-            patch
-            for patch in self._get_patches()
-            if patch.state_name == state_id
-            and (patch.global_rev - 1) >= anchor_revision
-            and patch.global_rev <= target_revision
-            and (session_id is None or patch.session_id == session_id)
-        ]
-        patches = sorted(patches, key=lambda item: item.global_rev - 1)
-
-        last_global_revision = anchor_revision
-        last_timepoint = datetime.now(timezone.utc)
-
-        for patch in patches:
-            patch_document = self._to_patch_document(patch.op, patch.path, patch.value)
-            current_state = cast(
-                JSONSerializable,
-                jsonpatch.apply_patch(current_state, [patch_document], in_place=False),
-            )
-            last_global_revision = patch.global_rev
-            last_timepoint = datetime.fromtimestamp(patch.ts, tz=timezone.utc)
-
+        patches = sorted(
+            (
+                patch
+                for patch in self._get_patches()
+                if patch.state_name == state_id
+                and (patch.global_rev - 1) >= anchor_revision
+                and patch.global_rev <= target_revision
+                and (session_id is None or patch.session_id == session_id)
+            ),
+            key=lambda item: item.global_rev - 1,
+        )
+        replayed = replay(
+            anchor_snapshot, (self._to_patch_event(patch) for patch in patches)
+        )
+        # The anchor session is authoritative for the snapshot identity.
         return Snapshot(
-            timepoint=last_timepoint,
-            data=copy.deepcopy(current_state),
-            global_revision=last_global_revision,
+            timepoint=replayed.timepoint,
+            data=copy.deepcopy(replayed.data),
+            global_revision=replayed.global_revision,
             session_id=anchor_session,
         )
 
     def _to_patch_event(self, patch: messages.StatePatch) -> PatchEvent:
         return PatchEvent(
-            timepoint=datetime.fromtimestamp(patch.ts, tz=timezone.utc),
+            timepoint=_patch_timepoint(patch),
             state_id=patch.state_name,
             global_current_rev=patch.global_rev - 1,
             global_future_rev=patch.global_rev,
             correlation_id=patch.task_id or "",
             session_id=patch.session_id or "",
-            patch=self._to_patch_document(patch.op, patch.path, patch.value),
+            patch=build_patch_document(patch.op, patch.path, patch.value),
         )
-
-    def _to_patch_document(
-        self, op: str, path: str, value: JSONSerializable | None
-    ) -> dict[str, JSONSerializable]:
-        patch_document: dict[str, JSONSerializable] = {"op": op, "path": path}
-        if op != "remove":
-            patch_document["value"] = value
-        return patch_document
 
     def _get_patches(self) -> list[messages.StatePatch]:
         if self.store is None:
@@ -303,11 +296,20 @@ class MemoryRetriever:
         return list(self.store.snapshots)
 
     def _get_state_ids(self, session_id: Optional[str]) -> list[str]:
-        state_ids: set[str] = set()
-        for event in self._get_snapshots():
-            if session_id is None or event.session_id == session_id:
-                state_ids.update(event.snapshots.keys())
-        for patch in self._get_patches():
-            if session_id is None or patch.session_id == session_id:
-                state_ids.add(patch.state_name)
-        return sorted(state_ids)
+        return merge_state_ids(
+            (
+                key
+                for event in self._get_snapshots()
+                if session_id is None or event.session_id == session_id
+                for key in event.snapshots.keys()
+            ),
+            (
+                patch.state_name
+                for patch in self._get_patches()
+                if session_id is None or patch.session_id == session_id
+            ),
+        )
+
+
+def _patch_timepoint(patch: messages.StatePatch) -> datetime:
+    return datetime.fromtimestamp(patch.ts, tz=timezone.utc)
