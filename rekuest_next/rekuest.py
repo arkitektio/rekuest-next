@@ -18,6 +18,7 @@ from koil import unkoil
 from koil.composition import Composition
 
 from typing import (
+    Sequence,
     Dict,
     Tuple,
     Any,
@@ -29,6 +30,7 @@ from rekuest_next.register import register
 from rekuest_next.agents.hooks.startup import startup
 from rekuest_next.agents.hooks.shutdown import shutdown
 from rekuest_next.api.schema import (
+    AgentDependencyInput,
     DefinitionInput,
 )
 
@@ -133,6 +135,7 @@ class RekuestNext(Composition):
         component: Optional[str] = None,
         description: Optional[str] = None,
         demo_state: Dict[str, Any] | None = None,
+        dependencies: Sequence[AgentDependencyInput] | None = None,
     ) -> None:
         """Register a blok with the given name and optional JSX content.
 
@@ -141,12 +144,17 @@ class RekuestNext(Composition):
             component (Optional[str]): Optional component content to associate with the blok.
             description (Optional[str]): Optional description for the blok.
             demo_state (Dict[str, Any] | None): Optional demo state for the blok.
+            dependencies (Sequence[AgentDependencyInput] | None): Dependencies the blok
+                references that this agent does not implement itself, e.g.
+                ``SomeProtocol.to_dependency("key")``. Anything omitted is inferred
+                from the agent's own actions and states.
         """
         self.agent.app_registry.register_blok(
             name=name,
             component=component,
             description=description,
             demo_state=demo_state,
+            dependencies=dependencies,
         )
 
     def state(self, *args, **kwargs):

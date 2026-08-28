@@ -48,7 +48,7 @@ class ImplementAgentInputTrait(BaseModel):
         locks = tuple(self.locks or ())
 
         # 1. Resolve `self` STATE_CHOICE references against the agent's own states.
-        from rekuest_next.blok.parser import resolve_state_reference
+        from rekuest_next.blok.validate import resolve_state_reference
 
         for implementation in implementations:
             dependencies = tuple(implementation.dependencies or ())

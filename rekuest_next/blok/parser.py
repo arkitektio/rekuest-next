@@ -1,20 +1,16 @@
 import ast
-import uuid
 import xml.etree.ElementTree as ET
-from typing import Iterable, Optional, Union
+from typing import Optional, Union
+
 from rekuest_next.api.schema import (
-    AgentDependencyInput,
+    ActionArgumentInput,
+    AgentProbeInput,
     ComponentNodeInput,
     ComponentPropInput,
     DynamicValueInput,
-    AgentProbeInput,
     UtilProbeInput,
-    ActionArgumentInput,
-    PortMatchInput,
-    StateDependencyInput,
-    StateImplementationInput,
 )
-from rekuest_next.definition.match import build_port_matches
+from rekuest_next.blok.walk import FOREACH_COMPONENT, FOREACH_LET_PROP
 
 
 class BlokParser:
@@ -24,9 +20,9 @@ class BlokParser:
     def parse(cls, jsx_string: str) -> ComponentNodeInput:
         try:
             root_element = ET.fromstring(jsx_string)
-            return cls._parse_element(root_element)
         except ET.ParseError as e:
             raise ValueError(cls._format_xml_parse_error(jsx_string, e)) from e
+        return cls._parse_element(root_element, root_element.tag)
 
     @staticmethod
     def _format_xml_parse_error(jsx_string: str, error: ET.ParseError) -> str:
@@ -85,22 +81,55 @@ class BlokParser:
         )
 
     @classmethod
-    def _parse_element(cls, elem: ET.Element) -> ComponentNodeInput:
-        node_id = elem.attrib.pop("id", str(uuid.uuid4()))
-        component_name = elem.tag
+    def _parse_element(cls, elem: ET.Element, path: str) -> ComponentNodeInput:
+        # Copy rather than pop from elem.attrib: mutating the ElementTree would
+        # make a second parse of the same tree behave differently.
+        attributes = dict(elem.attrib)
+        node_id = attributes.pop("id", None) or path
 
-        props = [cls._parse_prop(k, v) for k, v in elem.attrib.items()]
-        children = [cls._parse_element(c) for c in elem]
+        cls._reject_element_text(elem, node_id)
+
+        props = [cls._parse_prop(elem.tag, key, value) for key, value in attributes.items()]
+
+        children: list[ComponentNodeInput] = []
+        seen_tags: dict[str, int] = {}
+        for child in elem:
+            index = seen_tags.get(child.tag, 0)
+            seen_tags[child.tag] = index + 1
+            children.append(cls._parse_element(child, f"{node_id}/{child.tag}[{index}]"))
 
         return ComponentNodeInput(
             id=node_id,
-            component=component_name,
+            component=elem.tag,
             props=props if props else None,
             children=children if children else None,
         )
 
+    @staticmethod
+    def _reject_element_text(elem: ET.Element, node_id: str) -> None:
+        """Reject inner text, which the renderer never sees.
+
+        Components take their content as a prop (``text="..."``). Silently
+        dropping ``<Badge>hello</Badge>`` loses the message with no diagnostic,
+        so refuse it instead.
+        """
+
+        def fail(text: str) -> None:
+            raise ValueError(
+                f"Text content is not rendered in <{elem.tag}> ({node_id}): "
+                f"{text.strip()!r}. Pass it as a prop instead, e.g. "
+                f'<{elem.tag} text="{text.strip()}" />'
+            )
+
+        if elem.text and elem.text.strip():
+            fail(elem.text)
+
+        for child in elem:
+            if child.tail and child.tail.strip():
+                fail(child.tail)
+
     @classmethod
-    def _parse_prop(cls, key: str, value: str) -> ComponentPropInput:
+    def _parse_prop(cls, component: str, key: str, value: str) -> ComponentPropInput:
         value = value.strip()
 
         # 1. Top-Level Dynamic Value Binding ($)
@@ -144,17 +173,37 @@ class BlokParser:
             except SyntaxError as e:
                 raise ValueError(f"Failed to parse action syntax '{python_expr}': {e}")
 
-        # 3. Static Value
-        else:
-            declared_value = cls._extract_declared_value(value)
-            if declared_value is not None:
-                return ComponentPropInput(
-                    key=key,
-                    static_value=declared_value,
-                    declares_value=declared_value,
-                )
+        # 3. A foreach loop variable declaration (#name)
+        elif cls._is_foreach_let(component, key):
+            return cls._parse_foreach_let(component, key, value)
 
+        # 4. Static Value
+        else:
             return ComponentPropInput(key=key, static_value=value)
+
+    @staticmethod
+    def _is_foreach_let(component: str, key: str) -> bool:
+        """Whether this prop is the loop variable of a ``foreach``.
+
+        ``#name`` declares a local *only here*. Honouring it on every prop made
+        ordinary values such as ``color="#fff"`` silently lose their leading
+        ``#`` and declare a phantom local named ``fff``.
+        """
+        return component.lower() == FOREACH_COMPONENT and key == FOREACH_LET_PROP
+
+    @staticmethod
+    def _parse_foreach_let(component: str, key: str, value: str) -> ComponentPropInput:
+        declared_value = value[1:] if value.startswith("#") else ""
+        if not declared_value or not declared_value.isidentifier():
+            raise ValueError(
+                f"<{component}> prop '{key}' must declare a loop variable as "
+                f"'#name', where name is a valid identifier. Got: {value!r}"
+            )
+        return ComponentPropInput(
+            key=key,
+            static_value=declared_value,
+            declares_value=declared_value,
+        )
 
     @classmethod
     def _parse_ast_call(cls, node: ast.Call) -> Union[AgentProbeInput, UtilProbeInput]:
@@ -257,559 +306,6 @@ class BlokParser:
             return f"{cls._extract_path(node.value)}.{node.attr}"
         raise ValueError(f"Cannot extract path from node type: {type(node).__name__}")
 
-    @staticmethod
-    def _extract_declared_value(value: str) -> str | None:
-        if not value.startswith("#"):
-            return None
-
-        declared_value = value[1:]
-        if not declared_value or not declared_value.isidentifier():
-            return None
-
-        return declared_value
-
-
-def validate_blok(
-    component: ComponentNodeInput, dependencies: list[AgentDependencyInput]
-) -> bool:
-    dependency_keys = {dependency.key for dependency in dependencies}
-    dependency_aliases = {
-        dependency.app: dependency.key
-        for dependency in dependencies
-        if dependency.app is not None
-    }
-    dependency_state_demands = {
-        dependency.key: {
-            state_demand.key: state_demand
-            for state_demand in dependency.state_dependencies or ()
-        }
-        for dependency in dependencies
-    }
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]] = {}
-    for dependency in dependencies:
-        for state_demand in dependency.state_dependencies or ():
-            state_demand_index.setdefault(state_demand.key, []).append(
-                (dependency.key, state_demand)
-            )
-
-    local_values: dict[str, PortMatchInput | None] = {}
-    _validate_node(
-        component,
-        dependency_keys,
-        dependency_aliases,
-        dependency_state_demands,
-        state_demand_index,
-        local_values,
-    )
-    return True
-
-
-def _validate_node(
-    node: ComponentNodeInput,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    inherited_locals: dict[str, PortMatchInput | None],
-) -> None:
-    available_locals = dict(inherited_locals)
-
-    for prop in node.props or ():
-        if prop.declares_value:
-            available_locals.setdefault(prop.declares_value, None)
-
-    _register_foreach_locals(
-        node,
-        dependency_aliases,
-        dependency_state_demands,
-        state_demand_index,
-        available_locals,
-    )
-
-    for prop in node.props or ():
-        _validate_prop(
-            prop,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-    for child in node.children or ():
-        _validate_node(
-            child,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-
-def _register_foreach_locals(
-    node: ComponentNodeInput,
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-) -> None:
-    if node.component.lower() != "foreach":
-        return
-
-    let_prop = next(
-        (
-            prop
-            for prop in node.props or ()
-            if prop.key == "let" and prop.declares_value
-        ),
-        None,
-    )
-    items_prop = next(
-        (
-            prop
-            for prop in node.props or ()
-            if prop.key == "items"
-            and prop.dynamic_value is not None
-            and prop.dynamic_value.path is not None
-        ),
-        None,
-    )
-
-    if let_prop is None or items_prop is None or items_prop.dynamic_value is None:
-        return
-
-    resolved_match = _resolve_path_match(
-        items_prop.dynamic_value.path,
-        dependency_aliases,
-        dependency_state_demands,
-        state_demand_index,
-        available_locals,
-        context=f"prop '{items_prop.key}'",
-    )
-    available_locals[let_prop.declares_value] = _infer_iterable_item_match(
-        resolved_match,
-        items_prop.dynamic_value.path,
-    )
-
-
-def _validate_prop(
-    prop: ComponentPropInput,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-) -> None:
-    if prop.dynamic_value is not None and prop.dynamic_value.path is not None:
-        _validate_path(
-            prop.dynamic_value.path,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-            context=f"prop '{prop.key}'",
-        )
-
-    if prop.agent_call is not None:
-        _validate_agent_call(
-            prop.agent_call,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-    if prop.util_call is not None:
-        _validate_util_call(
-            prop.util_call,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-
-def _validate_agent_call(
-    agent_call: AgentProbeInput,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-) -> None:
-    canonical_dependency = dependency_aliases.get(
-        agent_call.dependency, agent_call.dependency
-    )
-    if canonical_dependency not in dependency_keys:
-        raise ValueError(
-            f"Unknown dependency '{agent_call.dependency}' in agent call. "
-            f"Available dependencies: {sorted(dependency_keys | set(dependency_aliases))}"
-        )
-
-    for argument in agent_call.arguments or ():
-        _validate_argument(
-            argument,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-
-def _validate_util_call(
-    util_call: UtilProbeInput,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-) -> None:
-    for argument in util_call.arguments or ():
-        _validate_argument(
-            argument,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-
-def _validate_argument(
-    argument: ActionArgumentInput,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-) -> None:
-    if argument.value_path is not None:
-        _validate_path(
-            argument.value_path,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-            context=f"argument '{argument.key or 'positional'}'",
-        )
-
-    if argument.agent_call is not None:
-        _validate_agent_call(
-            argument.agent_call,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-    if argument.util_call is not None:
-        _validate_util_call(
-            argument.util_call,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-    for nested_argument in argument.value_list or ():
-        _validate_argument(
-            nested_argument,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-    for nested_argument in argument.value_dict or ():
-        _validate_argument(
-            nested_argument,
-            dependency_keys,
-            dependency_aliases,
-            dependency_state_demands,
-            state_demand_index,
-            available_locals,
-        )
-
-
-def _validate_path(
-    path: str,
-    dependency_keys: set[str],
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-    context: str,
-) -> None:
-    _resolve_path_match(
-        path,
-        dependency_aliases,
-        dependency_state_demands,
-        state_demand_index,
-        available_locals,
-        context,
-        dependency_keys=dependency_keys,
-    )
-
-
-def _resolve_path_match(
-    path: str,
-    dependency_aliases: dict[str, str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    state_demand_index: dict[str, list[tuple[str, StateDependencyInput]]],
-    available_locals: dict[str, PortMatchInput | None],
-    context: str,
-    dependency_keys: set[str] | None = None,
-) -> PortMatchInput | None:
-    path_parts = path.split(".")
-    root = path_parts[0]
-    dependency_keys = dependency_keys or set(dependency_state_demands)
-
-    if root in available_locals:
-        return _resolve_port_match_path(
-            available_locals[root],
-            path_parts[1:],
-            path,
-            context,
-        )
-
-    canonical_root = dependency_aliases.get(root, root)
-
-    if canonical_root in dependency_state_demands:
-        return _resolve_dependency_state_path(
-            canonical_root,
-            path_parts[1:],
-            dependency_state_demands,
-            path,
-            context,
-        )
-
-    if root == "state":
-        canonical_state_dependency = dependency_aliases.get(
-            path_parts[1], path_parts[1]
-        )
-        if (
-            len(path_parts) > 2
-            and canonical_state_dependency in dependency_state_demands
-        ):
-            return _resolve_dependency_state_path(
-                canonical_state_dependency,
-                path_parts[2:],
-                dependency_state_demands,
-                path,
-                context,
-            )
-
-        if len(path_parts) > 1:
-            state_key = path_parts[1]
-            matching_state_demands = state_demand_index.get(state_key, [])
-            if len(matching_state_demands) == 1:
-                _, state_demand = matching_state_demands[0]
-                return _resolve_port_match_path(
-                    _state_demand_root_match(state_demand),
-                    path_parts[2:],
-                    path,
-                    context,
-                )
-            if len(matching_state_demands) > 1:
-                raise ValueError(
-                    f"Ambiguous state reference '{path}' in {context}. "
-                    f"State '{state_key}' exists on multiple dependencies. "
-                    f"Use 'state.<dependency>.{state_key}...' or '<dependency>.{state_key}...'."
-                )
-
-    if root == "actions" and len(path_parts) > 1:
-        canonical_action_dependency = dependency_aliases.get(
-            path_parts[1], path_parts[1]
-        )
-        if canonical_action_dependency in dependency_keys:
-            return None
-
-    if canonical_root in dependency_keys:
-        return None
-
-    if root == "utils":
-        return None
-
-    state_keys = sorted(state_demand_index)
-    raise ValueError(
-        f"Unknown non-static reference '{path}' in {context}. "
-        f"Available locals: {sorted(available_locals)}. "
-        f"Available dependencies: {sorted(dependency_keys)}. "
-        f"Available state values: {state_keys}"
-    )
-
-
-def _resolve_dependency_state_path(
-    dependency_key: str,
-    path_parts: list[str],
-    dependency_state_demands: dict[str, dict[str, StateDependencyInput]],
-    path: str,
-    context: str,
-) -> PortMatchInput | None:
-    if not path_parts:
-        return None
-
-    state_key = path_parts[0]
-    state_demand = dependency_state_demands.get(dependency_key, {}).get(state_key)
-    if state_demand is None:
-        available_state_keys = sorted(dependency_state_demands.get(dependency_key, {}))
-        raise ValueError(
-            f"Unknown nested reference '{path}' in {context}: state '{state_key}' "
-            f"does not exist on dependency '{dependency_key}'. "
-            f"Available states: {available_state_keys}"
-        )
-
-    return _resolve_port_match_path(
-        _state_demand_root_match(state_demand),
-        path_parts[1:],
-        path,
-        context,
-    )
-
-
-def _state_demand_root_match(state_demand: StateDependencyInput) -> PortMatchInput:
-    return PortMatchInput(
-        key=state_demand.key,
-        children=state_demand.demand.matches if state_demand.demand else None,
-    )
-
-
-def _resolve_port_match_path(
-    port_match: PortMatchInput | None,
-    path_parts: list[str],
-    path: str,
-    context: str,
-) -> PortMatchInput | None:
-    current_match = port_match
-    remaining_parts = list(path_parts)
-
-    if current_match is None:
-        if remaining_parts:
-            raise ValueError(
-                f"Unknown nested reference '{path}' in {context}: no schema is available "
-                f"to validate '{remaining_parts[0]}'"
-            )
-        return None
-
-    while remaining_parts:
-        next_part = remaining_parts.pop(0)
-        children = current_match.children or ()
-
-        if not children:
-            raise ValueError(
-                f"Unknown nested reference '{path}' in {context}: '{next_part}' does not exist"
-            )
-
-        child_match = next(
-            (child for child in children if child.key == next_part), None
-        )
-        if child_match is None and len(children) == 1 and children[0].key == "...":
-            child_match = children[0]
-
-        if child_match is None:
-            available_keys = sorted(
-                child.key
-                for child in children
-                if child.key is not None and child.key != "..."
-            )
-            raise ValueError(
-                f"Unknown nested reference '{path}' in {context}: '{next_part}' does not exist. "
-                f"Available keys: {available_keys}"
-            )
-
-        current_match = child_match
-
-    return current_match
-
-
-def _infer_iterable_item_match(
-    port_match: PortMatchInput | None,
-    path: str,
-) -> PortMatchInput | None:
-    if port_match is None:
-        return None
-
-    children = port_match.children or ()
-    if len(children) == 1 and children[0].key == "...":
-        return children[0]
-
-    raise ValueError(
-        f"ForEach items reference '{path}' must resolve to a list-like value"
-    )
-
-
-def resolve_state_reference(
-    dependency: Optional[str],
-    state_path: str,
-    *,
-    dependencies: Iterable[AgentDependencyInput],
-    own_states: Iterable[StateImplementationInput],
-    context: str,
-) -> None:
-    """Validate a ``withStateChoices`` state reference is resolvable.
-
-    A ``dependency`` of ``None`` denotes a ``self`` reference which is resolved
-    against the agent's own ``own_states``. A named ``dependency`` is resolved
-    through that dependency's declared ``state_demands``.
-
-    Raises:
-        ValueError: If the reference cannot be resolved.
-    """
-    path_parts = [part for part in state_path.split(".") if part]
-    if not path_parts:
-        return
-
-    if dependency is None:
-        own_by_interface = {state.interface: state for state in own_states}
-        state_key = path_parts[0]
-        state = own_by_interface.get(state_key)
-        if state is None:
-            raise ValueError(
-                f"Unknown self state reference '{state_path}' in {context}: "
-                f"no own state '{state_key}'. "
-                f"Available states: {sorted(own_by_interface)}"
-            )
-        root_match = PortMatchInput(
-            key=state_key,
-            children=build_port_matches(state.definition.ports),
-        )
-        _resolve_port_match_path(root_match, path_parts[1:], state_path, context)
-        return
-
-    dependency_state_demands = {
-        dep.key: {
-            state_demand.key: state_demand
-            for state_demand in dep.state_dependencies or ()
-        }
-        for dep in dependencies
-    }
-    if dependency not in dependency_state_demands:
-        raise ValueError(
-            f"State choice widget in {context} references unknown dependency "
-            f"'{dependency}'. Available dependencies: {sorted(dependency_state_demands)}"
-        )
-
-    _resolve_dependency_state_path(
-        dependency,
-        path_parts,
-        dependency_state_demands,
-        state_path,
-        context,
-    )
-
-
-# ============================================================================
-# 3. Example Execution
-# ============================================================================
 
 
 def jsx(string: str) -> ComponentNodeInput:
@@ -818,6 +314,10 @@ def jsx(string: str) -> ComponentNodeInput:
     The helper delegates to :class:`BlokParser` and raises a formatted
     :class:`ValueError` when XML parsing fails. Error messages include line and
     column information plus nearby source context.
+
+    Node ids are structural (``Card/CardContent[0]/Button[1]``) unless the
+    element carries an explicit ``id``, so parsing the same source twice yields
+    an identical tree.
 
     Args:
         string: JSX-like XML source describing a blok component tree.
@@ -831,6 +331,6 @@ def jsx(string: str) -> ComponentNodeInput:
     Examples:
         Parse a minimal blok layout::
 
-            component = jsx("<Page><Label text=\"Ready\" /></Page>")
+            component = jsx('<Page><Label text="Ready" /></Page>')
     """
     return BlokParser.parse(string)

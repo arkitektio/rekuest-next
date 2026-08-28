@@ -31,7 +31,7 @@ def _validate_port_state_choices(
         and widget.dependency is not None
         and widget.state_path is not None
     ):
-        from rekuest_next.blok.parser import resolve_state_reference
+        from rekuest_next.blok.validate import resolve_state_reference
 
         resolve_state_reference(
             widget.dependency,

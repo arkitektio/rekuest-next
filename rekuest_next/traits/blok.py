@@ -35,6 +35,20 @@ def _validate_demo_state_against_dependencies(
             )
 
 
+def _validate_blok_model(model: Any) -> None:
+    """Validate a blok-like model's components and demo state against its dependencies."""
+    from rekuest_next.blok.validate import validate_blok
+
+    for component in model.components or ():
+        validate_blok(component, list(model.dependencies or ()))
+
+    demo_state = cast(
+        dict[str, Any] | None,
+        model.demo_state if isinstance(model.demo_state, dict) else None,
+    )
+    _validate_demo_state_against_dependencies(model.dependencies, demo_state)
+
+
 class CreateBlokInputTrait(BaseModel):
     """
     Class for validating widget input
@@ -43,19 +57,9 @@ class CreateBlokInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(self: "CreateBlokInput") -> "CreateBlokInput":
+    def validate_components_and_demo_state(self: "CreateBlokInput") -> "CreateBlokInput":
         """Validate blok components against the provided dependencies."""
-        from rekuest_next.blok.parser import validate_blok
-
-        for component in self.components or ():
-            validate_blok(component, list(self.dependencies or ()))
-
-        demo_state = cast(
-            dict[str, Any] | None,
-            self.demo_state if isinstance(self.demo_state, dict) else None,
-        )
-        _validate_demo_state_against_dependencies(self.dependencies, demo_state)
-
+        _validate_blok_model(self)
         return self
 
 
@@ -67,19 +71,9 @@ class BlokImplementationInputTrait(BaseModel):
     """
 
     @model_validator(mode="after")  # type: ignore[override]
-    def validate_widgetkind_nested(
+    def validate_components_and_demo_state(
         self: "BlokImplementationInput",
     ) -> "BlokImplementationInput":
         """Validate blok components against the provided dependencies."""
-        from rekuest_next.blok.parser import validate_blok
-
-        for component in self.components or ():
-            validate_blok(component, list(self.dependencies or ()))
-
-        demo_state = cast(
-            dict[str, Any] | None,
-            self.demo_state if isinstance(self.demo_state, dict) else None,
-        )
-        _validate_demo_state_against_dependencies(self.dependencies, demo_state)
-
+        _validate_blok_model(self)
         return self

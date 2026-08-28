@@ -5,13 +5,14 @@ registration data — implementations, states and bloks — together with the ho
 and structure registries.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Sequence, Type, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from rekuest_next.actors.types import ActorBuilder
 from rekuest_next.agents.hooks.registry import HooksRegistry
 from rekuest_next.api.schema import (
+    AgentDependencyInput,
     BlokImplementationInput,
     ComponentNodeInput,
     ImplementAgentInput,
@@ -25,6 +26,15 @@ from rekuest_next.structures.registry import StructureRegistry
 
 
 T = TypeVar("T")
+
+
+class BlokDeclaration(BaseModel):
+    """Everything :meth:`AppRegistry.register_blok` records for one blok."""
+
+    component: ComponentNodeInput
+    description: Optional[str] = None
+    demo_state: Optional[Dict[str, Any]] = None
+    dependencies: Optional[List[AgentDependencyInput]] = None
 
 
 class AppRegistry(BaseModel):
@@ -69,11 +79,7 @@ class AppRegistry(BaseModel):
     )
 
     # --- bloks (formerly BlokRegistry) ---
-    registered_bloks: Dict[str, ComponentNodeInput] = Field(default_factory=dict)
-    registered_blok_descriptions: Dict[str, str | None] = Field(default_factory=dict)
-    registered_blok_demo_states: Dict[str, Dict[str, Any] | None] = Field(
-        default_factory=dict
-    )
+    registered_bloks: Dict[str, "BlokDeclaration"] = Field(default_factory=dict)
 
     # --- other registries kept as composed fields ---
     hooks_registry: HooksRegistry = Field(default_factory=HooksRegistry)
@@ -152,8 +158,15 @@ class AppRegistry(BaseModel):
         component: Optional[str | ComponentNodeInput] = None,
         description: Optional[str] = None,
         demo_state: Optional[Dict[str, Any]] = None,
+        dependencies: Optional[Sequence[AgentDependencyInput]] = None,
     ) -> None:
-        """Register a blok component tree in the registry."""
+        """Register a blok component tree in the registry.
+
+        Dependencies referenced by the tree are inferred from this agent's own
+        actions and states. Pass ``dependencies`` for anything another app
+        provides -- typically ``SomeProtocol.to_dependency("key")`` -- since a
+        remote action cannot be resolved against the local registry.
+        """
         from rekuest_next.blok.parser import jsx as parse_jsx
 
         if not name:
@@ -163,9 +176,12 @@ class AppRegistry(BaseModel):
         if isinstance(component, str):
             component = parse_jsx(component)
 
-        self.registered_bloks[name] = component
-        self.registered_blok_descriptions[name] = description
-        self.registered_blok_demo_states[name] = demo_state
+        self.registered_bloks[name] = BlokDeclaration(
+            component=component,
+            description=description,
+            demo_state=demo_state,
+            dependencies=list(dependencies) if dependencies is not None else None,
+        )
 
     def get_declared_bloks(self) -> Dict[str, BlokImplementationInput]:
         """Generate blok inputs from their declarations against this registry."""
