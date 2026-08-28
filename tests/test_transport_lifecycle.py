@@ -18,9 +18,17 @@ from websockets.frames import Close
 
 from rekuest_next import messages
 from rekuest_next.agents.policy import Backoff, ConnectionPolicy
-from rekuest_next.agents.transport.errors import AgentWasKicked, DefiniteConnectionFail
+from rekuest_next.agents.transport.errors import (
+    AgentIsAlreadyBusy,
+    AgentWasKicked,
+    DefiniteConnectionFail,
+)
 from rekuest_next.agents.transport.types import HandshakeParams
-from rekuest_next.agents.transport.websocket import KICK_CODE, WebsocketAgentTransport
+from rekuest_next.agents.transport.websocket import (
+    BUSY_CODE,
+    KICK_CODE,
+    WebsocketAgentTransport,
+)
 
 
 DROP = object()
@@ -266,6 +274,76 @@ async def test_a_kick_close_code_surfaces_to_the_consumer(socket: FakeSocket) ->
 
         with pytest.raises(AgentWasKicked):
             await asyncio.wait_for(consumer, timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_a_busy_close_code_is_a_rejection_not_a_reconnect(
+    socket: FakeSocket,
+) -> None:
+    """The backend closes with 4004 when another connection owns the agent.
+
+    That is a decision, not a blip: reconnecting just gets the same answer, so the
+    transport must surface it instead of retrying forever behind the caller's back.
+    """
+    transport = WebsocketAgentTransport(
+        endpoint_url="ws://localhost:8000/agi",
+        token_loader=_token,
+    )
+    transport.set_transport_host(_Host(ConnectionPolicy(backoff=_NO_DELAY)))
+
+    async with transport as transport:
+        await transport.aconnect()
+
+        async def consume() -> None:
+            async for _ in transport.areceive():
+                pass
+
+        consumer = asyncio.create_task(consume())
+        await asyncio.sleep(0.05)
+        socket.drop(code=BUSY_CODE)
+
+        with pytest.raises(AgentIsAlreadyBusy):
+            await asyncio.wait_for(consumer, timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_a_second_aconnect_in_one_session_does_not_see_the_old_close(
+    socket: FakeSocket,
+) -> None:
+    """After a failed attempt, a new ``aconnect`` starts with a clean inbound stream.
+
+    The first connection task ends by pushing its ``CLOSED`` sentinel. A receiver
+    created for the retry must not consume that sentinel and end before the new
+    socket has opened.
+    """
+    transport = WebsocketAgentTransport(
+        endpoint_url="ws://localhost:8000/agi",
+        token_loader=_token,
+    )
+    transport.set_transport_host(_Host(ConnectionPolicy(backoff=_NO_DELAY)))
+
+    async with transport as transport:
+        await transport.aconnect()
+        await asyncio.sleep(0.05)
+        socket.drop(code=BUSY_CODE)
+        # The task hands the rejection to ``areceive`` (as the busy-code test
+        # checks) and ends; nobody consumed it, so it is still in the queue.
+        assert transport._connection_task is not None
+        await asyncio.wait_for(transport._connection_task, timeout=1)
+
+        # The fake stands in for every socket ``websockets.connect`` hands out, so
+        # bring it back to life for the second attempt.
+        socket._dropped = None
+        await transport.aconnect()
+        socket.feed(messages.Init(agent="1", inquiries=[]))
+
+        async def first() -> messages.ToAgentMessage:
+            async for message in transport.areceive():
+                return message
+            raise AssertionError("stream ended before the new session's Init")
+
+        received = await asyncio.wait_for(first(), timeout=1)
+        assert isinstance(received, messages.Init)
 
 
 @pytest.mark.asyncio

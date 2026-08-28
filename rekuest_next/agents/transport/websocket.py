@@ -57,22 +57,37 @@ async def token_loader() -> str:
     )
 
 
-KICK_CODE = 3001
-BUSY_CODE = 3002
+# Close codes the backend uses (``facade/codes.py`` on the server). The 3xxx codes
+# are protocol faults the backend attributes to *this* client; the 4xxx codes are
+# policy decisions about the agent.
+HEARTBEAT_NOT_RESPONDED_CODE = 3001
+INVALID_JSON_CODE = 3002
+SCHEMA_MISMATCH_CODE = 3003
+BEFORE_REGISTRATION_CODE = 3004
 BLOCKED_CODE = 4003
-BOUNCED_CODE = 3004
+BUSY_CODE = 4004
+"""Rejected: another connection is live for this agent and ``force`` was not set."""
+KICK_CODE = 4005
+"""Displaced: a newer connection registered for this agent with ``force``."""
+BOUNCED_CODE = BEFORE_REGISTRATION_CODE
 
 
 agent_error_codes: Dict[int, Type[Exception]] = {
     KICK_CODE: AgentWasKicked,
     BUSY_CODE: AgentIsAlreadyBusy,
     BLOCKED_CODE: AgentWasBlocked,
+    # We sent something the backend could not parse. Reconnecting would only
+    # resend it, so this is a definite failure, not a retry.
+    INVALID_JSON_CODE: DefiniteConnectionFail,
+    SCHEMA_MISMATCH_CODE: DefiniteConnectionFail,
 }
 
 agent_error_message: Dict[int, str] = {
     KICK_CODE: "Agent was kicked by the server",
     BUSY_CODE: "Agent can't connect as another instance is already connected. Please kick the other instance first",
     BLOCKED_CODE: "Agent is currently blocked by the server. Unblock first!",
+    INVALID_JSON_CODE: "The backend rejected a message from this agent as invalid JSON",
+    SCHEMA_MISMATCH_CODE: "The backend rejected a message from this agent as not matching its schema",
 }
 
 
@@ -222,6 +237,12 @@ class WebsocketAgentTransport(AgentTransport):
 
         self._closing = False
         if self._connection_task is None or self._connection_task.done():
+            # A previous connection task in this session ended by pushing its
+            # ``CLOSED`` sentinel (or terminal failure). Nothing from that session
+            # may be seen by the receiver of this one, or ``areceive`` ends before
+            # the new socket has even opened.
+            while not self._in_queue.empty():
+                self._in_queue.get_nowait()
             self._connection_task = asyncio.create_task(self._aconnection_loop())
 
     async def areceive(self) -> AsyncIterator[messages.ToAgentMessage]:

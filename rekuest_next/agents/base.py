@@ -1244,6 +1244,11 @@ class BaseAgent(KoiledModel):
             await self.process(message)
             if self._connected_event.is_set():
                 return
+        # The stream ended (transport closed) without the backend ever sending
+        # ``Init``. Returning here would report a connection that does not exist.
+        raise AgentException(
+            "The transport closed before the server acknowledged the agent"
+        )
 
     async def _await_acknowledged(self) -> None:
         """Wait until the server has acknowledged the agent.

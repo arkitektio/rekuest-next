@@ -1,7 +1,9 @@
 """Some configuration for pytest"""
 
+import asyncio
+import logging
 from dataclasses import dataclass
-from typing import AsyncGenerator, Awaitable, Callable, Generator
+from typing import Any, AsyncGenerator, Awaitable, Callable, Generator
 from uuid import uuid4
 import pytest
 from rekuest_next.app import AppRegistry
@@ -287,6 +289,63 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
             yield deployed
 
 
+logger = logging.getLogger(__name__)
+
+REGISTRATION_DRAIN_TIMEOUT = 45.0
+"""How long a fresh client keeps retrying while the previous test's registration drains.
+
+The server considers an incumbent live while ``connected`` is set and its heartbeat is
+fresh (``AGENT_STALE_AFTER`` = 3 x 10s). Normally the incumbent's disconnect flips
+``connected`` off within milliseconds of the socket closing; when that handler is
+delayed, the stale sweep displaces it after 30s at the latest. 45s covers both.
+"""
+
+
+class _FreshRekuestNext(RekuestNext):
+    """``RekuestNext`` whose ``aconnect`` tolerates the previous test's registration.
+
+    The integration server keys the agent registration on the *token* and only
+    releases it asynchronously after the socket closes. Every test builds a fresh
+    client for the same handful of tokens, so a test may connect while the
+    previous test's registration is still draining and get
+    ``"Another connection is already registered for this agent"``. Retrying the
+    connect (each failed attempt tears the agent down cleanly) within the same
+    ``timeout`` budget turns that race into a short wait instead of a flake.
+    """
+
+    async def aconnect(
+        self,
+        context: Any | None = None,
+        *,
+        force: bool | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        import time as _time
+
+        from rekuest_next.agents.errors import AgentException
+
+        started = _time.monotonic()
+        deadline = started + REGISTRATION_DRAIN_TIMEOUT
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                await super().aconnect(context, force=force, timeout=timeout)
+                if attempt > 1:
+                    logger.info(
+                        "Agent %s registered after %d attempts (%.1fs): the previous "
+                        "test's registration took that long to drain",
+                        self.agent.name,
+                        attempt,
+                        _time.monotonic() - started,
+                    )
+                return
+            except AgentException as e:
+                if "already registered" not in str(e) or _time.monotonic() > deadline:
+                    raise
+                await asyncio.sleep(0.5)
+
+
 def build_fresh_rekuest(setup: Deployment, token: str = "test") -> RekuestNext:
     """Build a brand-new ``RekuestNext`` against an already-running deployment.
 
@@ -335,7 +394,7 @@ def build_fresh_rekuest(setup: Deployment, token: str = "test") -> RekuestNext:
         app_registry=AppRegistry(),
     )
 
-    return RekuestNext(
+    return _FreshRekuestNext(
         rath=rath,
         agent=agent,
         postman=GraphQLPostman(rath=rath),

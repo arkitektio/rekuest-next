@@ -17,6 +17,8 @@ from rekuest_next.agents.base import BaseAgent
 from rekuest_next.app import AppRegistry
 from rekuest_next.agents.hooks.registry import StartupHookReturns
 
+from rekuest_next.agents.errors import AgentException
+
 from .memory_transport import MemoryAgentTransport
 
 
@@ -512,3 +514,20 @@ async def test_a_liveness_inquiry_does_not_contradict_a_replayed_report(
         "the inquiry must defer to the replayed report, but the agent also said "
         f"{[m for m in _liveness_answers()[before:]]}"
     )
+
+
+@pytest.mark.asyncio
+async def test_draining_for_init_fails_when_the_stream_ends_first(
+    agent: BaseAgent, transport: MemoryAgentTransport
+) -> None:
+    """A transport that closes before ``Init`` is not an acknowledged connection.
+
+    ``aconnect`` must raise, not return, or the caller runs on an agent that is
+    not registered anywhere (and its assignments wait forever).
+    """
+    agent._receiver = transport.areceive().__aiter__()
+    transport.close_stream()
+
+    with pytest.raises(AgentException):
+        await asyncio.wait_for(agent._adrain_until_connected(), timeout=1)
+    assert not agent._connected_event.is_set()
