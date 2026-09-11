@@ -111,7 +111,11 @@ def test_nested_model_with_annotations(simple_registry: StructureRegistry) -> No
     intport = model_port.children[0]
     assert intport.kind == PortKind.INT
     assert intport.validators is not None, "Validators should not be None"
-    assert intport.validators[0].function == "(x) => x > 3"
+    call = intport.validators[0].call
+    assert call.operation == "gt"
+    assert call.arguments is not None
+    assert call.arguments[0].value_path == "value"
+    assert call.arguments[1].value_literal == 3
 
 
 @pytest.mark.define

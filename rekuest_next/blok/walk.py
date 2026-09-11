@@ -15,7 +15,7 @@ from rekuest_next.api.schema import (
     AgentProbeInput,
     ComponentNodeInput,
     ComponentPropInput,
-    UtilProbeInput,
+    UtilCallInput,
 )
 
 FOREACH_COMPONENT = "foreach"
@@ -42,7 +42,7 @@ class BlokVisitor(Protocol):
         ...
 
     def visit_util_call(
-        self, call: UtilProbeInput, scope: dict[str, Any], context: str
+        self, call: UtilCallInput, scope: dict[str, Any], context: str
     ) -> None:  # pragma: no cover - protocol
         ...
 
@@ -185,7 +185,7 @@ def _walk_agent_call(
 
 
 def _walk_util_call(
-    call: UtilProbeInput, visitor: BlokVisitor, scope: dict[str, Any], context: str
+    call: UtilCallInput, visitor: BlokVisitor, scope: dict[str, Any], context: str
 ) -> None:
     visitor.visit_util_call(call, scope, context)
     for argument in call.arguments or ():

@@ -335,24 +335,26 @@ class StructureRegistry(BaseModel):
             widget=widget,
             key=key,
             label=label,
-            default=None,
             nullable=nullable,
             effects=tuple(effects or []),
             description=description or fullfilled_type.description,
-            validators=tuple(validators or []),
         )
+        # Return ports carry neither a default nor validators on the server.
         if is_arg:
             fields["requires"] = tuple(requires) if requires else None
+            fields["default"] = None
+            fields["validators"] = tuple(validators or [])
         else:
             fields["provides"] = tuple(provides) if provides else None
 
         if isinstance(fullfilled_type, FullFilledEnum):
             fields["choices"] = tuple(fullfilled_type.choices)
-            fields["default"] = (
-                fullfilled_type.convert_default(default)
-                if default is not None
-                else None
-            )
+            if is_arg:
+                fields["default"] = (
+                    fullfilled_type.convert_default(default)
+                    if default is not None
+                    else None
+                )
         elif isinstance(fullfilled_type, FullFilledStructure) and is_arg:
             fields["widget"] = assign_widget or fullfilled_type.default_widget
 

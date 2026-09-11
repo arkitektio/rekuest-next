@@ -1,0 +1,22 @@
+query UiCatalogs {
+  uiCatalogs {
+    ...UICatalog
+  }
+}
+
+query UiCatalog($id: ID!) {
+  uiCatalog(id: $id) {
+    ...UICatalog
+  }
+}
+
+query BaseCatalog {
+  baseCatalog {
+    name
+    version
+    description
+    operations {
+      ...CatalogOperation
+    }
+  }
+}

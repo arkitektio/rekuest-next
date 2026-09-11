@@ -371,6 +371,8 @@ class RegisterConfig:
     stateful: bool = False
     version: str | None = None
     key: str | None = None
+    catalogs: list[str] | None = None
+    """Names of the UI catalogs that extend the base catalog (``base@1``, always applied) for the definition's effect and validator calls."""
     # implementation / actor-shaping
     optimistics: list[OptimisticCoercible] | None = None
     locks: list[str] | None = None

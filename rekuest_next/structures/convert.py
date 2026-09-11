@@ -16,12 +16,10 @@ from typing import (
 from collections.abc import Callable
 
 from rekuest_next.api.schema import (
-    AssignWidgetInput,
-    AssignWidgetKind,
+    ChoiceAssignWidgetInput,
+    ChoiceReturnWidgetInput,
     ChoiceInput,
     Identifier,
-    ReturnWidgetInput,
-    ReturnWidgetKind,
 )
 from rekuest_next.structures.errors import StructureDefinitionError
 from rekuest_next.structures.types import (
@@ -102,12 +100,8 @@ def fullfilled_enum_from_cls(cls: type[Enum]) -> FullFilledEnum:
         predicate=build_instance_predicate(cls),
         description=cls.__doc__,
         convert_default=make_enum_converter(cls),
-        default_widget=AssignWidgetInput(
-            kind=AssignWidgetKind.CHOICE, choices=tuple(choices)
-        ),
-        default_returnwidget=ReturnWidgetInput(
-            kind=ReturnWidgetKind.CHOICE, choices=tuple(choices)
-        ),
+        default_widget=ChoiceAssignWidgetInput(),
+        default_returnwidget=ChoiceReturnWidgetInput(),
     )
 
 
@@ -163,12 +157,8 @@ def fullfilled_enum_from_literal(cls: Any) -> FullFilledEnum:  # noqa: ANN401
         predicate=build_instance_predicate(enum_cls),
         description=None,
         convert_default=make_enum_converter(enum_cls),
-        default_widget=AssignWidgetInput(
-            kind=AssignWidgetKind.CHOICE, choices=tuple(choices)
-        ),
-        default_returnwidget=ReturnWidgetInput(
-            kind=ReturnWidgetKind.CHOICE, choices=tuple(choices)
-        ),
+        default_widget=ChoiceAssignWidgetInput(),
+        default_returnwidget=ChoiceReturnWidgetInput(),
     )
 
 

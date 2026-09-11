@@ -5,7 +5,7 @@ from collections.abc import Generator
 from .structures import SecondObject, SecondSerializableObject, SerializableObject
 from annotated_types import Le, Predicate, Gt, Len
 from rekuest_next.structures.model import model
-from rekuest_next.api.schema import AssignWidgetInput, AssignWidgetKind
+from rekuest_next.api.schema import CustomAssignWidgetInput
 
 
 from typing import Annotated
@@ -226,7 +226,7 @@ class Karl:
     """Karl"""
 
     int: Annotated[int, Gt(3)]
-    strucutre: Annotated[SecondObject, AssignWidgetInput(kind=AssignWidgetKind.CUSTOM)]
+    strucutre: Annotated[SecondObject, CustomAssignWidgetInput(component="Karl")]
 
 
 async def nested_model_with_annotations(karls: list[Karl]) -> list[Karl]:

@@ -15,7 +15,7 @@ from rekuest_next.api.schema import (
     PortKind,
     ReturnPortInput,
     StateDependencyInput,
-    UtilProbeInput,
+    UtilCallInput,
 )
 from rekuest_next.blok.walk import BlokVisitor, action_key_for, walk_component
 from rekuest_next.definition.dependencies import (
@@ -102,7 +102,7 @@ class _ReferenceCollector(BlokVisitor):
         )
 
     def visit_util_call(
-        self, call: UtilProbeInput, scope: dict[str, Any], context: str
+        self, call: UtilCallInput, scope: dict[str, Any], context: str
     ) -> None:
         return None
 
@@ -275,8 +275,10 @@ _DEMO_SCALARS: dict[PortKind, Any] = {
 
 def _demo_value_for_port(port: ReturnPortInput) -> Any:
     """A placeholder value matching a port's declared shape."""
-    if port.default is not None:
-        return port.default
+    # Only arg ports carry a default.
+    default = getattr(port, "default", None)
+    if default is not None:
+        return default
 
     if port.nullable:
         return None

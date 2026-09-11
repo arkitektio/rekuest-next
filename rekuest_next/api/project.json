@@ -35,8 +35,7 @@
                 "ActionHash": "rekuest_next.scalars.ActionHash",
                 "Arg": "typing.Any",
                 "Identifier": "rekuest_next.scalars.Identifier",
-                "SearchQuery": "rekuest_next.scalars.SearchQuery",
-                "ValidatorFunction": "rekuest_next.scalars.ValidatorFunction"
+                "SearchQuery": "rekuest_next.scalars.SearchQuery"
             },
             "coercible_scalars": {},
             "coercible_inputs": {},
@@ -87,8 +86,14 @@
                 "ReturnPortInput": [
                     "rekuest_next.traits.ports.PortTrait"
                 ],
-                "AssignWidgetInput": [
-                    "rekuest_next.traits.ports.WidgetInputTrait"
+                "SearchAssignWidgetInput": [
+                    "rekuest_next.traits.ports.SearchWidgetInputTrait"
+                ],
+                "SliderAssignWidgetInput": [
+                    "rekuest_next.traits.ports.SliderWidgetInputTrait"
+                ],
+                "StateChoiceAssignWidgetInput": [
+                    "rekuest_next.traits.ports.StateChoiceWidgetInputTrait"
                 ],
                 "CreateBlokInput": [
                     "rekuest_next.traits.blok.CreateBlokInputTrait"
@@ -102,11 +107,11 @@
                 "ImplementAgentInput": [
                     "rekuest_next.traits.agent.ImplementAgentInputTrait"
                 ],
-                "ReturnWidgetInput": [
-                    "rekuest_next.traits.ports.ReturnWidgetInputTrait"
-                ],
                 "ValidatorInput": [
                     "rekuest_next.traits.ports.ValidatorInputTrait"
+                ],
+                "EffectInput": [
+                    "rekuest_next.traits.ports.EffectInputTrait"
                 ],
                 "DefinitionInput": [
                     "rekuest_next.traits.ports.DefinitionInputTrait"

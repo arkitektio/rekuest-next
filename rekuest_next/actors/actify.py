@@ -110,6 +110,7 @@ def prepare_definition_from_config(
         return_widgets=config.return_widgets,
         key=config.key,
         version=config.version,
+        catalogs=config.catalogs,
         **prepare_overrides,
     )
 

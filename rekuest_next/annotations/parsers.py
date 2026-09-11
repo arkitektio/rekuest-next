@@ -15,14 +15,18 @@ from collections.abc import Callable
 
 from rekuest_next.annotations.markers import Default, Description, Units
 from rekuest_next.api.schema import (
+    ActionArgumentInput,
     AssignWidgetInput,
     EffectInput,
     ProvidesInput,
     RequiresInput,
     ReturnWidgetInput,
+    UtilCallInput,
     ValidatorInput,
 )
 from rekuest_next.definition.errors import DefinitionError
+from rekuest_next.widgets import is_assign_widget_input, is_return_widget_input
+from rekuest_next.traits.calls import OWN_VALUE, resolve_base_arguments
 
 
 @dataclass
@@ -64,15 +68,15 @@ def extract_basic_annotations(
                     raise DefinitionError("Multiple Units found")
                 acc.proposed_units = list(annotation.units)
 
-            case AssignWidgetInput():
+            case widget if is_assign_widget_input(widget):
                 if acc.assign_widget:
                     raise DefinitionError("Multiple AssignWidgets found")
-                acc.assign_widget = annotation
+                acc.assign_widget = widget
 
-            case ReturnWidgetInput():
+            case widget if is_return_widget_input(widget):
                 if acc.return_widget:
                     raise DefinitionError("Multiple ReturnWidgets found")
-                acc.return_widget = annotation
+                acc.return_widget = widget
 
             case ValidatorInput():
                 acc.validators.append(annotation)
@@ -114,36 +118,62 @@ parsers.append(extract_basic_annotations)
 try:
     from annotated_types import Gt, Le, Len
 
+    def _own_value_call(operation: str, *literals: Any) -> UtilCallInput:  # noqa: ANN401
+        """Build ``operation(value, *literals)`` as a pure call on the port's own value."""
+        positional = [
+            ActionArgumentInput(key="0", value_path=OWN_VALUE),
+            *(
+                ActionArgumentInput(key=str(index), value_literal=literal)
+                for index, literal in enumerate(literals, start=1)
+            ),
+        ]
+        return UtilCallInput(
+            operation=operation,
+            arguments=tuple(resolve_base_arguments(operation, positional, f"annotated_types {operation}")),
+        )
+
+    def _own_value_source(operation: str, *literals: Any) -> str:  # noqa: ANN401
+        return f"{operation}({', '.join(['value', *(repr(literal) for literal in literals)])})"
+
     def extract_annotated_types(
         annotations: list[Any],
         acc: PortAnnotations,
     ) -> PortAnnotations:
-        """Extracts annotated types from `annotated_types`."""
+        """Extracts annotated types from `annotated_types`.
+
+        Each constraint becomes a validator whose call the UI evaluates against its
+        catalog: ``Gt`` -> ``gt(value, n)``, ``Le`` -> ``lte(value, n)``,
+        ``Len`` -> ``len_between(value, min[, max])``.
+        """
 
         for annotation in annotations:
             match annotation:
                 case Gt(gt):
                     acc.validators.append(
                         ValidatorInput(
-                            function=f"(x) => x > {gt}",  # type: ignore
+                            call=_own_value_call("gt", gt),
+                            source=_own_value_source("gt", gt),
                             label=f"Must be greater than {gt}",
-                            errorMessage=f"Must be greater than {gt}",
+                            error_message=f"Must be greater than {gt}",
                         )
                     )
                 case Le(le):
                     acc.validators.append(
                         ValidatorInput(
-                            function=f"(x) => x <= {le}",  # type: ignore
+                            call=_own_value_call("lte", le),
+                            source=_own_value_source("lte", le),
                             label=f"Must be less than {le}",
-                            errorMessage=f"Must be less than {le}",
+                            error_message=f"Must be less than {le}",
                         )
                     )
                 case Len(min_length=min_len, max_length=max_len):
+                    bounds = (min_len,) if max_len is None else (min_len, max_len)
                     acc.validators.append(
                         ValidatorInput(
-                            function=f"(x) => x.length >= {min_len} && x.length <= {max_len}",  # type: ignore
+                            call=_own_value_call("len_between", *bounds),
+                            source=_own_value_source("len_between", *bounds),
                             label=f"Must have length between {min_len} and {max_len}",
-                            errorMessage=f"Must have length between {min_len} and {max_len}",
+                            error_message=f"Must have length between {min_len} and {max_len}",
                         )
                     )
                 case _:

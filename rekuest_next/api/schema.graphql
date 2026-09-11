@@ -2,6 +2,8 @@ directive @auth(required_scopes: [String!] = null, required_roles: [String!] = n
 
 directive @oneOf on INPUT_OBJECT
 
+directive @unionElementOf(union: String!, discriminator: String!, key: String!) repeatable on INPUT_OBJECT
+
 schema @link(url: "https://specs.apollo.dev/federation/v2.11", import: ["@key"]) {
   query: Query
   mutation: Mutation
@@ -140,7 +142,7 @@ input ActionArgumentInput {
   """
   Defines a nested utility call if this argument should trigger a system utility interaction.
   """
-  utilCall: UtilProbeInput = null
+  utilCall: UtilCallInput = null
 
   """Defines a list of values if this argument should be an array."""
   valueList: [ActionArgumentInput!] = null
@@ -322,7 +324,7 @@ input ActionFilter {
 }
 
 """
-The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+The `ActionHash` scalar is the sha256 identity hash of an action definition (key, version, ports, ...)
 """
 scalar ActionHash
 
@@ -705,7 +707,7 @@ type AgentWithValues {
 }
 
 """
-The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+The `AnyDefault` scalar is any JSON value used as a port default or a choice value; the server checks it against the port's kind
 """
 scalar AnyDefault
 
@@ -729,23 +731,22 @@ type ArgPort {
   identifier: Identifier
   nullable: Boolean!
   effects: [Effect!]
-  default: AnyDefault
   children: [ArgPort!]
   choices: [Choice!]
   referenceUnit: String
   proposedUnits: [String!]
   dimension: String
   validators: [Validator!]
+  default: AnyDefault
   widget: AssignWidget
   requires: [Requires!]
 }
 
-"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
+"A Port is a single input or output of an action, identified by its `key` and typed by its `kind`.\n\n    STRUCTURE, MEMORY_STRUCTURE and INTERFACE ports carry an `identifier` of the form `@package/key`\n    (e.g. `@mikro/image`); ports with the same identifier are compatible. LIST and DICT ports have one\n    child (the item type), UNION ports two or more (the variants), MODEL ports one per field. ENUM ports\n    declare `choices`. See docs/design/ports.md for the full table.\n    "
 input ArgPortInput {
-  """The validators for the port"""
-  validators: [ValidatorInput!] = null
-
-  """The key of the port"""
+  """
+  The key of the port: unique among its siblings, free of '..', not 'value'. LIST/DICT item ports are conventionally keyed '...'.
+  """
   key: String!
 
   """The label of the port. This is the text that is displayed in the UI"""
@@ -774,10 +775,9 @@ input ArgPortInput {
   """The effects of the port"""
   effects: [EffectInput!] = null
 
-  """The default value for the port."""
-  default: AnyDefault = null
-
-  """The options for the port. This is used for dropdowns and text inputs"""
+  """
+  The values the port accepts (required for ENUM; optional for INT, FLOAT, STRING). Rendered by CHOICE widgets.
+  """
   choices: [ChoiceInput!] = null
 
   """
@@ -798,7 +798,13 @@ input ArgPortInput {
   """The child ports (used for list, dict, union and model ports)."""
   children: [ArgPortInput!] = null
 
-  """The assign widget to use for this port."""
+  """The validators for the port"""
+  validators: [ValidatorInput!] = null
+
+  """The default value for the port; must fit the port's kind."""
+  default: AnyDefault = null
+
+  """The assign widget to use for this port, discriminated by `kind`."""
   widget: AssignWidgetInput = null
 
   """
@@ -878,109 +884,102 @@ interface AssignWidget {
   followValue: String
 }
 
+"""
+An assign widget: the UI element used to assign a value to a port, as a discriminated union over `kind`. Only the fields of the chosen kind may be set; see the `*AssignWidgetInput` members.
+"""
 input AssignWidgetInput {
   """
-  The kind of the assign widget. Can be either dropdown, text, slider, checkbox, radio or custom
+  Which kind of assign widget this is; decides which other fields are read.
   """
   kind: AssignWidgetKind!
 
   """
-  The query to run when searching for choices. This is used for dropdowns and text inputs
-  """
-  query: SearchQuery = null
-
-  """
-  The choices to display in the dropdown. This is used for dropdowns and text inputs
-  """
-  choices: [ChoiceInput!] = null
-
-  """
-  The key of a state whose value provides the choices for this widget (state-driven choices).
-  """
-  stateChoices: String = null
-
-  """
-  The key of another port whose value this widget should follow and mirror.
+  (SLIDER, CHOICE, STRING, SEARCH, CUSTOM, STATE_CHOICE, PROXY) Port path of another port whose value this widget follows and mirrors.
   """
   followValue: String = null
 
-  """
-  The minimum value of the slider (if a slider). This is used for sliders and text inputs
-  """
+  """(SLIDER) The minimum value."""
   min: Float = null
 
-  """
-  The maximum value of the slider (if a slider). This is used for sliders and text inputs
-  """
+  """(SLIDER) The maximum value."""
   max: Float = null
 
-  """
-  The step value of the slider (if a slider). This is used for sliders and text inputs
-  """
+  """(SLIDER) The step between selectable values; must be positive."""
   step: Float = null
 
   """
-  The placeholder of the input. This is used for text inputs and dropdowns
+  (CHOICE, STRING, SEARCH) The placeholder text shown before a choice is made. The choices themselves are the port's `choices`.
   """
   placeholder: String = null
 
-  """
-  Whether to display the input as a paragraph or not. This is used for text inputs and dropdowns
-  """
+  """(STRING) Render as a multi-line paragraph."""
   asParagraph: Boolean = null
 
   """
-  The hook to run when the input is changed. This is used for custom assign widgets
+  (SEARCH) The GraphQL query the ward executes to populate the choices. Must be a single `query` operation declaring `$search: String` and `$values: [ID!]`, plus one variable per filter port key.
   """
-  hook: String = null
+  query: SearchQuery = null
 
-  """The ward that is responsible for handling querying the choices"""
+  """(SEARCH) The ward (service) that executes the query."""
   ward: String = null
 
   """
-  The fallback assign widget to use if the current one fails. This is used for custom assign widgets
-  """
-  fallback: AssignWidgetInput = null
-
-  """
-  The filters to apply to a search widget. This is used for custom assign widgets
+  (SEARCH) Filter ports whose values are passed to the query as variables named by their keys.
   """
   filters: [ArgPortInput!] = null
 
   """
-  The dependencies of the assign widget, which will be passed to the search or the hook widget. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  (SEARCH, CUSTOM, STATE_CHOICE) The other ports (port paths, `..` traverses children) whose values the query may reference.
   """
-  dependencies: [String!] = []
+  dependencies: [String!] = null
 
   """
-  The dependency that we are going to use to fullfill the state choices. If none is provided its the own state that will be queried
+  (CUSTOM) The catalog component to render. The port value is in scope as the reserved root `value`.
+  """
+  component: String = null
+
+  """
+  (CUSTOM) Props of the component. value_paths may only reference `value` and `dependencies`; agent calls are not allowed.
+  """
+  props: [ComponentPropInput!] = null
+
+  """
+  (CUSTOM) Widget to render when the UI has no such component in its catalog.
+  """
+  fallback: AssignWidgetInput = null
+
+  """
+  (STATE_CHOICE) The agent dependency (by key) whose state provides the choices; omitted: the implementing agent's own state.
   """
   dependency: String = null
 
   """
-  The dependency that we are going to target with a proxy widget. This is used for proxy widgets
-  """
-  targetDependency: String = null
-
-  """
-  The action that we are going to target with a proxy widget. This is used for proxy widgets
-  """
-  targetAction: String = null
-
-  """
-  The port that we are going to target with a proxy widget. This is used for proxy widgets
-  """
-  targetPort: String = null
-
-  """
-  The path to the state value that we are going to use to fullfill the state choices. Always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  (STATE_CHOICE) Static JSON pointer into the state value that provides the choices. Mutually exclusive with `state_call`.
   """
   statePath: String = null
 
   """
-  State accessors are used to specify how to access the state values that we are going to use to fullfill the state choices. This is used when the state value that we want to use is not the same as the one of the port, e.g. when we want to use a specific key of a state object, or when we want to use a dynamic key based on the other arguments. The option_key field is used to specify which part of the state accessor we want to use as the value for the assign widget (e.g. the key, the description, the logo, etc.)
+  (STATE_CHOICE) Pure UtilCall returning that pointer dynamically; may reference `state`, `value` and `dependencies`. Mutually exclusive with `state_path`.
+  """
+  stateCall: UtilCallInput = null
+
+  """
+  (STATE_CHOICE) How to read label/description/logo/value out of each state entry; each accessor is a static pointer or a pure call.
   """
   stateAccessors: [StateAccessorInput!] = null
+
+  """(PROXY) The port key on the targeted action."""
+  targetPort: String = null
+
+  """
+  (PROXY) The action to target: an action-dependency key of `target_dependency` when that is set.
+  """
+  targetAction: String = null
+
+  """
+  (PROXY) The agent dependency (by key) that provides the targeted action; omitted: the implementing agent itself.
+  """
+  targetDependency: String = null
 }
 
 """The kind of assign widget."""
@@ -996,6 +995,23 @@ enum AssignWidgetKind {
 
 input AutoResolveInput {
   implementation: ID!
+}
+
+"""
+The built-in base catalog: the pure operations every UI implements, applied to every definition and blok before any registered UI catalog. Virtual: shipped with the server, not registered, identical in every organization.
+"""
+type BaseCatalog {
+  """Always 'base'."""
+  name: String!
+
+  """Manifest version; evolves additively."""
+  version: Int!
+
+  """What the base catalog is for."""
+  description: String
+
+  """The base operations, argument order being positional order."""
+  operations: [CatalogOperation!]!
 }
 
 """The input for bouncing an agent."""
@@ -1020,14 +1036,16 @@ type Blok {
   """Dependencies that need to be resolved for this blok."""
   dependencies(filters: BlokDependencyFilter, pagination: OffsetPaginationInput): [BlokDependency!]!
 
-  """List of action demands specified in this blok."""
+  """The typed component tree of this blok."""
   components: [ComponentNode!]!
 
-  """List of action demands specified in this blok."""
-  uiComponents: Props!
-
-  """List of action demands specified in this blok."""
+  """Demo state used to render a preview of this blok without agents."""
   demoState: Props!
+
+  """
+  Non-fatal registration findings, e.g. manifest util calls naming operations that neither the base catalog nor this blok's catalog provides.
+  """
+  diagnostics: [Diagnostic!]!
 }
 
 type BlokAgentMapping {
@@ -1045,13 +1063,13 @@ input BlokAgentMappingInput {
   key: String!
 }
 
-"""Represents a dependency between implementations and actions."""
+"""An agent dependency declared by a blok."""
 type BlokDependency {
   """Unique ID of the dependency."""
   id: ID!
 
-  """The implementation this dependency belongs to."""
-  implementation: Implementation!
+  """The blok that declares this dependency."""
+  blok: Blok!
 
   """Optional string identifier or tag for reference."""
   key: String!
@@ -1167,6 +1185,118 @@ input CancelProbeInput {
   probe: ID!
 }
 
+"""An argument a catalog operation accepts."""
+type CatalogArgument {
+  key: String!
+  kind: CatalogValueKind!
+  required: Boolean!
+  description: String
+}
+
+"""An argument a catalog operation accepts."""
+input CatalogArgumentInput {
+  """The argument key a UtilCall argument must use."""
+  key: String!
+
+  """The value kind of the argument."""
+  kind: CatalogValueKind!
+
+  """Whether every call must pass this argument."""
+  required: Boolean! = true
+
+  """Human-readable description of the argument."""
+  description: String = null
+}
+
+"""A component a UI catalog can render."""
+type CatalogComponent {
+  name: String!
+  description: String
+  props: [CatalogProp!]!
+  acceptsChildren: Boolean!
+}
+
+"""A component a UI catalog can render."""
+input CatalogComponentInput {
+  """
+  The component name a ComponentNode.component (or a custom widget's component) must match.
+  """
+  name: String!
+
+  """Human-readable description of the component."""
+  description: String = null
+
+  """The props this component accepts."""
+  props: [CatalogPropInput!]! = []
+
+  """Whether ComponentNode.children may be nested under this component."""
+  acceptsChildren: Boolean! = true
+}
+
+"""A pure operation a UI catalog can evaluate for UtilCalls."""
+type CatalogOperation {
+  name: String!
+  description: String
+  arguments: [CatalogArgument!]!
+  returns: CatalogValueKind!
+}
+
+"""A pure operation a UI catalog can evaluate for UtilCalls."""
+input CatalogOperationInput {
+  """The operation name a UtilCall.operation must match."""
+  name: String!
+
+  """Human-readable description of the operation."""
+  description: String = null
+
+  """The arguments the operation accepts."""
+  arguments: [CatalogArgumentInput!]! = []
+
+  """
+  The kind of value the operation returns (BOOL for effect and validator calls).
+  """
+  returns: CatalogValueKind!
+}
+
+"""A prop a catalog component accepts."""
+type CatalogProp {
+  key: String!
+  kind: CatalogValueKind!
+  required: Boolean!
+  description: String
+}
+
+"""A prop a catalog component accepts."""
+input CatalogPropInput {
+  """The prop key a ComponentProp.key must match."""
+  key: String!
+
+  """
+  The value kind this prop accepts. CALLBACK props must be bound via agent_call or util_call.
+  """
+  kind: CatalogValueKind!
+
+  """Whether every component instance must set this prop."""
+  required: Boolean! = false
+
+  """Human-readable description of the prop."""
+  description: String = null
+}
+
+"""
+The kind of value a catalog component prop accepts or a catalog operation argument/return carries.
+"""
+enum CatalogValueKind {
+  STRING
+  INT
+  FLOAT
+  BOOL
+  DICT
+  LIST
+  ANY
+  CALLBACK
+}
+
 type ChildTaskEvent {
   create: TaskChange
   update: TaskChange
@@ -1174,21 +1304,36 @@ type ChildTaskEvent {
 
 type Choice {
   label: String!
-  value: String!
+  value: AnyDefault!
   image: String
   description: String
 }
 
+"""A dropdown over the port's own `choices`."""
 type ChoiceAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
-  choices: [Choice!]
+  placeholder: String
+}
+
+"""A dropdown over the port's `choices`."""
+input ChoiceAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "CHOICE") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """
+  The placeholder text shown before a choice is made. The choices themselves are the port's `choices`.
+  """
+  placeholder: String = null
 }
 
 "\nA choice is a value that can be selected in a dropdown.\n\nIt is composed of a value, a label, and a description. The value is the\nvalue that is returned when the choice is selected. The label is the\ntext that is displayed in the dropdown. The description is the text\nthat is displayed when the user hovers over the choice.\n\n    "
 input ChoiceInput {
   """
-  The value of the choice. This is the value that is returned when the choice is selected
+  The value of the choice (any JSON value); must fit the port's kind. This is the value that is returned when the choice is selected
   """
   value: AnyDefault!
 
@@ -1206,9 +1351,17 @@ input ChoiceInput {
   description: String = null
 }
 
+"""Displays the label of the port's own `choices` for a returned value."""
 type ChoiceReturnWidget implements ReturnWidget {
   kind: ReturnWidgetKind!
-  choices: [Choice!]
+}
+
+"""Displays the port's `choices` label for a returned value."""
+input ChoiceReturnWidgetInput @unionElementOf(union: "ReturnWidgetInput", discriminator: "kind", key: "CHOICE") {
+  """
+  Which member of ReturnWidgetInput this is. Displays the port's `choices`.
+  """
+  kind: ReturnWidgetKind!
 }
 
 """Represents a registered OAuth2 client."""
@@ -1335,7 +1488,7 @@ input ComponentPropInput {
   """
   Defines an imperative interactive network action callback loop if this prop should trigger a system utility interaction.
   """
-  utilCall: UtilProbeInput = null
+  utilCall: UtilCallInput = null
 }
 
 """The input for creating a blok."""
@@ -1534,25 +1687,76 @@ input CreateToolboxInput {
   description: String
 }
 
+"""A catalog component rendered as the port's widget."""
 type CustomAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
-  hook: String!
-  ward: String!
+  component: String!
+  props: [ComponentProp!]
+  dependencies: [String!]
+  fallback: AssignWidget
 }
 
+"""A catalog component rendered as the port's widget."""
+input CustomAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "CUSTOM") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """
+  The catalog component to render. The port value is in scope as the reserved root `value`.
+  """
+  component: String!
+
+  """
+  Props of the component. value_paths may only reference `value` and `dependencies`; agent calls are not allowed.
+  """
+  props: [ComponentPropInput!] = null
+
+  """
+  The other ports (port paths, `..` traverses children) whose values the props may reference.
+  """
+  dependencies: [String!] = []
+
+  """Widget to render when the UI has no such component in its catalog."""
+  fallback: AssignWidgetInput = null
+}
+
+"""An effect whose behaviour is entirely defined by its call."""
 type CustomEffect implements Effect {
+  """
+  The full call tree as raw JSON, so deep trees are not truncated by fragment depth.
+  """
+  callJson: JSONSerializable!
   kind: EffectKind!
-  function: ValidatorFunction!
+  call: UtilCall!
   dependencies: [String!]!
-  hook: String!
-  ward: String!
+  source: String
 }
 
+"""A catalog component rendered for a returned value."""
 type CustomReturnWidget implements ReturnWidget {
   kind: ReturnWidgetKind!
-  hook: String!
-  ward: String!
+  component: String!
+  props: [ComponentProp!]
+}
+
+"""A catalog component rendered for a returned value."""
+input CustomReturnWidgetInput @unionElementOf(union: "ReturnWidgetInput", discriminator: "kind", key: "CUSTOM") {
+  """Which member of ReturnWidgetInput this is."""
+  kind: ReturnWidgetKind!
+
+  """
+  The catalog component to render. The returned value is in scope as the reserved root `value`.
+  """
+  component: String!
+
+  """
+  Props of the component; value_paths may only reference `value`, agent calls are not allowed.
+  """
+  props: [ComponentPropInput!] = null
 }
 
 type Dashboard {
@@ -1642,6 +1846,11 @@ input DefinitionInput {
   Whether the action may be invoked as a probe: zero persistence, redis-held state, no history/replay/recovery. Only actions declaring this are callable via the call mutation.
   """
   allowProbe: Boolean! = false
+
+  """
+  Names of the UI catalogs that extend the base catalog (`base@1`, always applied) for this definition's effect and validator calls. Unknown names yield an unknown_catalog warning; conflicting operation definitions across catalogs are a registration error.
+  """
+  catalogs: [String!] = []
 
   """
   The port groups of the definition. This is used to group ports together in the UI
@@ -1827,6 +2036,21 @@ input DescriptorInput {
   value: Arg!
 }
 
+"""
+The operator of a requires/provides descriptor: how a port's constraint compares the object's value at `key` with `value`.
+"""
+enum DescriptorOperator {
+  MATCHES
+  EXISTS
+  LTE
+  GTE
+  EQUALS
+  CONTAINS
+  NOT_EQUALS
+  IN
+  NOT_IN
+}
+
 """Represents a device assigned to users within an organization."""
 type Device {
   """Unique ID of the device."""
@@ -1834,6 +2058,23 @@ type Device {
 
   """The device identifier."""
   deviceId: ID!
+}
+
+"""
+A non-fatal registration finding, e.g. a validator call naming an operation neither the base catalog nor the named catalog provides.
+"""
+type Diagnostic {
+  level: DiagnosticLevel!
+  code: String!
+  message: String!
+  path: String
+}
+
+"""
+Severity of a registration finding. Errors are never stored (they abort registration), so only WARNING exists.
+"""
+enum DiagnosticLevel {
+  WARNING
 }
 
 """
@@ -1849,15 +2090,25 @@ A bound state pointer referencing a variable inside a Blok state instance.
 """
 input DynamicValueInput {
   """
+  A static fallback literal value (serialized string or JSON primitive) used when `path` does not resolve.
+  """
+  literal: String = null
+
+  """
   JSON Pointer to a variable inside the Blok's isolated data model (e.g., '/microscope/exposure').
   """
   path: String = null
 }
 
 interface Effect {
+  """
+  The full call tree as raw JSON, so deep trees are not truncated by fragment depth.
+  """
+  callJson: JSONSerializable!
   kind: EffectKind!
-  function: ValidatorFunction!
+  call: UtilCall!
   dependencies: [String!]!
+  source: String
 }
 
 """
@@ -1868,13 +2119,15 @@ enum EffectClass {
   PHYSICAL
 }
 
-"\n                 An effect is a way to modify a port based on a condition. For example,\n    you could have an effect that sets a port to null if another port is null.\n\n    Or, you could have an effect that hides the port if another port meets a condition.\n    E.g when the user selects a certain option in a dropdown, another port is hidden.\n\n\n    "
+"\n    An effect is a way to modify a port based on a condition. For example,\n    you could have an effect that hides the port if another port meets a condition,\n    e.g. when the user selects a certain option in a dropdown, another port is hidden.\n\n    The condition is a pure blok UtilCall (`call`) evaluated client-side against the\n    catalog; it must return a boolean deciding whether the effect applies. `dependencies`\n    is the authoritative list of other ports the call may reference (plus `value` for the\n    port's own value).\n    "
 input EffectInput {
-  """The function to run to determine if the effect should be applied"""
-  function: ValidatorFunction!
+  """
+  The pure blok UtilCall, evaluated client-side against the catalog, that decides whether the effect applies. It must return a boolean. Argument value_paths may only reference names listed in `dependencies`, plus `value` for the port's own value.
+  """
+  call: UtilCallInput!
 
   """
-  The dependencies of the effect. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  The form-field subscription list of the effect: the keys of the other ports whose values the call may reference. This list is authoritative: a value_path in the call may only reference these names (plus `value` for the port's own value). Use the .. syntax to traverse the tree of ports, e.g. 'foo..bar' for the child 'bar' of port 'foo'.
   """
   dependencies: [String!] = []
 
@@ -1891,11 +2144,10 @@ input EffectInput {
   """
   fade: Boolean = true
 
-  """The hook to run when the effect is applied (if it is a custom effect)"""
-  hook: String = null
-
-  """The ward to run when the effect is applied (if it is a custom effect)"""
-  ward: String = null
+  """
+  The authoring expression the call was compiled from (informational; never parsed or validated by the server).
+  """
+  source: String = null
 }
 
 """The kind of effect."""
@@ -1950,9 +2202,14 @@ input HardwareRecordFilter {
 }
 
 type HideEffect implements Effect {
+  """
+  The full call tree as raw JSON, so deep trees are not truncated by fragment depth.
+  """
+  callJson: JSONSerializable!
   kind: EffectKind!
-  function: ValidatorFunction!
+  call: UtilCall!
   dependencies: [String!]!
+  source: String
   fade: Boolean!
 }
 
@@ -1973,7 +2230,7 @@ enum HookKind {
 }
 
 """
-The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+The `Identifier` scalar is a structure identifier of the form `@package/key` (e.g. `@mikro/image`) that types STRUCTURE, MEMORY_STRUCTURE and INTERFACE ports
 """
 scalar Identifier
 
@@ -2074,6 +2331,11 @@ type Implementation {
 
   """List of action demands"""
   tracks: [Track!]!
+
+  """
+  Non-fatal registration findings, e.g. validator/effect calls naming operations that neither the base catalog nor the definition's catalog provides.
+  """
+  diagnostics: [Diagnostic!]!
 
   """Get the latest completed task created by the current user."""
   myLatestTask: Task
@@ -2322,6 +2584,14 @@ input MaterializeBlokInput {
   The agent mappings for the blok. This is used to map the blok dependencies to agents in the system.
   """
   agentMappings: [BlokAgentMappingInput!] = null
+
+  """Display name of this materialization. Defaults to the blok's name."""
+  name: String = null
+
+  """
+  Description of this materialization. Defaults to the blok's description.
+  """
+  description: String = null
 }
 
 """
@@ -2478,9 +2748,14 @@ input MemoryShelveOrder @oneOf {
 }
 
 type MessageEffect implements Effect {
+  """
+  The full call tree as raw JSON, so deep trees are not truncated by fragment depth.
+  """
+  callJson: JSONSerializable!
   kind: EffectKind!
-  function: ValidatorFunction!
+  call: UtilCall!
   dependencies: [String!]!
+  source: String
   message: String!
 }
 
@@ -2645,6 +2920,11 @@ type Mutation {
   updateMaterializedBlok(input: UpdateMaterializedBlokInput!): MaterializedBlok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  Register the components and operations a UI app can render and evaluate (upsert by name in the caller's organization). Bloks and definitions that name the catalog are validated against it.
+  """
+  registerUiCatalog(input: RegisterUiCatalogInput!): UICatalog! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   Implement an agent with given states and implementations. This is used to set up an agent with its initial configuration and capabilities.
   """
   implementAgent(input: ImplementAgentInput!): Agent! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -2688,12 +2968,17 @@ input OptimisticInput {
   state: String!
 
   """
-  The path to the state.value to optimistically set the value, always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  Static JSON pointer into the state value to set. Mutually exclusive with `path_call`.
   """
-  path: String!
+  path: String = null
 
   """
-  The accessor to get the value to optimistically set. This is used when the value to optimistically set is not the same as the value of the port
+  Pure UtilCall returning the pointer dynamically; may reference `args` (the assignment arguments). Mutually exclusive with `path`.
+  """
+  pathCall: UtilCallInput = null
+
+  """
+  Static JSON pointer into the assignment args for the value to set; omitted: the whole args.
   """
   accessor: String = null
 }
@@ -2876,27 +3161,80 @@ input PortGroupInput {
   The key of the port group. This is used to uniquely identify the port group
   """
   key: String!
-  title: String
-  description: String
+
+  """The title of the port group, displayed in the UI"""
+  title: String = null
+
+  """The description of the port group, displayed in the UI"""
+  description: String = null
+
+  """The effects applied to the port group as a whole"""
   effects: [EffectInput!] = []
-  ports: [String!] = []
+
+  """
+  The keys of the root arg ports in this group; a port belongs to at most one group
+  """
+  ports: [String!]! = []
 }
 
-"""The kind of port."""
+"""
+The kind of a port: its structural type. Decides which of children, identifier and choices the port must, may or must not carry (see docs/design/ports.md).
+"""
 enum PortKind {
+  """An integer. No children; choices optional."""
   INT
+
+  """A string. No children; choices optional."""
   STRING
+
+  """
+  A reference to an object held by a service, typed by `identifier` (@package/key, required). Values are ids. No children.
+  """
   STRUCTURE
+
+  """
+  A list; exactly one child describes the item type (conventionally keyed '...').
+  """
   LIST
+
+  """A boolean. No children."""
   BOOL
+
+  """
+  A string-keyed map. One child keyed '...' describes a homogeneous value type; several named children describe the known keys.
+  """
   DICT
+
+  """A floating point number. No children; choices optional."""
   FLOAT
+
+  """An ISO-8601 date or datetime string. No children."""
   DATE
+
+  """One of several variants; at least two children, each a variant."""
   UNION
+
+  """One of a fixed set of values; `choices` required."""
   ENUM
+
+  """
+  An object with named fields; at least one child per field, `identifier` optional.
+  """
   MODEL
+
+  """
+  A reference to an object that lives in the agent's memory, typed by `identifier` (required). Makes the action LOCAL-scoped. No children.
+  """
   MEMORY_STRUCTURE
+
+  """
+  A reference to any object implementing an interface, typed by `identifier` (required). No children.
+  """
   INTERFACE
+
+  """
+  A physical quantity with a unit; `reference_unit` required, `dimension` derived. No children.
+  """
   QUANTITY
 }
 
@@ -3054,7 +3392,7 @@ type ProbeStats {
   maxInflight: Int!
 }
 
-"""The `Args` scalar type represents a Dictionary of arguments"""
+"""The `Props` scalar type represents a JSON object of UI props or state"""
 scalar Props
 
 """A set of related actions forming a protocol."""
@@ -3085,34 +3423,45 @@ input ProtocolOrder @oneOf {
 
 type Provides {
   key: String!
-  operator: ProvidesOperator!
-  value: Arg!
+  operator: DescriptorOperator!
+  value: Arg
 }
 
 input ProvidesInput {
   """
-  The key of the provision. This is used to uniquely identify the provision
+  The key of the provision: the path into the object the constraint reads
   """
   key: String!
 
   """The operator for the provision"""
-  operator: ProvidesOperator!
+  operator: DescriptorOperator!
 
-  """The value of the provision. This can be any JSON serializable value"""
-  value: Arg!
+  """
+  The value of the provision. This can be any JSON serializable value; IN/NOT_IN take a list, LTE/GTE a number, EXISTS none
+  """
+  value: Arg = null
 }
 
-"""The operator for matching descriptors."""
-enum ProvidesOperator {
-  MATCHES
-  EXISTS
-  LTE
-  GTE
-  EQUALS
-  CONTAINS
-  NOT_EQUALS
-  IN
-  NOT_IN
+"""Delegates the port to a port of another action."""
+input ProxyAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "PROXY") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """The port key on the targeted action."""
+  targetPort: String!
+
+  """
+  The action to target: an action-dependency key of `target_dependency` when that is set.
+  """
+  targetAction: String!
+
+  """
+  The agent dependency (by key) that provides the targeted action; omitted: the implementing agent itself.
+  """
+  targetDependency: String = null
 }
 
 type ProxyWidget implements AssignWidget {
@@ -3171,6 +3520,11 @@ type Query {
 
   """List of UI Blok."""
   materializedBloks(filters: MaterializedBlokFilter, ordering: [MaterializedBlokOrder!]! = [], pagination: OffsetPaginationInput): [MaterializedBlok!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
+  UI catalogs registered in the caller's organization: the components and operations UI apps can render and evaluate.
+  """
+  uiCatalogs: [UICatalog!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """Available state schemas."""
   stateDefinitions: [StateDefinition!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -3272,6 +3626,11 @@ type Query {
   checkoutAgent(agent: ID!, sessionId: ID = null, globalRevision: Int = null, timestamp: DateTime = null, forwardPatchCount: Int! = 0, backwardPatchCount: Int! = 0): AgentWithValues! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
   """
+  The built-in base catalog every definition and blok is validated against before any registered UI catalog (virtual: shipped with the server, not registered).
+  """
+  baseCatalog: BaseCatalog! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
+  """
   All structures referenced by the org's action ports (derived, not registered).
   """
   structures(search: String = null): [Structure!]! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
@@ -3323,6 +3682,9 @@ type Query {
   """Get a materialized blok by ID."""
   materializedBlok(id: ID!): MaterializedBlok! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
+  """Get a UI catalog by ID."""
+  uiCatalog(id: ID!): UICatalog! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
+
   """Retrieve a state definition by ID."""
   stateDefinition(id: ID!): StateDefinition! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 
@@ -3354,6 +3716,30 @@ type Query {
   task(id: ID!): Task! @auth(required_scopes: null, required_roles: null, required_org_roles: null)
 }
 
+"""
+Register (upsert by name, scoped to the caller's organization) the components and operations a UI app can render and evaluate.
+"""
+input RegisterUiCatalogInput {
+  """
+  The catalog name. Bloks and definitions reference it by this name; registering again replaces the previous components and operations.
+  """
+  name: String!
+
+  """Human-readable description of the catalog."""
+  description: String = null
+
+  """The components this catalog can render."""
+  components: [CatalogComponentInput!]! = []
+
+  """The pure operations this catalog can evaluate for UtilCalls."""
+  operations: [CatalogOperationInput!]! = []
+
+  """
+  Default widgets per port kind and/or structure identifier. A UI renders them for ports that declare no widget; an identifier match beats a kind match. Each widget is validated against this catalog plus base at registration.
+  """
+  widgetDefaults: [WidgetDefaultInput!]! = []
+}
+
 """Profile information for a user."""
 type Release {
   """Unique ID of the release."""
@@ -3378,34 +3764,23 @@ input RequestMediaUploadInput {
 
 type Requires {
   key: String!
-  operator: RequiresOperator!
-  value: Arg!
+  operator: DescriptorOperator!
+  value: Arg
 }
 
 input RequiresInput {
   """
-  The key of the requirement. This is used to uniquely identify the requirement
+  The key of the requirement: the path into the object the constraint reads
   """
   key: String!
 
   """The operator for the requirement"""
-  operator: RequiresOperator!
+  operator: DescriptorOperator!
 
-  """The value of the requirement. This can be any JSON serializable value"""
-  value: Arg!
-}
-
-"""The operator for matching descriptors."""
-enum RequiresOperator {
-  MATCHES
-  EXISTS
-  LTE
-  GTE
-  EQUALS
-  CONTAINS
-  NOT_EQUALS
-  IN
-  NOT_IN
+  """
+  The value of the requirement. This can be any JSON serializable value; IN/NOT_IN take a list, LTE/GTE a number, EXISTS none
+  """
+  value: Arg = null
 }
 
 """Represents a resolution for a blok."""
@@ -3526,7 +3901,6 @@ type ReturnPort {
   identifier: Identifier
   nullable: Boolean!
   effects: [Effect!]
-  default: AnyDefault
   children: [ReturnPort!]
   choices: [Choice!]
   referenceUnit: String
@@ -3536,12 +3910,11 @@ type ReturnPort {
   provides: [Provides!]
 }
 
-"Port\n\n    A Port is a single input or output of a action. It is composed of a key and a kind\n    which are used to uniquely identify the port.\n\n    If the Port is a structure, we need to define a identifier and scope,\n    Identifiers uniquely identify a specific type of model for the scopes (e.g\n    all the ports that have the identifier \"@mikro/image\" are of the same type, and\n    are hence compatible with each other). Scopes are used to define in which context\n    the identifier is valid (e.g. a port with the identifier \"@mikro/image\" and the\n    scope \"local\", can only be wired to other ports that have the same identifier and\n    are running in the same app). Global ports are ports that have the scope \"global\",\n    and can be wired to any other port that has the same identifier, as there exists a\n    mechanism to resolve and retrieve the object for each app. Please check the rekuest\n    documentation for more information on how this works.\n\n\n    "
+"A Port is a single input or output of an action, identified by its `key` and typed by its `kind`.\n\n    STRUCTURE, MEMORY_STRUCTURE and INTERFACE ports carry an `identifier` of the form `@package/key`\n    (e.g. `@mikro/image`); ports with the same identifier are compatible. LIST and DICT ports have one\n    child (the item type), UNION ports two or more (the variants), MODEL ports one per field. ENUM ports\n    declare `choices`. See docs/design/ports.md for the full table.\n    "
 input ReturnPortInput {
-  """The validators for the port"""
-  validators: [ValidatorInput!] = null
-
-  """The key of the port"""
+  """
+  The key of the port: unique among its siblings, free of '..', not 'value'. LIST/DICT item ports are conventionally keyed '...'.
+  """
   key: String!
 
   """The label of the port. This is the text that is displayed in the UI"""
@@ -3570,10 +3943,9 @@ input ReturnPortInput {
   """The effects of the port"""
   effects: [EffectInput!] = null
 
-  """The default value for the port."""
-  default: AnyDefault = null
-
-  """The options for the port. This is used for dropdowns and text inputs"""
+  """
+  The values the port accepts (required for ENUM; optional for INT, FLOAT, STRING). Rendered by CHOICE widgets.
+  """
   choices: [ChoiceInput!] = null
 
   """
@@ -3594,7 +3966,7 @@ input ReturnPortInput {
   """The child ports (used for list, dict, union and model ports)."""
   children: [ReturnPortInput!] = null
 
-  """The return widget to use for this port."""
+  """The return widget to use for this port, discriminated by `kind`."""
   widget: ReturnWidgetInput = null
 
   """
@@ -3607,47 +3979,30 @@ interface ReturnWidget {
   kind: ReturnWidgetKind!
 }
 
-"A Return Widget is a UI element that is used to display the value of a port.\n\n    Return Widgets get displayed both if we show the return values of an assignment,\n    but also when we inspect the given arguments of a previous run task. Their primary\n    usecase is to adequately display the value of a port, in a user readable way.\n\n    Return Widgets are often overwriten by the underlying UI framework (e.g. Orkestrator)\n    to provide a better user experience. For example, a return widget that displays a\n    date could be overwriten to display a calendar widget.\n\n    Return Widgets provide more a way to customize this overwriten behavior.\n\n    "
+"""
+A return widget: the UI element used to display a port's value, as a discriminated union over `kind`. Only the fields of the chosen kind may be set; see the `*ReturnWidgetInput` members.
+"""
 input ReturnWidgetInput {
   """
-  The kind of the return widget. Can be either dropdown, text, slider, checkbox, radio or custom
+  Which kind of return widget this is; decides which other fields are read.
   """
   kind: ReturnWidgetKind!
 
   """
-  The query to run when searching for choices. This is used for dropdowns and text inputs
+  (CUSTOM) The catalog component to render. The returned value is in scope as the reserved root `value`.
   """
-  query: SearchQuery = null
+  component: String = null
 
   """
-  The choices to display in the dropdown. This is used for dropdowns and text inputs
+  (CUSTOM) Props of the component; value_paths may only reference `value`, agent calls are not allowed.
   """
-  choices: [ChoiceInput!] = null
-
-  """The minimum value to display (if a slider)."""
-  min: Int = null
-
-  """The maximum value to display (if a slider)."""
-  max: Int = null
-
-  """The step value to display (if a slider)."""
-  step: Int = null
-
-  """The placeholder text of the return widget."""
-  placeholder: String = null
-
-  """The hook to run (if it is a custom return widget)."""
-  hook: String = null
-
-  """The ward responsible for handling the return widget."""
-  ward: String = null
+  props: [ComponentPropInput!] = null
 }
 
 """The kind of return widget."""
 enum ReturnWidgetKind {
   CHOICE
   CUSTOM
-  PROXY
 }
 
 type SearchAssignWidget implements AssignWidget {
@@ -3657,10 +4012,41 @@ type SearchAssignWidget implements AssignWidget {
   ward: String!
   filters: [ArgPort!]
   dependencies: [String!]
+  placeholder: String
+}
+
+"""A search over a ward for STRUCTURE ports (or lists of them)."""
+input SearchAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "SEARCH") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """
+  The GraphQL query the ward executes to populate the choices. Must be a single `query` operation declaring `$search: String` and `$values: [ID!]`, plus one variable per filter port key.
+  """
+  query: SearchQuery!
+
+  """The ward (service) that executes the query."""
+  ward: String!
+
+  """
+  Filter ports whose values are passed to the query as variables named by their keys.
+  """
+  filters: [ArgPortInput!] = null
+
+  """
+  The other ports (port paths, `..` traverses children) whose values the query may reference.
+  """
+  dependencies: [String!] = []
+
+  """The placeholder text."""
+  placeholder: String = null
 }
 
 """
-The `ArrayLike` scalar type represents a reference to a store previously created by the user n a datalayer
+The `SearchQuery` scalar is a GraphQL query string a search widget executes against its ward to populate its choices
 """
 scalar SearchQuery
 
@@ -3803,6 +4189,24 @@ type SliderAssignWidget implements AssignWidget {
   step: Float
 }
 
+"""A numeric slider for INT, FLOAT and QUANTITY ports."""
+input SliderAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "SLIDER") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """The minimum value."""
+  min: Float = null
+
+  """The maximum value."""
+  max: Float = null
+
+  """The step between selectable values; must be positive."""
+  step: Float = null
+}
+
 type Snapshot {
   id: ID!
   value: Args!
@@ -3878,7 +4282,8 @@ type State {
 
 type StateAccessor {
   optionKey: OptionKey!
-  subPath: String
+  path: String
+  call: UtilCall
 }
 
 input StateAccessorInput {
@@ -3888,17 +4293,58 @@ input StateAccessorInput {
   optionKey: OptionKey!
 
   """
-  The sub path to access a specific part of the state value. Always traverse from top to bottom level. i.e state.x for state.x and state.x.y for state.x.y. You can also use an arrow function to specify a dynamic path based on the other arguments, e.g. (args) => state[args.foo]
+  Static JSON pointer into the state value ('/x/y'). Omit for the whole value. Mutually exclusive with `call`.
   """
-  subPath: String = null
+  path: String = null
+
+  """
+  Pure UtilCall returning the pointer string dynamically. May reference `state`, `value` and the widget's `dependencies`. Mutually exclusive with `path`.
+  """
+  call: UtilCallInput = null
 }
 
 type StateChoiceAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
-  statePath: String!
+  statePath: String
+  stateCall: UtilCall
   dependency: String
   stateAccessors: [StateAccessor!]
+  dependencies: [String!]
+}
+
+"""A choice over entries of an agent's state."""
+input StateChoiceAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "STATE_CHOICE") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """
+  The agent dependency (by key) whose state provides the choices; omitted: the implementing agent's own state.
+  """
+  dependency: String = null
+
+  """
+  Static JSON pointer into the state value that provides the choices. Mutually exclusive with `state_call`.
+  """
+  statePath: String = null
+
+  """
+  Pure UtilCall returning that pointer dynamically; may reference `state`, `value` and `dependencies`. Mutually exclusive with `state_path`.
+  """
+  stateCall: UtilCallInput = null
+
+  """
+  How to read label/description/logo/value out of each state entry; each accessor is a static pointer or a pure call.
+  """
+  stateAccessors: [StateAccessorInput!] = null
+
+  """
+  The other ports (port paths, `..` traverses children) whose values the calls may reference.
+  """
+  dependencies: [String!] = []
 }
 
 type StateDefinition {
@@ -4106,8 +4552,23 @@ input StrFilterLookup {
 type StringAssignWidget implements AssignWidget {
   kind: AssignWidgetKind!
   followValue: String
-  placeholder: String!
-  asParagraph: Boolean!
+  placeholder: String
+  asParagraph: Boolean
+}
+
+"""A text input for STRING ports."""
+input StringAssignWidgetInput @unionElementOf(union: "AssignWidgetInput", discriminator: "kind", key: "STRING") {
+  """Port path of another port whose value this widget follows and mirrors."""
+  followValue: String = null
+
+  """Which member of AssignWidgetInput this is."""
+  kind: AssignWidgetKind!
+
+  """The placeholder text."""
+  placeholder: String = null
+
+  """Render as a multi-line paragraph."""
+  asParagraph: Boolean = null
 }
 
 """
@@ -4711,10 +5172,34 @@ input TrackInput {
   windows: [WindowInput!] = null
 }
 
+"""
+A UI catalog: the components a UI app can render and the pure operations it can evaluate for UtilCalls, registered per organization.
+"""
 type UICatalog {
   id: ID!
   name: String!
   description: String
+
+  """Bloks rendered against this catalog."""
+  bloks: [Blok!]!
+
+  """Registered components. Empty until a UI app registers the catalog."""
+  components: [CatalogComponent!]!
+
+  """
+  Registered pure operations UtilCalls may name. Empty until a UI app registers the catalog.
+  """
+  operations: [CatalogOperation!]!
+
+  """
+  Whether a UI app has registered components or operations; unregistered catalogs validate nothing.
+  """
+  isRegistered: Boolean!
+
+  """
+  Default widgets per port kind and/or structure identifier. A UI renders them for ports that declare no widget; an identifier match beats a kind match.
+  """
+  widgetDefaults: [WidgetDefault!]!
 }
 
 """The input for bouncing an agent."""
@@ -4737,8 +5222,11 @@ input UpdateAgentInput {
   name: String = null
 }
 
-"""The input for updating a blok."""
+"""
+The input for updating a blok. Omitted (null) fields are left unchanged; list fields replace wholesale.
+"""
 input UpdateBlokInput {
+  """The ID of the blok to update."""
   id: ID!
 
   """The name of the blok, used for identification in the system."""
@@ -4748,9 +5236,24 @@ input UpdateBlokInput {
   description: String = null
 
   """
-  The components of the blok. This is used to update the blok in the system.
+  The full component tree of the blok. Replaces the existing tree when provided.
   """
   components: [ComponentNodeInput!] = null
+
+  """
+  The demo state used to preview this blok. Replaces the existing demo state when provided.
+  """
+  demoState: Args = null
+
+  """
+  Name of the UI catalog (in the caller's organization) this blok renders against. Created if missing.
+  """
+  catalog: String = null
+
+  """
+  The full list of agent dependencies. When provided it replaces the existing set: keys not listed are deleted and their agent mappings on materialized bloks lose their dependency reference.
+  """
+  dependencies: [AgentDependencyInput!] = null
 }
 
 """
@@ -4864,7 +5367,7 @@ type UtilCall {
 }
 
 """Defines a utility call that can be invoked within the system."""
-input UtilProbeInput {
+input UtilCallInput {
   """The utility function name to invoke."""
   operation: String!
 
@@ -4873,22 +5376,26 @@ input UtilProbeInput {
 }
 
 type Validator {
-  function: ValidatorFunction!
+  """
+  The full call tree as raw JSON, so deep trees are not truncated by fragment depth.
+  """
+  callJson: JSONSerializable!
+  call: UtilCall!
   dependencies: [String!]
   label: String
   errorMessage: String
+  source: String
 }
 
-"\n    The `Validator` scalar represents a javascript function that should execute on the client side (inside a shadow realm)\n      to validate a value (or a set of values) before it is sent to the server.  The function has two parameters (value, otherValues) and should return a string if the value is invalid and undefined if the value is valid.\n        The otherValues parameter is an object with the other values in the form {fieldName: value}."
-scalar ValidatorFunction
-
-"\nA validating function for a port. Can specify a function that will run when validating values of the port.\nIf outside dependencies are needed they need to be specified in the dependencies field. With the .. syntax\nwhen transversing the tree of ports.\n\n"
+"\nA validator for a port. `call` is a pure blok UtilCall evaluated client-side against the\ncatalog; it must return a boolean meaning 'valid'. Other ports the call references must be\nlisted in `dependencies` (the authoritative subscription list); `value` refers to the port's\nown value. Use the .. syntax when traversing the tree of ports.\n"
 input ValidatorInput {
-  """The function to run when validating the port"""
-  function: ValidatorFunction!
+  """
+  The pure blok UtilCall, evaluated client-side against the catalog, that validates the port value. It must return a boolean meaning 'valid'. Argument value_paths may only reference names listed in `dependencies`, plus `value` for the port's own value.
+  """
+  call: UtilCallInput!
 
   """
-  The dependencies of the function. Use the .. syntax to traverse the tree of ports. For example, if you have a port with the key 'foo' and you want to reference a port with the key 'bar' that is a child of 'foo', you would use 'foo..bar'
+  The form-field subscription list of the validator: the keys of the other ports whose values the call may reference. This list is authoritative: a value_path in the call may only reference these names (plus `value` for the port's own value). Use the .. syntax to traverse the tree of ports, e.g. 'foo..bar' for the child 'bar' of port 'foo'.
   """
   dependencies: [String!] = []
 
@@ -4897,18 +5404,66 @@ input ValidatorInput {
 
   """The error message to display when the validation fails"""
   errorMessage: String = null
+
+  """
+  The authoring expression the call was compiled from (informational; never parsed or validated by the server).
+  """
+  source: String = null
+}
+
+"""
+A catalog's default widget for ports matching a kind and/or structure identifier. A UI applies it when a port has no explicit widget; an identifier match beats a kind match.
+"""
+type WidgetDefault {
+  kind: PortKind
+  identifier: String
+  widget: AssignWidget
+  returnWidget: ReturnWidget
+}
+
+"""
+A catalog's default widget for ports matching a kind and/or structure identifier. A UI applies it when a port has no explicit widget; an identifier match beats a kind match.
+"""
+input WidgetDefaultInput {
+  """Port kind the default applies to. With `identifier`, both must match."""
+  kind: PortKind = null
+
+  """Structure identifier the default applies to, e.g. '@mikro/image'."""
+  identifier: String = null
+
+  """
+  The assign widget to render for matching argument ports that declare no widget of their own.
+  """
+  widget: AssignWidgetInput = null
+
+  """
+  The return widget to render for matching return ports that declare no widget of their own.
+  """
+  returnWidget: ReturnWidgetInput = null
 }
 
 """A window that is calculated"""
 type Window {
-  windowFunction: String!
+  windowFunction: WindowFunction!
   label: String
+}
+
+"""Aggregation computed over a tracked value within a window."""
+enum WindowFunction {
+  MEAN
+  MIN
+  MAX
+  SUM
+  COUNT
+  LAST
+  FIRST
+  STD
 }
 
 """A window that is calculated"""
 input WindowInput {
-  """The window function to apply over the tracked value."""
-  windowFunction: String!
+  """The aggregation to compute over the tracked value within the window."""
+  windowFunction: WindowFunction!
 
   """An optional human-readable label for the window."""
   label: String = null

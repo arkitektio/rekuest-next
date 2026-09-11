@@ -4,20 +4,18 @@ from typing import Annotated
 
 from rekuest_next.annotations import Provides, Requires
 from rekuest_next.api.schema import (
-    AssignWidgetInput,
-    AssignWidgetKind,
+    StringAssignWidgetInput,
     PortKind,
-    ProvidesOperator,
-    RequiresOperator,
+    DescriptorOperator,
 )
 from rekuest_next.definition.define import prepare_definition
 from rekuest_next.structures.model import model
 from rekuest_next.structures.registry import StructureRegistry
 
 TiffName = Annotated[
-    str, Requires(key="filename", operator=RequiresOperator.MATCHES, value=r".*\.tiff?")
+    str, Requires(key="filename", operator=DescriptorOperator.MATCHES, value=r".*\.tiff?")
 ]
-Wide = Annotated[int, Provides(key="x", operator=ProvidesOperator.GTE, value="1")]
+Wide = Annotated[int, Provides(key="x", operator=DescriptorOperator.GTE, value="1")]
 
 
 @model
@@ -35,7 +33,7 @@ def optional_requires(name: TiffName | None = None) -> Wide | None:
 
 def model_requires(
     box: Annotated[
-        Box, Requires(key="kind", operator=RequiresOperator.MATCHES, value="box")
+        Box, Requires(key="kind", operator=DescriptorOperator.MATCHES, value="box")
     ],
 ) -> int:
     """Model arg ports keep their descriptors."""
@@ -62,7 +60,7 @@ def test_model_arg_port_keeps_requires() -> None:
 
 
 def test_prepare_definition_does_not_consume_caller_maps() -> None:
-    widgets = {"name": AssignWidgetInput(kind=AssignWidgetKind.STRING)}
+    widgets = {"name": StringAssignWidgetInput()}
     prepare_definition(
         optional_requires, structure_registry=StructureRegistry(), widgets=widgets
     )

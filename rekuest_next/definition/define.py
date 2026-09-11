@@ -210,6 +210,30 @@ def convert_object_to_port(
     direction: PortDirection,
     assign_widget: AssignWidgetInput | None = None,
     return_widget: ReturnWidgetInput | None = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> ArgPortInput | ReturnPortInput:
+    """Convert a Python type hint into a port (see :func:`_convert_object_to_port`).
+
+    A ``ChoiceWidget`` carries the port's choices on the client only; the server keeps
+    choices on the port, so they are promoted here when the port has none of its own.
+    """
+    port = _convert_object_to_port(
+        cls, key, registry, direction, assign_widget=assign_widget, return_widget=return_widget, **kwargs
+    )
+    widget = assign_widget if direction == "arg" else return_widget
+    carried = getattr(widget, "choices", None)
+    if carried and not port.choices:
+        port = port.model_copy(update={"choices": tuple(carried)})
+    return port
+
+
+def _convert_object_to_port(
+    cls: Any,  # noqa: ANN401
+    key: str,
+    registry: StructureRegistry,
+    direction: PortDirection,
+    assign_widget: AssignWidgetInput | None = None,
+    return_widget: ReturnWidgetInput | None = None,
     default: Any | None = None,  # noqa: ANN401
     label: str | None = None,
     description: str | None = None,
@@ -231,8 +255,14 @@ def convert_object_to_port(
     port_cls = _port_cls_for(direction)
     is_arg = direction == "arg"
     widget = assign_widget if is_arg else return_widget
+    # Return ports carry neither a default nor validators on the server, so those
+    # are only passed along for arg ports.
     direction_kwargs: dict[str, Any] = (
-        {"requires": tuple(requires) if requires else None}
+        {
+            "requires": tuple(requires) if requires else None,
+            "default": default,
+            "validators": tuple(validators),
+        }
         if is_arg
         else {"provides": tuple(provides) if provides else None}
     )
@@ -248,14 +278,16 @@ def convert_object_to_port(
             widget=widget,
             key=key,
             label=label,
-            default=default,
             nullable=nullable,
             description=description,
             effects=tuple(effects),
-            validators=tuple(validators),
             **direction_kwargs,
         )
         fields.update(extra)
+        if not is_arg:
+            # Return ports carry neither a default nor validators on the server.
+            fields.pop("default", None)
+            fields.pop("validators", None)
         return port_cls(**fields)
 
     if is_nullable(cls):
@@ -470,6 +502,7 @@ def prepare_definition(
     allow_annotations: bool = True,
     version: str | None = None,
     key: str | None = None,
+    catalogs: list[str] | None = None,
 ) -> DefinitionInput:
     """Define
 
@@ -726,6 +759,7 @@ def prepare_definition(
         isDev=is_dev,
         stateful=stateful,
         isTestFor=tuple(is_test_for or []),
+        catalogs=tuple(catalogs) if catalogs else None,
     )
 
     return definition

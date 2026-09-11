@@ -40,7 +40,7 @@ def port_to_json_schema(port: ArgPortInput | ReturnPortInput) -> dict[str, Any]:
             required = [
                 child.key
                 for child in port.children
-                if not child.nullable and child.default is None
+                if not child.nullable and getattr(child, "default", None) is None
             ]
             if required:
                 schema["required"] = required
@@ -53,8 +53,10 @@ def port_to_json_schema(port: ArgPortInput | ReturnPortInput) -> dict[str, Any]:
         schema["x-identifier"] = port.identifier
     if port.choices:
         schema["enum"] = [choice.value for choice in port.choices]
-    if port.default is not None:
-        schema["default"] = port.default
+    # Only arg ports carry a default.
+    default = getattr(port, "default", None)
+    if default is not None:
+        schema["default"] = default
     if port.nullable and isinstance(schema.get("type"), str):
         schema["type"] = [schema["type"], "null"]
 
@@ -73,7 +75,7 @@ def create_json_schema_from_ports(
     required: list[str] = []
     for port in ports:
         properties[port.key] = port_to_json_schema(port)
-        if not port.nullable and port.default is None:
+        if not port.nullable and getattr(port, "default", None) is None:
             required.append(port.key)
 
     schema: dict[str, Any] = {

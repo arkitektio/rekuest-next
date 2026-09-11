@@ -132,3 +132,27 @@ def test_validation_error_names_the_component_and_its_id() -> None:
         validate_blok(component, [])
 
     assert "prop 'text' of <Text> (Card/Row[0]/Text[0])" in str(exc_info.value)
+
+
+def test_util_call_accepts_signed_numeric_literals() -> None:
+    """A negative literal inside a blok util call parses as a literal, not an operator."""
+    component = jsx('<Text value="@utils.math.multiply(-2, dep.state.x)" />')
+    prop = next(prop for prop in component.props if prop.key == "value")
+
+    assert prop.util_call is not None
+    assert prop.util_call.operation == "math.multiply"
+    assert prop.util_call.arguments is not None
+    assert prop.util_call.arguments[0].value_literal == -2
+    assert prop.util_call.arguments[1].value_path == "dep.state.x"
+
+
+def test_util_call_base_positionals_are_named() -> None:
+    """Positional arguments of a base operation get the operation's parameter names."""
+    component = jsx('<Text v="@utils.gt(dep.state.x, 2)" />')
+    prop = next(prop for prop in component.props if prop.key == "v")
+
+    assert prop.util_call is not None
+    assert [(a.key, a.value_path, a.value_literal) for a in prop.util_call.arguments] == [
+        ("a", "dep.state.x", None),
+        ("b", None, 2),
+    ]

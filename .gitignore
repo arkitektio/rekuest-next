@@ -148,3 +148,6 @@ static_collected
 data
 token.temp
 .source.swp
+
+# local integration override (mounts the live server source)
+tests/integration/docker-compose.local.yml

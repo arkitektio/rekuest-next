@@ -204,6 +204,7 @@ def register(
     concurrency: Literal["parallel", "serial"] = "serial",
     policy: DisconnectPolicy = KEEP,
     version: str | None = None,
+    catalogs: list[str] | None = None,
 ) -> Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with configuration: ``@register(...)``."""
     ...
@@ -231,6 +232,7 @@ def register(  # type: ignore[valid-type]
     concurrency: Literal["parallel", "serial"] = "serial",
     policy: DisconnectPolicy = KEEP,
     version: str | None = None,
+    catalogs: list[str] | None = None,
 ) -> WrappedFunction[P, R] | Callable[[Callable[P, R]], WrappedFunction[P, R]]:
     """Register a function or actor with an app registry.
 
@@ -298,6 +300,7 @@ def register(  # type: ignore[valid-type]
         is_test_for=is_test_for,
         stateful=stateful,
         version=version,
+        catalogs=catalogs,
         optimistics=optimistics,
         locks=locks,
         concurrency=concurrency,

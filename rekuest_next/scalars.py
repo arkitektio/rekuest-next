@@ -16,7 +16,6 @@ from typing import IO, Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
-import re
 
 
 ActionHash = str
@@ -24,7 +23,6 @@ QString = str
 
 ValueMap = dict[str, Any]
 
-ValidatorFunctionCoercible = str
 SearchQueryCoercible = str | DocumentNode
 MediaLikeCoercible = str | IO[bytes]
 Args = dict[str, Any]
@@ -77,44 +75,6 @@ class UISchema(dict):
         if not isinstance(v, dict):
             raise ValueError("UI schema must be a dictionary")
         return UISchema(v)
-
-
-class ValidatorFunction(str):
-    """A validator function a string that represents a javascript function, That can handle
-    some validation logic on the frontend"""
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,  # noqa: ANN401
-        handler: GetCoreSchemaHandler,  # noqa: ANN401
-    ) -> CoreSchema:
-        """Get the pydantic core schema for the validator function"""
-        return core_schema.no_info_after_validator_function(cls.validate, handler(str))
-
-    @classmethod
-    def validate(cls, v: ValidatorFunctionCoercible) -> "ValidatorFunction":
-        """Validate the validator function"""
-
-        v = str(v).strip()
-        if not v:
-            raise ValueError("ValidatorFunction cannot be empty")
-
-        if (not v.startswith("(")) or ("=>" not in v):
-            raise ValueError(
-                "ValidatorFunction must be an arrow function or block function"
-            )
-
-        args_match = re.match(r"\((.*?)\)", v)
-        if args_match:
-            args = [
-                arg.strip() for arg in args_match.group(1).split(",") if arg.strip()
-            ]
-
-            if not args:
-                raise ValueError("Function must have at least one argument")
-
-        return cls(v)
 
 
 def parse_or_raise(v: str) -> DocumentNode:

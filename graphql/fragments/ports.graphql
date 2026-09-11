@@ -1,3 +1,55 @@
+fragment ActionArgumentLeaf on ActionArgument {
+  key
+  valueLiteral
+  valuePath
+  utilCall {
+    operation
+  }
+}
+
+fragment ActionArgumentNested on ActionArgument {
+  key
+  valueLiteral
+  valuePath
+  utilCall {
+    operation
+    arguments {
+      ...ActionArgumentLeaf
+    }
+  }
+  valueList {
+    ...ActionArgumentLeaf
+  }
+  valueDict {
+    ...ActionArgumentLeaf
+  }
+}
+
+fragment ActionArgument on ActionArgument {
+  key
+  valueLiteral
+  valuePath
+  utilCall {
+    operation
+    arguments {
+      ...ActionArgumentNested
+    }
+  }
+  valueList {
+    ...ActionArgumentNested
+  }
+  valueDict {
+    ...ActionArgumentNested
+  }
+}
+
+fragment UtilCall on UtilCall {
+  operation
+  arguments {
+    ...ActionArgument
+  }
+}
+
 fragment ArgChildPortNested on ArgPort {
   key
   kind
@@ -62,7 +114,6 @@ fragment ReturnChildPortNested on ReturnPort {
   }
   identifier
   nullable
-  default
   referenceUnit
   proposedUnits
   dimension
@@ -81,7 +132,6 @@ fragment ReturnChildPort on ReturnPort {
     description
   }
   nullable
-  default
   referenceUnit
   proposedUnits
   dimension
@@ -90,8 +140,6 @@ fragment ReturnChildPort on ReturnPort {
 fragment CustomEffect on CustomEffect {
   __typename
   kind
-  hook
-  ward
 }
 
 fragment MessageEffect on MessageEffect {
@@ -104,7 +152,11 @@ fragment PortEffect on Effect {
   __typename
   kind
   dependencies
-  function
+  call {
+    ...UtilCall
+  }
+  callJson
+  source
   ...CustomEffect
   ...MessageEffect
 }
@@ -132,20 +184,33 @@ fragment SearchAssignWidget on SearchAssignWidget {
   dependencies
 }
 
+fragment ComponentProp on ComponentProp {
+  key
+  staticValue
+  dynamicValue {
+    literal
+    path
+  }
+  declaresValue
+  utilCall {
+    ...UtilCall
+  }
+}
+
 fragment CustomAssignWidget on CustomAssignWidget {
   __typename
-  ward
-  hook
+  kind
+  component
+  props {
+    ...ComponentProp
+  }
+  dependencies
 }
 
 fragment ChoiceAssignWidget on ChoiceAssignWidget {
   __typename
   kind
-  choices {
-    value
-    label
-    description
-  }
+  placeholder
 }
 
 fragment PortAssignWidget on AssignWidget {
@@ -161,17 +226,15 @@ fragment PortAssignWidget on AssignWidget {
 fragment CustomReturnWidget on CustomReturnWidget {
   __typename
   kind
-  hook
-  ward
+  component
+  props {
+    ...ComponentProp
+  }
 }
 
 fragment ChoiceReturnWidget on ChoiceReturnWidget {
   __typename
-  choices {
-    label
-    value
-    description
-  }
+  kind
 }
 
 fragment ReturnWidget on ReturnWidget {
@@ -205,7 +268,11 @@ fragment ArgPort on ArgPort {
     description
   }
   validators {
-    function
+    call {
+      ...UtilCall
+    }
+    callJson
+    source
     errorMessage
     dependencies
     label
@@ -222,7 +289,6 @@ fragment ReturnPort on ReturnPort {
   label
   nullable
   description
-  default
   kind
   identifier
   referenceUnit

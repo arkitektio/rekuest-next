@@ -1,0 +1,540 @@
+{
+  "name": "base",
+  "version": 1,
+  "description": "Pure, total operations every UI must implement for port validators, effects and blok util calls. Argument order is positional order. Additive evolution only.",
+  "operations": [
+    {
+      "name": "eq",
+      "description": "True if a equals b (deep JSON equality).",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "ANY",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "ne",
+      "description": "True if a does not equal b (deep JSON equality).",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "ANY",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "gt",
+      "description": "True if a > b. Non-numbers compare false.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "gte",
+      "description": "True if a >= b. Non-numbers compare false.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "lt",
+      "description": "True if a < b. Non-numbers compare false.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "lte",
+      "description": "True if a <= b. Non-numbers compare false.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "between",
+      "description": "True if min <= value <= max (inclusive). Non-numbers compare false.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "The number to test."
+        },
+        {
+          "key": "min",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Lower bound, inclusive."
+        },
+        {
+          "key": "max",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Upper bound, inclusive."
+        }
+      ]
+    },
+    {
+      "name": "and",
+      "description": "Logical conjunction of two booleans. Nest calls for more operands.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "BOOL",
+          "required": true,
+          "description": "First operand."
+        },
+        {
+          "key": "b",
+          "kind": "BOOL",
+          "required": true,
+          "description": "Second operand."
+        }
+      ]
+    },
+    {
+      "name": "or",
+      "description": "Logical disjunction of two booleans. Nest calls for more operands.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "BOOL",
+          "required": true,
+          "description": "First operand."
+        },
+        {
+          "key": "b",
+          "kind": "BOOL",
+          "required": true,
+          "description": "Second operand."
+        }
+      ]
+    },
+    {
+      "name": "not",
+      "description": "Logical negation.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "BOOL",
+          "required": true,
+          "description": "The boolean to negate."
+        }
+      ]
+    },
+    {
+      "name": "if",
+      "description": "Returns then if condition is true, otherwise otherwise.",
+      "returns": "ANY",
+      "arguments": [
+        {
+          "key": "condition",
+          "kind": "BOOL",
+          "required": true,
+          "description": "The condition."
+        },
+        {
+          "key": "then",
+          "kind": "ANY",
+          "required": true,
+          "description": "Value when the condition holds."
+        },
+        {
+          "key": "otherwise",
+          "kind": "ANY",
+          "required": true,
+          "description": "Value when it does not."
+        }
+      ]
+    },
+    {
+      "name": "is_null",
+      "description": "True if a is null or missing.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to test."
+        }
+      ]
+    },
+    {
+      "name": "is_set",
+      "description": "True if a is neither null nor missing.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to test."
+        }
+      ]
+    },
+    {
+      "name": "len",
+      "description": "Length of a string, list or dict. Null counts as 0.",
+      "returns": "INT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to measure."
+        }
+      ]
+    },
+    {
+      "name": "len_between",
+      "description": "True if min <= len(value) <= max (inclusive). Omit max for no upper bound.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to measure."
+        },
+        {
+          "key": "min",
+          "kind": "INT",
+          "required": true,
+          "description": "Minimum length, inclusive."
+        },
+        {
+          "key": "max",
+          "kind": "INT",
+          "required": false,
+          "description": "Maximum length, inclusive."
+        }
+      ]
+    },
+    {
+      "name": "is_empty",
+      "description": "True if a is null or has length 0.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to test."
+        }
+      ]
+    },
+    {
+      "name": "contains",
+      "description": "True if haystack contains needle: substring for strings, membership for lists, key presence for dicts.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "haystack",
+          "kind": "ANY",
+          "required": true,
+          "description": "The container."
+        },
+        {
+          "key": "needle",
+          "kind": "ANY",
+          "required": true,
+          "description": "The element or substring to look for."
+        }
+      ]
+    },
+    {
+      "name": "in",
+      "description": "True if value is a member of options.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to test."
+        },
+        {
+          "key": "options",
+          "kind": "LIST",
+          "required": true,
+          "description": "The allowed values."
+        }
+      ]
+    },
+    {
+      "name": "matches",
+      "description": "True if the whole of value matches the regular expression pattern.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "STRING",
+          "required": true,
+          "description": "The string to test."
+        },
+        {
+          "key": "pattern",
+          "kind": "STRING",
+          "required": true,
+          "description": "A regular expression (ECMAScript and Python common subset)."
+        }
+      ]
+    },
+    {
+      "name": "starts_with",
+      "description": "True if value starts with prefix.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "STRING",
+          "required": true,
+          "description": "The string to test."
+        },
+        {
+          "key": "prefix",
+          "kind": "STRING",
+          "required": true,
+          "description": "The prefix."
+        }
+      ]
+    },
+    {
+      "name": "ends_with",
+      "description": "True if value ends with suffix.",
+      "returns": "BOOL",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "STRING",
+          "required": true,
+          "description": "The string to test."
+        },
+        {
+          "key": "suffix",
+          "kind": "STRING",
+          "required": true,
+          "description": "The suffix."
+        }
+      ]
+    },
+    {
+      "name": "get",
+      "description": "Reads path (a JSON pointer) out of value; null when the path does not resolve.",
+      "returns": "ANY",
+      "arguments": [
+        {
+          "key": "value",
+          "kind": "ANY",
+          "required": true,
+          "description": "The value to read from."
+        },
+        {
+          "key": "path",
+          "kind": "STRING",
+          "required": true,
+          "description": "A JSON pointer such as /items/0/name."
+        }
+      ]
+    },
+    {
+      "name": "coalesce",
+      "description": "The first of a, b that is not null.",
+      "returns": "ANY",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "ANY",
+          "required": true,
+          "description": "Preferred value."
+        },
+        {
+          "key": "b",
+          "kind": "ANY",
+          "required": true,
+          "description": "Fallback value."
+        }
+      ]
+    },
+    {
+      "name": "add",
+      "description": "a + b. Non-numbers yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "sub",
+      "description": "a - b. Non-numbers yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "mul",
+      "description": "a * b. Non-numbers yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Left operand."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Right operand."
+        }
+      ]
+    },
+    {
+      "name": "div",
+      "description": "a / b (float division). Non-numbers and division by zero yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Dividend."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Divisor."
+        }
+      ]
+    },
+    {
+      "name": "mod",
+      "description": "a modulo b, with the sign of the divisor (Python semantics). Non-numbers and a zero divisor yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Dividend."
+        },
+        {
+          "key": "b",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "Divisor."
+        }
+      ]
+    },
+    {
+      "name": "neg",
+      "description": "-a. Non-numbers yield null.",
+      "returns": "FLOAT",
+      "arguments": [
+        {
+          "key": "a",
+          "kind": "FLOAT",
+          "required": true,
+          "description": "The number to negate."
+        }
+      ]
+    }
+  ]
+}

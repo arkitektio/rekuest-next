@@ -26,7 +26,8 @@ Examples:
                 panel = jsx("<Panel><Label text=\"ready\" /></Panel>")
 """
 
-from .blok.parser import jsx
+from .blok.parser import jsx, parse_util_call
+from .widgets import withEffect, withValidator
 from .remote import (
     acall,
     call,
@@ -108,6 +109,9 @@ __all__ = [
     "model_field",
     "structure",
     "jsx",
+    "parse_util_call",
+    "withValidator",
+    "withEffect",
     # runtime helpers
     "log",
     "alog",

@@ -3,9 +3,17 @@
 from enum import Enum
 import pytest
 from rekuest_next.definition.define import prepare_definition
-from rekuest_next.api.schema import ChoiceInput, ValidatorInput, EffectInput, EffectKind
+from rekuest_next.api.schema import (
+    ActionArgumentInput,
+    AgentProbeInput,
+    ChoiceInput,
+    UtilCallInput,
+    ValidatorInput,
+    EffectKind,
+)
+from rekuest_next.blok.parser import parse_util_call
 from rekuest_next.structures.registry import StructureRegistry
-from rekuest_next.widgets import ChoiceWidget
+from rekuest_next.widgets import ChoiceWidget, withEffect, withValidator
 from typing import Annotated
 
 
@@ -35,24 +43,11 @@ def test_annotation_good(simple_registry: StructureRegistry) -> None:
                     image="https://www.google.com",
                     label="Install Kabinet",
                 ),
-                ChoiceInput(
-                    value=Service.KABINET,
-                    description="Would you like to install Kabinet?",
-                    image="https://www.google.com",
-                    label="Install Kabinet",
-                ),
-                ChoiceInput(
-                    value=Service.ELEKTRO,
-                    description="Would you like to install Kabinet?",
-                    image="https://www.google.com",
-                    label="Install Kabinet",
-                ),
             ]
         ),
-        ValidatorInput(
-            function="(services) => services.length > 0",
-            errorMessage="You must select at least one service to install",
-            dependencies=[],
+        withValidator(
+            "gt(value, 0)",
+            error_message="You must select at least one service to install",
         ),
     ]
 
@@ -61,42 +56,65 @@ def test_annotation_good(simple_registry: StructureRegistry) -> None:
 
     functional_definition = prepare_definition(func, structure_registry=simple_registry)
 
-    assign_widget = functional_definition.args[0].widget
-    assert assign_widget is not None, "Widget should be attached to the argument"
-    assert assign_widget.choices is not None, "Widget should have choices"
-    assert assign_widget.choices[0].value == Service.KABINET
-    assert assign_widget.choices[1].value == Service.ELEKTRO
-    assert (
-        functional_definition.args[0].validators[0].function
-        == "(services) => services.length > 0"
-    )
+    port = functional_definition.args[0]
+    assert port.widget is not None, "Widget should be attached to the argument"
+    assert port.widget.kind == "CHOICE"
+    assert port.choices is not None, "The widget's choices are promoted onto the port"
+    assert port.choices[0].value == Service.KABINET
+    assert port.choices[1].value == Service.ELEKTRO
+    assert "choices" not in port.widget.model_dump(by_alias=True)
+
+    validators = functional_definition.args[0].validators
+    assert validators is not None
+    assert validators[0].call.operation == "gt"
+    assert validators[0].call.arguments is not None
+    assert validators[0].call.arguments[0].key == "a"
+    assert validators[0].call.arguments[0].value_path == "value"
+    assert validators[0].call.arguments[1].value_literal == 0
+    assert validators[0].error_message == "You must select at least one service to install"
 
 
 @pytest.mark.define
 def test_validator_func() -> None:
-    """Thes if the validator function is correct."""
-    ValidatorInput(
-        function="(services) => services.length > 0",
-        errorMessage="You must select at least one service to install",
-        dependencies=[],
+    """A validator that only references its own value needs no dependencies."""
+    validator = ValidatorInput(
+        call=parse_util_call("gt(value, 3)"),
+        error_message="Must be greater than 3",
     )
+    assert validator.dependencies is None
+    assert validator.call.operation == "gt"
 
 
 @pytest.mark.define
 def test_validator_func_wrong_deps() -> None:
-    """Test if value errors are raised when the function is not correct."""
-    with pytest.raises(ValueError):
+    """Impure or undeclared calls are rejected before upload."""
+    with pytest.raises(ValueError, match="'other' via value_path"):
         ValidatorInput(
-            function="(services, x) => services.length > 0",
-            errorMessage="You must select at least one service to install",
+            call=parse_util_call("gt(value, other.min)"),
+            error_message="Must exceed the minimum",
             dependencies=[],
         )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must name an operation"):
+        ValidatorInput(call=UtilCallInput(operation="", arguments=None))
+
+    with pytest.raises(ValueError, match="must be pure"):
         ValidatorInput(
-            function="(services) => services.length > 0",
-            errorMessage="You must select at least one service to install",
-            dependencies=["services"],
+            call=UtilCallInput(
+                operation="gt",
+                arguments=(
+                    ActionArgumentInput(
+                        key="a",
+                        value_list=(
+                            ActionArgumentInput(
+                                agent_call=AgentProbeInput(
+                                    dependency="stage", operation="move"
+                                )
+                            ),
+                        )
+                    ),
+                ),
+            ),
         )
 
 
@@ -104,20 +122,19 @@ def test_validator_func_wrong_deps() -> None:
 def test_validator_should_alert_if_not_in_keys(
     simple_registry: StructureRegistry,
 ) -> None:
-    """Test if value errors are raised when the dependces are not in the definition"""
+    """Test if value errors are raised when the dependences are not in the definition"""
     TheStr = Annotated[
         str,
-        ValidatorInput(
-            function="(services, other_key) => services.length > 0",
-            errorMessage="You must select at least one service to install",
-            dependencies=["other_key"],
+        withValidator(
+            "gt(value, other_key)",
+            error_message="You must select at least one service to install",
         ),
     ]
 
     def func(name: TheStr) -> str:  # type: ignore
         return name
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid dependency: other_key"):
         prepare_definition(func, structure_registry=simple_registry)
 
 
@@ -126,14 +143,18 @@ def test_effect_integration(simple_registry: StructureRegistry) -> None:
     """Test if the effect is correctly integrated in the definition."""
     TheStr = Annotated[
         str,
-        EffectInput(
-            kind=EffectKind.HIDE,
-            function="(services, other_key) => other_key > 0",
-            dependencies=["other_key"],
-        ),
+        withEffect(EffectKind.HIDE, "gt(other_key, 0)"),
     ]
 
     def func(name: TheStr, other_key: bool) -> str:  # type: ignore
         return name
 
-    prepare_definition(func, structure_registry=simple_registry)
+    definition = prepare_definition(func, structure_registry=simple_registry)
+
+    effects = definition.args[0].effects
+    assert effects is not None
+    assert effects[0].kind == EffectKind.HIDE
+    assert effects[0].dependencies == ("other_key",)
+    assert effects[0].call.operation == "gt"
+    assert effects[0].call.arguments is not None
+    assert effects[0].call.arguments[0].value_path == "other_key"

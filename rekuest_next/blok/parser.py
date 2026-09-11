@@ -1,4 +1,8 @@
 import ast
+import functools
+import io
+import keyword
+import tokenize
 import xml.etree.ElementTree as ET
 
 from rekuest_next.api.schema import (
@@ -7,9 +11,10 @@ from rekuest_next.api.schema import (
     ComponentNodeInput,
     ComponentPropInput,
     DynamicValueInput,
-    UtilProbeInput,
+    UtilCallInput,
 )
 from rekuest_next.blok.walk import FOREACH_COMPONENT, FOREACH_LET_PROP
+from rekuest_next.traits.calls import resolve_base_arguments
 
 
 class BlokParser:
@@ -205,25 +210,23 @@ class BlokParser:
         )
 
     @classmethod
-    def _parse_ast_call(cls, node: ast.Call) -> AgentProbeInput | UtilProbeInput:
+    def _parse_ast_call(cls, node: ast.Call) -> AgentProbeInput | UtilCallInput:
         full_path = cls._extract_path(node.func)
         path_parts = full_path.split(".")
 
         # --- Process Arguments First ---
-        arguments = []
-        for arg_node in node.args:
-            arguments.append(cls._parse_ast_argument_value(arg_node, key=None))
-        for kw in node.keywords:
-            arguments.append(cls._parse_ast_argument_value(kw.value, key=kw.arg))
+        arguments = cls._parse_call_arguments(node)
 
         # --- Enforce Namespaces and Route to Correct Model ---
         if path_parts[0] == "utils":
             if len(path_parts) < 2:
                 raise ValueError(f"Invalid utils namespace: '{full_path}'.")
 
-            return UtilProbeInput(
-                operation=".".join(path_parts[1:]),
-                arguments=arguments if arguments else None,
+            operation = ".".join(path_parts[1:])
+            arguments = resolve_base_arguments(operation, arguments, f"utils.{operation}")
+            return UtilCallInput(
+                operation=operation,
+                arguments=tuple(arguments) if arguments else None,
             )
 
         if path_parts[0] == "actions":
@@ -250,6 +253,24 @@ class BlokParser:
         )
 
     @classmethod
+    def _parse_call_arguments(cls, node: ast.Call) -> list[ActionArgumentInput]:
+        """Parse a call's arguments into keyed entries.
+
+        Call arguments are a map on the wire: positional arguments are keyed by
+        their index (``"0"``, ``"1"``, ...; the UI maps them onto the operation's
+        parameters in order) and keyword arguments by name.
+        """
+        arguments = [
+            cls._parse_ast_argument_value(arg_node, key=str(index))
+            for index, arg_node in enumerate(node.args)
+        ]
+        for kw in node.keywords:
+            if kw.arg is None:
+                raise ValueError("Call arguments cannot be unpacked with '**'")
+            arguments.append(cls._parse_ast_argument_value(kw.value, key=kw.arg))
+        return arguments
+
+    @classmethod
     def _parse_ast_argument_value(
         cls, node: ast.AST, key: str | None = None
     ) -> ActionArgumentInput:
@@ -257,11 +278,29 @@ class BlokParser:
 
         # Literal Values (Strings, Ints, Floats, Bools)
         if isinstance(node, ast.Constant):
+            if node.value is None:
+                raise ValueError(
+                    f"Argument '{key or 'item'}' cannot be None: a missing literal is "
+                    "indistinguishable from no value. Omit the argument instead."
+                )
             return ActionArgumentInput(key=key, value_literal=node.value)
+
+        # Signed numeric literals (-1, +2.5)
+        elif (
+            isinstance(node, ast.UnaryOp)
+            and isinstance(node.op, (ast.USub, ast.UAdd))
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))
+            and not isinstance(node.operand.value, bool)
+        ):
+            value = node.operand.value
+            if isinstance(node.op, ast.USub):
+                value = -value
+            return ActionArgumentInput(key=key, value_literal=value)
 
         # State Paths
         elif isinstance(node, (ast.Name, ast.Attribute)):
-            path = cls._extract_path(node)
+            path = cls._argument_path(node)
             return ActionArgumentInput(key=key, value_path=path)
 
         # Nested Action or Util Calls
@@ -283,10 +322,12 @@ class BlokParser:
         elif isinstance(node, ast.Dict):
             parsed_dict_list = []
             for k_node, v_node in zip(node.keys, node.values):
-                if not isinstance(k_node, ast.Constant) or not isinstance(
-                    k_node.value, str
+                if (
+                    not isinstance(k_node, ast.Constant)
+                    or not isinstance(k_node.value, str)
+                    or not k_node.value
                 ):
-                    raise ValueError("Dictionary keys must be literal strings.")
+                    raise ValueError("Dictionary keys must be non-empty literal strings.")
                 parsed_dict_list.append(
                     cls._parse_ast_argument_value(v_node, key=k_node.value)
                 )
@@ -304,6 +345,315 @@ class BlokParser:
         elif isinstance(node, ast.Attribute):
             return f"{cls._extract_path(node.value)}.{node.attr}"
         raise ValueError(f"Cannot extract path from node type: {type(node).__name__}")
+
+    @classmethod
+    def _argument_path(cls, node: ast.AST) -> str:
+        """Render a ``Name``/``Attribute`` argument as a ``value_path``.
+
+        Blok props keep dotted state paths; subclasses may choose another form.
+        """
+        return cls._extract_path(node)
+
+
+class PortCallParser(BlokParser):
+    """Parses a pure port-call expression such as ``value > 3`` or ``gt(value, other.min)``.
+
+    Port validators and effects carry a :class:`UtilCallInput` that the UI evaluates
+    against its catalog. The expression is a Python expression subset:
+
+    - a call whose callee is the operation (``gt``, ``math.multiply``); a leading
+      ``utils.`` or ``@`` is tolerated and stripped,
+    - operator sugar desugared onto base-catalog operations: comparisons
+      (``> >= < <= == !=`` -> ``gt gte lt lte eq ne``, chains fold with ``and``),
+      ``and``/``or``/``not``, ``in``/``not in``, ``is None``/``is not None``
+      (``is_null``/``is_set``), ``x if c else y`` (``if``) and arithmetic
+      (``+ - * / %`` -> ``add sub mul div mod``, unary minus -> ``neg``; ``//`` and ``**``
+      are not supported),
+    - bare names, attribute chains and subscripts are value paths (``value`` is the
+      port's own value, ``other.min`` / ``other["min"]`` the field ``min`` inside the
+      value of port ``other``), emitted JSON-pointer style (``other/min``),
+    - constants, keyword arguments, nested calls, lists and dicts work as in blok
+      props. Positional arguments of base operations are named after the operation's
+      parameters; for other operations they are keyed by index (``"0"``, ``"1"``, ...),
+      which the UI maps onto parameters in order.
+
+    Port calls must be pure: ``actions.*`` callees are rejected and every other callee is
+    a catalog operation.
+    """
+
+    KEYWORD_PREFIX = "kw__"
+    """Prefix used to smuggle Python keywords (``if``, ``and``, ``not``) through ``ast``."""
+
+    _CALLEE_PRECEDERS = frozenset({"(", "[", "{", ",", "=", ":"})
+
+    _ARITHMETIC: dict[type[ast.operator], str] = {
+        ast.Add: "add",
+        ast.Sub: "sub",
+        ast.Mult: "mul",
+        ast.Div: "div",
+        ast.Mod: "mod",
+    }
+
+    _COMPARISONS: dict[type[ast.cmpop], str] = {
+        ast.Gt: "gt",
+        ast.GtE: "gte",
+        ast.Lt: "lt",
+        ast.LtE: "lte",
+        ast.Eq: "eq",
+        ast.NotEq: "ne",
+    }
+
+    @classmethod
+    def _escape_keyword_names(cls, source: str) -> str:
+        """Rename keyword tokens used as callees or attributes so ``ast`` accepts them.
+
+        Catalog operations may be named like Python keywords (``if``, ``and``,
+        ``not``). A keyword directly followed by ``(`` or preceded by ``.`` is
+        prefixed with :attr:`KEYWORD_PREFIX`; :meth:`_unescape_name` restores it.
+        """
+        try:
+            tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+        except tokenize.TokenError as e:
+            raise ValueError(f"Failed to parse port call '{source}': {e}") from e
+
+        skipped = {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT}
+        significant = [tok for tok in tokens if tok.type not in skipped]
+        renamed: list[tuple[int, str]] = []
+        for index, tok in enumerate(significant):
+            string = tok.string
+            if tok.type == tokenize.NAME and keyword.iskeyword(string):
+                nxt = significant[index + 1] if index + 1 < len(significant) else None
+                prev = significant[index - 1] if index > 0 else None
+                follows_dot = prev is not None and prev.type == tokenize.OP and prev.string == "."
+                precedes_call = nxt is not None and nxt.type == tokenize.OP and nxt.string == "("
+                # Only a keyword in *callee* position is an operation name (``if(`` at the start,
+                # after ``(``, ``,``, ``=``, ...). ``x and (y)`` or ``not (x)`` are operators and
+                # must reach Python's grammar, where the desugarer maps them onto the same names.
+                callee_position = prev is None or (
+                    prev.type == tokenize.OP and prev.string in cls._CALLEE_PRECEDERS
+                )
+                if follows_dot or (precedes_call and callee_position):
+                    string = cls.KEYWORD_PREFIX + string
+            renamed.append((tok.type, string))
+        return tokenize.untokenize(renamed)
+
+    @classmethod
+    def _unescape_name(cls, path: str, separator: str) -> str:
+        prefix = cls.KEYWORD_PREFIX
+        return separator.join(
+            part[len(prefix) :] if part.startswith(prefix) else part
+            for part in path.split(separator)
+        )
+
+    @classmethod
+    def parse_expression(cls, expression: str) -> UtilCallInput:
+        source = expression.strip()
+        if source.startswith("@"):
+            source = source[1:].lstrip()
+        try:
+            tree = ast.parse(cls._escape_keyword_names(source), mode="eval")
+        except SyntaxError as e:
+            raise ValueError(f"Failed to parse port call '{expression}': {e}") from e
+
+        if not cls._is_call_like(tree.body):
+            raise ValueError(
+                "A port call must be a call or boolean expression like 'gt(value, 3)' or "
+                f"'value > 3'. Got: '{expression}'"
+            )
+        return cls._desugar(tree.body)
+
+    @classmethod
+    def _is_call_like(cls, node: ast.AST) -> bool:
+        return isinstance(node, (ast.Call, ast.Compare, ast.BoolOp, ast.IfExp, ast.BinOp)) or (
+            isinstance(node, ast.UnaryOp) and not cls._is_signed_constant(node)
+        )
+
+    @staticmethod
+    def _is_signed_constant(node: ast.UnaryOp) -> bool:
+        """``-1`` / ``+2.5``: a literal, handled by the base argument parser."""
+        return (
+            isinstance(node.op, (ast.USub, ast.UAdd))
+            and isinstance(node.operand, ast.Constant)
+            and isinstance(node.operand.value, (int, float))
+            and not isinstance(node.operand.value, bool)
+        )
+
+    @classmethod
+    def _desugar(cls, node: ast.AST) -> UtilCallInput:
+        """Turn a call or operator expression into a base-catalog call tree."""
+        if isinstance(node, ast.Call):
+            return cls._parse_ast_call(node)
+
+        if isinstance(node, ast.Compare):
+            operands = [node.left, *node.comparators]
+            parts = [
+                cls._desugar_comparison(op, left, right)
+                for op, left, right in zip(node.ops, operands, operands[1:])
+            ]
+            return functools.reduce(lambda acc, part: cls._base_call("and", a=acc, b=part), parts)
+
+        if isinstance(node, ast.BoolOp):
+            name = "and" if isinstance(node.op, ast.And) else "or"
+            return functools.reduce(
+                lambda acc, value: cls._base_call(name, a=acc, b=value), node.values
+            )
+
+        if isinstance(node, ast.UnaryOp):
+            if isinstance(node.op, ast.Not):
+                return cls._base_call("not", a=node.operand)
+            if isinstance(node.op, ast.USub):
+                return cls._base_call("neg", a=node.operand)
+            if isinstance(node.op, ast.UAdd):
+                if cls._is_call_like(node.operand):
+                    return cls._desugar(node.operand)
+                raise ValueError("Unary plus on a value is not an expression; write the value itself")
+            raise ValueError("Bitwise operators are not supported in port calls")
+
+        if isinstance(node, ast.IfExp):
+            return cls._base_call("if", condition=node.test, then=node.body, otherwise=node.orelse)
+
+        if isinstance(node, ast.BinOp):
+            name = cls._ARITHMETIC.get(type(node.op))
+            if name is None:
+                raise ValueError(
+                    f"Operator {type(node.op).__name__} is not supported in port calls "
+                    "(the base catalog has add, sub, mul, div and mod)"
+                )
+            return cls._base_call(name, a=node.left, b=node.right)
+        raise ValueError(f"Unsupported expression in port call: {type(node).__name__}")
+
+    @classmethod
+    def _desugar_comparison(cls, op: ast.cmpop, left: ast.AST, right: ast.AST) -> UtilCallInput:
+        if isinstance(op, ast.In):
+            return cls._base_call("in", value=left, options=right)
+        if isinstance(op, ast.NotIn):
+            return cls._base_call("not", a=cls._base_call("in", value=left, options=right))
+        if isinstance(op, (ast.Is, ast.IsNot)):
+            if not (isinstance(right, ast.Constant) and right.value is None):
+                raise ValueError("'is' is only supported as 'is None' / 'is not None'")
+            return cls._base_call("is_null" if isinstance(op, ast.Is) else "is_set", a=left)
+        name = cls._COMPARISONS.get(type(op))
+        if name is None:
+            raise ValueError(f"Unsupported comparison in port call: {type(op).__name__}")
+        return cls._base_call(name, a=left, b=right)
+
+    @classmethod
+    def _base_call(cls, operation: str, **operands: "ast.AST | UtilCallInput") -> UtilCallInput:
+        """A base-catalog call with named arguments, from AST nodes or already-built calls."""
+        arguments = [
+            ActionArgumentInput(key=key, util_call=operand)
+            if isinstance(operand, UtilCallInput)
+            else cls._parse_ast_argument_value(operand, key=key)
+            for key, operand in operands.items()
+        ]
+        arguments = resolve_base_arguments(operation, arguments, f"{operation}(...)")
+        return UtilCallInput(operation=operation, arguments=tuple(arguments))
+
+    @classmethod
+    def _parse_ast_argument_value(  # type: ignore[override]
+        cls, node: ast.AST, key: str | None = None
+    ) -> ActionArgumentInput:
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd) and not cls._is_signed_constant(node):
+            return cls._parse_ast_argument_value(node.operand, key)  # ``+x`` is ``x``
+        if cls._is_call_like(node) and not isinstance(node, ast.Call):
+            return ActionArgumentInput(key=key, util_call=cls._desugar(node))
+        if isinstance(node, ast.Subscript):
+            return ActionArgumentInput(key=key, value_path=cls._subscript_path(node))
+        return super()._parse_ast_argument_value(node, key)
+
+    @classmethod
+    def _subscript_path(cls, node: ast.AST) -> str:
+        """``other["k"]`` / ``items[0]`` / ``other.list[1].x`` as a JSON-pointer path."""
+        segments: list[str] = []
+        while isinstance(node, (ast.Subscript, ast.Attribute)):
+            if isinstance(node, ast.Attribute):
+                segments.insert(0, cls._pointer_segment(cls._unescape_name(node.attr, ".")))
+                node = node.value
+                continue
+            index = node.slice
+            if isinstance(index, ast.Constant) and isinstance(index.value, str) and index.value:
+                segments.insert(0, cls._pointer_segment(index.value))
+            elif (
+                isinstance(index, ast.Constant)
+                and isinstance(index.value, int)
+                and not isinstance(index.value, bool)
+                and index.value >= 0
+            ):
+                segments.insert(0, str(index.value))
+            else:
+                raise ValueError(
+                    "Subscripts in port calls must be a non-empty string key or a non-negative "
+                    "integer index"
+                )
+            node = node.value
+        if not isinstance(node, ast.Name):
+            raise ValueError(
+                f"Unsupported AST node type for a value path: {type(node).__name__} "
+                "(paths start with a port name or 'value')"
+            )
+        root = cls._unescape_name(node.id, ".")
+        return "/".join([root, *segments])
+
+    @staticmethod
+    def _pointer_segment(segment: str) -> str:
+        """RFC 6901 escaping of a single JSON-pointer segment."""
+        return segment.replace("~", "~0").replace("/", "~1")
+
+    @classmethod
+    def _parse_ast_call(cls, node: ast.Call) -> UtilCallInput:  # type: ignore[override]
+        full_path = cls._extract_path(node.func)
+        path_parts = full_path.split(".")
+
+        if path_parts[0] == "actions":
+            raise ValueError(
+                f"Port calls must be pure: agent calls like '{full_path}(...)' are not allowed"
+            )
+        if path_parts[0] == "utils":
+            path_parts = path_parts[1:]
+            if not path_parts:
+                raise ValueError(f"Invalid utils namespace: '{full_path}'.")
+
+        operation = cls._unescape_name(".".join(path_parts), ".")
+        arguments = resolve_base_arguments(
+            operation, cls._parse_call_arguments(node), f"{operation}(...)"
+        )
+
+        return UtilCallInput(
+            operation=operation,
+            arguments=tuple(arguments) if arguments else None,
+        )
+
+    @classmethod
+    def _argument_path(cls, node: ast.AST) -> str:
+        return cls._subscript_path(node)
+
+
+def parse_util_call(expression: str) -> UtilCallInput:
+    """Parse a pure port-call expression into a :class:`UtilCallInput`.
+
+    Used for port validators and effects. ``value`` refers to the port's own value,
+    other names refer to sibling ports (``other`` or ``other.child``); operator sugar,
+    nested calls, literals, keyword arguments, lists and dicts are supported (see
+    :class:`PortCallParser`).
+
+    Examples:
+        ``parse_util_call("value > 3")`` and ``parse_util_call("gt(value, 3)")`` both
+        give ``gt`` with ``a`` bound to ``value_path="value"`` and ``b`` to
+        ``value_literal=3``; ``parse_util_call("gt(value, other.min)")`` references
+        ``other/min``.
+
+    Raises:
+        ValueError: If the expression is not a call, does not parse, or contains an
+            agent call.
+    """
+    return PortCallParser.parse_expression(expression)
+
+
+def coerce_util_call(call: "str | UtilCallInput") -> UtilCallInput:
+    """Return ``call`` as a :class:`UtilCallInput`, parsing it if it is an expression."""
+    if isinstance(call, UtilCallInput):
+        return call
+    return parse_util_call(call)
 
 
 
@@ -333,3 +683,8 @@ def jsx(string: str) -> ComponentNodeInput:
             component = jsx('<Page><Label text="Ready" /></Page>')
     """
     return BlokParser.parse(string)
+
+
+def normalize_expression(expression: str) -> str:
+    """The ``source`` form of an authored expression: stripped, without the blok ``@`` prefix."""
+    return expression.strip().removeprefix("@").strip()

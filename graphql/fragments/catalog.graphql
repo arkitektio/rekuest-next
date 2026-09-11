@@ -1,0 +1,44 @@
+fragment CatalogArgument on CatalogArgument {
+  key
+  kind
+  required
+  description
+}
+
+fragment CatalogOperation on CatalogOperation {
+  name
+  description
+  returns
+  arguments {
+    ...CatalogArgument
+  }
+}
+
+fragment CatalogProp on CatalogProp {
+  key
+  kind
+  required
+  description
+}
+
+fragment CatalogComponent on CatalogComponent {
+  name
+  description
+  acceptsChildren
+  props {
+    ...CatalogProp
+  }
+}
+
+fragment UICatalog on UICatalog {
+  id
+  name
+  description
+  isRegistered
+  components {
+    ...CatalogComponent
+  }
+  operations {
+    ...CatalogOperation
+  }
+}

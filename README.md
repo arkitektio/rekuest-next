@@ -316,6 +316,40 @@ The platform load balances across matching agents and will heal the reservation 
 disconnects. Use `auto_resolvable=True`, `min=`, and `max=` on `@declare` to control how
 many matching agents may be bound automatically.
 
+## Port validators and effects
+
+A port can carry validators (is the value acceptable?) and effects (hide the port,
+show a message) that the UI evaluates while the form is being filled in. Both are
+pure calls into the UI's operation catalog, written as a Python expression. `value`
+is the port's own value; any other name is a sibling port, which is subscribed to
+automatically:
+
+```python
+from typing import Annotated
+from rekuest_next import register, withEffect, withValidator
+from rekuest_next.api.schema import EffectKind
+
+@register
+def crop(
+    start: Annotated[int, withValidator("value >= 0", error_message="Must not be negative")],
+    stop: Annotated[int, withValidator("value > start", error_message="Stop must exceed start")],
+    note: Annotated[str, withEffect(EffectKind.HIDE, "stop > 1000 and start > 0")] = "",
+) -> int:
+    return stop - start
+```
+
+Comparisons, arithmetic (`x < value + 3`, `value % 2 == 0`; `//` and `**` are not supported),
+`and`/`or`/`not`, `in`, `is None`, `x if c else y`, `len(...)`, lists, dicts and nested calls
+are supported; `other.child` or `other["child"]` addresses a field inside
+the value of port `other`. Operators desugar onto the **base catalog** (`gt`, `lte`, `and`,
+`if`, `len_between`, ...), a versioned vocabulary every UI implements and the server checks
+every definition against; `annotated_types` markers (`Gt`, `Le`, `Len`) become such
+validators too. UIs may register extension catalogs with more operations; name them with
+`@register(catalogs=["..."])` (several may be combined; `base@1` is always applied) to use them (`clamp(value=value, min=0, max=10) == value`, keyword arguments because the client cannot name positionals of extension operations). Operations neither
+catalog provides do not block registration: the server stores a warning on the
+implementation (`diagnostics`). Inside a call `value` always means the port's own value, so
+a sibling port named `value` cannot be referenced from another port's call.
+
 ## Bloks — dashboards from JSX
 
 A **blok** is a declarative UI panel an app contributes to the platform — a small

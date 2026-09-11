@@ -8,4 +8,10 @@ fragment Implementation on Implementation {
   }
   params
   interface
+  diagnostics {
+    level
+    code
+    message
+    path
+  }
 }

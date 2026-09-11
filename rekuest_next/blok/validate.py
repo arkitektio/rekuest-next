@@ -10,7 +10,7 @@ from rekuest_next.api.schema import (
     PortMatchInput,
     StateDependencyInput,
     StateImplementationInput,
-    UtilProbeInput,
+    UtilCallInput,
 )
 from rekuest_next.blok.walk import (
     FOREACH_COMPONENT,
@@ -110,7 +110,7 @@ class _ValidationVisitor(BlokVisitor):
             )
 
     def visit_util_call(
-        self, call: UtilProbeInput, scope: dict[str, PortMatchInput | None], context: str
+        self, call: UtilCallInput, scope: dict[str, PortMatchInput | None], context: str
     ) -> None:
         # Util operations are resolved by the renderer's catalog, not here.
         return None

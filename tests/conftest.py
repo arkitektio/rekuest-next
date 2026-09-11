@@ -142,6 +142,14 @@ def mock_rekuest() -> RekuestNext:
 
 project_path = os.path.join(os.path.dirname(__file__), "integration")
 docker_compose_file = os.path.join(project_path, "docker-compose.yml")
+# An untracked sibling override (see its own header): when a developer's checkout sits next
+# to a live rekuest source tree, it mounts that tree over the published image so the tests
+# see the current schema instead of the last-pushed one. Absent (CI, anyone else), the
+# published image is the schema under test, as before.
+_local_override = os.path.join(project_path, "docker-compose.local.yml")
+compose_files = [docker_compose_file] + (
+    [_local_override] if os.path.exists(_local_override) else []
+)
 private_key = os.path.join(project_path, "private_key.pem")
 
 
@@ -223,7 +231,7 @@ def deployed_app() -> Generator[DeployedRekuest, None, None]:
         DeployedMikro: An instance containing the deployment, watchers, and MikroNext instance
 
     """
-    setup = testing(docker_compose_file)
+    setup = testing(compose_files)
     setup.add_health_check(
         url=lambda spec: (
             f"http://localhost:{spec.find_service('rekuest').get_port_for_internal(80).published}/graphql"
@@ -410,7 +418,7 @@ async def deployment() -> AsyncGenerator[Deployment, None]:
     instance id) against this running stack via :func:`build_fresh_rekuest`, so
     no registry state ever leaks between tests.
     """
-    setup = local(docker_compose_file)
+    setup = local(compose_files)
     setup.pull_on_enter = False
     setup.down_on_exit = True
     setup.up_on_enter = False

@@ -24,8 +24,7 @@ from dokker import Deployment
 
 from rekuest_next.annotations import Provides, Requires
 from rekuest_next.api.schema import (
-    ProvidesOperator,
-    RequiresOperator,
+    DescriptorOperator,
     amy_implementation_at,
 )
 from rekuest_next.remote import acall
@@ -35,13 +34,13 @@ from .conftest import CONNECT_TIMEOUT, build_fresh_rekuest
 # Input must be a TIFF filename -- a MATCHES constraint on the bound value.
 TiffFileName = Annotated[
     str,
-    Requires(key="filename", operator=RequiresOperator.MATCHES, value=r".*\.tiff?"),
+    Requires(key="filename", operator=DescriptorOperator.MATCHES, value=r".*\.tiff?"),
 ]
 
 # Output guarantees an 'x' dimension >= 1 (a multi-dimensional line).
 LargLine = Annotated[
     int,
-    Provides(key="x", operator=ProvidesOperator.GTE, value=1),
+    Provides(key="x", operator=DescriptorOperator.GTE, value=1),
 ]
 
 

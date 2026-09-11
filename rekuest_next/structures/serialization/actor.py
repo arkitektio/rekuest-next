@@ -372,12 +372,15 @@ async def aexpand_arg(
     """
     ctx = SerializationContext.build(structure_registry, shelver, path, depth)
 
+    # Only arg ports carry a default.
+    port_default = getattr(port, "default", None)
+
     if value is None:
-        value = port.default
+        value = port_default
 
     if value is UNSET:
-        if port.default is not UNSET:
-            value = port.default
+        if port_default is not UNSET:
+            value = port_default
         elif port.nullable:
             return None
         else:
