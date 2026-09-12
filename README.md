@@ -1,8 +1,17 @@
 # rekuest-next
 
+> # ⚠️ DEPRECATED — do not use for new work
+>
+> This package was **renamed to [`rekuest`](https://github.com/arkitektio/rekuest)**. It
+> was published as `rekuest-next` up to **2.3.1**; from **3.0.0** the same client is
+> published as `rekuest`, and the import root is `rekuest` (`rekuest_next` is gone).
+>
+> **Use `rekuest>=3` instead.** All work from this repository's branches is already in
+> `rekuest`'s `main`. Nothing here is maintained.
+
 [![codecov](https://codecov.io/gh/arkitektio/rekuest-next/graph/badge.svg?token=xzxX2AQPmS)](https://codecov.io/gh/arkitektio/rekuest-next)
 [![PyPI version](https://badge.fury.io/py/rekuest-next.svg)](https://pypi.org/project/rekuest-next/)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://pypi.org/project/rekuest-next/)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-no-red.svg)](https://pypi.org/project/rekuest-next/)
 ![Maintainer](https://img.shields.io/badge/maintainer-jhnnsrs-blue)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/rekuest-next.svg)](https://pypi.python.org/pypi/rekuest-next/)
 [![PyPI status](https://img.shields.io/pypi/status/rekuest-next.svg)](https://pypi.python.org/pypi/rekuest-next/)
