@@ -69,7 +69,7 @@ redis:
 datalayer:
   access_key: mikro_access_key
   secret_key: mikro_secret_key
-  host: minio
+  host: rustfs
   port: 9000
   protocol: http
   media:
